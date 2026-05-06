@@ -1,25 +1,119 @@
 # Artisan
 
-Industrial-premium frontend foundation for the Artisan platform built with:
+Artisan — это коммерческая платформа для продажи плитных материалов, фурнитуры и услуг распила.  
+Проект собран как единый Next.js-продукт с публичным сайтом, каталогом, калькулятором распила, личным кабинетом и админкой.
 
-- Next.js App Router
-- TypeScript
-- Tailwind CSS
+## Что уже есть
 
-## Included in this stage
+- публичный сайт на русском языке;
+- каталог с реальными данными `Extravert`, `Swiss Krono`, `AGT`;
+- страницы брендов и карточки товаров;
+- онлайн-калькулятор распила;
+- экспорт заявки на распил и сохранение в админку;
+- очередь заявок и заказов в админ-панели;
+- demo-режим для входа в админку без живой базы;
+- Telegram-уведомления для заявок, заказов и смены статусов;
+- Prisma-схема под дальнейший переход на PostgreSQL.
 
-- Public pages redesigned in a modern industrial-premium style
-- Dedicated `account` and `admin` modules with clear route separation
-- Full UI kit with base controls, interaction components, and commercial cards
-- Shared UI/layout primitives for header, footer, container, and section intros
-- Clean English copy with fixed encoding (no mojibake)
-- Accessibility basics: skip link, focus-visible styles, reduced-motion support
+## Технологии
 
-## UI Kit Route
+- `Next.js 16` App Router
+- `TypeScript`
+- `Tailwind CSS 4`
+- `Prisma`
+- `PostgreSQL`
+- `JOSE` для сессий
+- `Zod` для валидации
 
-- `/ui-kit` — design system preview page with states and reusable patterns
+## Структура проекта
 
-## Commands
+```text
+app/                маршруты public, account, admin
+components/         переиспользуемые UI и layout-компоненты
+features/           прикладная логика каталога, брендов, калькулятора
+lib/                auth, db, server helpers, интеграции
+data/imports/       импортированные каталоги и изображения брендов
+prisma/             schema и seed
+scripts/            импорт данных брендов
+styles/             тема и глобальные стили
+```
+
+## Основные разделы
+
+- `/` — главная
+- `/catalog` — каталог
+- `/product/[slug]` — карточка товара
+- `/calculator` — калькулятор распила
+- `/services` — услуги и заявка по файлу
+- `/brands` — бренды
+- `/account` — личный кабинет
+- `/admin` — админ-панель
+- `/ui-kit` — витрина компонентов
+
+## Быстрый старт
+
+### 1. Установка зависимостей
+
+```bash
+npm install
+```
+
+### 2. Настройка окружения
+
+Скопируйте пример:
+
+```bash
+copy .env.example .env
+```
+
+Минимально для локального запуска в demo-режиме нужны:
+
+- `SESSION_SECRET`
+- `ARTISAN_DEMO_MODE="true"`
+
+### 3. Запуск разработки
+
+```bash
+npm run dev
+```
+
+Сайт откроется на:
+
+- [http://127.0.0.1:3000](http://127.0.0.1:3000)
+
+## Demo-доступ в админку
+
+Если включён `ARTISAN_DEMO_MODE="true"`, можно войти без PostgreSQL:
+
+- `Email`: `admin@artisan.local`
+- `Пароль`: `Artisan123!`
+
+Страница входа:
+
+- [http://127.0.0.1:3000/login](http://127.0.0.1:3000/login)
+
+Админка:
+
+- [http://127.0.0.1:3000/admin](http://127.0.0.1:3000/admin)
+
+## Работа с базой
+
+Когда понадобится перейти с demo-режима на живую базу:
+
+1. выключить `ARTISAN_DEMO_MODE`
+2. указать рабочий `DATABASE_URL`
+3. применить схему
+4. загрузить seed
+
+Команды:
+
+```bash
+npm run prisma:generate
+npm run prisma:push
+npm run prisma:seed
+```
+
+## Полезные команды
 
 ```bash
 npm run dev
@@ -28,6 +122,58 @@ npm run typecheck
 npm run build
 ```
 
-## Next technical step
+Импорт данных:
 
-Integrate Prisma + PostgreSQL, then bind catalog and request pages to real data.
+```bash
+npm run import:extravert:ldsp
+npm run import:swisskrono:ldsp
+npm run import:agt:panel
+```
+
+## Интеграции
+
+### Telegram
+
+Поддержаны уведомления:
+
+- новая заявка;
+- новая заявка на распил;
+- новый заказ;
+- смена статуса;
+- назначение менеджера;
+- готовность к выдаче.
+
+Настройка идёт через:
+
+- `TELEGRAM_BOT_TOKEN`
+- `TELEGRAM_CHAT_ID`
+- `TELEGRAM_MESSAGE_THREAD_ID`
+- `TELEGRAM_REQUESTS_THREAD_ID`
+- `TELEGRAM_ORDERS_THREAD_ID`
+- `TELEGRAM_CUTTING_THREAD_ID`
+
+### 1С
+
+Каркас интеграции подготовлен, но сейчас отключён и не является обязательным для запуска.
+
+## Текущий статус проекта
+
+Сейчас проект уже подходит для:
+
+- презентации компании;
+- показа реального каталога;
+- приёма заявок на распил;
+- ведения заявок и заказов в админке;
+- демонстрации архитектуры будущей e-commerce платформы.
+
+Для полноценного production-запуска ещё нужно:
+
+- подключить живую PostgreSQL-базу;
+- добить оставшиеся admin-модули на реальных данных;
+- доработать личный кабинет;
+- добавить финальное коммерческое наполнение;
+- закрыть юридические и операционные детали.
+
+## Roadmap
+
+Подробный план работ лежит в [ROADMAP.md](./ROADMAP.md).
