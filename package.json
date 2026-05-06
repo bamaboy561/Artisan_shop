@@ -7,7 +7,7 @@
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint .",
-    "typecheck": "prisma generate && next typegen && tsc --noEmit",
+    "typecheck": "prisma generate && next typegen && node -e \"const fs=require('fs');const dir='.next/types';const src=dir+'/routes.d.ts';const dst=dir+'/routes.js.d.ts';if(fs.existsSync(src)){fs.copyFileSync(src,dst)}\" && tsc --noEmit",
     "import:extravert:ldsp": "tsx scripts/import-extravert-ldsp.ts",
     "import:extravert:ldsp:sample": "tsx scripts/import-extravert-ldsp.ts --limit=6",
     "import:swisskrono:ldsp": "tsx scripts/import-swisskrono-ldsp.ts",

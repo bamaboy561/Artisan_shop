@@ -130,12 +130,19 @@ export async function signInAction(
   revalidatePath("/account");
   revalidatePath("/admin");
 
+  const defaultRedirectTo = canAccessAdmin(credentials.roleCode)
+    ? "/admin"
+    : "/account";
+  const requestedRedirectTo = getSafeRedirectPath(next, defaultRedirectTo);
+  const redirectTo =
+    canAccessAdmin(credentials.roleCode) &&
+    !requestedRedirectTo.startsWith("/admin")
+      ? defaultRedirectTo
+      : requestedRedirectTo;
+
   return {
     success: true,
-    redirectTo: getSafeRedirectPath(
-      next,
-      canAccessAdmin(credentials.roleCode) ? "/admin" : "/account",
-    ),
+    redirectTo,
   };
 }
 
