@@ -4,10 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint .",
-    "typecheck": "next typegen && tsc --noEmit",
+    "typecheck": "prisma generate && next typegen && tsc --noEmit",
     "import:extravert:ldsp": "tsx scripts/import-extravert-ldsp.ts",
     "import:extravert:ldsp:sample": "tsx scripts/import-extravert-ldsp.ts --limit=6",
     "import:swisskrono:ldsp": "tsx scripts/import-swisskrono-ldsp.ts",

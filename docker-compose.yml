@@ -1,0 +1,57 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: artisan-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - artisan_postgres:/var/lib/postgresql/data
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: artisan-app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      HOSTNAME: 0.0.0.0
+      PORT: 3000
+      DATABASE_URL: ${DATABASE_URL}
+      SESSION_SECRET: ${SESSION_SECRET}
+      ARTISAN_DEMO_MODE: ${ARTISAN_DEMO_MODE}
+      ARTISAN_DEMO_ADMIN_EMAIL: ${ARTISAN_DEMO_ADMIN_EMAIL}
+      ARTISAN_DEMO_ADMIN_PASSWORD: ${ARTISAN_DEMO_ADMIN_PASSWORD}
+      TELEGRAM_NOTIFICATIONS_ENABLED: ${TELEGRAM_NOTIFICATIONS_ENABLED}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
+      TELEGRAM_MESSAGE_THREAD_ID: ${TELEGRAM_MESSAGE_THREAD_ID}
+      TELEGRAM_REQUESTS_THREAD_ID: ${TELEGRAM_REQUESTS_THREAD_ID}
+      TELEGRAM_ORDERS_THREAD_ID: ${TELEGRAM_ORDERS_THREAD_ID}
+      TELEGRAM_CUTTING_THREAD_ID: ${TELEGRAM_CUTTING_THREAD_ID}
+      ONE_C_SYNC_ENABLED: ${ONE_C_SYNC_ENABLED}
+      ONE_C_WEBHOOK_URL: ${ONE_C_WEBHOOK_URL}
+      ONE_C_API_KEY: ${ONE_C_API_KEY}
+      ONE_C_USERNAME: ${ONE_C_USERNAME}
+      ONE_C_PASSWORD: ${ONE_C_PASSWORD}
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    volumes:
+      - artisan_runtime:/app/.artisan-runtime
+      - artisan_uploads:/app/public/uploads/requests
+
+volumes:
+  artisan_postgres:
+  artisan_runtime:
+  artisan_uploads:

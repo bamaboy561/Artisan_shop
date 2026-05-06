@@ -113,6 +113,37 @@ npm run prisma:push
 npm run prisma:seed
 ```
 
+## Публикация в сеть
+
+Сейчас есть два сценария:
+
+### 1. Быстрая внешняя ссылка
+
+Для демонстрации интерфейса можно использовать Vercel в `demo`-режиме.  
+Этот режим подходит для показа сайта, но не для постоянной работы заявок и файлов.
+
+### 2. Нормальный боевой запуск
+
+Для реальной работы в сети рекомендуется VPS c Docker:
+
+- `Next.js` работает как постоянный Node.js-сервис;
+- `PostgreSQL` хранит реальные заявки, заказы и пользователей;
+- файлы клиентов сохраняются в постоянный volume;
+- админка работает без `demo`-режима.
+
+Быстрые шаги:
+
+```bash
+cp .env.production.example .env.production
+docker compose --env-file .env.production up -d --build
+docker compose --env-file .env.production exec app npm run prisma:push
+docker compose --env-file .env.production exec app npm run prisma:seed
+```
+
+Подробная инструкция:
+
+- [DEPLOY_VPS.md](./DEPLOY_VPS.md)
+
 ## Полезные команды
 
 ```bash
