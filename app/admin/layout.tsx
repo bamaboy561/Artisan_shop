@@ -26,21 +26,27 @@ export default async function AdminLayout({
     <DashboardFrame
       eyebrow="Панель управления"
       title="Админка Artisan"
-      description="Операционный слой сайта: каталог, бренды, заявки, заказы, клиенты, скидки и лояльность в едином рабочем контуре."
+      description="Рабочая среда команды: каталог, входящие заявки, заказы, клиенты и акции."
       items={adminNavigation}
       variant="admin"
       actions={
         <div className="space-y-3">
-          <div className="rounded-[24px] border border-white/10 bg-white/[0.05] p-4">
-            <p className="font-mono text-[10px] tracking-[0.24em] text-white/40 uppercase">
+          <div className="rounded-[22px] border border-white/10 bg-white/[0.04] p-4">
+            <p className="font-mono text-[10px] tracking-[0.22em] text-white/34 uppercase">
               Смена
             </p>
             <p className="mt-3 text-sm font-semibold text-white">
               {adminName}
             </p>
             <p className="mt-1 text-xs text-white/52">{session.email}</p>
-            <div className="mt-3 inline-flex rounded-full border border-white/12 bg-white/[0.06] px-3 py-1 text-[10px] font-semibold tracking-[0.18em] text-white/62 uppercase">
-              {formatRoleLabel(session.roleCode)}
+
+            <div className="mt-4 flex items-center justify-between rounded-[18px] border border-white/10 bg-black/20 px-3 py-2">
+              <span className="font-mono text-[10px] tracking-[0.16em] text-white/34 uppercase">
+                Роль
+              </span>
+              <span className="text-xs font-semibold text-white/72">
+                {formatRoleLabel(session.roleCode)}
+              </span>
             </div>
           </div>
 
@@ -48,7 +54,7 @@ export default async function AdminLayout({
             <Button
               type="submit"
               variant="secondary"
-              className="w-full border-white/16 text-white hover:border-white hover:bg-white hover:text-[#111111]"
+              className="w-full border-white/14 text-white hover:border-white hover:bg-white hover:text-[#111111]"
             >
               Выйти
             </Button>

@@ -18,51 +18,69 @@ export const accountNavigation: NavItem[] = [
   {
     href: "/account",
     label: "Обзор",
-    description:
-      "Уровень клиента, персональная скидка, бонусные баллы и ключевая активность",
+    description: "Уровень, скидка и основная активность клиента.",
   },
-  { href: "/account/orders", label: "Заказы" },
-  { href: "/account/requests", label: "Заявки" },
-  { href: "/account/favorites", label: "Избранное" },
+  {
+    href: "/account/orders",
+    label: "Заказы",
+    description: "Производство, готовность и выдача.",
+  },
+  {
+    href: "/account/requests",
+    label: "Заявки",
+    description: "Расчёт, консультации и распил.",
+  },
+  {
+    href: "/account/favorites",
+    label: "Избранное",
+    description: "Сохранённые товары и подборки.",
+  },
 ];
 
 export const adminNavigation: NavItem[] = [
   {
     href: "/admin",
     label: "Дашборд",
-    description:
-      "Показатели, очередь заявок и быстрый доступ к основным модулям",
+    description: "Очереди и показатели.",
   },
   {
     href: "/admin/categories",
     label: "Категории",
-    description: "Структура каталога и логика товарных групп",
+    description: "Структура каталога.",
   },
   {
     href: "/admin/brands",
     label: "Бренды",
-    description: "Поставщики, коллекции и описание брендов",
+    description: "Поставщики и коллекции.",
   },
   {
     href: "/admin/products",
     label: "Товары",
-    description: "Карточки, цены, режимы заказа и публикация",
+    description: "Карточки и публикация.",
   },
   {
     href: "/admin/users",
     label: "Клиенты",
-    description: "Уровни, личные скидки, баллы и персональные условия",
+    description: "Уровни, скидки и баллы.",
   },
-  { href: "/admin/orders", label: "Заказы" },
-  { href: "/admin/requests", label: "Заявки" },
+  {
+    href: "/admin/orders",
+    label: "Заказы",
+    description: "Производство и выдача.",
+  },
+  {
+    href: "/admin/requests",
+    label: "Заявки",
+    description: "Расчёт и входящий поток.",
+  },
   {
     href: "/admin/promotions",
     label: "Акции",
-    description: "Скидки, промокоды и коммерческие кампании",
+    description: "Промо и механики.",
   },
 ];
 
-// TODO: Обновите контактные данные реальными значениями
+// TODO: Обновите контактные данные реальными значениями.
 export const companyContacts = {
   phone: "+996 555 000-000",
   email: "info@artisan.kg",
@@ -72,7 +90,7 @@ export const companyContacts = {
   telegram: "artisan_kg",
 };
 
-// TODO: Обновите филиалы реальными данными
+// TODO: Обновите филиалы реальными данными.
 export const companyBranches: Array<{
   name: string;
   address: string;

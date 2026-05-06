@@ -21,16 +21,16 @@ export function DataTable({
   emptyMessage = "Данные появятся здесь после первых операций.",
 }: DataTableProps) {
   return (
-    <div className="surface-glow overflow-hidden rounded-[24px] border border-[color:var(--line)] bg-white/82">
+    <div className="surface-glow overflow-hidden rounded-[22px] border border-[color:var(--line)] bg-white/92 shadow-[0_20px_56px_rgba(17,17,17,0.05)]">
       <div className="overflow-x-auto">
         <table className="min-w-full border-collapse text-left text-sm">
           {caption ? <caption className="sr-only">{caption}</caption> : null}
-          <thead className="bg-[var(--surface)]">
+          <thead className="bg-[var(--surface)]/95">
             <tr>
               {columns.map((column) => (
                 <th
                   key={column.key}
-                  className="px-4 py-3 text-[11px] font-semibold tracking-[0.16em] text-[var(--muted)] uppercase"
+                  className="px-4 py-3 text-[10px] font-semibold tracking-[0.18em] text-[var(--muted)] uppercase"
                 >
                   {column.label}
                 </th>
@@ -46,7 +46,7 @@ export function DataTable({
                   className="border-t border-[color:var(--line)] text-[var(--foreground)] transition hover:bg-black/[0.015]"
                 >
                   {columns.map((column) => (
-                    <td key={column.key} className="px-4 py-3.5 align-top">
+                    <td key={column.key} className="px-4 py-3 align-top">
                       {row[column.key]}
                     </td>
                   ))}

@@ -17,17 +17,17 @@ type DashboardFrameProps = {
 const variantMeta = {
   admin: {
     label: "Операционный контур",
-    title: "Управление каталогом, заказами и клиентской логикой.",
+    title: "Каталог, заявки и клиенты в одном рабочем окне.",
     description:
-      "Слева остаются рабочие модули, а справа команда быстро переключается между очередями, каталогом и коммерческими сценариями.",
-    chips: ["Каталог", "Продажи", "Лояльность"],
+      "Админка должна помогать команде вести поток, а не отвлекать лишними экранами и декоративными блоками.",
+    chips: ["Каталог", "Заявки", "Заказы", "Лояльность"],
   },
   account: {
-    label: "Рабочая среда клиента",
-    title: "Профиль, история заказов и персональные условия.",
+    label: "Личный кабинет",
+    title: "Профиль, история и текущие статусы без перегруза.",
     description:
-      "Кабинет остаётся компактным: основные разделы под рукой, а вся активность собрана в одном пространстве без лишних экранов.",
-    chips: ["Профиль", "Заказы", "Избранное"],
+      "Клиент видит только то, что нужно для заказа, повторного обращения и контроля статусов.",
+    chips: ["Профиль", "Заказы", "Заявки", "Избранное"],
   },
 } as const;
 
@@ -43,73 +43,64 @@ export function DashboardFrame({
   const meta = variantMeta[variant];
 
   return (
-    <div className="min-h-screen">
-      <Container className="grid gap-6 py-6 xl:grid-cols-[320px_minmax(0,1fr)] xl:py-8">
-        <aside className="relative overflow-hidden rounded-[32px] border border-white/10 bg-[#111111] p-6 text-white xl:sticky xl:top-6 xl:h-[calc(100vh-3rem)]">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(199,106,63,0.24),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.03),transparent_45%)]" />
+    <div className="min-h-screen bg-[linear-gradient(180deg,#f6f2ec_0%,#f2ede6_100%)]">
+      <Container className="grid gap-4 py-4 xl:grid-cols-[280px_minmax(0,1fr)] xl:items-start xl:py-6">
+        <aside className="relative overflow-hidden rounded-[28px] border border-white/10 bg-[#111111] p-4 text-white shadow-[0_28px_80px_rgba(17,17,17,0.24)] xl:sticky xl:top-4 xl:h-[calc(100vh-2rem)]">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(199,106,63,0.22),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.03),transparent_42%)]" />
 
-          <div className="relative flex h-full flex-col">
-            <div>
-              <p className="font-mono text-[10px] tracking-[0.3em] text-white/40 uppercase">
+          <div className="relative flex h-full flex-col gap-5">
+            <div className="rounded-[22px] border border-white/10 bg-white/[0.04] p-4">
+              <p className="font-mono text-[10px] tracking-[0.24em] text-white/38 uppercase">
                 {eyebrow}
               </p>
-              <h1 className="font-display mt-4 text-3xl leading-[1.02] text-balance text-white">
+              <h1 className="mt-3 text-[1.85rem] font-semibold leading-[1.02] text-balance text-white">
                 {title}
               </h1>
-              <p className="mt-4 text-sm leading-6 text-white/58">
+              <p className="mt-3 text-sm leading-6 text-white/58">
                 {description}
               </p>
             </div>
 
-            {actions ? <div className="mt-6">{actions}</div> : null}
+            {actions ? <div>{actions}</div> : null}
 
-            <div className="mt-6 flex-1 overflow-y-auto pr-1">
+            <div className="min-h-0 flex-1 overflow-y-auto pr-1">
               <DashboardNav items={items} variant={variant} />
             </div>
 
-            <div className="mt-6 rounded-[24px] border border-white/10 bg-white/[0.05] p-4">
-              <p className="font-mono text-[10px] tracking-[0.26em] text-white/38 uppercase">
-                {meta.label}
-              </p>
-              <p className="mt-3 text-sm font-semibold text-white">
-                {meta.title}
-              </p>
-              <p className="mt-2 text-xs leading-5 text-white/52">
-                {meta.description}
-              </p>
+            <div className="flex flex-wrap gap-2">
+              {meta.chips.map((chip) => (
+                <span
+                  key={chip}
+                  className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[10px] font-semibold tracking-[0.16em] text-white/48 uppercase"
+                >
+                  {chip}
+                </span>
+              ))}
             </div>
           </div>
         </aside>
 
-        <main id="main-content" className="space-y-5">
-          <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-5 sm:p-6">
+        <main id="main-content" className="space-y-4">
+          <section className="surface-glow rounded-[24px] border border-[color:var(--line)] bg-white/92 px-5 py-4 shadow-[0_20px_56px_rgba(17,17,17,0.05)]">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div className="max-w-3xl">
-                <p className="font-mono text-[10px] tracking-[0.26em] text-[var(--accent)] uppercase">
-                  Рабочее пространство
+                <p className="font-mono text-[10px] tracking-[0.24em] text-[var(--accent)] uppercase">
+                  {meta.label}
                 </p>
-                <h2 className="mt-3 text-2xl font-semibold text-[var(--foreground)] sm:text-[2rem]">
+                <h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-[var(--foreground)] sm:text-[2rem]">
                   {meta.title}
                 </h2>
-                <p className="mt-3 text-sm leading-6 text-[var(--muted)]">
-                  {meta.description}
-                </p>
               </div>
 
-              <div className="flex flex-wrap gap-2">
-                {meta.chips.map((chip) => (
-                  <span
-                    key={chip}
-                    className="rounded-full border border-[color:var(--line)] bg-[var(--surface)] px-3 py-1.5 text-[11px] font-semibold tracking-[0.16em] text-[var(--muted)] uppercase"
-                  >
-                    {chip}
-                  </span>
-                ))}
-              </div>
+              <p className="max-w-2xl text-sm leading-6 text-[var(--muted)]">
+                {meta.description}
+              </p>
             </div>
           </section>
 
-          <div className="space-y-5">{children}</div>
+          <div className="space-y-4 [&_article.surface-glow]:shadow-[0_20px_56px_rgba(17,17,17,0.05)] [&_section.surface-glow]:shadow-[0_20px_56px_rgba(17,17,17,0.05)]">
+            {children}
+          </div>
         </main>
       </Container>
     </div>

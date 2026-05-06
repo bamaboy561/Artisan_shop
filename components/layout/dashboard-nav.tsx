@@ -38,20 +38,16 @@ const iconMap = {
 
 const adminGroups = [
   {
-    label: "Рабочая зона",
-    hrefs: ["/admin"],
+    label: "Операции",
+    hrefs: ["/admin", "/admin/orders", "/admin/requests"],
   },
   {
     label: "Каталог",
-    hrefs: ["/admin/categories", "/admin/brands", "/admin/products"],
-  },
-  {
-    label: "Продажи",
-    hrefs: ["/admin/orders", "/admin/requests", "/admin/promotions"],
+    hrefs: ["/admin/products", "/admin/categories", "/admin/brands"],
   },
   {
     label: "Клиенты",
-    hrefs: ["/admin/users"],
+    hrefs: ["/admin/users", "/admin/promotions"],
   },
 ] as const;
 
@@ -88,12 +84,12 @@ export function DashboardNav({
   return (
     <div className="space-y-5">
       {groupedItems.map((group) => (
-        <div key={group.label} className="space-y-3">
-          <p className="font-mono text-[10px] tracking-[0.26em] text-white/38 uppercase">
+        <div key={group.label} className="space-y-2">
+          <p className="px-2 font-mono text-[10px] tracking-[0.24em] text-white/34 uppercase">
             {group.label}
           </p>
 
-          <div className="grid gap-2">
+          <div className="grid gap-1.5">
             {group.items.map((item) => {
               const Icon =
                 iconMap[item.href as keyof typeof iconMap] ?? LayoutDashboard;
@@ -103,41 +99,51 @@ export function DashboardNav({
                 <Link
                   key={item.href}
                   href={item.href}
+                  title={item.description ?? item.label}
                   className={cn(
-                    "rounded-2xl border px-4 py-3 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#111111]",
+                    "group flex items-center justify-between gap-3 rounded-[18px] px-3 py-3 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#111111]",
                     active
-                      ? "border-white/16 bg-white text-[#111111] shadow-[0_18px_40px_rgba(255,255,255,0.12)]"
-                      : "border-white/10 bg-white/[0.04] text-white/82 hover:border-white/18 hover:bg-white/[0.07]",
+                      ? "bg-white text-[#111111] shadow-[0_18px_42px_rgba(255,255,255,0.08)]"
+                      : "text-white/76 hover:bg-white/[0.06] hover:text-white",
                   )}
                 >
-                  <div className="flex items-start gap-3">
+                  <div className="flex min-w-0 items-center gap-3">
                     <span
                       className={cn(
-                        "mt-0.5 inline-flex size-9 shrink-0 items-center justify-center rounded-2xl border",
+                        "inline-flex size-9 shrink-0 items-center justify-center rounded-2xl border",
                         active
-                          ? "border-black/8 bg-black/[0.06]"
+                          ? "border-black/8 bg-black/[0.05]"
                           : "border-white/10 bg-white/[0.04]",
                       )}
                     >
                       <Icon className="size-4" strokeWidth={1.9} />
                     </span>
 
-                    <span className="min-w-0">
-                      <span className="block text-sm font-semibold">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold">
                         {item.label}
-                      </span>
-                      {item.description ? (
-                        <span
+                      </p>
+                      {variant === "account" && item.description ? (
+                        <p
                           className={cn(
-                            "mt-1 block text-xs leading-5",
-                            active ? "text-black/62" : "text-white/50",
+                            "mt-0.5 truncate text-xs",
+                            active ? "text-black/55" : "text-white/42",
                           )}
                         >
                           {item.description}
-                        </span>
+                        </p>
                       ) : null}
-                    </span>
+                    </div>
                   </div>
+
+                  <span
+                    className={cn(
+                      "size-2 shrink-0 rounded-full transition",
+                      active
+                        ? "bg-[var(--accent)]"
+                        : "bg-white/12 group-hover:bg-white/22",
+                    )}
+                  />
                 </Link>
               );
             })}
