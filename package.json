@@ -1,0 +1,58 @@
+{
+  "name": "artisan-pro",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "next typegen && tsc --noEmit",
+    "import:extravert:ldsp": "tsx scripts/import-extravert-ldsp.ts",
+    "import:extravert:ldsp:sample": "tsx scripts/import-extravert-ldsp.ts --limit=6",
+    "import:swisskrono:ldsp": "tsx scripts/import-swisskrono-ldsp.ts",
+    "import:swisskrono:ldsp:sample": "tsx scripts/import-swisskrono-ldsp.ts --limit=6 --no-images",
+    "import:agt:panel": "tsx scripts/import-agt-panels.ts",
+    "import:agt:panel:sample": "tsx scripts/import-agt-panels.ts --limit=4 --no-images",
+    "prisma:generate": "prisma generate",
+    "prisma:validate": "prisma validate",
+    "prisma:format": "prisma format",
+    "prisma:push": "prisma db push",
+    "prisma:migrate:dev": "prisma migrate dev",
+    "prisma:seed": "prisma db seed",
+    "format": "prettier --check .",
+    "format:write": "prettier --write ."
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "^7.8.0",
+    "@prisma/client": "^7.7.0",
+    "bcryptjs": "^3.0.3",
+    "clsx": "^2.1.1",
+    "jose": "^6.2.2",
+    "lucide-react": "^0.542.0",
+    "next": "16.2.4",
+    "pg": "^8.20.0",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "tailwind-merge": "^3.3.1",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "dotenv": "^17.4.2",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.4",
+    "prettier": "^3.8.3",
+    "prettier-plugin-tailwindcss": "^0.7.2",
+    "prisma": "^7.7.0",
+    "tailwindcss": "^4",
+    "tsx": "^4.21.0",
+    "typescript": "^5"
+  }
+}

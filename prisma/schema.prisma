@@ -1,0 +1,531 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum RoleCode {
+  CUSTOMER
+  DEALER
+  MANAGER
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum MessengerType {
+  PHONE
+  WHATSAPP
+  TELEGRAM
+  EMAIL
+}
+
+enum ProductStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum ProductOrderMode {
+  CART
+  REQUEST_PRICE
+  SERVICE
+}
+
+enum InventoryStatus {
+  IN_STOCK
+  LIMITED
+  OUT_OF_STOCK
+  ON_REQUEST
+}
+
+enum OrderStatus {
+  NEW
+  CONFIRMED
+  IN_PRODUCTION
+  READY_FOR_PICKUP
+  SHIPPED
+  COMPLETED
+  CANCELED
+}
+
+enum RequestType {
+  PRICE_REQUEST
+  CONSULTATION
+  CUTTING_SERVICE
+  CUSTOM_SERVICE
+}
+
+enum RequestStatus {
+  NEW
+  IN_REVIEW
+  QUOTE_SENT
+  WAITING_FOR_CLIENT
+  IN_PROGRESS
+  COMPLETED
+  CANCELED
+}
+
+enum PromotionTargetType {
+  PRODUCT
+  CATEGORY
+  ORDER
+}
+
+enum DiscountType {
+  PERCENT
+  FIXED_AMOUNT
+  FIXED_PRICE
+}
+
+enum PromotionStatus {
+  DRAFT
+  ACTIVE
+  SCHEDULED
+  EXPIRED
+  ARCHIVED
+}
+
+enum LoyaltyTier {
+  BRONZE
+  SILVER
+  GOLD
+  PLATINUM
+}
+
+enum LoyaltyTransactionType {
+  ORDER_ACCRUAL
+  BONUS_ACCRUAL
+  REDEMPTION
+  MANUAL_ADJUSTMENT
+}
+
+enum PageStatus {
+  DRAFT
+  PUBLISHED
+}
+
+enum BannerPlacement {
+  HOME_HERO
+  HOME_SECONDARY
+  CATALOG
+  SERVICES
+  CONTACTS
+}
+
+enum NotificationChannel {
+  EMAIL
+  TELEGRAM
+  INTERNAL
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+model Role {
+  id          String   @id @default(cuid())
+  code        RoleCode @unique
+  name        String
+  description String?
+  users       User[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model User {
+  id                      String               @id @default(cuid())
+  email                   String               @unique
+  hashedPassword          String?
+  firstName               String?
+  lastName                String?
+  phone                   String?
+  companyName             String?
+  messengerType           MessengerType?
+  messengerHandle         String?
+  isActive                Boolean              @default(true)
+  loyaltyTier             LoyaltyTier          @default(BRONZE)
+  loyaltyPointsBalance    Int                  @default(0)
+  loyaltyPointsLifetime   Int                  @default(0)
+  personalDiscountPercent Int                  @default(0)
+  roleId                  String
+  role                    Role                 @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  addresses               Address[]
+  orders                  Order[]              @relation("CustomerOrders")
+  managedOrders           Order[]              @relation("ManagerOrders")
+  requests                Request[]            @relation("CustomerRequests")
+  managedRequests         Request[]            @relation("ManagerRequests")
+  favorites               Favorite[]
+  loyaltyTransactions     LoyaltyTransaction[]
+  notifications           Notification[]
+  createdAt               DateTime             @default(now())
+  updatedAt               DateTime             @updatedAt
+
+  @@index([roleId])
+}
+
+model Address {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  label     String?
+  city      String
+  street    String
+  house     String
+  apartment String?
+  comment   String?
+  isDefault Boolean  @default(false)
+  orders    Order[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, isDefault])
+}
+
+model Category {
+  id             String              @id @default(cuid())
+  slug           String              @unique
+  name           String
+  summary        String?
+  description    String?
+  indicator      String?
+  scenario       String?
+  coverImage     String?
+  spotlight      String?
+  seoTitle       String?
+  seoDescription String?
+  sortOrder      Int                 @default(0)
+  isFeatured     Boolean             @default(false)
+  parentId       String?
+  parent         Category?           @relation("CategoryTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children       Category[]          @relation("CategoryTree")
+  products       Product[]
+  promotions     PromotionCategory[]
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  @@index([parentId])
+  @@index([sortOrder, isFeatured])
+}
+
+model Brand {
+  id          String    @id @default(cuid())
+  slug        String    @unique
+  name        String
+  description String?
+  country     String?
+  website     String?
+  products    Product[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Product {
+  id              String             @id @default(cuid())
+  slug            String             @unique
+  sku             String             @unique
+  name            String
+  summary         String?
+  description     String?
+  categoryId      String
+  category        Category           @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  brandId         String?
+  brand           Brand?             @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  status          ProductStatus      @default(DRAFT)
+  orderMode       ProductOrderMode   @default(REQUEST_PRICE)
+  inventoryStatus InventoryStatus    @default(ON_REQUEST)
+  price           Int?
+  compareAtPrice  Int?
+  stockQuantity   Int?
+  format          String?
+  isFeatured      Boolean            @default(false)
+  seoTitle        String?
+  seoDescription  String?
+  images          ProductImage[]
+  attributes      ProductAttribute[]
+  orderItems      OrderItem[]
+  favorites       Favorite[]
+  requests        Request[]
+  promotions      PromotionProduct[]
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  @@index([categoryId, status])
+  @@index([brandId, status])
+  @@index([isFeatured, status])
+}
+
+model ProductImage {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url       String
+  alt       String?
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([productId, sortOrder])
+}
+
+model ProductAttribute {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  name      String
+  value     String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([productId, sortOrder])
+}
+
+model DeliveryMethod {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  description String?
+  price       Int      @default(0)
+  isActive    Boolean  @default(true)
+  orders      Order[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Order {
+  id                     String               @id @default(cuid())
+  number                 String?              @unique
+  sourceRequestId        String?
+  sourceRequest          Request?             @relation("RequestLinkedOrders", fields: [sourceRequestId], references: [id], onDelete: SetNull)
+  userId                 String?
+  user                   User?                @relation("CustomerOrders", fields: [userId], references: [id], onDelete: SetNull)
+  managerId              String?
+  manager                User?                @relation("ManagerOrders", fields: [managerId], references: [id], onDelete: SetNull)
+  appliedPromotionId     String?
+  appliedPromotion       Promotion?           @relation("AppliedPromotion", fields: [appliedPromotionId], references: [id], onDelete: SetNull)
+  appliedPromoCode       String?
+  status                 OrderStatus          @default(NEW)
+  contactName            String
+  contactPhone           String
+  contactEmail           String?
+  companyName            String?
+  deliveryMethodId       String?
+  deliveryMethod         DeliveryMethod?      @relation(fields: [deliveryMethodId], references: [id], onDelete: SetNull)
+  addressId              String?
+  address                Address?             @relation(fields: [addressId], references: [id], onDelete: SetNull)
+  comment                String?
+  subtotal               Int                  @default(0)
+  discountTotal          Int                  @default(0)
+  promotionDiscountTotal Int                  @default(0)
+  loyaltyRedemptionTotal Int                  @default(0)
+  deliveryTotal          Int                  @default(0)
+  total                  Int                  @default(0)
+  items                  OrderItem[]
+  loyaltyTransactions    LoyaltyTransaction[]
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
+
+  @@index([appliedPromotionId])
+  @@index([sourceRequestId])
+  @@index([userId, status, createdAt])
+  @@index([managerId, status])
+}
+
+model OrderItem {
+  id             String   @id @default(cuid())
+  orderId        String
+  order          Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId      String?
+  product        Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  quantity       Int      @default(1)
+  unitPrice      Int
+  discountAmount Int      @default(0)
+  total          Int
+  snapshotName   String
+  snapshotSku    String?
+  snapshotBrand  String?
+  createdAt      DateTime @default(now())
+
+  @@index([orderId])
+  @@index([productId])
+}
+
+model Request {
+  id              String         @id @default(cuid())
+  number          String?        @unique
+  type            RequestType
+  status          RequestStatus  @default(NEW)
+  subject         String
+  message         String?
+  userId          String?
+  user            User?          @relation("CustomerRequests", fields: [userId], references: [id], onDelete: SetNull)
+  managerId       String?
+  manager         User?          @relation("ManagerRequests", fields: [managerId], references: [id], onDelete: SetNull)
+  productId       String?
+  product         Product?       @relation(fields: [productId], references: [id], onDelete: SetNull)
+  contactName     String
+  contactPhone    String
+  contactEmail    String?
+  messengerType   MessengerType?
+  messengerHandle String?
+  material        String?
+  edgeOption      String?
+  deliveryNeeded  Boolean        @default(false)
+  addressText     String?
+  estimatedBudget Int?
+  files           RequestFile[]
+  linkedOrders    Order[]        @relation("RequestLinkedOrders")
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@index([userId, status, createdAt])
+  @@index([managerId, status])
+  @@index([productId, type])
+}
+
+model RequestFile {
+  id        String   @id @default(cuid())
+  requestId String
+  request   Request  @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  fileName  String
+  fileUrl   String
+  mimeType  String?
+  size      Int?
+  createdAt DateTime @default(now())
+
+  @@index([requestId])
+}
+
+model Favorite {
+  userId    String
+  productId String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([userId, productId])
+  @@index([productId])
+}
+
+model LoyaltyTransaction {
+  id           String                 @id @default(cuid())
+  userId       String
+  user         User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orderId      String?
+  order        Order?                 @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  type         LoyaltyTransactionType
+  points       Int
+  balanceAfter Int
+  title        String
+  description  String?
+  createdAt    DateTime               @default(now())
+
+  @@index([userId, createdAt])
+  @@index([orderId])
+}
+
+model Promotion {
+  id            String              @id @default(cuid())
+  slug          String              @unique
+  name          String
+  description   String?
+  status        PromotionStatus     @default(DRAFT)
+  targetType    PromotionTargetType
+  discountType  DiscountType
+  discountValue Int
+  promoCode     String?             @unique
+  minOrderTotal Int?
+  usageLimit    Int?
+  usageCount    Int                 @default(0)
+  isHighlighted Boolean             @default(false)
+  badgeText     String?
+  startsAt      DateTime?
+  endsAt        DateTime?
+  appliedOrders Order[]             @relation("AppliedPromotion")
+  products      PromotionProduct[]
+  categories    PromotionCategory[]
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  @@index([status, startsAt, endsAt])
+}
+
+model PromotionProduct {
+  promotionId String
+  productId   String
+  promotion   Promotion @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+  product     Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@id([promotionId, productId])
+  @@index([productId])
+}
+
+model PromotionCategory {
+  promotionId String
+  categoryId  String
+  promotion   Promotion @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+  category    Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([promotionId, categoryId])
+  @@index([categoryId])
+}
+
+model SitePage {
+  id             String     @id @default(cuid())
+  slug           String     @unique
+  title          String
+  excerpt        String?
+  body           String?    @db.Text
+  status         PageStatus @default(DRAFT)
+  seoTitle       String?
+  seoDescription String?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+}
+
+model Banner {
+  id        String          @id @default(cuid())
+  key       String          @unique
+  placement BannerPlacement
+  title     String
+  subtitle  String?
+  ctaLabel  String?
+  ctaHref   String?
+  imageUrl  String?
+  isActive  Boolean         @default(true)
+  sortOrder Int             @default(0)
+  startsAt  DateTime?
+  endsAt    DateTime?
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  @@index([placement, isActive, sortOrder])
+}
+
+model SiteSetting {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       Json
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Notification {
+  id        String              @id @default(cuid())
+  userId    String?
+  user      User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
+  channel   NotificationChannel
+  status    NotificationStatus  @default(PENDING)
+  title     String
+  message   String
+  payload   Json?
+  sentAt    DateTime?
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+
+  @@index([userId, status, createdAt])
+}

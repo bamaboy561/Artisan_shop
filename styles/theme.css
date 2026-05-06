@@ -1,0 +1,19 @@
+:root {
+  --background: #f4efe7;
+  --foreground: #171613;
+  --surface: #fcf9f4;
+  --surface-strong: #fffdfa;
+  --muted: #615a53;
+  --line: rgba(23, 22, 19, 0.12);
+  --line-strong: rgba(23, 22, 19, 0.22);
+  --accent: #c76a43;
+  --accent-strong: #ac5835;
+  --ink: #0f0f0d;
+  --hero: #12110f;
+  --hero-secondary: #2f2721;
+  --shadow-soft: 0 10px 28px rgba(23, 22, 19, 0.05);
+  --shadow-strong: 0 26px 64px rgba(23, 22, 19, 0.12);
+  --font-body-family: var(--font-manrope);
+  --font-display-family: var(--font-manrope);
+  --font-mono-family: var(--font-ibm-plex-mono);
+}
