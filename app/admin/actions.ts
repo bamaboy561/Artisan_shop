@@ -279,6 +279,7 @@ async function logRequestTransition(params: {
         : null,
       fromStatus: params.previous?.status ?? null,
       toStatus: params.current.status,
+      isVisibleToClient: true,
       actor: params.actor,
     });
   }
@@ -327,6 +328,7 @@ async function logOrderTransition(params: {
         : null,
       fromStatus: params.previous?.status ?? null,
       toStatus: params.current.status,
+      isVisibleToClient: true,
       actor: params.actor,
     });
   }
@@ -746,6 +748,7 @@ export async function addOrderManagerNoteAction(formData: FormData) {
       ? "Добавлен комментарий для клиента"
       : "Добавлена внутренняя заметка",
     description: isVisibleToClient ? body : null,
+    isVisibleToClient,
     actor,
   });
 
@@ -786,6 +789,7 @@ export async function updateOrderFulfillmentAction(formData: FormData) {
         "Плановая дата, комментарий выдачи или статус заказа обновлены.",
       fromStatus: previousOrder?.status ?? null,
       toStatus: currentOrder?.status ?? nextStatus,
+      isVisibleToClient: true,
       actor,
     }),
     logOrderTransition({
@@ -967,6 +971,7 @@ export async function createOrderFromRequestAction(formData: FormData) {
       description: "Заявка переведена в заказ для дальнейшей работы.",
       fromStatus: request.status,
       toStatus: RequestStatus.COMPLETED,
+      isVisibleToClient: true,
       actor,
     }),
     logOperationEvent({
@@ -976,6 +981,7 @@ export async function createOrderFromRequestAction(formData: FormData) {
       title: `Заказ создан из заявки ${request.number ?? request.id}`,
       description: "Контакты, материал, комментарии и файлы перенесены из заявки.",
       toStatus: OrderStatus.NEW,
+      isVisibleToClient: true,
       actor,
     }),
   ]);
@@ -1094,6 +1100,7 @@ export async function addRequestManagerNoteAction(formData: FormData) {
       ? "Добавлен комментарий для клиента"
       : "Добавлена внутренняя заметка",
     description: isVisibleToClient ? body : null,
+    isVisibleToClient,
     actor,
   });
 
@@ -1134,6 +1141,7 @@ export async function updateRequestProductionResultAction(formData: FormData) {
         "Итоговая сумма или производственный комментарий обновлены.",
       fromStatus: previousRequest?.status ?? null,
       toStatus: currentRequest?.status ?? nextStatus,
+      isVisibleToClient: true,
       actor,
     }),
     logRequestTransition({
@@ -1186,6 +1194,8 @@ export async function uploadRequestResultFilesAction(formData: FormData) {
   });
 
   if (savedFilesCount > 0) {
+    const isVisibleToClient = getString(formData, "isVisibleToClient") === "on";
+
     await logOperationEvent({
       entityType: "request",
       entityId: requestId,
@@ -1194,6 +1204,7 @@ export async function uploadRequestResultFilesAction(formData: FormData) {
       description:
         getOptionalString(formData, "note") ??
         "К заявке прикреплены файлы карты раскроя, ведомости или экспорта Giblab.",
+      isVisibleToClient,
       actor,
     });
   }

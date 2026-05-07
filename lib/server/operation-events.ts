@@ -16,6 +16,7 @@ export type OperationEventDto = {
   toStatus: string | null;
   actorId: string | null;
   actorName: string | null;
+  isVisibleToClient: boolean;
   createdAt: Date;
 };
 
@@ -39,6 +40,7 @@ export type CreateOperationEventInput = {
   toStatus?: string | null;
   actor?: SessionPayload | null;
   actorName?: string | null;
+  isVisibleToClient?: boolean;
 };
 
 function getActorName(input: CreateOperationEventInput) {
@@ -71,12 +73,43 @@ export async function logOperationEvent(input: CreateOperationEventInput) {
         description: input.description ?? null,
         fromStatus: input.fromStatus ?? null,
         toStatus: input.toStatus ?? null,
+        isVisibleToClient: input.isVisibleToClient ?? false,
         actorId: input.actor?.userId ?? null,
         actorName: getActorName(input),
       },
     });
   } catch (error) {
     console.warn("Operation event was not saved", error);
+  }
+}
+
+export async function getClientOperationEvents(
+  entityType: OperationEntityType,
+  entityIds: string[],
+): Promise<OperationEventDto[]> {
+  if (!hasDatabaseUrl() || entityIds.length === 0) {
+    return [];
+  }
+
+  try {
+    const events = await getDb().operationEvent.findMany({
+      where: {
+        entityType,
+        entityId: {
+          in: entityIds,
+        },
+        isVisibleToClient: true,
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    return events.map((event) => ({
+      ...event,
+      entityType: event.entityType as OperationEntityType,
+    }));
+  } catch (error) {
+    console.warn("Client operation events are not available", error);
+    return [];
   }
 }
 

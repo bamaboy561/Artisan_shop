@@ -198,6 +198,7 @@ export async function submitServiceRequestAction(
             ? `Клиент приложил файлов: ${files.length}.`
             : "Заявка создана из формы услуги.",
         toStatus: "NEW",
+        isVisibleToClient: true,
         actorName: validated.data.contactName,
       });
 

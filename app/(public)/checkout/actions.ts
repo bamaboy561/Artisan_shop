@@ -485,6 +485,7 @@ export async function submitCheckoutAction(
       title: `Заказ ${createdOrderForSync.number ?? orderNumber} создан`,
       description: `Онлайн-заказ с сайта на сумму ${formatPrice(total)}.`,
       toStatus: OrderStatus.NEW,
+      isVisibleToClient: true,
       actorName: parsed.data.name,
     });
 

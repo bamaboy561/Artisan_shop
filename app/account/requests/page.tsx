@@ -1,5 +1,6 @@
 import { SetupState } from "@/components/admin/setup-state";
 import { StatusBadge } from "@/components/admin/status-badge";
+import { ClientOperationTimeline } from "@/components/account/client-operation-timeline";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { DataTable } from "@/components/ui/table";
 import {
@@ -112,6 +113,12 @@ export default async function AccountRequestsPage() {
         ) : null}
       </div>
     ),
+    history: (
+      <ClientOperationTimeline
+        events={request.history}
+        emptyMessage="История появится после обработки заявки."
+      />
+    ),
     manager: (
       <div className="space-y-1">
         <p>
@@ -143,6 +150,7 @@ export default async function AccountRequestsPage() {
           { key: "service", label: "Содержание" },
           { key: "status", label: "Статус" },
           { key: "result", label: "Расчет и файлы" },
+          { key: "history", label: "История" },
           { key: "manager", label: "Менеджер" },
         ]}
         rows={rows}

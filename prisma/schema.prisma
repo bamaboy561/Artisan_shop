@@ -610,10 +610,12 @@ model OperationEvent {
   description String?
   fromStatus  String?
   toStatus    String?
+  isVisibleToClient Boolean @default(false)
   actorId     String?
   actorName   String?
   createdAt   DateTime @default(now())
 
   @@index([entityType, entityId, createdAt])
+  @@index([entityType, entityId, isVisibleToClient, createdAt])
   @@index([actorId, createdAt])
 }

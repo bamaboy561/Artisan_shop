@@ -2,6 +2,7 @@ import { OrderStatus, RequestFileKind, RequestStatus } from "@/generated/prisma"
 
 import { verifySession } from "@/lib/auth/dal";
 import { getDb } from "@/lib/db";
+import { getClientOperationEvents } from "@/lib/server/operation-events";
 
 const activeOrderStatuses = [
   OrderStatus.NEW,
@@ -138,7 +139,7 @@ export async function getAccountSummary(userId: string) {
 export async function getAccountOrders(userId: string) {
   const db = getDb();
 
-  return db.order.findMany({
+  const orders = await db.order.findMany({
     where: { userId },
     orderBy: { createdAt: "desc" },
     select: {
@@ -181,12 +182,22 @@ export async function getAccountOrders(userId: string) {
       },
     },
   });
+
+  const events = await getClientOperationEvents(
+    "order",
+    orders.map((order) => order.id),
+  );
+
+  return orders.map((order) => ({
+    ...order,
+    history: events.filter((event) => event.entityId === order.id),
+  }));
 }
 
 export async function getAccountRequests(userId: string) {
   const db = getDb();
 
-  return db.request.findMany({
+  const requests = await db.request.findMany({
     where: { userId },
     orderBy: { createdAt: "desc" },
     select: {
@@ -234,6 +245,16 @@ export async function getAccountRequests(userId: string) {
       },
     },
   });
+
+  const events = await getClientOperationEvents(
+    "request",
+    requests.map((request) => request.id),
+  );
+
+  return requests.map((request) => ({
+    ...request,
+    history: events.filter((event) => event.entityId === request.id),
+  }));
 }
 
 export async function getAccountFavorites(userId: string) {
