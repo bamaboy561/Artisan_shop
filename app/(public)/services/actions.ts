@@ -106,7 +106,8 @@ export async function submitServiceRequestAction(
   if (!validated.success) {
     return {
       message:
-        validated.error.issues[0]?.message ?? "Проверьте корректность данных.",
+        validated.error.issues[0]?.message ??
+        "Проверьте корректность данных.",
     };
   }
 
@@ -158,18 +159,19 @@ export async function submitServiceRequestAction(
     validated.data.priority === "urgent"
       ? "Срочно: распил по файлу"
       : "Распил по файлу";
+  const requestMessage = buildServiceRequestMessage({
+    material: validated.data.material,
+    edgeOption,
+    addressText,
+    comment,
+    priority: validated.data.priority,
+    filesCount: files.length,
+  });
 
   try {
     const createdRequest = await createCuttingRequest({
       subject,
-      message: buildServiceRequestMessage({
-        material: validated.data.material,
-        edgeOption,
-        addressText,
-        comment,
-        priority: validated.data.priority,
-        filesCount: files.length,
-      }),
+      message: requestMessage,
       contactName: validated.data.contactName,
       contactPhone: validated.data.contactPhone,
       contactEmail,
@@ -200,14 +202,7 @@ export async function submitServiceRequestAction(
         edgeOption: edgeOption ?? "Уточнить",
         deliveryNeeded: Boolean(addressText),
         estimatedBudget: null,
-        message: buildServiceRequestMessage({
-          material: validated.data.material,
-          edgeOption,
-          addressText,
-          comment,
-          priority: validated.data.priority,
-          filesCount: files.length,
-        }),
+        message: requestMessage,
         createdAt: new Date().toISOString(),
       });
     }

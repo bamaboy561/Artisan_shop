@@ -114,7 +114,8 @@ export async function submitCheckoutAction(
 
     if (!parsedCartItems.success || parsedCartItems.data.length === 0) {
       return {
-        message: "Корзина пуста. Добавьте товары перед оформлением заказа.",
+        message:
+          "Корзина пуста. Добавьте товары перед оформлением заказа.",
       };
     }
 
@@ -122,7 +123,7 @@ export async function submitCheckoutAction(
   } catch {
     return {
       message:
-        "Не удалось прочитать корзину. Обновите страницу и попробуйте ещё раз.",
+        "Не удалось прочитать корзину. Обновите страницу и попробуйте еще раз.",
     };
   }
 
@@ -231,7 +232,7 @@ export async function submitCheckoutAction(
   if (missingProducts.length > 0) {
     return {
       message:
-        "Часть товаров уже изменилась в каталоге. Обновите корзину и повторите оформление.",
+        "Часть товаров изменилась в каталоге. Обновите корзину и повторите оформление.",
     };
   }
 
@@ -270,7 +271,8 @@ export async function submitCheckoutAction(
 
   if (orderItems.length === 0) {
     return {
-      message: "Корзина пуста. Добавьте товары перед оформлением заказа.",
+      message:
+        "Корзина пуста. Добавьте товары перед оформлением заказа.",
     };
   }
 
@@ -292,7 +294,8 @@ export async function submitCheckoutAction(
 
     if (!isPromotionActive(promotion)) {
       return {
-        message: "Промокод сейчас недоступен или срок его действия уже истёк.",
+        message:
+          "Промокод сейчас недоступен или срок его действия уже истек.",
       };
     }
 
@@ -478,7 +481,7 @@ export async function submitCheckoutAction(
 
     return {
       message:
-        "Не удалось оформить заказ. Попробуйте ещё раз или передайте заказ менеджеру.",
+        "Не удалось оформить заказ. Попробуйте еще раз или передайте заказ менеджеру.",
     };
   }
 

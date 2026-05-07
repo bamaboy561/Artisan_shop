@@ -49,10 +49,10 @@ function MobileBottomDock({
   pathname: string;
 }) {
   return (
-    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[color:var(--line)]/80 bg-[color:color-mix(in_srgb,var(--surface-strong)_94%,white)]/96 backdrop-blur-xl lg:hidden">
+    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[color:var(--line)]/70 bg-[color:color-mix(in_srgb,var(--surface-strong)_92%,white)]/95 backdrop-blur-xl lg:hidden">
       <nav
         aria-label="Мобильная навигация"
-        className="mx-auto flex max-w-[30rem] items-end justify-between gap-1 px-2 pt-2 pb-[calc(0.6rem+env(safe-area-inset-bottom))]"
+        className="mx-auto flex w-full max-w-[26rem] items-end justify-between gap-1 px-2 pt-1.5 pb-[calc(0.45rem+env(safe-area-inset-bottom))]"
       >
         {mobileDockNavigation.map((item) => {
           const active = isActivePath(pathname, item.href);
@@ -63,14 +63,14 @@ function MobileBottomDock({
               key={item.href}
               href={item.href}
               className={cn(
-                "relative flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-[1.15rem] px-2 py-2.5 transition",
+                "relative flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-[1rem] px-1.5 py-2 transition",
                 active
                   ? "bg-[var(--foreground)] text-white"
                   : "text-[var(--muted)] hover:bg-[var(--surface)] hover:text-[var(--foreground)]",
               )}
             >
-              <Icon className="size-[18px]" />
-              <span className="truncate font-mono text-[9px] tracking-[0.12em] uppercase">
+              <Icon className="size-[17px]" />
+              <span className="truncate font-mono text-[8px] tracking-[0.1em] uppercase">
                 {item.label}
               </span>
             </Link>

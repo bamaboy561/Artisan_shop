@@ -100,9 +100,9 @@ const integrationLogPath = path.join(runtimeDirectory, "integration-events.json"
 
 const requestStatusLabels: Record<string, string> = {
   NEW: "Новая",
-  IN_REVIEW: "На расчёте",
+  IN_REVIEW: "На расчете",
   QUOTE_SENT: "КП отправлено",
-  WAITING_FOR_CLIENT: "Ждём клиента",
+  WAITING_FOR_CLIENT: "Ждем клиента",
   IN_PROGRESS: "В работе",
   COMPLETED: "Завершена",
   CANCELED: "Отменена",
@@ -114,8 +114,8 @@ const orderStatusLabels: Record<string, string> = {
   IN_PRODUCTION: "В производстве",
   READY_FOR_PICKUP: "Готов к выдаче",
   SHIPPED: "Отгружен",
-  COMPLETED: "Завершён",
-  CANCELED: "Отменён",
+  COMPLETED: "Завершен",
+  CANCELED: "Отменен",
 };
 
 const messengerTypeLabels: Record<string, string> = {
@@ -336,9 +336,11 @@ function extractClientComment(message: string | null | undefined) {
   return comment || null;
 }
 
-function buildRequestTelegramMessage(input: RequestIntegrationInput): TelegramMessagePayload {
-  const isUrgent = isUrgentRequest(input);
-  const isCutting = isCuttingRequest(input);
+function buildRequestTelegramMessage(
+  input: RequestIntegrationInput,
+): TelegramMessagePayload {
+  const urgent = isUrgentRequest(input);
+  const cutting = isCuttingRequest(input);
   const formatLabel = extractSummaryValue(input.message, "Формат листа");
   const positionsLabel = extractSummaryValue(input.message, "Позиций");
   const piecesLabel = extractSummaryValue(input.message, "Деталей");
@@ -347,8 +349,8 @@ function buildRequestTelegramMessage(input: RequestIntegrationInput): TelegramMe
   const clientComment = extractClientComment(input.message);
 
   return {
-    title: `${isUrgent ? "Срочная заявка" : isCutting ? "Новая заявка на распил" : "Новая заявка"} ${input.number ?? input.id}`,
-    threadKey: isCutting ? "cutting" : "requests",
+    title: `${urgent ? "Срочная заявка" : cutting ? "Новая заявка на распил" : "Новая заявка"} ${input.number ?? input.id}`,
+    threadKey: cutting ? "cutting" : "requests",
     lines: [
       `Тип: ${input.subject}`,
       `Клиент: ${input.contactName}`,
@@ -365,11 +367,11 @@ function buildRequestTelegramMessage(input: RequestIntegrationInput): TelegramMe
       input.estimatedBudget
         ? `Ориентир: ${formatPrice(Math.round(input.estimatedBudget))}`
         : "",
-      isUrgent ? "Приоритет: быстрый ответ менеджера" : "",
+      urgent ? "Приоритет: быстрый ответ менеджера" : "",
       input.deliveryNeeded ? "Доставка: нужна" : "",
       clientComment
         ? `Комментарий: ${clientComment}`
-        : !isCutting && input.message
+        : !cutting && input.message
           ? `Комментарий: ${input.message.split("\n").slice(0, 4).join(" · ")}`
           : "",
       "Раздел: /admin/requests",
@@ -387,14 +389,20 @@ function buildOrderTelegramMessage(input: OrderIntegrationInput): TelegramMessag
       input.contactEmail ? `Email: ${input.contactEmail}` : "",
       input.companyName ? `Компания: ${input.companyName}` : "",
       `Сумма: ${formatPrice(Math.round(input.total))}`,
-      input.discountTotal ? `Скидка: ${formatPrice(Math.round(input.discountTotal))}` : "",
+      input.discountTotal
+        ? `Скидка: ${formatPrice(Math.round(input.discountTotal))}`
+        : "",
       input.deliveryMethod ? `Доставка: ${input.deliveryMethod}` : "",
       `Позиций: ${input.items.length}`,
-      ...input.items.slice(0, 5).map(
-        (item) =>
-          `• ${item.name} · ${item.quantity} шт. · ${formatPrice(Math.round(item.total))}`,
-      ),
-      input.comment ? `Комментарий: ${input.comment.split("\n").slice(0, 3).join(" · ")}` : "",
+      ...input.items
+        .slice(0, 5)
+        .map(
+          (item) =>
+            `• ${item.name} · ${item.quantity} шт. · ${formatPrice(Math.round(item.total))}`,
+        ),
+      input.comment
+        ? `Комментарий: ${input.comment.split("\n").slice(0, 3).join(" · ")}`
+        : "",
       "Раздел: /admin/orders",
     ].filter(Boolean),
   };
@@ -482,16 +490,16 @@ function buildOrderStatusTelegramMessage(
     return null;
   }
 
-  let title = `Artisan · заказ ${input.number ?? input.id} обновлён`;
+  let title = `Artisan · заказ ${input.number ?? input.id} обновлен`;
 
   if (statusChanged && input.status === "READY_FOR_PICKUP") {
     title = `Artisan · заказ ${input.number ?? input.id} готов к выдаче`;
   } else if (statusChanged && input.status === "SHIPPED") {
     title = `Artisan · заказ ${input.number ?? input.id} передан в доставку`;
   } else if (statusChanged && input.status === "COMPLETED") {
-    title = `Artisan · заказ ${input.number ?? input.id} завершён`;
+    title = `Artisan · заказ ${input.number ?? input.id} завершен`;
   } else if (statusChanged && input.status === "CANCELED") {
-    title = `Artisan · заказ ${input.number ?? input.id} отменён`;
+    title = `Artisan · заказ ${input.number ?? input.id} отменен`;
   } else if (managerAssigned) {
     title = `Artisan · заказ ${input.number ?? input.id} назначен менеджеру`;
   } else if (managerReassigned) {

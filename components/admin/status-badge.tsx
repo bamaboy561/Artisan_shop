@@ -3,11 +3,10 @@ import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 const toneClasses = {
-  neutral: "border-black/8 bg-black/5 text-[var(--muted)]",
-  success: "border-emerald-200 bg-emerald-50 text-emerald-700",
-  warning: "border-amber-200 bg-amber-50 text-amber-700",
-  accent:
-    "border-[color:var(--accent)]/18 bg-[var(--accent)]/10 text-[var(--accent)]",
+  neutral: "border-black/6 bg-[#f0efed] text-[#5f5b55]",
+  success: "border-emerald-100 bg-emerald-50 text-emerald-700",
+  warning: "border-orange-100 bg-orange-50 text-orange-700",
+  accent: "border-blue-100 bg-blue-50 text-blue-700",
 } as const;
 
 type StatusBadgeProps = {
@@ -24,7 +23,7 @@ export function StatusBadge({
   return (
     <span
       className={cn(
-        "inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold tracking-[0.14em] uppercase",
+        "inline-flex items-center rounded-md border px-2 py-1 text-xs font-medium leading-none",
         toneClasses[tone],
         className,
       )}

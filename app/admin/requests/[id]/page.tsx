@@ -19,6 +19,11 @@ import {
   orderStatusLabels,
   requestStatusLabels,
 } from "@/features/admin/operations-filters";
+import {
+  requestQuickTransitions,
+  requestWorkflowSteps,
+} from "@/features/admin/workflow";
+import { cn } from "@/lib/utils";
 
 type AdminRequestDetailPageProps = {
   params: Promise<{ id: string }>;
@@ -64,6 +69,52 @@ function getStatusTone(status: RequestStatus) {
   }
 }
 
+function RequestWorkflowTrail({ status }: { status: RequestStatus }) {
+  const currentIndex = requestWorkflowSteps.findIndex(
+    (step) => step.status === status,
+  );
+  const isCanceled = status === RequestStatus.CANCELED;
+
+  return (
+    <div className="grid gap-3">
+      {requestWorkflowSteps.map((step, index) => {
+        const isActive = step.status === status;
+        const isDone = currentIndex > index;
+
+        return (
+          <div
+            key={step.status}
+            className={cn(
+              "grid grid-cols-[28px_minmax(0,1fr)] gap-3 rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] p-3",
+              isActive && "border-[color:var(--foreground)] bg-white",
+              isDone && "border-emerald-200 bg-emerald-50/70",
+              isCanceled && "opacity-55",
+            )}
+          >
+            <span
+              className={cn(
+                "mt-0.5 flex size-7 items-center justify-center rounded-full border border-[color:var(--line-strong)] text-[11px] font-semibold",
+                (isActive || isDone) &&
+                  "border-[color:var(--foreground)] bg-[var(--foreground)] text-white",
+              )}
+            >
+              {index + 1}
+            </span>
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold text-[var(--foreground)]">
+                {step.label}
+              </span>
+              <span className="mt-1 block text-xs leading-5 text-[var(--muted)]">
+                {step.summary}
+              </span>
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export default async function AdminRequestDetailPage({
   params,
 }: AdminRequestDetailPageProps) {
@@ -90,7 +141,7 @@ export default async function AdminRequestDetailPage({
           <div className="max-w-3xl">
             <SectionHeading
               title={request.number ?? request.id}
-              description="Карточка заявки на распил: контакты, материалы, файлы и быстрый перевод в заказ."
+              description="Рабочая карточка менеджера: контакт клиента, материал, файлы, статус и перевод заявки в заказ."
               titleClassName="text-2xl sm:text-3xl"
               descriptionClassName="max-w-2xl text-sm leading-7"
             />
@@ -239,6 +290,25 @@ export default async function AdminRequestDetailPage({
 
         <div className="space-y-5">
           <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-6">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="font-mono text-[10px] tracking-[0.24em] text-[var(--accent)] uppercase">
+                  Маршрут заявки
+                </p>
+                <h2 className="mt-3 text-lg font-semibold text-[var(--foreground)]">
+                  От обращения до заказа
+                </h2>
+              </div>
+              {request.status === RequestStatus.CANCELED ? (
+                <StatusBadge tone="neutral">Отменена</StatusBadge>
+              ) : null}
+            </div>
+            <div className="mt-5">
+              <RequestWorkflowTrail status={request.status} />
+            </div>
+          </section>
+
+          <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-6">
             <h2 className="text-lg font-semibold text-[var(--foreground)]">
               Быстрое управление
             </h2>
@@ -266,6 +336,41 @@ export default async function AdminRequestDetailPage({
                 pendingLabel="Сохраняем..."
               />
             </form>
+
+            {requestQuickTransitions[request.status].length > 0 ? (
+              <div className="mt-5 border-t border-[color:var(--line)] pt-5">
+                <p className="font-mono text-[10px] tracking-[0.2em] text-[var(--muted)] uppercase">
+                  Следующий шаг
+                </p>
+                <div className="mt-3 grid gap-2">
+                  {requestQuickTransitions[request.status].map((transition) => (
+                    <form key={transition.status} action={updateRequestAction}>
+                      <input type="hidden" name="id" value={request.id} />
+                      <input
+                        type="hidden"
+                        name="status"
+                        value={transition.status}
+                      />
+                      <input
+                        type="hidden"
+                        name="managerId"
+                        value={request.managerId ?? ""}
+                      />
+                      <AdminSubmitButton
+                        type="submit"
+                        variant={
+                          transition.intent === "accent" ? "accent" : "secondary"
+                        }
+                        size="sm"
+                        className="w-full justify-center"
+                        idleLabel={transition.label}
+                        pendingLabel="Обновляем..."
+                      />
+                    </form>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </section>
 
           <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-6">
@@ -282,7 +387,7 @@ export default async function AdminRequestDetailPage({
                 {linkedOrders.map((order) => (
                   <Link
                     key={order.id}
-                    href={`/admin/orders?q=${encodeURIComponent(order.number ?? order.id)}`}
+                    href={`/admin/orders/${order.id}`}
                     className="flex items-center justify-between rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] px-4 py-3 transition hover:border-[color:var(--line-strong)]"
                   >
                     <span className="font-medium text-[var(--foreground)]">

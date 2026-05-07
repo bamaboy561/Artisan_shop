@@ -189,9 +189,12 @@ export default async function AdminOrdersPage({
     ),
     order: (
       <div className="space-y-1">
-        <p className="font-semibold text-[var(--foreground)]">
+        <Link
+          href={`/admin/orders/${order.id}`}
+          className="font-semibold text-[var(--foreground)] transition hover:text-[var(--accent)]"
+        >
           {order.number ?? order.id.slice(0, 8)}
-        </p>
+        </Link>
         <p className="text-xs text-[var(--muted)]">
           {formatDate(order.createdAt)} · {order._count.items} позиций
         </p>

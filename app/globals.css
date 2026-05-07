@@ -26,13 +26,16 @@
 html {
   color-scheme: light;
   overflow-x: hidden;
+  width: 100%;
 }
 
 * {
+  box-sizing: border-box;
   border-color: var(--line);
 }
 
 body {
+  width: 100%;
   min-height: 100vh;
   background: var(--background);
   color: var(--foreground);
@@ -41,8 +44,19 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
-main {
+main,
+section,
+article,
+aside {
   min-height: 1px;
+  min-width: 0;
+}
+
+img,
+svg,
+video,
+canvas {
+  max-width: 100%;
 }
 
 a,

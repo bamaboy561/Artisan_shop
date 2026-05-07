@@ -40,28 +40,8 @@ export const accountNavigation: NavItem[] = [
 export const adminNavigation: NavItem[] = [
   {
     href: "/admin",
-    label: "Дашборд",
+    label: "Главная",
     description: "Очереди и показатели.",
-  },
-  {
-    href: "/admin/categories",
-    label: "Категории",
-    description: "Структура каталога.",
-  },
-  {
-    href: "/admin/brands",
-    label: "Бренды",
-    description: "Поставщики и коллекции.",
-  },
-  {
-    href: "/admin/products",
-    label: "Товары",
-    description: "Карточки и публикация.",
-  },
-  {
-    href: "/admin/users",
-    label: "Клиенты",
-    description: "Уровни, скидки и баллы.",
   },
   {
     href: "/admin/orders",
@@ -70,8 +50,28 @@ export const adminNavigation: NavItem[] = [
   },
   {
     href: "/admin/requests",
-    label: "Заявки",
+    label: "Запросы на расчёт",
     description: "Расчёт и входящий поток.",
+  },
+  {
+    href: "/admin/categories",
+    label: "Каталог",
+    description: "Структура каталога.",
+  },
+  {
+    href: "/admin/products",
+    label: "Материалы",
+    description: "Карточки и публикация.",
+  },
+  {
+    href: "/admin/brands",
+    label: "Бренды",
+    description: "Поставщики и коллекции.",
+  },
+  {
+    href: "/admin/users",
+    label: "Клиенты",
+    description: "Уровни, скидки и баллы.",
   },
   {
     href: "/admin/promotions",
@@ -80,25 +80,23 @@ export const adminNavigation: NavItem[] = [
   },
 ];
 
-// TODO: Обновите контактные данные реальными значениями.
 export const companyContacts = {
-  phone: "+996 555 000-000",
+  phone: "",
   email: "info@artisan.kg",
-  address: "г. Бишкек, ул. Примерная 1",
+  address: "Бишкек",
   hours: "Пн–Сб 09:00–18:00",
-  whatsapp: "+996555000000",
-  telegram: "artisan_kg",
+  whatsapp: "",
+  telegram: "artisan_sales_bot",
 };
 
-// TODO: Обновите филиалы реальными данными.
 export const companyBranches: Array<{
   name: string;
   address: string;
   hours: string;
 }> = [
   {
-    name: "Шоурум Artisan",
-    address: "г. Бишкек, ул. Примерная 1",
+    name: "Artisan",
+    address: "Бишкек",
     hours: "Пн–Сб 09:00–18:00",
   },
 ];

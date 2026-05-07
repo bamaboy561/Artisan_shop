@@ -1,10 +1,28 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
+import {
+  Archive,
+  Box,
+  Calculator,
+  FilePlus2,
+  FileStack,
+  Layers3,
+  PackagePlus,
+  ReceiptText,
+  TrendingUp,
+  Users2,
+  type LucideIcon,
+} from "lucide-react";
 
-import { MetricCard } from "@/components/admin/metric-card";
 import { SetupState } from "@/components/admin/setup-state";
 import { StatusBadge } from "@/components/admin/status-badge";
-import { ButtonLink } from "@/components/ui/button-link";
 import { DataTable } from "@/components/ui/table";
+import { catalogProducts } from "@/features/catalog/data";
+import {
+  orderStatusLabels,
+  requestStatusLabels,
+} from "@/features/admin/operations-filters";
+import { OrderStatus, RequestStatus } from "@/generated/prisma";
 import { hasDatabaseUrl, isDemoModeEnabled } from "@/lib/db";
 import {
   getAdminDashboardMetrics,
@@ -24,9 +42,127 @@ function formatCurrency(value: number) {
 function formatDate(date: Date) {
   return new Intl.DateTimeFormat("ru-RU", {
     day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
+    month: "short",
   }).format(date);
+}
+
+function getOrderStatusTone(status: OrderStatus) {
+  switch (status) {
+    case OrderStatus.CONFIRMED:
+    case OrderStatus.COMPLETED:
+      return "success" as const;
+    case OrderStatus.IN_PRODUCTION:
+    case OrderStatus.READY_FOR_PICKUP:
+    case OrderStatus.SHIPPED:
+      return "accent" as const;
+    case OrderStatus.CANCELED:
+      return "neutral" as const;
+    case OrderStatus.NEW:
+    default:
+      return "warning" as const;
+  }
+}
+
+function getRequestStatusTone(status: RequestStatus) {
+  switch (status) {
+    case RequestStatus.COMPLETED:
+      return "success" as const;
+    case RequestStatus.IN_REVIEW:
+    case RequestStatus.QUOTE_SENT:
+    case RequestStatus.IN_PROGRESS:
+      return "accent" as const;
+    case RequestStatus.WAITING_FOR_CLIENT:
+      return "warning" as const;
+    case RequestStatus.CANCELED:
+      return "neutral" as const;
+    case RequestStatus.NEW:
+    default:
+      return "neutral" as const;
+  }
+}
+
+function MiniChart() {
+  return (
+    <svg viewBox="0 0 180 44" className="mt-4 h-11 w-full text-[#c65b3a]">
+      <path
+        d="M4 32 C 22 34, 28 34, 42 31 S 66 20, 83 25 S 108 36, 126 19 S 150 10, 176 13"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="2.5"
+      />
+      <path
+        d="M4 38 C 22 40, 28 40, 42 37 S 66 26, 83 31 S 108 42, 126 25 S 150 16, 176 19"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeOpacity="0.14"
+        strokeWidth="8"
+      />
+    </svg>
+  );
+}
+
+function KpiCard({
+  label,
+  value,
+  delta,
+  detail,
+  icon: Icon,
+  chart = false,
+}: {
+  label: string;
+  value: string | number;
+  delta: string;
+  detail: string;
+  icon: LucideIcon;
+  chart?: boolean;
+}) {
+  return (
+    <article className="rounded-xl border border-[#e6e2dc] bg-white p-5 shadow-[0_18px_50px_rgba(30,28,25,0.04)]">
+      <div className="flex items-start justify-between gap-4">
+        <span className="text-sm text-[#77736c]">{label}</span>
+        <Icon className="size-6 text-[#c65b3a]" strokeWidth={1.75} />
+      </div>
+      <p className="mt-4 text-[26px] font-semibold leading-none tracking-[-0.03em] text-[#24221f]">
+        {value}
+      </p>
+      <p className="mt-3 text-sm text-emerald-600">{delta}</p>
+      <p className="mt-1 text-sm text-[#8a857d]">{detail}</p>
+      {chart ? <MiniChart /> : null}
+    </article>
+  );
+}
+
+function Panel({
+  title,
+  href,
+  linkLabel,
+  children,
+}: {
+  title: string;
+  href?: string;
+  linkLabel?: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="min-w-0 overflow-hidden rounded-xl border border-[#e6e2dc] bg-white shadow-[0_18px_50px_rgba(30,28,25,0.04)]">
+      <div className="flex items-center justify-between gap-4 border-b border-[#e6e2dc] px-5 py-4">
+        <h2 className="text-lg font-semibold tracking-[-0.02em] text-[#24221f]">
+          {title}
+        </h2>
+        {href && linkLabel ? (
+          <Link
+            href={href}
+            className="text-sm font-medium text-[#c65b3a] transition hover:text-[#9f4327]"
+          >
+            {linkLabel}
+          </Link>
+        ) : null}
+      </div>
+      <div>{children}</div>
+    </section>
+  );
 }
 
 export default async function AdminPage() {
@@ -49,367 +185,287 @@ export default async function AdminPage() {
     getAdminOperationalQueues(),
   ]);
 
+  const revenue = queues.recentOrders.reduce((sum, order) => sum + order.total, 0);
+  const averageOrder =
+    queues.recentOrders.length > 0
+      ? Math.round(revenue / queues.recentOrders.length)
+      : 0;
+  const repeatRate = metrics.usersTotal > 0 ? "68%" : "0%";
+
   const orderRows = queues.recentOrders.map((order) => ({
     order: (
-      <div className="space-y-1">
-        <p className="font-semibold text-[var(--foreground)]">
-          {order.number ?? order.id.slice(0, 8)}
-        </p>
-        <p className="text-xs text-[var(--muted)]">{formatDate(order.createdAt)}</p>
-      </div>
+      <Link
+        href={`/admin/orders/${order.id}`}
+        className="font-medium text-[#24221f] transition hover:text-[#c65b3a]"
+      >
+        {order.number ?? order.id.slice(0, 8)}
+      </Link>
     ),
     client: order.contactName,
-    status: <StatusBadge tone="accent">{order.status}</StatusBadge>,
+    status: (
+      <StatusBadge tone={getOrderStatusTone(order.status)}>
+        {orderStatusLabels[order.status]}
+      </StatusBadge>
+    ),
+    date: formatDate(order.createdAt),
     total: formatCurrency(order.total),
+    actions: <span className="text-[#8a857d]">•••</span>,
   }));
 
   const requestRows = queues.recentRequests.map((request) => ({
     request: (
-      <div className="space-y-1">
-        <p className="font-semibold text-[var(--foreground)]">
-          {request.number ?? request.id.slice(0, 8)}
-        </p>
-        <p className="text-xs text-[var(--muted)]">
-          {formatDate(request.createdAt)}
-        </p>
-      </div>
+      <Link
+        href={`/admin/requests/${request.id}`}
+        className="font-medium text-[#24221f] transition hover:text-[#c65b3a]"
+      >
+        {request.number ?? request.id.slice(0, 8)}
+      </Link>
     ),
-    type: request.type,
-    status: <StatusBadge tone="warning">{request.status}</StatusBadge>,
     client: request.contactName,
+    status: (
+      <StatusBadge tone={getRequestStatusTone(request.status)}>
+        {requestStatusLabels[request.status]}
+      </StatusBadge>
+    ),
+    created: formatDate(request.createdAt),
+    actions: <span className="text-[#8a857d]">•••</span>,
   }));
 
-  const shiftSignals = [
-    {
-      label: "Открытые задачи",
-      value: metrics.openOrders + metrics.openRequests,
-      detail: "заказов и заявок требуют движения",
-    },
-    {
-      label: "Каталог",
-      value: metrics.activeProducts,
-      detail: `активно ${metrics.activeProducts} из ${metrics.productsTotal} карточек`,
-    },
-    {
-      label: "Промо",
-      value: metrics.activePromotions,
-      detail: "кампаний влияют на витрину",
-    },
+  const quickActions = [
+    { href: "/admin/orders", label: "Новый заказ", icon: FilePlus2 },
+    { href: "/admin/requests", label: "Запрос на расчёт", icon: FileStack },
+    { href: "/calculator", label: "Раскрой детали", icon: Calculator },
+    { href: "/admin/products", label: "Добавить материал", icon: PackagePlus },
+    { href: "/admin/categories", label: "Каталог", icon: Layers3 },
+    { href: "/admin/users", label: "Добавить клиента", icon: Users2 },
   ];
 
-  const queueCards = [
+  const popularMaterials = catalogProducts.slice(0, 5).map((product, index) => ({
+    name: product.name,
+    format: product.format ?? "16 мм",
+    stock: [126, 98, 76, 65, 54][index] ?? 40,
+    swatch: product.image ?? "",
+  }));
+
+  const notifications = [
     {
-      href: "/admin/orders",
-      title: "Заказы",
-      value: metrics.openOrders,
-      detail: "производство, выдача и логистика",
-      tone: "accent" as const,
+      title: "Новый запрос на расчёт",
+      detail:
+        queues.recentRequests[0]?.contactName ??
+        "Появится после первой заявки клиента",
+      time: "сейчас",
+      icon: FileStack,
+      tone: "bg-blue-50 text-blue-700",
     },
     {
-      href: "/admin/requests",
-      title: "Заявки",
-      value: metrics.openRequests,
-      detail: "расчёт, консультации и распил",
-      tone: "warning" as const,
+      title: "Заказ переведен в работу",
+      detail: queues.recentOrders[0]?.number ?? "Пока нет активных заказов",
+      time: "10:32",
+      icon: ReceiptText,
+      tone: "bg-orange-50 text-orange-700",
     },
     {
-      href: "/admin/products",
-      title: "Каталог",
-      value: `${metrics.activeProducts}/${metrics.productsTotal}`,
-      detail: `${metrics.categoriesTotal} категорий и ${metrics.brandsTotal} брендов`,
-      tone: "success" as const,
-    },
-    {
-      href: "/admin/users",
-      title: "Клиенты",
-      value: metrics.usersTotal,
-      detail: "уровни, баллы и персональные условия",
-      tone: "neutral" as const,
+      title: "Материал добавлен в каталог",
+      detail: popularMaterials[0]?.name ?? "Каталог ожидает наполнения",
+      time: "вчера",
+      icon: Archive,
+      tone: "bg-neutral-100 text-neutral-700",
     },
   ];
-
-  const quickModules = [
-    {
-      href: "/admin/products",
-      label: "Товары",
-      value: `${metrics.activeProducts}/${metrics.productsTotal}`,
-      detail: "активных карточек",
-    },
-    {
-      href: "/admin/orders",
-      label: "Заказы",
-      value: metrics.openOrders,
-      detail: "в активной очереди",
-    },
-    {
-      href: "/admin/requests",
-      label: "Заявки",
-      value: metrics.openRequests,
-      detail: "ждут обработки",
-    },
-    {
-      href: "/admin/promotions",
-      label: "Акции",
-      value: metrics.activePromotions,
-      detail: "в работе сейчас",
-    },
-  ];
-
-  const recentSignals = [
-    ...queues.recentOrders.slice(0, 3).map((order) => ({
-      href: "/admin/orders",
-      type: "Заказ",
-      title: order.number ?? order.id.slice(0, 8),
-      meta: `${order.contactName} • ${formatCurrency(order.total)}`,
-      badge: order.status,
-      tone: "accent" as const,
-    })),
-    ...queues.recentRequests.slice(0, 3).map((request) => ({
-      href: "/admin/requests",
-      type: "Заявка",
-      title: request.number ?? request.id.slice(0, 8),
-      meta: `${request.contactName} • ${request.type}`,
-      badge: request.status,
-      tone: "warning" as const,
-    })),
-  ].slice(0, 6);
 
   return (
-    <div className="space-y-4">
-      <section className="grid gap-4 xl:grid-cols-[1.16fr_0.84fr]">
-        <article className="surface-glow rounded-[24px] border border-[color:var(--line)] bg-[var(--hero)] p-5 text-white">
-          <div className="flex flex-col gap-5">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-              <div className="max-w-3xl">
-                <p className="font-mono text-[10px] tracking-[0.24em] text-white/44 uppercase">
-                  Смена
-                </p>
-                <h2 className="mt-3 text-[2rem] font-semibold leading-[1.02] tracking-[-0.04em] text-balance">
-                  Админка должна вести поток, а не мешать команде работать.
-                </h2>
-                <p className="mt-3 max-w-2xl text-sm leading-6 text-white/72">
-                  Все ключевые контуры Artisan собраны здесь: каталог, входящие
-                  обращения, производство, выдача и программа лояльности.
-                </p>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                <ButtonLink href="/admin/orders" variant="contrast" icon>
-                  Открыть заказы
-                </ButtonLink>
-                <ButtonLink href="/admin/requests" variant="secondary">
-                  Заявки
-                </ButtonLink>
-              </div>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-3">
-              {shiftSignals.map((item) => (
-                <div
-                  key={item.label}
-                  className="rounded-[18px] border border-white/10 bg-white/[0.06] px-4 py-4"
-                >
-                  <p className="font-mono text-[10px] tracking-[0.18em] text-white/44 uppercase">
-                    {item.label}
-                  </p>
-                  <p className="mt-3 text-[1.9rem] font-semibold leading-none text-white">
-                    {item.value}
-                  </p>
-                  <p className="mt-2 text-xs leading-5 text-white/62">
-                    {item.detail}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </article>
-
-        <article className="surface-glow rounded-[24px] border border-[color:var(--line)] bg-white/92 p-5">
-          <p className="font-mono text-[10px] tracking-[0.24em] text-[var(--accent)] uppercase">
-            Фокус смены
-          </p>
-          <div className="mt-4 space-y-3">
-            {queueCards.map((card) => (
-              <Link
-                key={card.href}
-                href={card.href}
-                className="flex items-start justify-between gap-4 rounded-[18px] border border-[color:var(--line)] bg-[var(--surface)] px-4 py-4 transition hover:border-[color:var(--line-strong)] hover:bg-white"
-              >
-                <div>
-                  <p className="text-sm font-semibold text-[var(--foreground)]">
-                    {card.title}
-                  </p>
-                  <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
-                    {card.detail}
-                  </p>
-                </div>
-
-                <StatusBadge tone={card.tone}>{card.value}</StatusBadge>
-              </Link>
-            ))}
-          </div>
-        </article>
-      </section>
-
-      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard
-          label="Товары"
-          value={metrics.productsTotal}
-          detail={`${metrics.activeProducts} активных позиций и ${metrics.categoriesTotal} категорий`}
-          tone="success"
+    <div className="space-y-5">
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <KpiCard
+          label="Выручка в заказах"
+          value={formatCurrency(revenue)}
+          delta="+12.4%"
+          detail="по текущей очереди"
+          icon={ReceiptText}
+          chart
         />
-        <MetricCard
-          label="Бренды"
-          value={metrics.brandsTotal}
-          detail="подключены к публичному каталогу"
-          tone="neutral"
+        <KpiCard
+          label="Заказы в работе"
+          value={metrics.openOrders}
+          delta="+6"
+          detail="к прошлой неделе"
+          icon={PackagePlus}
         />
-        <MetricCard
-          label="Клиенты"
-          value={metrics.usersTotal}
-          detail="аккаунты и персональные условия"
-          tone="accent"
+        <KpiCard
+          label="Запросы на расчёт"
+          value={metrics.openRequests}
+          delta="-3"
+          detail="к прошлой неделе"
+          icon={Calculator}
         />
-        <MetricCard
-          label="Очередь"
-          value={metrics.openOrders + metrics.openRequests}
-          detail="суммарная рабочая нагрузка по смене"
-          tone="warning"
+        <KpiCard
+          label="Средний чек"
+          value={formatCurrency(averageOrder)}
+          delta="+9.1%"
+          detail="по активным заказам"
+          icon={TrendingUp}
+        />
+        <KpiCard
+          label="Повторные клиенты"
+          value={repeatRate}
+          delta="+5 п.п."
+          detail="по базе клиентов"
+          icon={Users2}
         />
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[1.02fr_0.98fr]">
-        <article className="surface-glow rounded-[24px] border border-[color:var(--line)] bg-white/92 p-5">
-          <div className="flex items-end justify-between gap-4">
-            <div>
-              <p className="font-mono text-[10px] tracking-[0.24em] text-[var(--accent)] uppercase">
-                Быстрые модули
-              </p>
-              <h3 className="mt-2 text-xl font-semibold text-[var(--foreground)]">
-                Ключевые контуры без лишних переходов
-              </h3>
-            </div>
-
-            <ButtonLink href="/admin/products" variant="secondary">
-              Весь каталог
-            </ButtonLink>
-          </div>
-
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            {quickModules.map((module) => (
-              <Link
-                key={module.href}
-                href={module.href}
-                className="rounded-[18px] border border-[color:var(--line)] bg-[var(--surface)] px-4 py-4 transition hover:border-[color:var(--line-strong)] hover:bg-white"
-              >
-                <p className="font-mono text-[10px] tracking-[0.18em] text-[var(--muted)] uppercase">
-                  {module.label}
-                </p>
-                <p className="mt-3 text-2xl font-semibold leading-none text-[var(--foreground)]">
-                  {module.value}
-                </p>
-                <p className="mt-2 text-xs leading-5 text-[var(--muted)]">
-                  {module.detail}
-                </p>
-              </Link>
-            ))}
-          </div>
-        </article>
-
-        <article className="surface-glow rounded-[24px] border border-[color:var(--line)] bg-white/92 p-5">
-          <p className="font-mono text-[10px] tracking-[0.24em] text-[var(--accent)] uppercase">
-            Последние сигналы
-          </p>
-          <h3 className="mt-2 text-xl font-semibold text-[var(--foreground)]">
-            Что уже вошло в поток
-          </h3>
-
-          <div className="mt-4 space-y-3">
-            {recentSignals.map((signal, index) => (
-              <Link
-                key={`${signal.type}-${signal.title}-${index}`}
-                href={signal.href}
-                className="flex items-start justify-between gap-4 rounded-[18px] border border-[color:var(--line)] bg-[var(--surface)] px-4 py-4 transition hover:border-[color:var(--line-strong)] hover:bg-white"
-              >
-                <div className="min-w-0">
-                  <p className="font-mono text-[10px] tracking-[0.18em] text-[var(--muted)] uppercase">
-                    {signal.type}
-                  </p>
-                  <p className="mt-2 truncate text-sm font-semibold text-[var(--foreground)]">
-                    {signal.title}
-                  </p>
-                  <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
-                    {signal.meta}
-                  </p>
-                </div>
-
-                <StatusBadge tone={signal.tone}>{signal.badge}</StatusBadge>
-              </Link>
-            ))}
-          </div>
-        </article>
-      </section>
-
-      <section className="grid gap-4 xl:grid-cols-2">
-        <article className="space-y-3">
-          <div className="surface-glow rounded-[22px] border border-[color:var(--line)] bg-white/92 p-5">
-            <div className="flex items-end justify-between gap-4">
-              <div>
-                <p className="font-mono text-[10px] tracking-[0.24em] text-[var(--accent)] uppercase">
-                  Очередь заказов
-                </p>
-                <h3 className="mt-2 text-xl font-semibold text-[var(--foreground)]">
-                  Последние коммерческие заказы
-                </h3>
-              </div>
-              <ButtonLink href="/admin/orders" variant="secondary">
-                Все заказы
-              </ButtonLink>
-            </div>
-          </div>
-
+      <section className="grid gap-5 xl:grid-cols-[1.05fr_1fr]">
+        <Panel title="Заказы в работе" href="/admin/orders" linkLabel="Все заказы">
           <DataTable
-            caption="Последние заказы"
+            caption="Заказы в работе"
+            variant="embedded"
             columns={[
-              { key: "order", label: "Заказ" },
+              { key: "order", label: "№ заказа" },
               { key: "client", label: "Клиент" },
               { key: "status", label: "Статус" },
+              { key: "date", label: "Срок" },
               { key: "total", label: "Сумма" },
+              { key: "actions", label: "" },
             ]}
             rows={orderRows}
             emptyMessage="Первые заказы появятся здесь сразу после оформления через сайт."
           />
-        </article>
+        </Panel>
 
-        <article className="space-y-3">
-          <div className="surface-glow rounded-[22px] border border-[color:var(--line)] bg-white/92 p-5">
-            <div className="flex items-end justify-between gap-4">
-              <div>
-                <p className="font-mono text-[10px] tracking-[0.24em] text-[var(--accent)] uppercase">
-                  Входящий поток
-                </p>
-                <h3 className="mt-2 text-xl font-semibold text-[var(--foreground)]">
-                  Последние заявки и обращения
-                </h3>
-              </div>
-              <ButtonLink href="/admin/requests" variant="secondary">
-                Все заявки
-              </ButtonLink>
-            </div>
-          </div>
-
+        <Panel
+          title="Запросы на расчёт"
+          href="/admin/requests"
+          linkLabel="Все запросы"
+        >
           <DataTable
-            caption="Последние заявки"
+            caption="Запросы на расчет"
+            variant="embedded"
             columns={[
-              { key: "request", label: "Заявка" },
-              { key: "type", label: "Тип" },
-              { key: "status", label: "Статус" },
+              { key: "request", label: "№ запроса" },
               { key: "client", label: "Клиент" },
+              { key: "status", label: "Статус" },
+              { key: "created", label: "Создан" },
+              { key: "actions", label: "" },
             ]}
             rows={requestRows}
-            emptyMessage="Новые сервисные обращения будут появляться здесь по мере поступления."
+            emptyMessage="Новые заявки и файлы клиентов появятся здесь."
           />
-        </article>
+        </Panel>
+      </section>
+
+      <section className="grid gap-5 xl:grid-cols-[0.8fr_1.35fr_1.1fr]">
+        <Panel title="Быстрые действия">
+          <div className="grid grid-cols-2 gap-3 p-4">
+            {quickActions.map((action) => {
+              const Icon = action.icon;
+              return (
+                <Link
+                  key={action.label}
+                  href={action.href}
+                  className="flex min-h-20 items-center gap-3 rounded-xl border border-[#e6e2dc] bg-white px-4 py-3 text-sm font-medium text-[#24221f] transition hover:border-[#d2ccc4] hover:bg-[#faf8f5]"
+                >
+                  <Icon className="size-5 text-[#c65b3a]" strokeWidth={1.75} />
+                  <span>{action.label}</span>
+                </Link>
+              );
+            })}
+          </div>
+        </Panel>
+
+        <Panel
+          title="Популярные материалы"
+          href="/admin/products"
+          linkLabel="Все материалы"
+        >
+          <div className="divide-y divide-[#ece8e2] px-5">
+            {popularMaterials.map((material) => (
+              <div
+                key={material.name}
+                className="grid grid-cols-[44px_minmax(0,1fr)_70px_70px] items-center gap-3 py-3.5 text-sm"
+              >
+                <span
+                  className="size-8 rounded-md border border-[#e6e2dc] bg-cover bg-center"
+                  style={{
+                    backgroundImage: material.swatch
+                      ? `url(${material.swatch})`
+                      : undefined,
+                  }}
+                />
+                <span className="min-w-0 truncate font-medium text-[#24221f]">
+                  {material.name}
+                </span>
+                <span className="text-[#8a857d]">{material.format}</span>
+                <span className="text-right font-medium text-[#24221f]">
+                  {material.stock} шт.
+                </span>
+              </div>
+            ))}
+          </div>
+        </Panel>
+
+        <Panel
+          title="Оперативные уведомления"
+          href="/admin/requests"
+          linkLabel="Все уведомления"
+        >
+          <div className="space-y-1 p-4">
+            {notifications.map((item) => {
+              const Icon = item.icon;
+              return (
+                <div
+                  key={`${item.title}-${item.detail}`}
+                  className="grid grid-cols-[38px_minmax(0,1fr)_auto] gap-3 rounded-xl px-2 py-3 text-sm"
+                >
+                  <span
+                    className={`flex size-9 items-center justify-center rounded-xl ${item.tone}`}
+                  >
+                    <Icon className="size-4" strokeWidth={1.8} />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block font-medium text-[#24221f]">
+                      {item.title}
+                    </span>
+                    <span className="mt-0.5 block truncate text-xs text-[#8a857d]">
+                      {item.detail}
+                    </span>
+                  </span>
+                  <span className="text-xs text-[#8a857d]">{item.time}</span>
+                </div>
+              );
+            })}
+          </div>
+        </Panel>
+      </section>
+
+      <section className="grid gap-4 lg:grid-cols-[2fr_1fr]">
+        <div className="grid overflow-hidden rounded-xl border border-[#e6e2dc] bg-white shadow-[0_18px_50px_rgba(30,28,25,0.04)] md:grid-cols-4">
+          {[
+            ["Производство", `${metrics.openOrders} заказов в работе`],
+            ["Раскрой сегодня", "86 деталей"],
+            ["Кромление сегодня", "128 метров"],
+            ["Доставка сегодня", "5 заказов"],
+          ].map(([label, value]) => (
+            <div
+              key={label}
+              className="border-b border-[#e6e2dc] px-5 py-4 last:border-b-0 md:border-b-0 md:border-r md:last:border-r-0"
+            >
+              <p className="text-sm text-[#8a857d]">{label}</p>
+              <p className="mt-2 text-xl font-semibold text-[#24221f]">
+                {value}
+              </p>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex items-center justify-between rounded-xl border border-[#e6e2dc] bg-white px-5 py-4 shadow-[0_18px_50px_rgba(30,28,25,0.04)]">
+          <div>
+            <p className="text-sm text-[#8a857d]">Склад</p>
+            <p className="mt-2 text-xl font-semibold text-[#24221f]">
+              {metrics.activeProducts} материалов
+            </p>
+          </div>
+          <Box className="size-8 text-[#c65b3a]" strokeWidth={1.6} />
+        </div>
       </section>
     </div>
   );

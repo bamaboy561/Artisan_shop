@@ -153,10 +153,10 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
       </section>
 
       <section className="px-4 pt-2.5 pb-5 sm:px-8 sm:py-8 lg:px-10">
-        <div className="mx-auto grid max-w-[1500px] gap-5 lg:grid-cols-[280px_minmax(0,1fr)]">
+        <div className="mx-auto grid max-w-[1500px] min-w-0 gap-5 lg:grid-cols-[280px_minmax(0,1fr)]">
           <CatalogSidebar state={resolvedState} options={filterOptions} />
 
-          <div className="space-y-5 sm:space-y-6">
+          <div className="min-w-0 space-y-5 sm:space-y-6">
             <CatalogToolbar
               state={resolvedState}
               options={filterOptions}
@@ -188,7 +188,7 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
                 </div>
 
                 {pagination.totalPages > 1 ? (
-                  <div className="flex flex-col gap-3 border-t border-[color:var(--line)] pt-5 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:pt-6">
+                  <div className="flex min-w-0 flex-col gap-3 border-t border-[color:var(--line)] pt-5 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:pt-6">
                     <p className="font-mono text-[10px] tracking-[0.14em] text-[var(--muted)] uppercase">
                       Страница {pagination.currentPage} из {pagination.totalPages}
                     </p>

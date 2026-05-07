@@ -46,7 +46,8 @@ export async function submitCuttingRequestAction(
   if (!subject || !message || !contactName || !contactPhone || !material) {
     return {
       ok: false,
-      message: "Заполните контактные данные и добавьте хотя бы одну деталь.",
+      message:
+        "Заполните контактные данные и добавьте хотя бы одну деталь.",
     };
   }
 
@@ -110,7 +111,7 @@ export async function submitCuttingRequestAction(
     return {
       ok: false,
       message:
-        "Не удалось отправить заявку. Попробуйте ещё раз или свяжитесь с менеджером.",
+        "Не удалось отправить заявку. Попробуйте еще раз или свяжитесь с менеджером.",
     };
   }
 }

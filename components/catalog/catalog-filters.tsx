@@ -384,7 +384,7 @@ export function CatalogToolbar({
     <>
       <div className={cn("space-y-3 sm:space-y-4", className)}>
         <div className="lg:hidden">
-          <div className="sticky top-[4.1rem] z-20 -mx-4 border-y border-[color:var(--line)] bg-[#f7f4ee]/96 px-4 py-2.5 backdrop-blur-xl">
+          <div className="sticky top-[4.1rem] z-20 -mx-4 max-w-[100vw] border-y border-[color:var(--line)] bg-[#f7f4ee]/96 px-4 py-2.5 backdrop-blur-xl">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-[12px] font-semibold text-[var(--foreground)]">
@@ -462,16 +462,16 @@ export function CatalogToolbar({
               </div>
 
               {chips.length > 0 ? (
-                <div className="-mx-4 overflow-x-auto px-4 pt-0.5">
+                <div className="-mx-4 max-w-[100vw] overflow-x-auto px-4 pt-0.5">
                   <div className="flex w-max items-center gap-1.5">
                     {chips.map((chip) => (
                       <button
                         key={chip.key}
                         type="button"
                         onClick={chip.onRemove}
-                        className="inline-flex items-center gap-1.5 border border-[color:var(--line)] bg-white px-2.5 py-1.5 text-[11px] font-medium text-[var(--foreground)]"
+                        className="inline-flex max-w-[15rem] items-center gap-1.5 border border-[color:var(--line)] bg-white px-2.5 py-1.5 text-[11px] font-medium text-[var(--foreground)]"
                       >
-                        <span>{chip.label}</span>
+                        <span className="truncate">{chip.label}</span>
                         <X className="size-3 text-[var(--muted)]" />
                       </button>
                     ))}

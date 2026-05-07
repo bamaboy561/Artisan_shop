@@ -149,7 +149,7 @@ export function ProductCard({
           </div>
 
           {mobileList ? (
-            <span className="shrink-0 font-mono text-[8px] tracking-[0.14em] text-[var(--muted)] uppercase sm:hidden">
+            <span className="max-w-[5.7rem] shrink truncate text-right font-mono text-[8px] tracking-[0.14em] text-[var(--muted)] uppercase sm:hidden">
               {format}
             </span>
           ) : null}

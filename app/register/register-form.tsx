@@ -113,7 +113,7 @@ export function RegisterForm({ next }: RegisterFormProps) {
       ) : null}
 
       <Button type="submit" variant="accent" disabled={pending}>
-        {pending ? "Создаём кабинет..." : "Создать кабинет"}
+        {pending ? "Создаем кабинет..." : "Создать кабинет"}
       </Button>
 
       <p className="text-sm text-[var(--muted)]">

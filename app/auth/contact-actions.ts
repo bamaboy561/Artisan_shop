@@ -8,9 +8,12 @@ const contactSchema = z.object({
   email: z
     .string()
     .trim()
-    .transform((v) => (v === "" ? undefined : v))
+    .transform((value) => (value === "" ? undefined : value))
     .pipe(z.email("Введите корректный email").optional()),
-  message: z.string().trim().min(10, "Опишите ваш запрос (минимум 10 символов)"),
+  message: z
+    .string()
+    .trim()
+    .min(10, "Опишите ваш запрос, минимум 10 символов"),
 });
 
 export type ContactFormState = {
@@ -32,12 +35,13 @@ export async function submitContactForm(
   if (!validated.success) {
     return {
       message:
-        validated.error.issues[0]?.message ?? "Проверьте корректность данных.",
+        validated.error.issues[0]?.message ??
+        "Проверьте корректность данных.",
     };
   }
 
-  // TODO: Подключить отправку email/Telegram/сохранение в БД.
-  // Данные формы доступны в validated.data: { name, phone, email?, message }
+  // TODO: подключить email/Telegram или сохранение обращения в БД.
+  // Данные формы доступны в validated.data: { name, phone, email?, message }.
 
   return {
     success: true,

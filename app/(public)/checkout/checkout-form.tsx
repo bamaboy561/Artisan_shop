@@ -99,7 +99,7 @@ export function CheckoutForm({
     <Container className="space-y-8 py-10 sm:py-14">
       <SectionHeading
         title="Оформление заказа"
-        description="Проверьте состав корзины, заполните контакты и отправьте заказ в работу менеджеру."
+        description="Проверьте состав корзины, заполните контакты и отправьте заказ менеджеру."
       />
 
       {itemCount === 0 ? (
@@ -121,7 +121,7 @@ export function CheckoutForm({
             {!databaseReady ? (
               <div className="rounded-[20px] border border-amber-200 bg-amber-50 px-4 py-4 text-sm leading-7 text-amber-900">
                 Для реального оформления заказа подключите PostgreSQL и
-                примените Prisma-схему. После этого форма начнёт создавать
+                примените Prisma-схему. После этого форма начнет создавать
                 заказы в базе.
               </div>
             ) : null}
@@ -171,7 +171,7 @@ export function CheckoutForm({
               <div className="grid gap-4 md:grid-cols-2">
                 <label className="grid gap-2 text-sm text-[var(--foreground)]">
                   Город
-                  <Input name="city" placeholder="Омск" />
+                  <Input name="city" placeholder="Бишкек" />
                 </label>
                 <label className="grid gap-2 text-sm text-[var(--foreground)]">
                   Способ доставки
@@ -202,7 +202,7 @@ export function CheckoutForm({
                     spellCheck={false}
                   />
                   <span className="text-xs leading-6 text-[var(--muted)]">
-                    Применим скидку после проверки кода на этапе оформления.
+                    Скидка применится после проверки кода.
                   </span>
                 </label>
 

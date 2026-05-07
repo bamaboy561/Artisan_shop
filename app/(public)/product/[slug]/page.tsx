@@ -33,12 +33,16 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const gallery =
     product.gallery.length > 0 ? product.gallery : [product.image];
   const availabilityLabel = product.inStock ? "В наличии" : "По запросу";
+  const duplicatedSpecKeys = new Set(["артикул", "бренд", "раздел", "формат"]);
   const specificationRows = [
     { key: "Артикул", value: product.sku },
     { key: "Бренд", value: product.brand },
     { key: "Раздел", value: product.categoryName },
     { key: "Формат", value: product.format },
-    ...product.specifications,
+    ...product.specifications.filter(
+      (specification) =>
+        !duplicatedSpecKeys.has(specification.key.trim().toLowerCase()),
+    ),
     { key: "Сценарий заказа", value: product.action },
   ];
 
@@ -58,8 +62,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
       </div>
 
       <section className="px-4 py-5 sm:px-8 sm:py-8 lg:px-10">
-        <div className="mx-auto grid max-w-[1500px] gap-5 lg:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)] lg:gap-8">
-          <div className="space-y-3 sm:space-y-4">
+        <div className="mx-auto grid max-w-[1500px] min-w-0 gap-5 lg:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)] lg:gap-8">
+          <div className="min-w-0 space-y-3 sm:space-y-4">
             <div className="relative aspect-[0.95] overflow-hidden bg-[#dad7cf] sm:aspect-[0.86]">
               <Image
                 src={product.image}
@@ -93,8 +97,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
             ) : null}
           </div>
 
-          <aside className="lg:sticky lg:top-20 lg:self-start">
-            <div className="border border-[color:var(--line)] bg-[var(--surface-strong)] p-4 sm:p-6 lg:p-7">
+          <aside className="min-w-0 lg:sticky lg:top-20 lg:self-start">
+            <div className="min-w-0 border border-[color:var(--line)] bg-[var(--surface-strong)] p-4 sm:p-6 lg:p-7">
               <p className="font-mono text-[10px] tracking-[0.22em] text-[var(--accent)] uppercase">
                 {product.brand}
               </p>
@@ -133,21 +137,21 @@ export default async function ProductPage({ params }: ProductPageProps) {
               </div>
 
               <dl className="mt-4 grid gap-3 text-sm sm:mt-5">
-                <div className="flex items-start justify-between gap-4 border-b border-[color:var(--line)] pb-3">
+                <div className="grid grid-cols-[minmax(0,0.42fr)_minmax(0,0.58fr)] items-start gap-4 border-b border-[color:var(--line)] pb-3">
                   <dt className="text-[var(--muted)]">Артикул</dt>
-                  <dd className="text-right font-medium text-[var(--foreground)]">
+                  <dd className="min-w-0 break-words text-right font-medium text-[var(--foreground)]">
                     {product.sku}
                   </dd>
                 </div>
-                <div className="flex items-start justify-between gap-4 border-b border-[color:var(--line)] pb-3">
+                <div className="grid grid-cols-[minmax(0,0.42fr)_minmax(0,0.58fr)] items-start gap-4 border-b border-[color:var(--line)] pb-3">
                   <dt className="text-[var(--muted)]">Формат</dt>
-                  <dd className="text-right font-medium text-[var(--foreground)]">
+                  <dd className="min-w-0 break-words text-right font-medium text-[var(--foreground)]">
                     {product.format}
                   </dd>
                 </div>
-                <div className="flex items-start justify-between gap-4 border-b border-[color:var(--line)] pb-3">
+                <div className="grid grid-cols-[minmax(0,0.42fr)_minmax(0,0.58fr)] items-start gap-4 border-b border-[color:var(--line)] pb-3">
                   <dt className="text-[var(--muted)]">Наличие</dt>
-                  <dd className="text-right font-medium text-[var(--foreground)]">
+                  <dd className="min-w-0 break-words text-right font-medium text-[var(--foreground)]">
                     {availabilityLabel}
                   </dd>
                 </div>
@@ -224,12 +228,12 @@ export default async function ProductPage({ params }: ProductPageProps) {
             {specificationRows.map((row, index) => (
               <div
                 key={`${row.key}-${index}`}
-                className="grid gap-1.5 border-b border-[color:var(--line)] px-4 py-3.5 last:border-b-0 sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-2 sm:px-5 sm:py-4"
+                className="grid min-w-0 gap-1.5 border-b border-[color:var(--line)] px-4 py-3.5 last:border-b-0 sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-2 sm:px-5 sm:py-4"
               >
                 <p className="font-mono text-[10px] tracking-[0.14em] text-[var(--muted)] uppercase">
                   {row.key}
                 </p>
-                <p className="text-sm leading-5 text-[var(--foreground)] sm:leading-6">
+                <p className="min-w-0 break-words text-sm leading-5 text-[var(--foreground)] sm:leading-6">
                   {row.value}
                 </p>
               </div>
