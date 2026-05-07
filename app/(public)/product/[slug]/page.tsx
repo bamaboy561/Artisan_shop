@@ -7,10 +7,10 @@ import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { ButtonLink } from "@/components/ui/button-link";
 import { ProductCard } from "@/components/ui/cards";
 import {
-  getCategoryBySlug,
-  getProductBySlug,
-  getProductsByCategory,
-} from "@/features/catalog/data";
+  getPublicCategoryBySlug,
+  getPublicProductBySlug,
+  getPublicProductsByCategory,
+} from "@/lib/server/catalog-public";
 import { formatPrice } from "@/lib/commerce";
 
 type ProductPageProps = {
@@ -19,15 +19,18 @@ type ProductPageProps = {
 
 export default async function ProductPage({ params }: ProductPageProps) {
   const { slug } = await params;
-  const product = getProductBySlug(slug);
+  const product = await getPublicProductBySlug(slug);
 
   if (!product) {
     notFound();
   }
 
-  const category = getCategoryBySlug(product.categorySlug);
+  const [category, sameCategoryProducts] = await Promise.all([
+    getPublicCategoryBySlug(product.categorySlug),
+    getPublicProductsByCategory(product.categorySlug),
+  ]);
   const categoryHref = category ? `/catalog/${category.slug}` : "/catalog";
-  const relatedProducts = getProductsByCategory(product.categorySlug)
+  const relatedProducts = sameCategoryProducts
     .filter((item) => item.slug !== product.slug)
     .slice(0, 4);
   const gallery =

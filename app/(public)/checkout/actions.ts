@@ -8,11 +8,11 @@ import {
   OrderStatus,
   PromotionTargetType,
 } from "@/generated/prisma";
-import { catalogProducts } from "@/features/catalog/data";
 import { getOptionalSession } from "@/lib/auth/dal";
 import { formatPrice } from "@/lib/commerce";
 import { getDb, hasDatabaseUrl } from "@/lib/db";
 import { handleOrderCreated } from "@/lib/server/commercial-integrations";
+import { logOperationEvent } from "@/lib/server/operation-events";
 import {
   applyPromotion,
   estimateLoyaltyPoints,
@@ -81,7 +81,7 @@ export async function submitCheckoutAction(
   if (!hasDatabaseUrl()) {
     return {
       message:
-        "Оформление заказа станет доступно после подключения PostgreSQL и запуска seed-данных.",
+        "Оформление заказа станет доступно после подключения PostgreSQL и production bootstrap.",
     };
   }
 
@@ -220,13 +220,8 @@ export async function submitCheckoutAction(
   const productMap = new Map(
     products.map((product) => [product.slug, product]),
   );
-  const fallbackProductMap = new Map(
-    catalogProducts.map((product) => [product.slug, product]),
-  );
   const missingProducts = cartItems.filter(
-    (item) =>
-      !productMap.has(item.productSlug) &&
-      !fallbackProductMap.has(item.productSlug),
+    (item) => !productMap.has(item.productSlug),
   );
 
   if (missingProducts.length > 0) {
@@ -238,9 +233,7 @@ export async function submitCheckoutAction(
 
   const missingPrices = cartItems.some((item) => {
     const product = productMap.get(item.productSlug);
-    const fallbackProduct = fallbackProductMap.get(item.productSlug);
-
-    return typeof (product?.price ?? fallbackProduct?.price) !== "number";
+    return typeof product?.price !== "number";
   });
 
   if (missingPrices) {
@@ -252,8 +245,7 @@ export async function submitCheckoutAction(
 
   const orderItems = cartItems.map((item) => {
     const product = productMap.get(item.productSlug);
-    const fallbackProduct = fallbackProductMap.get(item.productSlug);
-    const unitPrice = product?.price ?? fallbackProduct?.price ?? 0;
+    const unitPrice = product?.price ?? 0;
     const lineSubtotal = unitPrice * item.quantity;
 
     return {
@@ -262,9 +254,9 @@ export async function submitCheckoutAction(
       unitPrice,
       discountAmount: 0,
       total: lineSubtotal,
-      snapshotName: product?.name ?? fallbackProduct?.name ?? item.productSlug,
-      snapshotSku: product?.sku ?? fallbackProduct?.sku ?? null,
-      snapshotBrand: product?.brand?.name ?? fallbackProduct?.brand ?? null,
+      snapshotName: product?.name ?? item.productSlug,
+      snapshotSku: product?.sku ?? null,
+      snapshotBrand: product?.brand?.name ?? null,
       lineSubtotal,
     };
   });
@@ -486,6 +478,16 @@ export async function submitCheckoutAction(
   }
 
   if (createdOrderForSync) {
+    await logOperationEvent({
+      entityType: "order",
+      entityId: createdOrderForSync.id,
+      eventType: "created",
+      title: `Заказ ${createdOrderForSync.number ?? orderNumber} создан`,
+      description: `Онлайн-заказ с сайта на сумму ${formatPrice(total)}.`,
+      toStatus: OrderStatus.NEW,
+      actorName: parsed.data.name,
+    });
+
     await handleOrderCreated({
       id: createdOrderForSync.id,
       number: createdOrderForSync.number ?? orderNumber,

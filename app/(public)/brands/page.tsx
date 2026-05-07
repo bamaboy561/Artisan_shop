@@ -1,15 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { getBrandProfiles } from "@/features/brands/data";
+import { type BrandProfile, getBrandProfiles } from "@/features/brands/data";
 
 export const metadata: Metadata = {
   title: "Бренды",
   description:
     "Все бренды Artisan: EXTRAVERT, SWISS KRONO, AGT и другие — логотипы, описания и переход в каталог.",
 };
-
-type BrandProfile = ReturnType<typeof getBrandProfiles>[number];
 
 function getBrandMonogram(name: string) {
   return name
@@ -64,8 +62,8 @@ function BrandCard({ profile }: { profile: BrandProfile }) {
   );
 }
 
-export default function BrandsPage() {
-  const profiles = getBrandProfiles();
+export default async function BrandsPage() {
+  const profiles = await getBrandProfiles();
 
   return (
     <div className="bg-[#f1eee8]">

@@ -4,11 +4,13 @@ import { notFound } from "next/navigation";
 import { OrderStatus } from "@/generated/prisma";
 import { updateOrderAction } from "@/app/admin/actions";
 import { AdminSubmitButton } from "@/components/admin/admin-submit-button";
+import { OperationTimeline } from "@/components/admin/operation-timeline";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { Select } from "@/components/ui/select";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { requireAdminSession } from "@/lib/auth/dal";
 import { getOrderInboxItemById } from "@/lib/server/order-inbox";
+import { getOperationEvents } from "@/lib/server/operation-events";
 import { getAdminManagers } from "@/lib/server/operations-admin";
 import {
   getManagerDisplayName,
@@ -112,9 +114,10 @@ export default async function AdminOrderDetailPage({
   await requireAdminSession("/login?next=/admin/orders");
 
   const { id } = await params;
-  const [order, managers] = await Promise.all([
+  const [order, managers, events] = await Promise.all([
     getOrderInboxItemById(id),
     getAdminManagers().catch(() => []),
+    getOperationEvents("order", id),
   ]);
 
   if (!order) {
@@ -260,6 +263,11 @@ export default async function AdminOrderDetailPage({
               </pre>
             </section>
           ) : null}
+
+          <OperationTimeline
+            events={events}
+            emptyMessage="История появится после подтверждения, запуска в производство, готовности к выдаче или смены менеджера."
+          />
         </div>
 
         <div className="space-y-5">

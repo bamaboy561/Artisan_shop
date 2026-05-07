@@ -4,12 +4,6 @@ import {
   PromotionStatus,
   RequestStatus,
 } from "@/generated/prisma";
-import {
-  brands as publicBrands,
-  catalogCategories,
-  catalogProducts,
-  partnerBrands,
-} from "@/features/catalog/data";
 import { getDb, hasDatabaseUrl, isDemoModeEnabled } from "@/lib/db";
 import { getOrderInbox } from "@/lib/server/order-inbox";
 import { getRequestInbox } from "@/lib/server/request-inbox";
@@ -44,10 +38,10 @@ export async function getAdminDashboardMetrics() {
     );
 
     return {
-      productsTotal: catalogProducts.length,
-      activeProducts: catalogProducts.length,
-      categoriesTotal: catalogCategories.length,
-      brandsTotal: publicBrands.length + partnerBrands.length,
+      productsTotal: 0,
+      activeProducts: 0,
+      categoriesTotal: 0,
+      brandsTotal: 0,
       usersTotal: uniqueContacts.size,
       openOrders: orders.filter((order) => activeOrderStatuses.has(order.status))
         .length,

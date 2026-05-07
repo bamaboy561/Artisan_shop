@@ -1,11 +1,14 @@
 import {
   brandCatalogAssignments,
-  brands,
-  catalogProducts,
   getBrandDisplayIndex,
   partnerBrands,
   type FeaturedProduct,
 } from "@/features/catalog/data";
+import type { Brand } from "@/features/catalog/types";
+import {
+  getPublicBrands,
+  getPublicProducts,
+} from "@/lib/server/catalog-public";
 
 type BrandProfileSeed = {
   headline: string;
@@ -98,65 +101,53 @@ const brandProfileSeeds: Record<string, BrandProfileSeed> = {
     headline: "Фурнитура для плавного открывания и ежедневной эксплуатации.",
     overview:
       "Samet логично развивать в блоке функциональной фурнитуры для кухонь, шкафов и систем хранения, где важны петли, ящики и подъемные механизмы.",
-    strengths: ["Петли и ящики", "Подъемные механизмы", "Кухонные проекты"],
+    strengths: ["Петли", "Ящики", "Подъемные механизмы"],
     scenarios: [
-      "Подбор механизма открывания",
       "Комплектация кухни",
-      "Согласование набора с менеджером",
+      "Системы хранения",
+      "Сценарии плавного открывания",
     ],
   },
   slotex: {
-    headline: "Поверхности и столешницы для кухни и общественных зон.",
+    headline: "Поверхности и столешницы для проектной мебели и интерьеров.",
     overview:
-      "Slotex планируем как отдельный слой под столешницы и декоративные поверхности, где важны практичность, визуальный ритм и совместимость с остальными материалами.",
-    strengths: [
-      "Столешницы",
-      "Декоративные поверхности",
-      "Кухни и общественные зоны",
-    ],
+      "Slotex держим как акцентный слой на поверхности — для кухонь, рабочих зон и решений с выраженной декоративной функцией.",
+    strengths: ["Столешницы", "Поверхности", "Декоративные пластики"],
     scenarios: [
-      "Подбор поверхности",
-      "Связка со стеновыми решениями",
-      "Запрос партии под проект",
+      "Подбор столешницы",
+      "Поверхности для проектов",
+      "Связка с фасадами",
     ],
   },
   hettich: {
-    headline: "Функциональная фурнитура для системного мебельного проекта.",
+    headline: "Технологичная фурнитура для функциональной мебели.",
     overview:
-      "Hettich в структуре Artisan займет роль технологичного бренда для направляющих, петель и внутренних систем, когда требуется аккуратная механика и понятная логика комплектации.",
-    strengths: ["Направляющие", "Петли", "Системные решения"],
+      "Hettich усиливает блок профессиональной фурнитуры с прицелом на сложные сценарии и долговечную эксплуатацию.",
+    strengths: ["Петли с доводчиком", "Направляющие", "Системы трансформации"],
     scenarios: [
-      "Подбор механики шкафа",
-      "Фурнитура под кухонный проект",
-      "Консультация по линейкам",
+      "Сложные шкафы",
+      "Кухня и системы хранения",
+      "Дизайнерские проекты",
     ],
   },
   nuomi: {
-    headline: "Организация пространства для кухни, шкафа и гардеробной.",
+    headline: "Организация пространства, выводящая проекты на новый уровень.",
     overview:
-      "Nuomi готовим как отдельное направление по внутреннему наполнению: хранение, выдвижные системы и решения, которые повышают удобство готовой мебели.",
-    strengths: [
-      "Хранение и наполнение",
-      "Кухня и гардероб",
-      "Функциональные системы",
-    ],
+      "Nuomi разовьем в блок наполнения и систем хранения, который дополняет корпусные и фасадные решения.",
+    strengths: ["Внутреннее наполнение", "Кухонные акценты", "Гардеробные"],
     scenarios: [
-      "Подбор наполнения",
-      "Оснащение кухни",
-      "Комплектация гардеробной",
+      "Внутреннее устройство шкафов",
+      "Зоны хранения",
+      "Подбор под проект",
     ],
   },
   "italiana-ferramenta": {
-    headline: "Аккуратная фурнитура и скрытые системы для чистой сборки.",
+    headline: "Итальянская фурнитура для аккуратных и сложных проектов.",
     overview:
-      "Italiana Ferramenta логично раскрывать как премиальный блок комплектующих и скрытых систем, где важна точность, аккуратный монтаж и современная подача проекта.",
-    strengths: [
-      "Скрытые системы",
-      "Крепеж и подвесы",
-      "Премиальная комплектация",
-    ],
+      "Italiana Ferramenta — задел под проектные сценарии, где важны нюанс, материал и подача готовой мебели.",
+    strengths: ["Премиальная подача", "Точная сборка", "Дизайнерские решения"],
     scenarios: [
-      "Подбор скрытых решений",
+      "Премиальные интерьеры",
       "Комплектация дизайнерской мебели",
       "Согласование с проектной командой",
     ],
@@ -167,7 +158,10 @@ function uniqueStrings(values: Array<string | null | undefined>) {
   return Array.from(new Set(values.filter(Boolean))) as string[];
 }
 
-function buildBrandProfiles() {
+function buildBrandProfilesFrom(
+  brands: Brand[],
+  products: FeaturedProduct[],
+): BrandProfile[] {
   return brandCatalogAssignments
     .reduce<BrandProfile[]>((result, assignment) => {
       const activeBrand = brands.find(
@@ -177,11 +171,11 @@ function buildBrandProfiles() {
         (brand) => brand.slug === assignment.slug,
       );
       const seed = brandProfileSeeds[assignment.slug];
-      const products = catalogProducts.filter(
+      const brandProducts = products.filter(
         (product) => product.brandSlug === assignment.slug,
       );
 
-      if (!seed || (!activeBrand && !partnerBrand)) {
+      if (!seed) {
         return result;
       }
 
@@ -202,17 +196,17 @@ function buildBrandProfiles() {
         scenarios: seed.scenarios,
         subcategories: assignment.subcategories,
         previewLabels:
-          products.length > 0
+          brandProducts.length > 0
             ? uniqueStrings([
                 ...assignment.subcategories,
-                ...products.map((product) => product.decorGroup),
+                ...brandProducts.map((product) => product.decorGroup),
               ]).slice(0, 5)
             : (partnerBrand?.previewLabels ?? assignment.subcategories),
-        products,
-        productCount: products.length,
+        products: brandProducts,
+        productCount: brandProducts.length,
         country: activeBrand?.country,
         categorySlug: activeBrand?.categorySlug,
-        catalogHref: activeBrand
+        catalogHref: activeBrand?.categorySlug
           ? `/catalog/${activeBrand.categorySlug}?brand=${activeBrand.slug}`
           : undefined,
         brandPageHref: `/brands/${assignment.slug}`,
@@ -227,18 +221,24 @@ function buildBrandProfiles() {
     );
 }
 
-const brandProfiles = buildBrandProfiles();
-
-export function getBrandProfiles() {
-  return brandProfiles;
+export async function getBrandProfiles(): Promise<BrandProfile[]> {
+  const [brands, products] = await Promise.all([
+    getPublicBrands(),
+    getPublicProducts(),
+  ]);
+  return buildBrandProfilesFrom(brands, products);
 }
 
-export function getBrandProfileBySlug(slug: string) {
-  return getBrandProfiles().find((profile) => profile.slug === slug);
+export async function getBrandProfileBySlug(
+  slug: string,
+): Promise<BrandProfile | undefined> {
+  const profiles = await getBrandProfiles();
+  return profiles.find((profile) => profile.slug === slug);
 }
 
-export function getBrandProfilesBySection(sectionSlug: string) {
-  return getBrandProfiles().filter(
-    (profile) => profile.sectionSlug === sectionSlug,
-  );
+export async function getBrandProfilesBySection(
+  sectionSlug: string,
+): Promise<BrandProfile[]> {
+  const profiles = await getBrandProfiles();
+  return profiles.filter((profile) => profile.sectionSlug === sectionSlug);
 }

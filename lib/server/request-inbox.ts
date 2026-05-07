@@ -3,6 +3,7 @@ import path from "node:path";
 
 import {
   MessengerType,
+  RequestFileKind,
   RequestStatus,
   RequestType,
 } from "@/generated/prisma";
@@ -18,11 +19,19 @@ type DemoRequestRecord = Omit<
   updatedAt: string;
   addressText?: string | null;
   userId?: string | null;
+  quotedTotal?: number | null;
+  productionComment?: string | null;
   files?: RequestFileRecord[];
+  managerNotes?: ManagerNoteRecord[];
 };
 
 export type RequestFileRecord = {
   id: string;
+  kind?: RequestFileKind;
+  isVisibleToClient?: boolean;
+  uploadedByUserId?: string | null;
+  uploadedByName?: string | null;
+  note?: string | null;
   fileName: string;
   fileUrl: string;
   mimeType?: string | null;
@@ -30,10 +39,22 @@ export type RequestFileRecord = {
   createdAt: string;
 };
 
+export type ManagerNoteRecord = {
+  id: string;
+  body: string;
+  isVisibleToClient: boolean;
+  authorId?: string | null;
+  authorName?: string | null;
+  createdAt: string;
+};
+
 export type RequestDetailItem = AdminRequestItem & {
   userId?: string | null;
   addressText?: string | null;
+  quotedTotal?: number | null;
+  productionComment?: string | null;
   files: RequestFileRecord[];
+  managerNotes?: ManagerNoteRecord[];
   linkedOrders?: Array<{
     id: string;
     number: string | null;
@@ -77,8 +98,14 @@ async function ensureRuntimeDirectory() {
   await mkdir(runtimeDirectory, { recursive: true });
 }
 
-async function ensureRequestUploadsDirectory(requestId: string) {
-  const targetDirectory = path.join(requestUploadsDirectory, requestId);
+async function ensureRequestUploadsDirectory(
+  requestId: string,
+  directorySlug?: string,
+) {
+  const targetDirectory = directorySlug
+    ? path.join(requestUploadsDirectory, requestId, directorySlug)
+    : path.join(requestUploadsDirectory, requestId);
+
   await mkdir(targetDirectory, { recursive: true });
   return targetDirectory;
 }
@@ -92,7 +119,7 @@ function sanitizeFileName(fileName: string) {
     .toLowerCase();
 }
 
-function isAllowedRequestFile(fileName: string) {
+export function isAllowedRequestFile(fileName: string) {
   const extension = path.extname(fileName).toLowerCase();
   return new Set([
     ".pdf",
@@ -113,12 +140,26 @@ function isAllowedRequestFile(fileName: string) {
   ]).has(extension);
 }
 
-async function persistRequestFiles(requestId: string, files: File[]) {
+export async function persistRequestFiles(
+  requestId: string,
+  files: File[],
+  options: {
+    directorySlug?: string;
+    kind?: RequestFileKind;
+    isVisibleToClient?: boolean;
+    uploadedByUserId?: string | null;
+    uploadedByName?: string | null;
+    note?: string | null;
+  } = {},
+) {
   if (files.length === 0) {
     return [] as RequestFileRecord[];
   }
 
-  const directory = await ensureRequestUploadsDirectory(requestId);
+  const directory = await ensureRequestUploadsDirectory(
+    requestId,
+    options.directorySlug,
+  );
   const savedFiles: RequestFileRecord[] = [];
 
   for (const file of files) {
@@ -132,8 +173,15 @@ async function persistRequestFiles(requestId: string, files: File[]) {
 
     savedFiles.push({
       id: `file-${Date.now()}-${savedFiles.length + 1}`,
+      kind: options.kind ?? RequestFileKind.CLIENT_UPLOAD,
+      isVisibleToClient: options.isVisibleToClient ?? false,
+      uploadedByUserId: options.uploadedByUserId ?? null,
+      uploadedByName: options.uploadedByName ?? null,
+      note: options.note ?? null,
       fileName: file.name,
-      fileUrl: `/uploads/requests/${requestId}/${storedFileName}`,
+      fileUrl: options.directorySlug
+        ? `/uploads/requests/${requestId}/${options.directorySlug}/${storedFileName}`
+        : `/uploads/requests/${requestId}/${storedFileName}`,
       mimeType: file.type || null,
       size: file.size,
       createdAt: new Date().toISOString(),
@@ -178,29 +226,16 @@ function createDemoRequestRecord(
     product: record.product ?? null,
     manager: record.manager ?? null,
     files: record.files ?? [],
+    managerNotes: [],
+    quotedTotal: null,
+    productionComment: null,
     _count: {
       files: record.files?.length ?? record._count?.files ?? 0,
     },
   };
 }
 
-const initialDemoRequests: DemoRequestRecord[] = [
-  createDemoRequestRecord({
-    id: "demo-cutting-request-1",
-    number: "R-2001",
-    status: RequestStatus.IN_REVIEW,
-    subject: "Распил: кухонные фасады",
-    message:
-      "Материал: ЛДСП 16 мм / 2800 × 2070 мм\nПозиции: 4\nДеталей: 18\nОриентир: 24 000 KGS",
-    material: "ЛДСП 16 мм / 2800 × 2070 мм",
-    edgeOption: "Кромка 1 мм · 14.8 м",
-    estimatedBudget: 24000,
-    contactName: "Ирина Кузнецова",
-    contactPhone: "+7 900 000-00-02",
-    contactEmail: "client@artisan.local",
-    deliveryNeeded: true,
-  }),
-];
+const initialDemoRequests: DemoRequestRecord[] = [];
 
 async function readDemoRequests() {
   await ensureRuntimeDirectory();
@@ -246,7 +281,10 @@ function toRequestDetailItem(record: DemoRequestRecord): RequestDetailItem {
     ...toAdminRequestItem(record),
     userId: record.userId ?? null,
     addressText: record.addressText ?? null,
+    quotedTotal: record.quotedTotal ?? null,
+    productionComment: record.productionComment ?? null,
     files: record.files ?? [],
+    managerNotes: record.managerNotes ?? [],
     linkedOrders: [],
   };
 }
@@ -440,6 +478,11 @@ export async function getRequestDetailById(id: string): Promise<RequestDetailIte
           orderBy: { createdAt: "asc" },
           select: {
             id: true,
+            kind: true,
+            isVisibleToClient: true,
+            uploadedByUserId: true,
+            uploadedByName: true,
+            note: true,
             fileName: true,
             fileUrl: true,
             mimeType: true,
@@ -453,6 +496,17 @@ export async function getRequestDetailById(id: string): Promise<RequestDetailIte
             id: true,
             number: true,
             status: true,
+          },
+        },
+        managerNotes: {
+          orderBy: { createdAt: "desc" },
+          select: {
+            id: true,
+            body: true,
+            isVisibleToClient: true,
+            authorId: true,
+            authorName: true,
+            createdAt: true,
           },
         },
         _count: {
@@ -471,9 +525,15 @@ export async function getRequestDetailById(id: string): Promise<RequestDetailIte
       ...request,
       addressText: request.addressText ?? null,
       userId: request.userId ?? null,
+      quotedTotal: request.quotedTotal ?? null,
+      productionComment: request.productionComment ?? null,
       files: request.files.map((file) => ({
         ...file,
         createdAt: file.createdAt.toISOString(),
+      })),
+      managerNotes: request.managerNotes.map((note) => ({
+        ...note,
+        createdAt: note.createdAt.toISOString(),
       })),
       linkedOrders: request.linkedOrders,
     };
@@ -576,6 +636,11 @@ export async function createCuttingRequest(
         await db.requestFile.createMany({
           data: storedFiles.map((file) => ({
             requestId: createdRequest.id,
+            kind: file.kind ?? RequestFileKind.CLIENT_UPLOAD,
+            isVisibleToClient: file.isVisibleToClient ?? false,
+            uploadedByUserId: file.uploadedByUserId ?? null,
+            uploadedByName: file.uploadedByName ?? null,
+            note: file.note ?? null,
             fileName: file.fileName,
             fileUrl: file.fileUrl,
             mimeType: file.mimeType ?? null,

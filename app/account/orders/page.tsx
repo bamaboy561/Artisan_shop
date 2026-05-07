@@ -32,7 +32,7 @@ export default async function AccountOrdersPage() {
         steps={[
           "Добавьте DATABASE_URL в .env.",
           "Примените Prisma-схему через prisma db push или prisma migrate dev.",
-          "Запустите prisma db seed, чтобы загрузить стартовые заказы.",
+          "После первого реального заказа история появится здесь автоматически.",
         ]}
       />
     );

@@ -21,11 +21,12 @@ import {
   submitCuttingRequestAction,
   type SubmitCuttingRequestInput,
 } from "@/app/(public)/calculator/actions";
+import type { CalculatorProductContext } from "@/features/catalog/data";
 import type {
-  CalculatorMaterialId,
-  CalculatorProductContext,
-  CalculatorSheetPresetId,
-} from "@/features/catalog/data";
+  CalculatorMaterialDto,
+  CalculatorPresetDto,
+  CalculatorSheetFormatDto,
+} from "@/lib/server/calculator-config";
 import { formatPrice } from "@/lib/commerce";
 import { cn } from "@/lib/utils";
 
@@ -217,83 +218,10 @@ const cutMapPalette = [
   "#a67c63",
 ];
 
-const sheetFormats = [
-  { id: "2800x2070", label: "2800 x 2070 мм", width: 2800, height: 2070 },
-  { id: "2750x1830", label: "2750 x 1830 мм", width: 2750, height: 1830 },
-  { id: "2800x1220", label: "2800 x 1220 мм", width: 2800, height: 1220 },
-  { id: "2440x1830", label: "2440 x 1830 мм", width: 2440, height: 1830 },
-  { id: "3050x1220", label: "3050 x 1220 мм", width: 3050, height: 1220 },
-] as const;
-
-const materialOptions = [
-  {
-    id: "ldsp-16",
-    label: "ЛДСП 16 мм",
-    pricePerSqM: 610,
-    cutRatePerMeter: 38,
-    setupFee: 950,
-    edgeRatePerMeter: 28,
-  },
-  {
-    id: "mdf-16",
-    label: "МДФ 16 мм",
-    pricePerSqM: 760,
-    cutRatePerMeter: 42,
-    setupFee: 1100,
-    edgeRatePerMeter: 34,
-  },
-  {
-    id: "plywood-15",
-    label: "Фанера 15 мм",
-    pricePerSqM: 980,
-    cutRatePerMeter: 48,
-    setupFee: 1200,
-    edgeRatePerMeter: 0,
-  },
-  {
-    id: "compact-12",
-    label: "Компакт-плита 12 мм",
-    pricePerSqM: 1820,
-    cutRatePerMeter: 72,
-    setupFee: 1600,
-    edgeRatePerMeter: 0,
-  },
-] as const;
-
-type MaterialOption = (typeof materialOptions)[number];
-type SheetFormat = (typeof sheetFormats)[number];
-
-const calculatorPresets = [
-  {
-    id: "extravert-ldsp",
-    label: "Extravert / ЛДСП",
-    brand: "Extravert",
-    materialName: "ЛДСП",
-    materialId: "ldsp-16" as CalculatorMaterialId,
-    sheetPresetId: "2800x2070" as CalculatorSheetPresetId,
-  },
-  {
-    id: "swiss-krono-ldsp",
-    label: "Swiss Krono / ЛДСП",
-    brand: "Swiss Krono",
-    materialName: "ЛДСП",
-    materialId: "ldsp-16" as CalculatorMaterialId,
-    sheetPresetId: "2750x1830" as CalculatorSheetPresetId,
-  },
-  {
-    id: "agt-mdf",
-    label: "AGT / МДФ",
-    brand: "AGT",
-    materialName: "МДФ",
-    materialId: "mdf-16" as CalculatorMaterialId,
-    sheetPresetId: "2800x1220" as CalculatorSheetPresetId,
-  },
-] as const;
-
-type CalculatorPreset = (typeof calculatorPresets)[number];
-type CalculatorPresetId = CalculatorPreset["id"];
-
-const defaultCalculatorPresetId: CalculatorPresetId = "extravert-ldsp";
+type MaterialOption = CalculatorMaterialDto;
+type SheetFormat = CalculatorSheetFormatDto;
+type CalculatorPreset = CalculatorPresetDto;
+type CalculatorPresetId = string;
 
 const giblabEdgeAttributeBySide: Record<EdgeSide, string> = {
   top: "elt",
@@ -555,19 +483,21 @@ function getOrientationModeLabel(mode: OrientationMode) {
   return orientationModeMeta[mode].label;
 }
 
-function getCalculatorPresetById(presetId: CalculatorPresetId) {
-  return calculatorPresets.find((preset) => preset.id === presetId)!;
+function findPresetById(
+  presets: CalculatorPreset[],
+  presetId: CalculatorPresetId,
+): CalculatorPreset | null {
+  return presets.find((preset) => preset.id === presetId) ?? null;
 }
 
-function getCalculatorPresetByContext(
+function findPresetByContext(
+  presets: CalculatorPreset[],
   productContext: CalculatorProductContext | null,
-) {
-  if (!productContext) {
-    return null;
-  }
+): CalculatorPreset | null {
+  if (!productContext) return null;
 
   return (
-    calculatorPresets.find(
+    presets.find(
       (preset) =>
         preset.materialId === productContext.calculatorMaterialId &&
         preset.sheetPresetId === productContext.sheetPresetId,
@@ -577,7 +507,7 @@ function getCalculatorPresetByContext(
 
 function buildCutMap(
   rows: CalculatedDetailRow[],
-  sheet: (typeof sheetFormats)[number],
+  sheet: SheetFormat,
   settings: BasisMapSettings,
 ): CutMapResult {
   const pieces: CutMapPiece[] = rows.flatMap((row) => {
@@ -1190,22 +1120,29 @@ const initialCuttingRequestDraft: CuttingRequestDraft = {
 function getCuttingRequestMaterialLabel({
   productContext,
   activePreset,
+  material,
   sheet,
 }: {
   productContext: CalculatorProductContext | null;
-  activePreset: CalculatorPreset;
+  activePreset: CalculatorPreset | null;
+  material: MaterialOption;
   sheet: SheetFormat;
 }) {
   if (productContext) {
     return `${productContext.brand} · ${productContext.name} · ${sheet.label}`;
   }
 
-  return `${activePreset.label} · ${sheet.label}`;
+  if (activePreset) {
+    return `${activePreset.label} · ${sheet.label}`;
+  }
+
+  return `${material.label} · ${sheet.label}`;
 }
 
 function buildCuttingRequestMessage({
   productContext,
   activePreset,
+  material,
   sheet,
   calculation,
   cutMap,
@@ -1214,7 +1151,8 @@ function buildCuttingRequestMessage({
   comment,
 }: {
   productContext: CalculatorProductContext | null;
-  activePreset: CalculatorPreset;
+  activePreset: CalculatorPreset | null;
+  material: MaterialOption;
   sheet: SheetFormat;
   calculation: {
     totalPieces: number;
@@ -1239,6 +1177,7 @@ function buildCuttingRequestMessage({
     `Материал: ${getCuttingRequestMaterialLabel({
       productContext,
       activePreset,
+      material,
       sheet,
     })}`,
     `Формат листа: ${sheet.label}`,
@@ -1269,13 +1208,23 @@ function buildCuttingRequestMessage({
 
 type CutCalculatorProps = {
   productContext?: CalculatorProductContext | null;
+  materials: MaterialOption[];
+  sheets: SheetFormat[];
+  presets: CalculatorPreset[];
 };
 
 export function CutCalculator({
   productContext = null,
+  materials,
+  sheets,
+  presets,
 }: CutCalculatorProps) {
-  const [manualPresetId, setManualPresetId] = useState<CalculatorPresetId>(
-    defaultCalculatorPresetId,
+  const fallbackMaterial = materials[0];
+  const fallbackSheet = sheets[0];
+  const defaultPresetId = presets[0]?.id ?? null;
+
+  const [manualPresetId, setManualPresetId] = useState<CalculatorPresetId | null>(
+    defaultPresetId,
   );
   const [details, setDetails] = useState<DetailRow[]>(createInitialRows);
   const [requestDraft, setRequestDraft] = useState<CuttingRequestDraft>(
@@ -1287,16 +1236,20 @@ export function CutCalculator({
   } | null>(null);
   const [isSubmittingRequest, startSubmittingRequest] = useTransition();
 
-  const lockedPreset = getCalculatorPresetByContext(productContext);
-  const activePreset = lockedPreset ?? getCalculatorPresetById(manualPresetId);
-  const material = materialOptions.find(
-    (item) => item.id === activePreset.materialId,
-  )!;
-  const sheet = sheetFormats.find(
-    (item) => item.id === activePreset.sheetPresetId,
-  )!;
+  const lockedPreset = findPresetByContext(presets, productContext);
+  const activePreset =
+    lockedPreset ??
+    (manualPresetId ? findPresetById(presets, manualPresetId) : null);
+  const material =
+    (activePreset
+      ? materials.find((item) => item.id === activePreset.materialId)
+      : null) ?? fallbackMaterial;
+  const sheet =
+    (activePreset
+      ? sheets.find((item) => item.id === activePreset.sheetPresetId)
+      : null) ?? fallbackSheet;
   const isProductMode = Boolean(lockedPreset && productContext);
-  const edgingAvailable = material.edgeRatePerMeter > 0;
+  const edgingAvailable = material ? material.edgeRatePerMeter > 0 : false;
 
   const basisSettings = defaultBasisSettings;
 
@@ -1459,10 +1412,13 @@ export function CutCalculator({
     () => ({
       subject: productContext
         ? `Распил: ${productContext.name}`
-        : `Распил: ${activePreset.label}`,
+        : activePreset
+          ? `Распил: ${activePreset.label}`
+          : `Распил: ${material.label}`,
       message: buildCuttingRequestMessage({
         productContext,
         activePreset,
+        material,
         sheet,
         calculation,
         cutMap,
@@ -1478,6 +1434,7 @@ export function CutCalculator({
       material: getCuttingRequestMaterialLabel({
         productContext,
         activePreset,
+        material,
         sheet,
       }),
       edgeOption: edgeOptionLabel,
@@ -1489,6 +1446,7 @@ export function CutCalculator({
       cutMap,
       edgeOptionLabel,
       estimate,
+      material,
       productContext,
       requestDraft.comment,
       requestDraft.contactEmail,
@@ -1597,7 +1555,7 @@ export function CutCalculator({
 
   const resetCalculator = () => {
     if (!lockedPreset) {
-      setManualPresetId(defaultCalculatorPresetId);
+      setManualPresetId(defaultPresetId);
     }
     setDetails(createInitialRows());
     setRequestFeedback(null);
@@ -1720,7 +1678,7 @@ export function CutCalculator({
                 />
                 <ContextField
                   label="Материал"
-                  value={activePreset.label}
+                  value={activePreset?.label ?? material.label}
                 />
                 <ContextField label="Формат листа" value={sheet.label} />
               </div>
@@ -1732,16 +1690,21 @@ export function CutCalculator({
                   </label>
                   <Select
                     className="h-9 min-w-0 text-[13px] sm:h-11 sm:text-sm"
-                    value={manualPresetId}
+                    value={manualPresetId ?? ""}
+                    disabled={presets.length === 0}
                     onChange={(event) =>
-                      setManualPresetId(event.target.value as CalculatorPresetId)
+                      setManualPresetId(event.target.value || null)
                     }
                   >
-                    {calculatorPresets.map((preset) => (
-                      <option key={preset.id} value={preset.id}>
-                        {preset.label}
-                      </option>
-                    ))}
+                    {presets.length === 0 ? (
+                      <option value="">Подбор появится после публикации товаров</option>
+                    ) : (
+                      presets.map((preset) => (
+                        <option key={preset.id} value={preset.id}>
+                          {preset.label}
+                        </option>
+                      ))
+                    )}
                   </Select>
                 </div>
 

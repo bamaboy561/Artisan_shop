@@ -38,6 +38,8 @@ export type AdminProductItem = {
   inventoryStatus: InventoryStatus;
   price: number | null;
   format: string | null;
+  calculatorMaterialId: string | null;
+  calculatorSheetPresetId: string | null;
   isFeatured: boolean;
   updatedAt: Date;
   category: {

@@ -146,7 +146,7 @@ export default async function AdminPromotionsPage({
         steps={[
           "Добавьте рабочий DATABASE_URL в .env или выключите demo-режим, если база уже настроена.",
           "Примените Prisma-схему через prisma db push или prisma migrate dev.",
-          "Запустите prisma db seed, чтобы получить стартовые акции, товары и категории.",
+          "Создайте реальные акции после наполнения каталога товарами и категориями.",
         ]}
       />
     );

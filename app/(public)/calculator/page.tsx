@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 
 import { ButtonLink } from "@/components/ui/button-link";
-import { getCalculatorProductContext } from "@/features/catalog/data";
 import { CutCalculator } from "@/features/services/cut-calculator";
+import { getCalculatorBundle } from "@/lib/server/calculator-config";
+import { getCalculatorContextBySlug } from "@/lib/server/catalog-public";
 
 export const metadata: Metadata = {
   title: "Калькулятор распила",
@@ -23,9 +24,10 @@ export default async function CalculatorPage({
 }: CalculatorPageProps) {
   const resolvedSearchParams = await searchParams;
   const productSlug = getSearchParamValue(resolvedSearchParams.product);
-  const productContext = productSlug
-    ? getCalculatorProductContext(productSlug)
-    : null;
+  const [productContext, bundle] = await Promise.all([
+    productSlug ? getCalculatorContextBySlug(productSlug) : Promise.resolve(null),
+    getCalculatorBundle(),
+  ]);
 
   return (
     <div className="bg-[#f6f2eb]">
@@ -64,6 +66,9 @@ export default async function CalculatorPage({
           <CutCalculator
             key={productContext?.slug ?? "manual"}
             productContext={productContext}
+            materials={bundle.materials}
+            sheets={bundle.sheets}
+            presets={bundle.presets}
           />
         </div>
       </section>

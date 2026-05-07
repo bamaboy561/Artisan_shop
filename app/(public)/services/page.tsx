@@ -3,9 +3,9 @@ import Image from "next/image";
 import { ButtonLink } from "@/components/ui/button-link";
 import { ServiceRequestForm } from "@/components/services/service-request-form";
 import {
-  importedAgtProducts,
-  importedExtravertProducts,
-} from "@/features/catalog/data";
+  getPublicProductsByBrand,
+  getPublicProductsByCategory,
+} from "@/lib/server/catalog-public";
 
 const serviceHighlights = [
   {
@@ -40,9 +40,13 @@ const workflowSteps = [
   },
 ];
 
-export default function ServicesPage() {
+export default async function ServicesPage() {
+  const [extravertProducts, mdfProducts] = await Promise.all([
+    getPublicProductsByBrand("extravert"),
+    getPublicProductsByCategory("mdf-panels"),
+  ]);
   const heroImage =
-    importedExtravertProducts[3]?.image || importedAgtProducts[0]?.image || "";
+    extravertProducts[3]?.image || mdfProducts[0]?.image || "";
 
   return (
     <div className="bg-[#f1eee8]">

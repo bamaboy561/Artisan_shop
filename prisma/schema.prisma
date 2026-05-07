@@ -68,6 +68,11 @@ enum RequestStatus {
   CANCELED
 }
 
+enum RequestFileKind {
+  CLIENT_UPLOAD
+  MANAGER_RESULT
+}
+
 enum PromotionTargetType {
   PRODUCT
   CATEGORY
@@ -245,6 +250,8 @@ model Product {
   isFeatured      Boolean            @default(false)
   seoTitle        String?
   seoDescription  String?
+  calculatorMaterialId    String?
+  calculatorSheetPresetId String?
   images          ProductImage[]
   attributes      ProductAttribute[]
   orderItems      OrderItem[]
@@ -325,6 +332,7 @@ model Order {
   total                  Int                  @default(0)
   items                  OrderItem[]
   loyaltyTransactions    LoyaltyTransaction[]
+  managerNotes           ManagerNote[]
   createdAt              DateTime             @default(now())
   updatedAt              DateTime             @updatedAt
 
@@ -376,7 +384,10 @@ model Request {
   deliveryNeeded  Boolean        @default(false)
   addressText     String?
   estimatedBudget Int?
+  quotedTotal     Int?
+  productionComment String?      @db.Text
   files           RequestFile[]
+  managerNotes    ManagerNote[]
   linkedOrders    Order[]        @relation("RequestLinkedOrders")
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
@@ -387,16 +398,41 @@ model Request {
 }
 
 model RequestFile {
-  id        String   @id @default(cuid())
-  requestId String
-  request   Request  @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  fileName  String
-  fileUrl   String
-  mimeType  String?
-  size      Int?
-  createdAt DateTime @default(now())
+  id                String          @id @default(cuid())
+  requestId         String
+  request           Request         @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  kind              RequestFileKind @default(CLIENT_UPLOAD)
+  isVisibleToClient Boolean         @default(false)
+  uploadedByUserId  String?
+  uploadedByName    String?
+  note              String?
+  fileName          String
+  fileUrl           String
+  mimeType          String?
+  size              Int?
+  createdAt         DateTime        @default(now())
 
   @@index([requestId])
+  @@index([requestId, kind, isVisibleToClient])
+}
+
+model ManagerNote {
+  id                String   @id @default(cuid())
+  entityType        String
+  entityId          String
+  requestId         String?
+  request           Request? @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  orderId           String?
+  order             Order?   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  body              String   @db.Text
+  isVisibleToClient Boolean  @default(false)
+  authorId          String?
+  authorName        String?
+  createdAt         DateTime @default(now())
+
+  @@index([entityType, entityId, createdAt])
+  @@index([requestId, createdAt])
+  @@index([orderId, createdAt])
 }
 
 model Favorite {
@@ -514,6 +550,37 @@ model SiteSetting {
   updatedAt   DateTime @updatedAt
 }
 
+model CalculatorMaterial {
+  id                String   @id @default(cuid())
+  slug              String   @unique
+  label             String
+  pricePerSqM       Int
+  cutRatePerMeter   Int
+  edgeRatePerMeter  Int      @default(0)
+  setupFee          Int      @default(0)
+  thicknessMm       Int?
+  isActive          Boolean  @default(true)
+  sortOrder         Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([isActive, sortOrder])
+}
+
+model CalculatorSheetFormat {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  label     String
+  widthMm   Int
+  heightMm  Int
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive, sortOrder])
+}
+
 model Notification {
   id        String              @id @default(cuid())
   userId    String?
@@ -528,4 +595,21 @@ model Notification {
   updatedAt DateTime            @updatedAt
 
   @@index([userId, status, createdAt])
+}
+
+model OperationEvent {
+  id          String   @id @default(cuid())
+  entityType  String
+  entityId    String
+  eventType   String
+  title       String
+  description String?
+  fromStatus  String?
+  toStatus    String?
+  actorId     String?
+  actorName   String?
+  createdAt   DateTime @default(now())
+
+  @@index([entityType, entityId, createdAt])
+  @@index([actorId, createdAt])
 }

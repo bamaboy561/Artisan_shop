@@ -49,11 +49,11 @@ export default async function AdminUsersPage() {
     return (
       <SetupState
         title="Программа лояльности заработает после подключения базы данных"
-        description="Раздел уже готов для управления уровнями клиентов, личными скидками и накопленными баллами, но ему нужен рабочий PostgreSQL и seed-данные."
+        description="Раздел уже готов для управления уровнями клиентов, личными скидками и накопленными баллами, но ему нужен рабочий PostgreSQL и production bootstrap."
         steps={[
           "Добавьте DATABASE_URL в .env.",
           "Примените Prisma-схему через prisma db push или prisma migrate dev.",
-          "Запустите prisma db seed, чтобы получить стартовых клиентов с уровнями и баллами.",
+          "Создайте клиентов вручную или через регистрацию после production bootstrap.",
         ]}
       />
     );

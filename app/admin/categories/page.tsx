@@ -24,7 +24,7 @@ export default async function AdminCategoriesPage() {
         steps={[
           "Добавьте DATABASE_URL в .env.",
           "Примените схему базы через prisma db push.",
-          "Загрузите стартовые категории и бренды через prisma db seed.",
+          "Создайте реальные категории и бренды перед наполнением каталога.",
         ]}
       />
     );

@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import { getOptionalSession } from "@/lib/auth/dal";
 import { handleCuttingRequestCreated } from "@/lib/server/commercial-integrations";
+import { logOperationEvent } from "@/lib/server/operation-events";
 import { createCuttingRequest } from "@/lib/server/request-inbox";
 
 const serviceRequestSchema = z.object({
@@ -187,6 +188,19 @@ export async function submitServiceRequestAction(
     });
 
     if (!createdRequest.duplicate) {
+      await logOperationEvent({
+        entityType: "request",
+        entityId: createdRequest.id,
+        eventType: "created",
+        title: `Заявка ${createdRequest.number ?? createdRequest.id} создана`,
+        description:
+          files.length > 0
+            ? `Клиент приложил файлов: ${files.length}.`
+            : "Заявка создана из формы услуги.",
+        toStatus: "NEW",
+        actorName: validated.data.contactName,
+      });
+
       await handleCuttingRequestCreated({
         id: createdRequest.id,
         number: createdRequest.number ?? null,

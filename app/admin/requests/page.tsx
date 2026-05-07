@@ -110,7 +110,7 @@ export default async function AdminRequestsPage({
         steps={[
           "Настройте DATABASE_URL в .env.",
           "Примените схему БД через prisma db push.",
-          "Запустите prisma db seed, чтобы получить тестовую заявку в очереди.",
+          "Первая реальная заявка появится после отправки формы распила или обращения с сайта.",
         ]}
       />
     );

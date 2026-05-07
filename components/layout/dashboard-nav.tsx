@@ -12,6 +12,8 @@ import {
   LayoutDashboard,
   Package2,
   ReceiptText,
+  Rocket,
+  Scissors,
   Settings,
   Users2,
 } from "lucide-react";
@@ -26,12 +28,14 @@ type DashboardNavProps = {
 
 const iconMap = {
   "/admin": LayoutDashboard,
+  "/admin/launch": Rocket,
   "/admin/categories": FolderTree,
   "/admin/brands": Layers3,
   "/admin/products": Package2,
   "/admin/users": Users2,
   "/admin/orders": ReceiptText,
   "/admin/requests": FileStack,
+  "/admin/cutting": Scissors,
   "/admin/promotions": BadgePercent,
   "/calculator": Calculator,
   "/account": LayoutDashboard,

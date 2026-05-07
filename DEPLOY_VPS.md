@@ -33,6 +33,8 @@ cp .env.production.example .env.production
 - `POSTGRES_PASSWORD`
 - `DATABASE_URL`
 - `SESSION_SECRET`
+- `ARTISAN_ADMIN_EMAIL`
+- `ARTISAN_ADMIN_PASSWORD`
 
 Если Telegram нужен сразу, заполните и Telegram-переменные.
 
@@ -48,21 +50,23 @@ docker compose --env-file .env.production up -d --build
 docker compose --env-file .env.production exec app npm run prisma:push
 ```
 
-## 6. Заполнить стартовые данные
+## 6. Выполнить production bootstrap
 
 ```bash
-docker compose --env-file .env.production exec app npm run prisma:seed
+docker compose --env-file .env.production exec app npm run prisma:bootstrap
 ```
+
+Bootstrap создаёт роли, первого супер-админа, базовые материалы/форматы калькулятора и варианты выдачи. Он не добавляет demo-товары, fake-заказы и тестовых клиентов.
 
 ## 7. Проверить сайт
 
 - сайт: `http://SERVER_IP:3000`
 - вход: `http://SERVER_IP:3000/login`
 
-После `seed` можно использовать:
+После bootstrap можно войти с данными из `.env.production`:
 
-- `admin@artisan.local`
-- `Artisan123!`
+- `ARTISAN_ADMIN_EMAIL`
+- `ARTISAN_ADMIN_PASSWORD`
 
 ## 8. Что хранится постоянно
 

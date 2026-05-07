@@ -62,7 +62,8 @@ export async function getAdminProducts() {
 export async function getAdminProductFormOptions() {
   const db = getDb();
 
-  const [categories, brands] = await Promise.all([
+  const [categories, brands, calculatorMaterials, calculatorSheetFormats] =
+    await Promise.all([
     db.category.findMany({
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
       select: {
@@ -77,7 +78,23 @@ export async function getAdminProductFormOptions() {
         name: true,
       },
     }),
+    db.calculatorMaterial.findMany({
+      where: { isActive: true },
+      orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
+      select: {
+        slug: true,
+        label: true,
+      },
+    }),
+    db.calculatorSheetFormat.findMany({
+      where: { isActive: true },
+      orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
+      select: {
+        slug: true,
+        label: true,
+      },
+    }),
   ]);
 
-  return { categories, brands };
+  return { categories, brands, calculatorMaterials, calculatorSheetFormats };
 }

@@ -16,15 +16,16 @@ type BrandPageProps = {
   params: Promise<{ slug: string }>;
 };
 
-export function generateStaticParams() {
-  return getBrandProfiles().map((brand) => ({ slug: brand.slug }));
+export async function generateStaticParams() {
+  const profiles = await getBrandProfiles();
+  return profiles.map((brand) => ({ slug: brand.slug }));
 }
 
 export async function generateMetadata({
   params,
 }: BrandPageProps): Promise<Metadata> {
   const { slug } = await params;
-  const brand = getBrandProfileBySlug(slug);
+  const brand = await getBrandProfileBySlug(slug);
 
   if (!brand) {
     return {
@@ -57,7 +58,7 @@ function PreviewTiles({ labels }: { labels: string[] }) {
 
 export default async function BrandDetailPage({ params }: BrandPageProps) {
   const { slug } = await params;
-  const brand = getBrandProfileBySlug(slug);
+  const brand = await getBrandProfileBySlug(slug);
 
   if (!brand) {
     notFound();
@@ -65,7 +66,8 @@ export default async function BrandDetailPage({ params }: BrandPageProps) {
 
   const heroImage = brand.products[0]?.image;
   const previewProducts = brand.products.slice(0, 4);
-  const relatedBrands = getBrandProfiles()
+  const allProfiles = await getBrandProfiles();
+  const relatedBrands = allProfiles
     .filter(
       (candidate) =>
         candidate.sectionSlug === brand.sectionSlug &&

@@ -17,8 +17,14 @@ import {
   handleOrderCreated,
   handleRequestUpdated,
 } from "@/lib/server/commercial-integrations";
+import {
+  getManagerDisplayName,
+  orderStatusLabels,
+  requestStatusLabels,
+} from "@/features/admin/operations-filters";
 import { requireAdminSession } from "@/lib/auth/dal";
 import { hasDatabaseUrl, getDb } from "@/lib/db";
+import { logOperationEvent } from "@/lib/server/operation-events";
 import {
   bulkUpdateOrderInboxItems,
   createOrderFromRequest,
@@ -34,6 +40,11 @@ import {
   getRequestInboxItemById,
   updateRequestInboxItem,
 } from "@/lib/server/request-inbox";
+import {
+  addRequestManagerNote,
+  addRequestResultFiles,
+  updateRequestProductionResult,
+} from "@/lib/server/request-production";
 import { revalidatePath } from "next/cache";
 
 type ManagerSnapshot = {
@@ -94,6 +105,17 @@ function getStringList(formData: FormData, key: string) {
     .filter(Boolean);
 }
 
+function getFileList(formData: FormData, key: string) {
+  return formData
+    .getAll(key)
+    .filter(
+      (value): value is File =>
+        typeof value !== "string" &&
+        typeof value.name === "string" &&
+        value.size > 0,
+    );
+}
+
 function revalidateAdminCatalog() {
   revalidatePath("/admin");
   revalidatePath("/admin/categories");
@@ -105,6 +127,9 @@ function revalidateAdminOperations() {
   revalidatePath("/admin");
   revalidatePath("/admin/orders");
   revalidatePath("/admin/requests");
+  revalidatePath("/admin/cutting");
+  revalidatePath("/account/orders");
+  revalidatePath("/account/requests");
 }
 
 function revalidateAdminPromotions() {
@@ -119,6 +144,19 @@ function revalidateAdminUsers() {
   revalidatePath("/account/orders");
   revalidatePath("/account/requests");
   revalidatePath("/account/favorites");
+}
+
+function revalidateCalculatorConfig() {
+  revalidatePath("/admin/calculator");
+  revalidatePath("/calculator");
+}
+
+function getRequiredInt(formData: FormData, key: string) {
+  const value = getString(formData, key);
+  if (!value) return null;
+  const parsed = Number.parseInt(value, 10);
+  if (Number.isNaN(parsed) || parsed < 0) return null;
+  return parsed;
 }
 
 async function syncOrderById(
@@ -195,7 +233,115 @@ async function syncRequestById(
 }
 
 async function ensureAdminAccess() {
-  await requireAdminSession("/login?next=/admin");
+  return requireAdminSession("/login?next=/admin");
+}
+
+function getOptionalManagerLabel(manager: ManagerSnapshot) {
+  if (!manager) {
+    return "Без менеджера";
+  }
+
+  return getManagerDisplayName({
+    firstName: manager.firstName ?? null,
+    lastName: manager.lastName ?? null,
+    email: manager.email ?? "Без email",
+  });
+}
+
+async function logRequestTransition(params: {
+  requestId: string;
+  previous: {
+    status: RequestStatus;
+    manager: ManagerSnapshot;
+  } | null;
+  current: {
+    status: RequestStatus;
+    manager: ManagerSnapshot;
+  } | null;
+  actor: Awaited<ReturnType<typeof ensureAdminAccess>>;
+}) {
+  if (!params.current) {
+    return;
+  }
+
+  if (params.previous?.status !== params.current.status) {
+    await logOperationEvent({
+      entityType: "request",
+      entityId: params.requestId,
+      eventType: "status",
+      title: `Статус заявки: ${requestStatusLabels[params.current.status]}`,
+      description: params.previous
+        ? `${requestStatusLabels[params.previous.status]} → ${requestStatusLabels[params.current.status]}`
+        : null,
+      fromStatus: params.previous?.status ?? null,
+      toStatus: params.current.status,
+      actor: params.actor,
+    });
+  }
+
+  if (
+    getOptionalManagerLabel(params.previous?.manager ?? null) !==
+    getOptionalManagerLabel(params.current.manager)
+  ) {
+    await logOperationEvent({
+      entityType: "request",
+      entityId: params.requestId,
+      eventType: "manager",
+      title: `Менеджер: ${getOptionalManagerLabel(params.current.manager)}`,
+      description: params.previous
+        ? `${getOptionalManagerLabel(params.previous.manager)} → ${getOptionalManagerLabel(params.current.manager)}`
+        : null,
+      actor: params.actor,
+    });
+  }
+}
+
+async function logOrderTransition(params: {
+  orderId: string;
+  previous: {
+    status: OrderStatus;
+    manager: ManagerSnapshot;
+  } | null;
+  current: {
+    status: OrderStatus;
+    manager: ManagerSnapshot;
+  } | null;
+  actor: Awaited<ReturnType<typeof ensureAdminAccess>>;
+}) {
+  if (!params.current) {
+    return;
+  }
+
+  if (params.previous?.status !== params.current.status) {
+    await logOperationEvent({
+      entityType: "order",
+      entityId: params.orderId,
+      eventType: "status",
+      title: `Статус заказа: ${orderStatusLabels[params.current.status]}`,
+      description: params.previous
+        ? `${orderStatusLabels[params.previous.status]} → ${orderStatusLabels[params.current.status]}`
+        : null,
+      fromStatus: params.previous?.status ?? null,
+      toStatus: params.current.status,
+      actor: params.actor,
+    });
+  }
+
+  if (
+    getOptionalManagerLabel(params.previous?.manager ?? null) !==
+    getOptionalManagerLabel(params.current.manager)
+  ) {
+    await logOperationEvent({
+      entityType: "order",
+      entityId: params.orderId,
+      eventType: "manager",
+      title: `Менеджер: ${getOptionalManagerLabel(params.current.manager)}`,
+      description: params.previous
+        ? `${getOptionalManagerLabel(params.previous.manager)} → ${getOptionalManagerLabel(params.current.manager)}`
+        : null,
+      actor: params.actor,
+    });
+  }
 }
 
 export async function createCategoryAction(formData: FormData) {
@@ -345,6 +491,11 @@ export async function createProductAction(formData: FormData) {
       brandId: getOptionalString(formData, "brandId"),
       summary: getOptionalString(formData, "summary"),
       format: getOptionalString(formData, "format"),
+      calculatorMaterialId: getOptionalString(formData, "calculatorMaterialId"),
+      calculatorSheetPresetId: getOptionalString(
+        formData,
+        "calculatorSheetPresetId",
+      ),
       price: getOptionalInt(formData, "price"),
       status:
         Object.values(ProductStatus).find((item) => item === status) ??
@@ -429,6 +580,11 @@ export async function updateProductAction(formData: FormData) {
         Object.values(InventoryStatus).find(
           (item) => item === inventoryStatus,
         ) ?? InventoryStatus.ON_REQUEST,
+      calculatorMaterialId: getOptionalString(formData, "calculatorMaterialId"),
+      calculatorSheetPresetId: getOptionalString(
+        formData,
+        "calculatorSheetPresetId",
+      ),
       isFeatured: getString(formData, "isFeatured") === "on",
     },
   });
@@ -509,7 +665,7 @@ export async function bulkUpdateProductsAction(formData: FormData) {
 }
 
 export async function updateOrderAction(formData: FormData) {
-  await ensureAdminAccess();
+  const actor = await ensureAdminAccess();
 
   const id = getString(formData, "id");
   const status = getString(formData, "status");
@@ -528,6 +684,25 @@ export async function updateOrderAction(formData: FormData) {
     managerId: getOptionalString(formData, "managerId"),
   });
 
+  const currentOrder = await getOrderInboxItemById(id);
+
+  await logOrderTransition({
+    orderId: id,
+    previous: previousOrder
+      ? {
+          status: previousOrder.status,
+          manager: previousOrder.manager,
+        }
+      : null,
+    current: currentOrder
+      ? {
+          status: currentOrder.status,
+          manager: currentOrder.manager,
+        }
+      : null,
+    actor,
+  });
+
   await syncOrderById(
     id,
     previousOrder
@@ -542,7 +717,7 @@ export async function updateOrderAction(formData: FormData) {
 }
 
 export async function bulkUpdateOrdersAction(formData: FormData) {
-  await ensureAdminAccess();
+  const actor = await ensureAdminAccess();
 
   const orderIds = Array.from(new Set(getStringList(formData, "orderIds")));
   const bulkAction = getString(formData, "bulkAction");
@@ -623,14 +798,36 @@ export async function bulkUpdateOrdersAction(formData: FormData) {
   }
 
   await Promise.all(
-    orderIds.map((orderId) => syncOrderById(orderId, previousOrderMap.get(orderId))),
+    orderIds.map(async (orderId) => {
+      const currentOrder = await getOrderInboxItemById(orderId);
+      const previous = previousOrderMap.get(orderId);
+
+      await logOrderTransition({
+        orderId,
+        previous: previous
+          ? {
+              status: previous.previousStatus as OrderStatus,
+              manager: previous.previousManager ?? null,
+            }
+          : null,
+        current: currentOrder
+          ? {
+              status: currentOrder.status,
+              manager: currentOrder.manager,
+            }
+          : null,
+        actor,
+      });
+
+      await syncOrderById(orderId, previous);
+    }),
   );
 
   revalidateAdminOperations();
 }
 
 export async function createOrderFromRequestAction(formData: FormData) {
-  await ensureAdminAccess();
+  const actor = await ensureAdminAccess();
 
   const requestId = getString(formData, "requestId");
 
@@ -657,6 +854,28 @@ export async function createOrderFromRequestAction(formData: FormData) {
     status: RequestStatus.COMPLETED,
     managerId: request.managerId ?? null,
   });
+
+  await Promise.all([
+    logOperationEvent({
+      entityType: "request",
+      entityId: requestId,
+      eventType: "converted",
+      title: `Создан заказ ${createdOrder.number ?? createdOrder.id}`,
+      description: "Заявка переведена в заказ для дальнейшей работы.",
+      fromStatus: request.status,
+      toStatus: RequestStatus.COMPLETED,
+      actor,
+    }),
+    logOperationEvent({
+      entityType: "order",
+      entityId: createdOrder.id,
+      eventType: "created",
+      title: `Заказ создан из заявки ${request.number ?? request.id}`,
+      description: "Контакты, материал, комментарии и файлы перенесены из заявки.",
+      toStatus: OrderStatus.NEW,
+      actor,
+    }),
+  ]);
 
   await handleOrderCreated({
     id: createdOrder.id,
@@ -695,7 +914,7 @@ export async function createOrderFromRequestAction(formData: FormData) {
 }
 
 export async function updateRequestAction(formData: FormData) {
-  await ensureAdminAccess();
+  const actor = await ensureAdminAccess();
 
   const id = getString(formData, "id");
   const status = getString(formData, "status");
@@ -714,6 +933,25 @@ export async function updateRequestAction(formData: FormData) {
     managerId: getOptionalString(formData, "managerId"),
   });
 
+  const currentRequest = await getRequestInboxItemById(id);
+
+  await logRequestTransition({
+    requestId: id,
+    previous: previousRequest
+      ? {
+          status: previousRequest.status,
+          manager: previousRequest.manager,
+        }
+      : null,
+    current: currentRequest
+      ? {
+          status: currentRequest.status,
+          manager: currentRequest.manager,
+        }
+      : null,
+    actor,
+  });
+
   await syncRequestById(
     id,
     previousRequest
@@ -727,8 +965,141 @@ export async function updateRequestAction(formData: FormData) {
   revalidateAdminOperations();
 }
 
+export async function addRequestManagerNoteAction(formData: FormData) {
+  const actor = await ensureAdminAccess();
+
+  const requestId = getString(formData, "requestId");
+  const body = getString(formData, "body");
+  const isVisibleToClient = getString(formData, "isVisibleToClient") === "on";
+
+  if (!requestId || !body) {
+    return;
+  }
+
+  await addRequestManagerNote({
+    requestId,
+    body,
+    isVisibleToClient,
+    actor,
+  });
+
+  await logOperationEvent({
+    entityType: "request",
+    entityId: requestId,
+    eventType: isVisibleToClient ? "client_note" : "manager_note",
+    title: isVisibleToClient
+      ? "Добавлен комментарий для клиента"
+      : "Добавлена внутренняя заметка",
+    description: isVisibleToClient ? body : null,
+    actor,
+  });
+
+  revalidateAdminOperations();
+}
+
+export async function updateRequestProductionResultAction(formData: FormData) {
+  const actor = await ensureAdminAccess();
+
+  const requestId = getString(formData, "requestId");
+  const status = getString(formData, "status");
+
+  if (!requestId) {
+    return;
+  }
+
+  const previousRequest = await getRequestInboxItemById(requestId);
+  const nextStatus =
+    Object.values(RequestStatus).find((item) => item === status) ?? null;
+
+  await updateRequestProductionResult({
+    requestId,
+    quotedTotal: getOptionalInt(formData, "quotedTotal"),
+    productionComment: getOptionalString(formData, "productionComment"),
+    status: nextStatus,
+  });
+
+  const currentRequest = await getRequestInboxItemById(requestId);
+
+  await Promise.all([
+    logOperationEvent({
+      entityType: "request",
+      entityId: requestId,
+      eventType: "production_result",
+      title: "Обновлен результат распила",
+      description:
+        getOptionalString(formData, "productionComment") ??
+        "Итоговая сумма или производственный комментарий обновлены.",
+      fromStatus: previousRequest?.status ?? null,
+      toStatus: currentRequest?.status ?? nextStatus,
+      actor,
+    }),
+    logRequestTransition({
+      requestId,
+      previous: previousRequest
+        ? {
+            status: previousRequest.status,
+            manager: previousRequest.manager,
+          }
+        : null,
+      current: currentRequest
+        ? {
+            status: currentRequest.status,
+            manager: currentRequest.manager,
+          }
+        : null,
+      actor,
+    }),
+  ]);
+
+  await syncRequestById(
+    requestId,
+    previousRequest
+      ? {
+          previousStatus: previousRequest.status,
+          previousManager: previousRequest.manager,
+        }
+      : undefined,
+  );
+
+  revalidateAdminOperations();
+}
+
+export async function uploadRequestResultFilesAction(formData: FormData) {
+  const actor = await ensureAdminAccess();
+
+  const requestId = getString(formData, "requestId");
+  const files = getFileList(formData, "files");
+
+  if (!requestId || files.length === 0) {
+    return;
+  }
+
+  const savedFilesCount = await addRequestResultFiles({
+    requestId,
+    files,
+    note: getOptionalString(formData, "note"),
+    isVisibleToClient: getString(formData, "isVisibleToClient") === "on",
+    actor,
+  });
+
+  if (savedFilesCount > 0) {
+    await logOperationEvent({
+      entityType: "request",
+      entityId: requestId,
+      eventType: "result_files",
+      title: `Добавлены файлы результата: ${savedFilesCount}`,
+      description:
+        getOptionalString(formData, "note") ??
+        "К заявке прикреплены файлы карты раскроя, ведомости или экспорта Giblab.",
+      actor,
+    });
+  }
+
+  revalidateAdminOperations();
+}
+
 export async function bulkUpdateRequestsAction(formData: FormData) {
-  await ensureAdminAccess();
+  const actor = await ensureAdminAccess();
 
   const requestIds = Array.from(new Set(getStringList(formData, "requestIds")));
   const bulkAction = getString(formData, "bulkAction");
@@ -808,9 +1179,29 @@ export async function bulkUpdateRequestsAction(formData: FormData) {
   }
 
   await Promise.all(
-    requestIds.map((requestId) =>
-      syncRequestById(requestId, previousRequestMap.get(requestId)),
-    ),
+    requestIds.map(async (requestId) => {
+      const currentRequest = await getRequestInboxItemById(requestId);
+      const previous = previousRequestMap.get(requestId);
+
+      await logRequestTransition({
+        requestId,
+        previous: previous
+          ? {
+              status: previous.previousStatus as RequestStatus,
+              manager: previous.previousManager ?? null,
+            }
+          : null,
+        current: currentRequest
+          ? {
+              status: currentRequest.status,
+              manager: currentRequest.manager,
+            }
+          : null,
+        actor,
+      });
+
+      await syncRequestById(requestId, previous);
+    }),
   );
 
   revalidateAdminOperations();
@@ -1099,4 +1490,131 @@ export async function adjustUserLoyaltyPointsAction(formData: FormData) {
   ]);
 
   revalidateAdminUsers();
+}
+
+export async function createCalculatorMaterialAction(formData: FormData) {
+  if (!hasDatabaseUrl()) return;
+  await ensureAdminAccess();
+
+  const slug = getString(formData, "slug");
+  const label = getString(formData, "label");
+  const pricePerSqM = getRequiredInt(formData, "pricePerSqM");
+  const cutRatePerMeter = getRequiredInt(formData, "cutRatePerMeter");
+
+  if (!slug || !label || pricePerSqM === null || cutRatePerMeter === null) {
+    return;
+  }
+
+  await getDb().calculatorMaterial.create({
+    data: {
+      slug,
+      label,
+      pricePerSqM,
+      cutRatePerMeter,
+      edgeRatePerMeter: getRequiredInt(formData, "edgeRatePerMeter") ?? 0,
+      setupFee: getRequiredInt(formData, "setupFee") ?? 0,
+      thicknessMm: getOptionalInt(formData, "thicknessMm"),
+      sortOrder: getRequiredInt(formData, "sortOrder") ?? 0,
+    },
+  });
+
+  revalidateCalculatorConfig();
+}
+
+export async function updateCalculatorMaterialAction(formData: FormData) {
+  if (!hasDatabaseUrl()) return;
+  await ensureAdminAccess();
+
+  const id = getString(formData, "id");
+  if (!id) return;
+
+  const data: Record<string, unknown> = {};
+  const label = getString(formData, "label");
+  if (label) data.label = label;
+  const pricePerSqM = getRequiredInt(formData, "pricePerSqM");
+  if (pricePerSqM !== null) data.pricePerSqM = pricePerSqM;
+  const cutRatePerMeter = getRequiredInt(formData, "cutRatePerMeter");
+  if (cutRatePerMeter !== null) data.cutRatePerMeter = cutRatePerMeter;
+  const edgeRatePerMeter = getRequiredInt(formData, "edgeRatePerMeter");
+  if (edgeRatePerMeter !== null) data.edgeRatePerMeter = edgeRatePerMeter;
+  const setupFee = getRequiredInt(formData, "setupFee");
+  if (setupFee !== null) data.setupFee = setupFee;
+  const thicknessMm = getOptionalInt(formData, "thicknessMm");
+  data.thicknessMm = thicknessMm;
+  const sortOrder = getRequiredInt(formData, "sortOrder");
+  if (sortOrder !== null) data.sortOrder = sortOrder;
+  data.isActive = formData.get("isActive") === "on";
+
+  await getDb().calculatorMaterial.update({ where: { id }, data });
+  revalidateCalculatorConfig();
+}
+
+export async function deleteCalculatorMaterialAction(formData: FormData) {
+  if (!hasDatabaseUrl()) return;
+  await ensureAdminAccess();
+
+  const id = getString(formData, "id");
+  if (!id) return;
+
+  await getDb().calculatorMaterial.delete({ where: { id } });
+  revalidateCalculatorConfig();
+}
+
+export async function createCalculatorSheetFormatAction(formData: FormData) {
+  if (!hasDatabaseUrl()) return;
+  await ensureAdminAccess();
+
+  const slug = getString(formData, "slug");
+  const label = getString(formData, "label");
+  const widthMm = getRequiredInt(formData, "widthMm");
+  const heightMm = getRequiredInt(formData, "heightMm");
+
+  if (!slug || !label || widthMm === null || heightMm === null) {
+    return;
+  }
+
+  await getDb().calculatorSheetFormat.create({
+    data: {
+      slug,
+      label,
+      widthMm,
+      heightMm,
+      sortOrder: getRequiredInt(formData, "sortOrder") ?? 0,
+    },
+  });
+
+  revalidateCalculatorConfig();
+}
+
+export async function updateCalculatorSheetFormatAction(formData: FormData) {
+  if (!hasDatabaseUrl()) return;
+  await ensureAdminAccess();
+
+  const id = getString(formData, "id");
+  if (!id) return;
+
+  const data: Record<string, unknown> = {};
+  const label = getString(formData, "label");
+  if (label) data.label = label;
+  const widthMm = getRequiredInt(formData, "widthMm");
+  if (widthMm !== null) data.widthMm = widthMm;
+  const heightMm = getRequiredInt(formData, "heightMm");
+  if (heightMm !== null) data.heightMm = heightMm;
+  const sortOrder = getRequiredInt(formData, "sortOrder");
+  if (sortOrder !== null) data.sortOrder = sortOrder;
+  data.isActive = formData.get("isActive") === "on";
+
+  await getDb().calculatorSheetFormat.update({ where: { id }, data });
+  revalidateCalculatorConfig();
+}
+
+export async function deleteCalculatorSheetFormatAction(formData: FormData) {
+  if (!hasDatabaseUrl()) return;
+  await ensureAdminAccess();
+
+  const id = getString(formData, "id");
+  if (!id) return;
+
+  await getDb().calculatorSheetFormat.delete({ where: { id } });
+  revalidateCalculatorConfig();
 }

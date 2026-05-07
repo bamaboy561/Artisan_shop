@@ -17,7 +17,6 @@ import {
 import { SetupState } from "@/components/admin/setup-state";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { DataTable } from "@/components/ui/table";
-import { catalogProducts } from "@/features/catalog/data";
 import {
   orderStatusLabels,
   requestStatusLabels,
@@ -28,6 +27,7 @@ import {
   getAdminDashboardMetrics,
   getAdminOperationalQueues,
 } from "@/lib/server/admin-data";
+import { getPublicProducts } from "@/lib/server/catalog-public";
 
 export const dynamic = "force-dynamic";
 
@@ -170,19 +170,20 @@ export default async function AdminPage() {
     return (
       <SetupState
         title="Админка заработает после подключения PostgreSQL"
-        description="Интерфейс уже готов для каталога, заказов, заявок и клиентов. Чтобы включить живые данные, подключите базу и загрузите стартовые сущности."
+        description="Интерфейс уже готов для каталога, заказов, заявок и клиентов. Чтобы включить живые данные, подключите базу и выполните production bootstrap."
         steps={[
           "Скопируйте .env.example в .env и добавьте рабочий DATABASE_URL.",
           "Примените Prisma-схему через prisma db push или prisma migrate dev.",
-          "Запустите prisma db seed, чтобы загрузить роли, каталог и клиентов.",
+          "Запустите npm run prisma:bootstrap, чтобы создать роли, первого администратора и базовые настройки.",
         ]}
       />
     );
   }
 
-  const [metrics, queues] = await Promise.all([
+  const [metrics, queues, catalogProducts] = await Promise.all([
     getAdminDashboardMetrics(),
     getAdminOperationalQueues(),
+    getPublicProducts(),
   ]);
 
   const revenue = queues.recentOrders.reduce((sum, order) => sum + order.total, 0);

@@ -2,6 +2,10 @@ import { SetupState } from "@/components/admin/setup-state";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { DataTable } from "@/components/ui/table";
+import {
+  requestStatusLabels,
+  requestTypeLabels,
+} from "@/features/admin/operations-filters";
 import { hasDatabaseUrl } from "@/lib/db";
 import { getAccountRequests, getAccountUser } from "@/lib/server/account-data";
 
@@ -15,6 +19,18 @@ function formatDate(date: Date) {
   }).format(date);
 }
 
+function formatBudget(value: number | null) {
+  if (value === null) {
+    return "По расчету";
+  }
+
+  return new Intl.NumberFormat("ru-RU", {
+    style: "currency",
+    currency: "KGS",
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
 export default async function AccountRequestsPage() {
   if (!hasDatabaseUrl()) {
     return (
@@ -24,7 +40,7 @@ export default async function AccountRequestsPage() {
         steps={[
           "Добавьте DATABASE_URL в .env.",
           "Примените Prisma-схему через prisma db push или prisma migrate dev.",
-          "Запустите prisma db seed, чтобы загрузить стартовые обращения.",
+          "После первой реальной заявки история появится здесь автоматически.",
         ]}
       />
     );
@@ -52,10 +68,50 @@ export default async function AccountRequestsPage() {
     service: (
       <div className="space-y-1">
         <p>{request.subject}</p>
-        <p className="text-xs text-[var(--muted)]">{request.type}</p>
+        <p className="text-xs text-[var(--muted)]">
+          {requestTypeLabels[request.type]}
+        </p>
       </div>
     ),
-    status: <StatusBadge tone="warning">{request.status}</StatusBadge>,
+    status: (
+      <div className="space-y-2">
+        <StatusBadge tone="warning">{requestStatusLabels[request.status]}</StatusBadge>
+        <p className="text-xs text-[var(--muted)]">
+          Итог: {formatBudget(request.quotedTotal)}
+        </p>
+      </div>
+    ),
+    result: (
+      <div className="space-y-2">
+        {request.productionComment ? (
+          <p className="max-w-sm text-sm leading-6 text-[var(--foreground)]">
+            {request.productionComment}
+          </p>
+        ) : (
+          <p className="text-sm text-[var(--muted)]">Результат появится после расчета.</p>
+        )}
+        {request.files.length > 0 ? (
+          <div className="flex flex-wrap gap-2">
+            {request.files.map((file) => (
+              <a
+                key={file.id}
+                href={file.fileUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-full border border-[color:var(--line)] bg-white px-3 py-1 text-xs font-medium text-[var(--foreground)] transition hover:border-[color:var(--foreground)]"
+              >
+                {file.fileName}
+              </a>
+            ))}
+          </div>
+        ) : null}
+        {request.managerNotes.length > 0 ? (
+          <p className="text-xs leading-5 text-[var(--muted)]">
+            {request.managerNotes[0]?.body}
+          </p>
+        ) : null}
+      </div>
+    ),
     manager: (
       <div className="space-y-1">
         <p>
@@ -86,6 +142,7 @@ export default async function AccountRequestsPage() {
           { key: "request", label: "Заявка" },
           { key: "service", label: "Содержание" },
           { key: "status", label: "Статус" },
+          { key: "result", label: "Расчет и файлы" },
           { key: "manager", label: "Менеджер" },
         ]}
         rows={rows}

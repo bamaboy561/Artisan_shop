@@ -155,7 +155,7 @@ export default async function AdminProductsPage({
         steps={[
           "Настройте DATABASE_URL в .env.",
           "Примените схему через prisma db push или prisma migrate dev.",
-          "Загрузите стартовые данные командой prisma db seed.",
+          "Создайте реальные товары вручную или через импорт после production bootstrap.",
         ]}
       />
     );
@@ -163,12 +163,15 @@ export default async function AdminProductsPage({
 
   await requireAdminSession("/login?next=/admin/products");
 
-  const [{ categories, brands }, products, resolvedSearchParams] =
-    await Promise.all([
-      getAdminProductFormOptions(),
-      getAdminProducts(),
-      searchParams,
-    ]);
+  const [
+    { categories, brands, calculatorMaterials, calculatorSheetFormats },
+    products,
+    resolvedSearchParams,
+  ] = await Promise.all([
+    getAdminProductFormOptions(),
+    getAdminProducts(),
+    searchParams,
+  ]);
 
   const parsedState = parseAdminProductSearchParams(resolvedSearchParams);
   const state = sanitizeAdminProductFilterState(parsedState, {
@@ -303,6 +306,12 @@ export default async function AdminProductsPage({
           {inventoryLabels[product.inventoryStatus]}
         </StatusBadge>
         <div className="text-xs leading-5 text-[var(--muted)]">
+          <p>
+            Калькулятор:{" "}
+            {product.calculatorMaterialId && product.calculatorSheetPresetId
+              ? `${product.calculatorMaterialId} / ${product.calculatorSheetPresetId}`
+              : "не привязан"}
+          </p>
           <p>Заказов: {product._count.orderItems}</p>
           <p>Избранное: {product._count.favorites}</p>
         </div>
@@ -341,6 +350,30 @@ export default async function AdminProductsPage({
           {Object.values(InventoryStatus).map((status) => (
             <option key={status} value={status}>
               {inventoryLabels[status]}
+            </option>
+          ))}
+        </Select>
+        <Select
+          name="calculatorMaterialId"
+          defaultValue={product.calculatorMaterialId ?? ""}
+          className="h-9 text-xs"
+        >
+          <option value="">Материал расчета</option>
+          {calculatorMaterials.map((material) => (
+            <option key={material.slug} value={material.slug}>
+              {material.label}
+            </option>
+          ))}
+        </Select>
+        <Select
+          name="calculatorSheetPresetId"
+          defaultValue={product.calculatorSheetPresetId ?? ""}
+          className="h-9 text-xs"
+        >
+          <option value="">Формат листа</option>
+          {calculatorSheetFormats.map((sheet) => (
+            <option key={sheet.slug} value={sheet.slug}>
+              {sheet.label}
             </option>
           ))}
         </Select>
@@ -674,6 +707,31 @@ export default async function AdminProductsPage({
                   type="url"
                   placeholder="https://example.com/image.jpg"
                 />
+              </label>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="grid gap-2 text-sm text-[var(--foreground)]">
+                Материал для калькулятора
+                <Select name="calculatorMaterialId" defaultValue="">
+                  <option value="">Не привязывать</option>
+                  {calculatorMaterials.map((material) => (
+                    <option key={material.slug} value={material.slug}>
+                      {material.label}
+                    </option>
+                  ))}
+                </Select>
+              </label>
+              <label className="grid gap-2 text-sm text-[var(--foreground)]">
+                Формат листа для калькулятора
+                <Select name="calculatorSheetPresetId" defaultValue="">
+                  <option value="">Не привязывать</option>
+                  {calculatorSheetFormats.map((sheet) => (
+                    <option key={sheet.slug} value={sheet.slug}>
+                      {sheet.label}
+                    </option>
+                  ))}
+                </Select>
               </label>
             </div>
 

@@ -20,6 +20,7 @@
     "prisma:push": "prisma db push",
     "prisma:migrate:dev": "prisma migrate dev",
     "prisma:seed": "prisma db seed",
+    "prisma:bootstrap": "tsx prisma/bootstrap.ts",
     "format": "prettier --check .",
     "format:write": "prettier --write ."
   },

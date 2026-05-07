@@ -10,10 +10,6 @@ import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { ProductCard } from "@/components/ui/cards";
 import { Pagination } from "@/components/ui/pagination";
 import {
-  getCategoryBySlug,
-  getProductsByCategory,
-} from "@/features/catalog/data";
-import {
   buildCatalogHref,
   filterCatalogProducts,
   getCatalogFacetOptions,
@@ -23,6 +19,10 @@ import {
   sanitizeCatalogFilterState,
   sortCatalogProducts,
 } from "@/features/catalog/filters";
+import {
+  getPublicCategoryBySlug,
+  getPublicProductsByCategory,
+} from "@/lib/server/catalog-public";
 
 type CategoryPageProps = {
   params: Promise<{ slug: string }>;
@@ -47,13 +47,13 @@ export default async function CategoryPage({
   searchParams,
 }: CategoryPageProps) {
   const { slug } = await params;
-  const category = getCategoryBySlug(slug);
+  const category = await getPublicCategoryBySlug(slug);
 
   if (!category) {
     notFound();
   }
 
-  const categoryProducts = getProductsByCategory(category.slug);
+  const categoryProducts = await getPublicProductsByCategory(category.slug);
   const parsedState = parseCatalogSearchParams(await searchParams);
   const availableFilterOptions = getCatalogFilterOptions(categoryProducts);
   const state = sanitizeCatalogFilterState(parsedState, availableFilterOptions);

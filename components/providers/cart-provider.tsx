@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 
-import { catalogProducts } from "@/features/catalog/data";
+import type { FeaturedProduct } from "@/features/catalog/types";
 
 const STORAGE_KEY = "artisan-cart-v1";
 
@@ -50,7 +50,13 @@ function readInitialCart(): CartItem[] {
   }
 }
 
-export function CartProvider({ children }: { children: ReactNode }) {
+export function CartProvider({
+  children,
+  products,
+}: {
+  children: ReactNode;
+  products: FeaturedProduct[];
+}) {
   const [items, setItems] = useState<CartItem[]>(readInitialCart);
 
   useEffect(() => {
@@ -60,7 +66,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const value = useMemo<CartContextValue>(() => {
     const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
     const subtotal = items.reduce((sum, item) => {
-      const product = catalogProducts.find((p) => p.slug === item.productSlug);
+      const product = products.find((p) => p.slug === item.productSlug);
       return (
         sum +
         (typeof product?.price === "number" ? product.price * item.quantity : 0)
@@ -73,11 +79,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
       subtotal,
       addItem: (productSlug, quantity = 1) => {
         setItems((prev) => {
-          const product = catalogProducts.find(
+          const found = products.find(
             (item) => item.slug === productSlug,
           );
 
-          if (!product || typeof product.price !== "number") {
+          if (!found || typeof found.price !== "number") {
             return prev;
           }
 
@@ -114,7 +120,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       },
       clearCart: () => setItems([]),
     };
-  }, [items]);
+  }, [items, products]);
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }

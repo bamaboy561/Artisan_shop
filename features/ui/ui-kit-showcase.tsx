@@ -22,11 +22,28 @@ import { DataTable } from "@/components/ui/table";
 import { Tabs } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { UploadBlock } from "@/components/ui/upload-block";
-import {
-  brandNames,
-  catalogCategories,
-  featuredProducts,
-} from "@/features/catalog/data";
+import { brandNames } from "@/features/catalog/data";
+
+const showcaseProduct = {
+  slug: "demo-product",
+  brand: "Artisan",
+  name: "Демонстрационная карточка",
+  summary: "Пример отображения товара в UI-ките.",
+  format: "2800 x 2070 мм",
+  action: "Запросить цену",
+  price: 4200,
+  oldPrice: 5000,
+  inStock: true,
+  categoryName: "Мебельные панели",
+};
+
+const showcaseCategory = {
+  slug: "ldsp",
+  indicator: "Образец",
+  name: "Мебельные панели",
+  summary: "Пример отображения карточки раздела.",
+  scenario: "Подбор и запрос цены",
+};
 
 const tableColumns = [
   { key: "order", label: "Заказ" },
@@ -270,23 +287,23 @@ export function UiKitShowcase() {
         </h2>
         <div className="grid gap-4 lg:grid-cols-2">
           <ProductCard
-            href={`/product/${featuredProducts[0].slug}`}
-            brand={featuredProducts[0].brand}
-            name={featuredProducts[0].name}
-            summary={featuredProducts[0].summary}
-            format={featuredProducts[0].format}
-            action={featuredProducts[0].action}
-            price={featuredProducts[0].price}
-            oldPrice={featuredProducts[0].oldPrice}
-            inStock={featuredProducts[0].inStock}
-            categoryName={featuredProducts[0].categoryName}
+            href={`/product/${showcaseProduct.slug}`}
+            brand={showcaseProduct.brand}
+            name={showcaseProduct.name}
+            summary={showcaseProduct.summary}
+            format={showcaseProduct.format}
+            action={showcaseProduct.action}
+            price={showcaseProduct.price}
+            oldPrice={showcaseProduct.oldPrice}
+            inStock={showcaseProduct.inStock}
+            categoryName={showcaseProduct.categoryName}
           />
           <CategoryCard
-            href={`/catalog/${catalogCategories[0].slug}`}
-            indicator={catalogCategories[0].indicator}
-            name={catalogCategories[0].name}
-            summary={catalogCategories[0].summary}
-            scenario={catalogCategories[0].scenario}
+            href={`/catalog/${showcaseCategory.slug}`}
+            indicator={showcaseCategory.indicator}
+            name={showcaseCategory.name}
+            summary={showcaseCategory.summary}
+            scenario={showcaseCategory.scenario}
           />
         </div>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">

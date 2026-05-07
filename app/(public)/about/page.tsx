@@ -3,10 +3,10 @@ import Image from "next/image";
 import Link from "next/link";
 
 import {
-  catalogMetrics,
-  importedAgtProducts,
-  importedExtravertProducts,
-} from "@/features/catalog/data";
+  getCatalogMetrics,
+  getPublicProductsByBrand,
+  getPublicProductsByCategory,
+} from "@/lib/server/catalog-public";
 import { companyName } from "@/lib/site-config";
 
 export const metadata: Metadata = {
@@ -30,9 +30,14 @@ const principles = [
   },
 ];
 
-export default function AboutPage() {
+export default async function AboutPage() {
+  const [catalogMetrics, mdfProducts, extravertProducts] = await Promise.all([
+    getCatalogMetrics(),
+    getPublicProductsByCategory("mdf-panels"),
+    getPublicProductsByBrand("extravert"),
+  ]);
   const heroImage =
-    importedAgtProducts[2]?.image || importedExtravertProducts[0]?.image || "";
+    mdfProducts[2]?.image || extravertProducts[0]?.image || "";
 
   return (
     <div className="bg-background">
@@ -98,7 +103,7 @@ export default function AboutPage() {
       <section className="border-y border-[color:var(--line)] bg-[var(--surface-strong)] px-5 py-10 sm:px-8 lg:px-10">
         <div className="mx-auto grid max-w-[1500px] gap-5 sm:grid-cols-3">
           {[
-            ["Материалов", catalogMetrics.decorCount],
+            ["Материалов", catalogMetrics.productCount],
             ["Бренда", catalogMetrics.brandCount],
             ["Сценария", 3],
           ].map(([label, value]) => (

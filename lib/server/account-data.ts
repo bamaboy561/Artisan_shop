@@ -1,4 +1,4 @@
-import { OrderStatus, RequestStatus } from "@/generated/prisma";
+import { OrderStatus, RequestFileKind, RequestStatus } from "@/generated/prisma";
 
 import { verifySession } from "@/lib/auth/dal";
 import { getDb } from "@/lib/db";
@@ -178,12 +178,41 @@ export async function getAccountRequests(userId: string) {
       type: true,
       status: true,
       subject: true,
+      quotedTotal: true,
+      productionComment: true,
       createdAt: true,
       manager: {
         select: {
           firstName: true,
           lastName: true,
           email: true,
+        },
+      },
+      files: {
+        where: {
+          kind: RequestFileKind.MANAGER_RESULT,
+          isVisibleToClient: true,
+        },
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          fileName: true,
+          fileUrl: true,
+          note: true,
+          createdAt: true,
+        },
+      },
+      managerNotes: {
+        where: {
+          isVisibleToClient: true,
+        },
+        orderBy: { createdAt: "desc" },
+        take: 3,
+        select: {
+          id: true,
+          body: true,
+          authorName: true,
+          createdAt: true,
         },
       },
     },

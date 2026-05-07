@@ -27,41 +27,41 @@ export function ProductCard({
   href,
   brand,
   name,
-  summary,
   format,
   action,
   image,
   price,
   oldPrice,
   inStock = true,
-  categoryName,
   compact = false,
   denseMobile = false,
   mobileList = false,
   className,
 }: ProductCardProps) {
+  const aspect = compact
+    ? "aspect-[1.04]"
+    : denseMobile
+      ? mobileList
+        ? "aspect-[0.78] sm:aspect-[1.06]"
+        : "aspect-[0.92] sm:aspect-[1.06]"
+      : "aspect-[0.96] sm:aspect-[1.08]";
+
   return (
     <Link
       href={href}
       className={cn(
-        "group relative flex h-full overflow-hidden bg-transparent transition duration-300",
+        "group relative flex h-full overflow-hidden bg-transparent",
         mobileList
-          ? "flex-row items-start gap-3 border-b border-[color:var(--line)] pb-3.5 sm:flex-col sm:gap-0 sm:border-b-0 sm:pb-0"
+          ? "flex-row items-start gap-3.5 border-b border-[color:var(--line)] pb-4 sm:flex-col sm:gap-0 sm:border-b-0 sm:pb-0"
           : "flex-col",
         className,
       )}
     >
       <div
         className={cn(
-          "relative overflow-hidden bg-[var(--background)]",
-          mobileList && "w-[6.9rem] shrink-0 sm:w-full",
-          compact
-            ? "aspect-square"
-            : denseMobile
-              ? mobileList
-                ? "aspect-[0.78] sm:aspect-[1.02]"
-                : "aspect-[0.88] sm:aspect-[1.02]"
-              : "aspect-[0.94] sm:aspect-[1.04]",
+          "relative overflow-hidden bg-[#ece8df]",
+          mobileList && "w-[7rem] shrink-0 sm:w-full",
+          aspect,
         )}
       >
         {image ? (
@@ -69,7 +69,7 @@ export function ProductCard({
             src={image}
             alt={name}
             fill
-            className="object-cover transition duration-700 group-hover:scale-[1.04]"
+            className="object-cover transition-transform duration-[900ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.06]"
             sizes={
               mobileList
                 ? "(max-width: 639px) 112px, (max-width: 1024px) 50vw, 25vw"
@@ -78,188 +78,98 @@ export function ProductCard({
           />
         ) : (
           <div className="flex h-full items-center justify-center text-[var(--muted)]">
-            <span className="rounded-full border border-[color:var(--line)] px-4 py-2 text-xs tracking-[0.18em] uppercase">
+            <span className="font-mono text-[10px] tracking-[0.22em] uppercase">
               Artisan
             </span>
           </div>
         )}
 
-        {categoryName ? (
-          <span
-            className={cn(
-              "absolute bg-white/88 font-mono tracking-[0.14em] text-[var(--muted)] uppercase backdrop-blur-sm",
-              mobileList && "hidden sm:inline-flex",
-              compact || denseMobile
-                ? "top-2 left-2 px-2 py-0.5 text-[8px] sm:top-3 sm:left-3 sm:px-3 sm:py-1 sm:text-[10px]"
-                : "px-2.5 py-1 text-[9px] sm:px-3 sm:text-[10px]",
-            )}
-          >
-            {categoryName}
+        {!inStock ? (
+          <span className="absolute top-2.5 left-2.5 inline-flex items-center gap-1.5 bg-white/92 px-2 py-1 font-mono text-[9px] tracking-[0.16em] text-[var(--foreground)] uppercase backdrop-blur-sm sm:top-3 sm:left-3 sm:text-[10px]">
+            <span className="size-1 rounded-full bg-[var(--foreground)]/40" />
+            Под заказ
           </span>
         ) : null}
-
-        <span
-          className={cn(
-            "absolute font-mono tracking-[0.12em] uppercase backdrop-blur-sm",
-            compact || denseMobile
-              ? "top-2 right-2 px-2 py-0.5 text-[8px] sm:top-3 sm:right-3 sm:px-2 sm:py-1 sm:text-[10px]"
-              : "px-2 py-1 text-[9px] sm:text-[10px]",
-            mobileList && "top-2 right-2 sm:top-3 sm:right-3",
-            inStock
-              ? "bg-white/82 text-[var(--foreground)]"
-              : "bg-[#151411]/82 text-white",
-          )}
-        >
-          {inStock ? "В наличии" : "Под заказ"}
-        </span>
       </div>
 
       <div
         className={cn(
           "flex min-w-0 flex-1 flex-col",
           mobileList
-            ? "min-h-[6.9rem] pt-0 sm:min-h-0 sm:pt-3"
+            ? "min-h-[7rem] pt-0 sm:min-h-0 sm:pt-3.5"
             : compact
               ? "pt-3"
-              : denseMobile
-                ? "pt-2.5 sm:pt-4"
-                : "pt-3.5 sm:pt-4",
+              : "pt-3 sm:pt-4",
         )}
       >
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p
-              className={cn(
-                "font-mono tracking-[0.22em] text-[var(--accent)] uppercase",
-                mobileList
-                  ? "text-[8px] sm:text-[11px]"
-                  : denseMobile
-                    ? "text-[9px] sm:text-[11px]"
-                    : "text-[10px] sm:text-[11px]",
-              )}
-            >
-              {brand}
-            </p>
-
-            {mobileList && categoryName ? (
-              <p className="mt-1 font-mono text-[8px] tracking-[0.14em] text-[var(--muted)] uppercase sm:hidden">
-                {categoryName}
-              </p>
-            ) : null}
-          </div>
-
-          {mobileList ? (
-            <span className="max-w-[5.7rem] shrink truncate text-right font-mono text-[8px] tracking-[0.14em] text-[var(--muted)] uppercase sm:hidden">
-              {format}
-            </span>
-          ) : null}
-        </div>
+        <p
+          className={cn(
+            "font-mono tracking-[0.22em] text-[var(--muted)] uppercase",
+            mobileList ? "text-[9px] sm:text-[10px]" : "text-[10px] sm:text-[11px]",
+          )}
+        >
+          {brand}
+        </p>
 
         <h3
           className={cn(
-            "mt-2 font-semibold text-[var(--foreground)]",
+            "mt-1.5 font-medium tracking-[-0.01em] text-[var(--foreground)] transition-colors duration-300 group-hover:text-[#9d573d]",
             compact
-              ? "text-[14px] leading-5"
+              ? "text-[15px] leading-[1.3]"
               : denseMobile
-                ? "text-[13px] leading-[1.35] sm:text-base sm:leading-5"
-                : "text-[15px] leading-5 sm:text-base",
-            mobileList &&
-              "mt-1.5 line-clamp-2 text-[14px] leading-[1.22] sm:mt-2 sm:text-base sm:leading-5",
+                ? "text-[14px] leading-[1.3] sm:text-[17px] sm:leading-[1.25]"
+                : "text-[15px] leading-[1.3] sm:text-[17px] sm:leading-[1.25]",
+            mobileList && "line-clamp-2 sm:line-clamp-1",
           )}
         >
           {name}
         </h3>
 
-        <p
-          className={cn(
-            "text-[var(--muted)]",
-            mobileList
-              ? "mt-1 hidden sm:block sm:text-sm sm:leading-5"
-              : denseMobile
-                ? "mt-1 line-clamp-1 text-[12px] leading-4 sm:mt-1.5 sm:line-clamp-2 sm:text-sm sm:leading-5"
-                : "mt-1 line-clamp-2 text-[13px] leading-5 sm:mt-1.5 sm:text-sm",
-          )}
-        >
-          {summary}
-        </p>
-
         <div
           className={cn(
-            "mt-auto",
-            mobileList
-              ? "pt-2 sm:pt-4"
-              : compact
-                ? "pt-2.5"
-                : denseMobile
-                  ? "pt-2.5 sm:pt-4"
-                  : "pt-3 sm:pt-4",
+            "mt-auto flex items-end justify-between gap-3",
+            mobileList ? "pt-2.5 sm:pt-3.5" : "pt-3 sm:pt-4",
           )}
         >
-          <div
-            className={cn(
-              "flex items-end justify-between gap-3",
-              mobileList
-                ? "pt-0 sm:pt-4"
-                : compact
-                  ? "pt-2.5"
-                  : denseMobile
-                    ? "pt-2 sm:pt-4"
-                    : "pt-3 sm:pt-4",
-            )}
-          >
-            <div>
-              {price ? (
+          <div className="min-w-0">
+            {price ? (
+              <>
                 <p
                   className={cn(
                     "font-semibold text-[var(--foreground)]",
                     compact
                       ? "text-[15px]"
-                      : denseMobile
-                        ? "text-[14px] sm:text-lg"
-                        : "text-[15px] sm:text-lg",
-                    mobileList && "text-[13px] sm:text-lg",
+                      : "text-[15px] sm:text-[17px]",
                   )}
                 >
                   {formatPrice(price)}
                 </p>
-              ) : null}
-
-              {oldPrice ? (
-                <p className="text-xs text-[var(--muted)] line-through">
-                  {formatPrice(oldPrice)}
-                </p>
-              ) : null}
-
-              {!price ? (
-                <p
-                  className={cn(
-                    "font-semibold text-[var(--foreground)]",
-                    compact
-                      ? "text-[12px]"
-                      : denseMobile
-                        ? "text-[11px] sm:text-sm"
-                        : "text-[12px] sm:text-sm",
-                    mobileList && "text-[10px] leading-4 sm:text-sm",
-                  )}
-                >
-                  {action}
-                </p>
-              ) : null}
-            </div>
-
-            <span
-              className={cn(
-                "text-[var(--muted)]",
-                mobileList
-                  ? "hidden sm:inline text-xs"
-                  : compact || denseMobile
-                    ? "text-[10px] sm:text-xs"
-                    : "text-[11px] sm:text-xs",
-              )}
-            >
-              {format}
-            </span>
+                {oldPrice ? (
+                  <p className="text-[11px] text-[var(--muted)] line-through sm:text-xs">
+                    {formatPrice(oldPrice)}
+                  </p>
+                ) : null}
+              </>
+            ) : (
+              <p
+                className={cn(
+                  "font-medium text-[var(--foreground)]",
+                  compact ? "text-[12px]" : "text-[12px] sm:text-[13px]",
+                )}
+              >
+                {action}
+              </p>
+            )}
           </div>
+
+          <span
+            className={cn(
+              "shrink-0 truncate font-mono tracking-[0.12em] text-[var(--muted)] uppercase",
+              compact ? "text-[9px]" : "text-[9px] sm:text-[10px]",
+            )}
+          >
+            {format}
+          </span>
         </div>
       </div>
     </Link>

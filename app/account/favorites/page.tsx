@@ -30,7 +30,7 @@ export default async function AccountFavoritesPage() {
         steps={[
           "Добавьте DATABASE_URL в .env.",
           "Примените Prisma-схему через prisma db push или prisma migrate dev.",
-          "Запустите prisma db seed, чтобы загрузить каталог и пользователей.",
+          "Выполните production bootstrap и наполните каталог через админку.",
         ]}
       />
     );

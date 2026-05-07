@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 
 import {
@@ -8,11 +7,6 @@ import {
 } from "@/components/catalog/catalog-filters";
 import { ProductCard } from "@/components/ui/cards";
 import { Pagination } from "@/components/ui/pagination";
-import {
-  catalogCategories,
-  catalogMetrics,
-  catalogProducts,
-} from "@/features/catalog/data";
 import {
   buildCatalogHref,
   filterCatalogProducts,
@@ -23,6 +17,11 @@ import {
   sanitizeCatalogFilterState,
   sortCatalogProducts,
 } from "@/features/catalog/filters";
+import {
+  getCatalogMetrics,
+  getPublicCategories,
+  getPublicProducts,
+} from "@/lib/server/catalog-public";
 
 export const metadata: Metadata = {
   title: "Каталог",
@@ -34,10 +33,15 @@ type CatalogPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
-const heroProducts = catalogProducts.slice(0, 3);
-
 export default async function CatalogPage({ searchParams }: CatalogPageProps) {
-  const parsedState = parseCatalogSearchParams(await searchParams);
+  const [catalogProducts, catalogCategories, catalogMetrics, parsedSearchParams] =
+    await Promise.all([
+      getPublicProducts(),
+      getPublicCategories(),
+      getCatalogMetrics(),
+      searchParams,
+    ]);
+  const parsedState = parseCatalogSearchParams(parsedSearchParams);
   const availableFilterOptions = getCatalogFilterOptions(catalogProducts);
   const state = sanitizeCatalogFilterState(parsedState, availableFilterOptions);
   const filterOptions = getCatalogFacetOptions(catalogProducts, state);
@@ -48,85 +52,51 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
 
   return (
     <div className="bg-[#f1eee8]">
-      <section className="border-b border-[color:var(--line)] bg-[#f1eee8] px-4 pt-3 pb-2.5 lg:hidden">
-        <div className="mx-auto max-w-[1500px] space-y-2">
-          <p className="font-mono text-[9px] tracking-[0.18em] text-[var(--accent)] uppercase">
-            Каталог Artisan
-          </p>
+      <section className="relative overflow-hidden border-b border-[color:var(--line)] bg-gradient-to-b from-[#f6f1e7] via-[#efeadf] to-[#f1eee8]">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[var(--foreground)]/12 to-transparent" />
+        <div className="pointer-events-none absolute inset-0 opacity-[0.035] [background-image:radial-gradient(circle_at_1px_1px,#151411_1px,transparent_0)] [background-size:18px_18px]" />
 
-          <div className="flex items-end justify-between gap-4">
-            <div className="min-w-0">
-              <h1 className="text-[1.18rem] leading-[1.02] font-semibold tracking-[-0.045em] text-[var(--foreground)]">
-                Материалы и декоры
-              </h1>
-            </div>
-
-            <div className="shrink-0 text-right font-mono text-[9px] tracking-[0.14em] text-[var(--muted)] uppercase">
-              <p className="text-[var(--foreground)]">{catalogProducts.length}</p>
-              <p>позиций</p>
-            </div>
+        <div className="relative mx-auto flex max-w-[1500px] flex-col gap-6 px-4 pt-12 pb-10 sm:gap-8 sm:px-8 sm:pt-20 sm:pb-14 lg:flex-row lg:items-end lg:justify-between lg:gap-12 lg:px-10 lg:pt-24 lg:pb-16">
+          <div className="max-w-[42rem]">
+            <p className="font-mono text-[10px] tracking-[0.28em] text-[var(--accent)] uppercase sm:text-[11px]">
+              Каталог Artisan
+            </p>
+            <h1 className="mt-3 text-[2.1rem] leading-[0.96] font-semibold tracking-[-0.045em] text-balance text-[var(--foreground)] sm:mt-4 sm:text-[3.4rem] lg:text-[3.8rem]">
+              Материалы для проектной мебели.
+            </h1>
+            <p className="mt-4 max-w-[36rem] text-[14px] leading-[1.7] text-[var(--muted)] sm:mt-5 sm:text-[15px]">
+              Подбор плитных материалов, фасадных панелей и кромок под конкретный проект — с прозрачным сценарием заказа и сервисом распила.
+            </p>
           </div>
 
-          <div className="flex flex-wrap gap-x-3 gap-y-1 font-mono text-[9px] tracking-[0.14em] text-[var(--muted)] uppercase">
-            <span>{catalogMetrics.brandCount} бренда</span>
-            <span>{catalogCategories.length} раздела</span>
-          </div>
-        </div>
-      </section>
-
-      <section className="relative hidden overflow-hidden bg-[#858866] text-white lg:block">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_26%,rgba(255,255,255,0.2),transparent_34%),linear-gradient(180deg,rgba(0,0,0,0.02)_0%,rgba(0,0,0,0.12)_52%,rgba(0,0,0,0.72)_100%)]" />
-        <div className="mx-auto flex min-h-[40svh] max-w-[1500px] flex-col justify-end px-8 pt-[4.5rem] pb-8 lg:px-10">
-          <div className="absolute top-16 right-10 hidden h-[24svh] w-[44rem] items-end justify-end gap-4 xl:flex">
-            {heroProducts.map((product, index) => (
-              <div
-                key={product.slug}
-                className={`relative overflow-hidden bg-white/12 shadow-[0_26px_80px_rgba(0,0,0,0.16)] ring-1 ring-white/12 ${
-                  index === 1 ? "h-[24svh] w-[15rem]" : "h-[18svh] w-[11.5rem]"
-                }`}
-              >
-                <Image
-                  src={product.image}
-                  alt={product.name}
-                  fill
-                  className="object-cover"
-                  sizes="20vw"
-                />
-              </div>
-            ))}
-          </div>
-
-          <div className="relative grid gap-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
-            <div className="max-w-[34rem]">
-              <p className="font-mono text-[10px] tracking-[0.22em] text-white/58 uppercase">
-                Каталог Artisan
-              </p>
-              <h1 className="mt-2.5 text-[1.62rem] leading-[0.98] font-semibold tracking-[-0.045em] text-balance sm:mt-3 sm:text-[2.6rem]">
-                Каталог материалов.
-              </h1>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2.5 text-right font-mono text-[9px] tracking-[0.14em] text-white/62 uppercase sm:gap-5 sm:text-[10px]">
+          {catalogProducts.length > 0 ? (
+            <dl className="grid grid-cols-3 gap-x-6 gap-y-1 border-t border-[color:var(--line-strong)]/40 pt-5 lg:border-none lg:pt-0">
               <div>
-                <p className="text-base font-semibold tracking-normal text-white sm:text-xl">
+                <dt className="font-mono text-[9px] tracking-[0.16em] text-[var(--muted)] uppercase">
+                  Позиций
+                </dt>
+                <dd className="mt-1 text-[1.6rem] leading-none font-semibold text-[var(--foreground)] sm:text-[2rem]">
                   {catalogProducts.length}
-                </p>
-                <p>позиций</p>
+                </dd>
               </div>
               <div>
-                <p className="text-base font-semibold tracking-normal text-white sm:text-xl">
+                <dt className="font-mono text-[9px] tracking-[0.16em] text-[var(--muted)] uppercase">
+                  Брендов
+                </dt>
+                <dd className="mt-1 text-[1.6rem] leading-none font-semibold text-[var(--foreground)] sm:text-[2rem]">
                   {catalogMetrics.brandCount}
-                </p>
-                <p>бренда</p>
+                </dd>
               </div>
               <div>
-                <p className="text-base font-semibold tracking-normal text-white sm:text-xl">
+                <dt className="font-mono text-[9px] tracking-[0.16em] text-[var(--muted)] uppercase">
+                  Разделов
+                </dt>
+                <dd className="mt-1 text-[1.6rem] leading-none font-semibold text-[var(--foreground)] sm:text-[2rem]">
                   {catalogCategories.length}
-                </p>
-                <p>раздела</p>
+                </dd>
               </div>
-            </div>
-          </div>
+            </dl>
+          ) : null}
         </div>
       </section>
 
@@ -205,17 +175,50 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
                   </div>
                 ) : null}
               </>
+            ) : catalogProducts.length === 0 ? (
+              <div className="relative overflow-hidden border border-[color:var(--line)] bg-[#f7f3ea] px-6 py-14 text-center sm:px-12 sm:py-20">
+                <div className="pointer-events-none absolute inset-0 opacity-[0.04] [background-image:radial-gradient(circle_at_1px_1px,#151411_1px,transparent_0)] [background-size:14px_14px]" />
+                <div className="relative mx-auto max-w-[36rem]">
+                  <span className="inline-flex items-center gap-2 border border-[color:var(--line-strong)]/50 bg-white/70 px-3 py-1 font-mono text-[10px] tracking-[0.18em] text-[var(--accent)] uppercase">
+                    <span className="size-1 rounded-full bg-[var(--accent)]" />
+                    Каталог в работе
+                  </span>
+                  <h2 className="mt-5 text-[1.7rem] leading-[1.05] font-semibold tracking-[-0.035em] text-[var(--foreground)] sm:text-[2.1rem]">
+                    Материалы скоро появятся в каталоге.
+                  </h2>
+                  <p className="mt-4 text-[14px] leading-[1.65] text-[var(--muted)] sm:text-[15px]">
+                    Команда наполняет витрину коллекциями, форматами и ценами. Если нужно подобрать материал прямо сейчас — напишите менеджеру или оставьте заявку на расчёт.
+                  </p>
+                  <div className="mt-7 flex flex-col items-center justify-center gap-3 sm:flex-row">
+                    <Link
+                      href="/contacts"
+                      className="inline-flex h-11 w-full items-center justify-center bg-[var(--foreground)] px-7 font-mono text-[11px] tracking-[0.16em] text-white uppercase transition hover:bg-[#9d573d] sm:w-auto"
+                    >
+                      Связаться с менеджером
+                    </Link>
+                    <Link
+                      href="/calculator"
+                      className="inline-flex h-11 w-full items-center justify-center border border-[var(--foreground)] px-7 font-mono text-[11px] tracking-[0.16em] text-[var(--foreground)] uppercase transition hover:bg-[var(--foreground)] hover:text-white sm:w-auto"
+                    >
+                      Открыть калькулятор
+                    </Link>
+                  </div>
+                </div>
+              </div>
             ) : (
-              <div className="border border-[color:var(--line)] bg-[var(--surface-strong)] p-6 text-center sm:p-12">
-                <p className="text-xl font-semibold text-[var(--foreground)]">
-                  По этим параметрам ничего не найдено.
-                </p>
-                <p className="mx-auto mt-3 max-w-[34rem] text-sm leading-6 text-[var(--muted)] sm:leading-7">
-                  Сбросьте часть фильтров или измените поисковый запрос.
+              <div className="border border-[color:var(--line)] bg-[var(--surface-strong)] px-6 py-12 text-center sm:px-12 sm:py-16">
+                <span className="inline-flex items-center gap-2 font-mono text-[10px] tracking-[0.18em] text-[var(--muted)] uppercase">
+                  По текущему срезу
+                </span>
+                <h2 className="mt-4 text-[1.4rem] leading-[1.1] font-semibold tracking-[-0.03em] text-[var(--foreground)] sm:text-[1.7rem]">
+                  По выбранным фильтрам ничего не нашлось.
+                </h2>
+                <p className="mx-auto mt-3 max-w-[32rem] text-[14px] leading-[1.65] text-[var(--muted)]">
+                  Снимите часть условий или попробуйте другой поисковый запрос — материалы у нас точно есть.
                 </p>
                 <Link
                   href="/catalog"
-                  className="mt-6 inline-flex h-10 items-center border border-[var(--foreground)] px-6 font-mono text-[10px] tracking-[0.14em] text-[var(--foreground)] uppercase transition sm:mt-7 sm:h-11 sm:px-8 sm:text-[11px] hover:bg-[var(--foreground)] hover:text-white"
+                  className="mt-6 inline-flex h-11 items-center border border-[var(--foreground)] px-7 font-mono text-[11px] tracking-[0.16em] text-[var(--foreground)] uppercase transition sm:mt-7 hover:bg-[var(--foreground)] hover:text-white"
                 >
                   Сбросить фильтры
                 </Link>

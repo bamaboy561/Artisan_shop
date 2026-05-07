@@ -21,7 +21,7 @@ export default async function AdminBrandsPage() {
         steps={[
           "Укажите DATABASE_URL в .env.",
           "Создайте таблицы через prisma db push.",
-          "Загрузите стартовые данные через prisma db seed.",
+          "Создайте реальные бренды вручную или импортом перед публикацией каталога.",
         ]}
       />
     );
