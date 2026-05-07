@@ -29,20 +29,39 @@ type DemoOrderRecord = Omit<AdminOrderItem, "createdAt" | "updatedAt"> & {
   subtotal: number;
   discountTotal: number;
   deliveryTotal: number;
+  productionDueAt: string | null;
+  readyAt: string | null;
+  completedAt: string | null;
+  fulfillmentComment: string | null;
   comment: string | null;
   sourceRequestId: string | null;
   contactEmail: string | null;
   items: DemoOrderLine[];
+  managerNotes?: OrderManagerNoteRecord[];
+};
+
+export type OrderManagerNoteRecord = {
+  id: string;
+  body: string;
+  isVisibleToClient: boolean;
+  authorId?: string | null;
+  authorName?: string | null;
+  createdAt: string;
 };
 
 export type OrderDetailItem = AdminOrderItem & {
   subtotal: number;
   discountTotal: number;
   deliveryTotal: number;
+  productionDueAt: Date | string | null;
+  readyAt: Date | string | null;
+  completedAt: Date | string | null;
+  fulfillmentComment: string | null;
   comment: string | null;
   sourceRequestId: string | null;
   contactEmail: string | null;
   items: DemoOrderLine[];
+  managerNotes?: OrderManagerNoteRecord[];
 };
 
 const runtimeDirectory = path.join(process.cwd(), ".artisan-runtime");
@@ -102,6 +121,10 @@ function createDemoOrderRecord(
     subtotal: record.subtotal ?? record.total ?? 0,
     discountTotal: record.discountTotal ?? 0,
     deliveryTotal: record.deliveryTotal ?? 0,
+    productionDueAt: record.productionDueAt ?? null,
+    readyAt: record.readyAt ?? null,
+    completedAt: record.completedAt ?? null,
+    fulfillmentComment: record.fulfillmentComment ?? null,
     createdAt: record.createdAt ?? timestamp,
     updatedAt: record.updatedAt ?? timestamp,
     managerId: record.managerId ?? null,
@@ -114,6 +137,7 @@ function createDemoOrderRecord(
     comment: record.comment ?? null,
     sourceRequestId: record.sourceRequestId ?? null,
     items,
+    managerNotes: record.managerNotes ?? [],
   };
 }
 
@@ -149,10 +173,15 @@ function toOrderDetailItem(record: DemoOrderRecord): OrderDetailItem {
     subtotal: record.subtotal,
     discountTotal: record.discountTotal,
     deliveryTotal: record.deliveryTotal,
+    productionDueAt: record.productionDueAt,
+    readyAt: record.readyAt,
+    completedAt: record.completedAt,
+    fulfillmentComment: record.fulfillmentComment,
     comment: record.comment,
     sourceRequestId: record.sourceRequestId,
     contactEmail: record.contactEmail,
     items: record.items,
+    managerNotes: record.managerNotes ?? [],
   };
 }
 
@@ -248,6 +277,10 @@ export async function getOrderInboxItemById(id: string): Promise<OrderDetailItem
         subtotal: true,
         discountTotal: true,
         deliveryTotal: true,
+        productionDueAt: true,
+        readyAt: true,
+        completedAt: true,
+        fulfillmentComment: true,
         createdAt: true,
         updatedAt: true,
         appliedPromoCode: true,
@@ -282,6 +315,17 @@ export async function getOrderInboxItemById(id: string): Promise<OrderDetailItem
             total: true,
           },
         },
+        managerNotes: {
+          orderBy: { createdAt: "desc" },
+          select: {
+            id: true,
+            body: true,
+            isVisibleToClient: true,
+            authorId: true,
+            authorName: true,
+            createdAt: true,
+          },
+        },
         _count: {
           select: {
             items: true,
@@ -296,6 +340,10 @@ export async function getOrderInboxItemById(id: string): Promise<OrderDetailItem
 
     return {
       ...order,
+      managerNotes: order.managerNotes.map((note) => ({
+        ...note,
+        createdAt: note.createdAt.toISOString(),
+      })),
       items: order.items.map((item) => ({
         name: item.snapshotName,
         sku: item.snapshotSku,
@@ -401,6 +449,10 @@ export async function createOrderFromRequest(request: RequestDetailItem) {
     subtotal: orderLine.total,
     discountTotal: 0,
     deliveryTotal: 0,
+    productionDueAt: null,
+    readyAt: null,
+    completedAt: null,
+    fulfillmentComment: null,
     comment: orderComment,
     items: [orderLine],
   });
@@ -418,12 +470,20 @@ export async function updateOrderInboxItem(input: {
   status: OrderStatus;
   managerId?: string | null;
 }) {
+  const timestampFields =
+    input.status === OrderStatus.READY_FOR_PICKUP
+      ? { readyAt: new Date() }
+      : input.status === OrderStatus.COMPLETED
+        ? { completedAt: new Date() }
+        : {};
+
   if (hasDatabaseUrl()) {
     await getDb().order.update({
       where: { id: input.id },
       data: {
         status: input.status,
         managerId: input.managerId ?? null,
+        ...timestampFields,
       },
     });
 
@@ -440,6 +500,14 @@ export async function updateOrderInboxItem(input: {
       ? {
           ...order,
           status: input.status,
+          readyAt:
+            input.status === OrderStatus.READY_FOR_PICKUP
+              ? new Date().toISOString()
+              : order.readyAt,
+          completedAt:
+            input.status === OrderStatus.COMPLETED
+              ? new Date().toISOString()
+              : order.completedAt,
           managerId: input.managerId ?? null,
           manager: resolveDemoManager(input.managerId ?? null),
           updatedAt: new Date().toISOString(),
@@ -461,10 +529,18 @@ export async function bulkUpdateOrderInboxItems(input: {
   }
 
   if (hasDatabaseUrl()) {
+    const timestampFields =
+      input.status === OrderStatus.READY_FOR_PICKUP
+        ? { readyAt: new Date() }
+        : input.status === OrderStatus.COMPLETED
+          ? { completedAt: new Date() }
+          : {};
+
     await getDb().order.updateMany({
       where: { id: { in: input.orderIds } },
       data: {
         ...(input.status ? { status: input.status } : {}),
+        ...timestampFields,
         ...(input.clearManager
           ? { managerId: null }
           : input.managerId
@@ -489,6 +565,14 @@ export async function bulkUpdateOrderInboxItems(input: {
     return {
       ...order,
       status: input.status ?? order.status,
+      readyAt:
+        input.status === OrderStatus.READY_FOR_PICKUP
+          ? new Date().toISOString()
+          : order.readyAt,
+      completedAt:
+        input.status === OrderStatus.COMPLETED
+          ? new Date().toISOString()
+          : order.completedAt,
       managerId: input.clearManager
         ? null
         : input.managerId !== undefined

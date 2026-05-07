@@ -2,12 +2,18 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { OrderStatus } from "@/generated/prisma";
-import { updateOrderAction } from "@/app/admin/actions";
+import {
+  addOrderManagerNoteAction,
+  updateOrderAction,
+  updateOrderFulfillmentAction,
+} from "@/app/admin/actions";
 import { AdminSubmitButton } from "@/components/admin/admin-submit-button";
 import { OperationTimeline } from "@/components/admin/operation-timeline";
 import { StatusBadge } from "@/components/admin/status-badge";
+import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { SectionHeading } from "@/components/ui/section-heading";
+import { Textarea } from "@/components/ui/textarea";
 import { requireAdminSession } from "@/lib/auth/dal";
 import { getOrderInboxItemById } from "@/lib/server/order-inbox";
 import { getOperationEvents } from "@/lib/server/operation-events";
@@ -43,6 +49,24 @@ function formatDate(value: Date | string) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(date);
+}
+
+function formatOptionalDate(value: Date | string | null) {
+  return value ? formatDate(value) : "Не задано";
+}
+
+function formatInputDate(value: Date | string | null) {
+  if (!value) {
+    return "";
+  }
+
+  const date = value instanceof Date ? value : new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  return date.toISOString().slice(0, 10);
 }
 
 function getStatusTone(status: OrderStatus) {
@@ -123,6 +147,8 @@ export default async function AdminOrderDetailPage({
   if (!order) {
     notFound();
   }
+
+  const managerNotes = order.managerNotes ?? [];
 
   return (
     <div className="space-y-5">
@@ -208,6 +234,44 @@ export default async function AdminOrderDetailPage({
               </div>
             </div>
 
+            <div className="mt-5 grid gap-3 md:grid-cols-3">
+              <div className="rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] p-4">
+                <p className="text-xs tracking-[0.16em] text-[var(--muted)] uppercase">
+                  План готовности
+                </p>
+                <p className="mt-2 text-sm font-medium text-[var(--foreground)]">
+                  {formatOptionalDate(order.productionDueAt)}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] p-4">
+                <p className="text-xs tracking-[0.16em] text-[var(--muted)] uppercase">
+                  Готов к выдаче
+                </p>
+                <p className="mt-2 text-sm font-medium text-[var(--foreground)]">
+                  {formatOptionalDate(order.readyAt)}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] p-4">
+                <p className="text-xs tracking-[0.16em] text-[var(--muted)] uppercase">
+                  Закрыт
+                </p>
+                <p className="mt-2 text-sm font-medium text-[var(--foreground)]">
+                  {formatOptionalDate(order.completedAt)}
+                </p>
+              </div>
+            </div>
+
+            {order.fulfillmentComment ? (
+              <div className="mt-5 rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] p-4">
+                <p className="text-xs tracking-[0.16em] text-[var(--muted)] uppercase">
+                  Комментарий выдачи
+                </p>
+                <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[var(--foreground)]">
+                  {order.fulfillmentComment}
+                </p>
+              </div>
+            ) : null}
+
             {order.sourceRequestId ? (
               <div className="mt-5 rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] p-4">
                 <p className="text-xs tracking-[0.16em] text-[var(--muted)] uppercase">
@@ -221,6 +285,53 @@ export default async function AdminOrderDetailPage({
                 </Link>
               </div>
             ) : null}
+          </section>
+
+          <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-6">
+            <h2 className="text-lg font-semibold text-[var(--foreground)]">
+              Производство и выдача
+            </h2>
+            <form
+              action={updateOrderFulfillmentAction}
+              className="mt-5 grid gap-3 sm:grid-cols-[180px_minmax(0,1fr)]"
+            >
+              <input type="hidden" name="orderId" value={order.id} />
+              <label className="grid gap-2 text-sm font-medium text-[var(--foreground)]">
+                План готовности
+                <Input
+                  name="productionDueAt"
+                  type="date"
+                  defaultValue={formatInputDate(order.productionDueAt)}
+                />
+              </label>
+              <label className="grid gap-2 text-sm font-medium text-[var(--foreground)]">
+                Комментарий для выдачи
+                <Textarea
+                  name="fulfillmentComment"
+                  defaultValue={order.fulfillmentComment ?? ""}
+                  rows={3}
+                  placeholder="Например: проверить комплектность, самовывоз со склада, связаться перед выдачей."
+                />
+              </label>
+              <label className="grid gap-2 text-sm font-medium text-[var(--foreground)] sm:col-span-2">
+                Статус после сохранения
+                <Select name="status" defaultValue="">
+                  <option value="">Не менять статус</option>
+                  <option value={OrderStatus.IN_PRODUCTION}>В производстве</option>
+                  <option value={OrderStatus.READY_FOR_PICKUP}>Готов к выдаче</option>
+                  <option value={OrderStatus.SHIPPED}>Отгружен</option>
+                  <option value={OrderStatus.COMPLETED}>Завершен</option>
+                </Select>
+              </label>
+              <AdminSubmitButton
+                type="submit"
+                variant="secondary"
+                size="sm"
+                className="sm:col-span-2"
+                idleLabel="Сохранить производство"
+                pendingLabel="Сохраняем..."
+              />
+            </form>
           </section>
 
           <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-6">
@@ -353,6 +464,63 @@ export default async function AdminOrderDetailPage({
                 </div>
               </div>
             ) : null}
+          </section>
+
+          <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-6">
+            <h2 className="text-lg font-semibold text-[var(--foreground)]">
+              Заметки по заказу
+            </h2>
+            <form action={addOrderManagerNoteAction} className="mt-5 grid gap-3">
+              <input type="hidden" name="orderId" value={order.id} />
+              <Textarea
+                name="body"
+                rows={4}
+                placeholder="Внутренняя заметка: оплата, комплектация, выдача, разговор с клиентом."
+                required
+              />
+              <label className="flex items-center gap-2 text-sm text-[var(--muted)]">
+                <input
+                  type="checkbox"
+                  name="isVisibleToClient"
+                  className="size-4 rounded border-[color:var(--line-strong)] accent-[var(--accent)]"
+                />
+                Показать клиенту в кабинете
+              </label>
+              <AdminSubmitButton
+                type="submit"
+                variant="secondary"
+                size="sm"
+                idleLabel="Добавить заметку"
+                pendingLabel="Добавляем..."
+              />
+            </form>
+
+            {managerNotes.length > 0 ? (
+              <div className="mt-5 space-y-3 border-t border-[color:var(--line)] pt-5">
+                {managerNotes.map((note) => (
+                  <article
+                    key={note.id}
+                    className="rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] p-4"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-xs text-[var(--muted)]">
+                        {note.authorName ?? "Менеджер"} · {formatDate(note.createdAt)}
+                      </p>
+                      <StatusBadge tone={note.isVisibleToClient ? "success" : "neutral"}>
+                        {note.isVisibleToClient ? "Клиент видит" : "Внутренне"}
+                      </StatusBadge>
+                    </div>
+                    <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-[var(--foreground)]">
+                      {note.body}
+                    </p>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-4 text-sm text-[var(--muted)]">
+                Заметок пока нет.
+              </p>
+            )}
           </section>
         </div>
       </section>

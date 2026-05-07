@@ -330,6 +330,10 @@ model Order {
   loyaltyRedemptionTotal Int                  @default(0)
   deliveryTotal          Int                  @default(0)
   total                  Int                  @default(0)
+  productionDueAt        DateTime?
+  readyAt                DateTime?
+  completedAt            DateTime?
+  fulfillmentComment     String?              @db.Text
   items                  OrderItem[]
   loyaltyTransactions    LoyaltyTransaction[]
   managerNotes           ManagerNote[]

@@ -31,7 +31,8 @@ export type CreateOperationEventInput = {
     | "manager_note"
     | "client_note"
     | "production_result"
-    | "result_files";
+    | "result_files"
+    | "fulfillment";
   title: string;
   description?: string | null;
   fromStatus?: string | null;

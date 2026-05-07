@@ -2,6 +2,8 @@ import { SetupState } from "@/components/admin/setup-state";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { DataTable } from "@/components/ui/table";
+import { OrderStatus } from "@/generated/prisma";
+import { orderStatusLabels } from "@/features/admin/operations-filters";
 import { hasDatabaseUrl } from "@/lib/db";
 import { getAccountOrders, getAccountUser } from "@/lib/server/account-data";
 
@@ -21,6 +23,27 @@ function formatDate(date: Date) {
     month: "2-digit",
     year: "numeric",
   }).format(date);
+}
+
+function formatOptionalDate(date: Date | null) {
+  return date ? formatDate(date) : "Не задано";
+}
+
+function getStatusTone(status: OrderStatus) {
+  switch (status) {
+    case OrderStatus.NEW:
+    case OrderStatus.CONFIRMED:
+      return "warning" as const;
+    case OrderStatus.IN_PRODUCTION:
+    case OrderStatus.READY_FOR_PICKUP:
+    case OrderStatus.SHIPPED:
+      return "accent" as const;
+    case OrderStatus.COMPLETED:
+      return "success" as const;
+    case OrderStatus.CANCELED:
+    default:
+      return "neutral" as const;
+  }
 }
 
 export default async function AccountOrdersPage() {
@@ -75,7 +98,39 @@ export default async function AccountOrdersPage() {
         ) : null}
       </div>
     ),
-    status: <StatusBadge tone="accent">{order.status}</StatusBadge>,
+    status: (
+      <div className="space-y-2">
+        <StatusBadge tone={getStatusTone(order.status)}>
+          {orderStatusLabels[order.status]}
+        </StatusBadge>
+        <p className="text-xs text-[var(--muted)]">
+          План: {formatOptionalDate(order.productionDueAt)}
+        </p>
+        {order.readyAt ? (
+          <p className="text-xs text-[var(--muted)]">
+            Готов: {formatDate(order.readyAt)}
+          </p>
+        ) : null}
+      </div>
+    ),
+    production: (
+      <div className="space-y-2">
+        {order.fulfillmentComment ? (
+          <p className="max-w-sm text-sm leading-6 text-[var(--foreground)]">
+            {order.fulfillmentComment}
+          </p>
+        ) : (
+          <p className="text-sm text-[var(--muted)]">
+            Комментарий появится после обработки заказа.
+          </p>
+        )}
+        {order.managerNotes.length > 0 ? (
+          <p className="text-xs leading-5 text-[var(--muted)]">
+            {order.managerNotes[0]?.body}
+          </p>
+        ) : null}
+      </div>
+    ),
     total: (
       <div className="space-y-1">
         <p>{formatCurrency(order.total)}</p>
@@ -107,6 +162,7 @@ export default async function AccountOrdersPage() {
           { key: "order", label: "Заказ" },
           { key: "delivery", label: "Доставка и скидка" },
           { key: "status", label: "Статус" },
+          { key: "production", label: "Производство" },
           { key: "total", label: "Сумма и баллы" },
           { key: "updated", label: "Обновлён" },
         ]}

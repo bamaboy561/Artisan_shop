@@ -34,6 +34,10 @@ import {
   updateOrderInboxItem,
 } from "@/lib/server/order-inbox";
 import {
+  addOrderManagerNote,
+  updateOrderFulfillment,
+} from "@/lib/server/order-production";
+import {
   bulkUpdateRequestInboxItems,
   getRequestInbox,
   getRequestDetailById,
@@ -705,6 +709,105 @@ export async function updateOrderAction(formData: FormData) {
 
   await syncOrderById(
     id,
+    previousOrder
+      ? {
+          previousStatus: previousOrder.status,
+          previousManager: previousOrder.manager,
+        }
+      : undefined,
+  );
+
+  revalidateAdminOperations();
+}
+
+export async function addOrderManagerNoteAction(formData: FormData) {
+  const actor = await ensureAdminAccess();
+
+  const orderId = getString(formData, "orderId");
+  const body = getString(formData, "body");
+  const isVisibleToClient = getString(formData, "isVisibleToClient") === "on";
+
+  if (!orderId || !body) {
+    return;
+  }
+
+  await addOrderManagerNote({
+    orderId,
+    body,
+    isVisibleToClient,
+    actor,
+  });
+
+  await logOperationEvent({
+    entityType: "order",
+    entityId: orderId,
+    eventType: isVisibleToClient ? "client_note" : "manager_note",
+    title: isVisibleToClient
+      ? "Добавлен комментарий для клиента"
+      : "Добавлена внутренняя заметка",
+    description: isVisibleToClient ? body : null,
+    actor,
+  });
+
+  revalidateAdminOperations();
+}
+
+export async function updateOrderFulfillmentAction(formData: FormData) {
+  const actor = await ensureAdminAccess();
+
+  const orderId = getString(formData, "orderId");
+  const status = getString(formData, "status");
+
+  if (!orderId) {
+    return;
+  }
+
+  const previousOrder = await getOrderInboxItemById(orderId);
+  const nextStatus =
+    Object.values(OrderStatus).find((item) => item === status) ?? null;
+
+  await updateOrderFulfillment({
+    orderId,
+    productionDueAt: getOptionalDate(formData, "productionDueAt"),
+    fulfillmentComment: getOptionalString(formData, "fulfillmentComment"),
+    status: nextStatus,
+  });
+
+  const currentOrder = await getOrderInboxItemById(orderId);
+
+  await Promise.all([
+    logOperationEvent({
+      entityType: "order",
+      entityId: orderId,
+      eventType: "fulfillment",
+      title: "Обновлены параметры выдачи",
+      description:
+        getOptionalString(formData, "fulfillmentComment") ??
+        "Плановая дата, комментарий выдачи или статус заказа обновлены.",
+      fromStatus: previousOrder?.status ?? null,
+      toStatus: currentOrder?.status ?? nextStatus,
+      actor,
+    }),
+    logOrderTransition({
+      orderId,
+      previous: previousOrder
+        ? {
+            status: previousOrder.status,
+            manager: previousOrder.manager,
+          }
+        : null,
+      current: currentOrder
+        ? {
+            status: currentOrder.status,
+            manager: currentOrder.manager,
+          }
+        : null,
+      actor,
+    }),
+  ]);
+
+  await syncOrderById(
+    orderId,
     previousOrder
       ? {
           previousStatus: previousOrder.status,

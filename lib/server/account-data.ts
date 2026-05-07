@@ -150,6 +150,10 @@ export async function getAccountOrders(userId: string) {
       promotionDiscountTotal: true,
       loyaltyRedemptionTotal: true,
       appliedPromoCode: true,
+      productionDueAt: true,
+      readyAt: true,
+      completedAt: true,
+      fulfillmentComment: true,
       createdAt: true,
       updatedAt: true,
       deliveryMethod: {
@@ -160,6 +164,19 @@ export async function getAccountOrders(userId: string) {
       loyaltyTransactions: {
         select: {
           points: true,
+        },
+      },
+      managerNotes: {
+        where: {
+          isVisibleToClient: true,
+        },
+        orderBy: { createdAt: "desc" },
+        take: 3,
+        select: {
+          id: true,
+          body: true,
+          authorName: true,
+          createdAt: true,
         },
       },
     },
