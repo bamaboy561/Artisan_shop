@@ -59,6 +59,7 @@ export function BulkSelectionTools({
         size="sm"
         onClick={() => toggleCheckboxes(true)}
         disabled={availableCount === 0}
+        className="rounded-full px-3 text-[10px] tracking-[0.12em]"
       >
         Выделить все
       </Button>
@@ -68,6 +69,7 @@ export function BulkSelectionTools({
         size="sm"
         onClick={() => toggleCheckboxes(false)}
         disabled={selectedCount === 0}
+        className="rounded-full px-3 text-[10px] tracking-[0.12em]"
       >
         Снять выбор
       </Button>

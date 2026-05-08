@@ -594,188 +594,184 @@ export default async function AdminProductsPage({
         ) : null}
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[0.86fr_1.14fr]">
+      <section className="grid gap-4">
         <article className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-6">
-          <SectionHeading
-            title="Новый товар"
-            description="Минимальная форма для запуска новой карточки. После создания товар сразу попадает в рабочий контур справа."
-            titleClassName="text-xl sm:text-2xl"
-            descriptionClassName="text-sm leading-7"
-          />
+          <div className="flex flex-col gap-3 border-b border-[color:var(--line)] pb-5 lg:flex-row lg:items-end lg:justify-between">
+            <SectionHeading
+              title="Новый товар"
+              description="Заполните базовые поля, затем доработайте карточку в списке ниже."
+              titleClassName="text-xl sm:text-2xl"
+              descriptionClassName="text-sm leading-6"
+            />
 
-          <form action={createProductAction} className="mt-6 grid gap-4">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="grid gap-2 text-sm text-[var(--foreground)]">
-                Название
-                <Input name="name" placeholder="Swiss Krono Кашемир" required />
-              </label>
-              <label className="grid gap-2 text-sm text-[var(--foreground)]">
-                Slug
-                <Input name="slug" placeholder="swiss-krono-kashmir" required />
-              </label>
-            </div>
+            <p className="max-w-sm text-xs leading-5 text-[var(--muted)]">
+              Для плитных материалов привяжите материал и формат листа, чтобы калькулятор открывался с правильными параметрами.
+            </p>
+          </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="grid gap-2 text-sm text-[var(--foreground)]">
-                SKU
-                <Input name="sku" placeholder="SK-KASHMIR-16" required />
-              </label>
-              <label className="grid gap-2 text-sm text-[var(--foreground)]">
-                Цена
-                <Input name="price" type="number" min="0" placeholder="3150" />
-              </label>
-            </div>
+          <form action={createProductAction} className="mt-5 grid min-w-0 gap-4 lg:grid-cols-12">
+            <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)] lg:col-span-4">
+              Название
+              <Input name="name" placeholder="Swiss Krono Кашемир" required />
+            </label>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="grid gap-2 text-sm text-[var(--foreground)]">
-                Категория
-                <Select name="categoryId" required defaultValue="">
-                  <option value="" disabled>
-                    Выберите категорию
+            <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)] lg:col-span-3">
+              Slug
+              <Input name="slug" placeholder="swiss-krono-kashmir" required />
+            </label>
+
+            <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)] lg:col-span-3">
+              SKU
+              <Input name="sku" placeholder="SK-KASHMIR-16" required />
+            </label>
+
+            <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)] lg:col-span-2">
+              Цена, сом
+              <Input name="price" type="number" min="0" placeholder="3150" />
+            </label>
+
+            <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)] lg:col-span-3">
+              Категория
+              <Select name="categoryId" required defaultValue="">
+                <option value="" disabled>
+                  Выберите категорию
+                </option>
+                {categories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
                   </option>
-                  {categories.map((category) => (
-                    <option key={category.id} value={category.id}>
-                      {category.name}
-                    </option>
-                  ))}
-                </Select>
-              </label>
+                ))}
+              </Select>
+            </label>
 
-              <label className="grid gap-2 text-sm text-[var(--foreground)]">
-                Бренд
-                <Select name="brandId" defaultValue="">
-                  <option value="">Без бренда</option>
-                  {brands.map((brand) => (
-                    <option key={brand.id} value={brand.id}>
-                      {brand.name}
-                    </option>
-                  ))}
-                </Select>
-              </label>
-            </div>
+            <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)] lg:col-span-3">
+              Бренд
+              <Select name="brandId" defaultValue="">
+                <option value="">Без бренда</option>
+                {brands.map((brand) => (
+                  <option key={brand.id} value={brand.id}>
+                    {brand.name}
+                  </option>
+                ))}
+              </Select>
+            </label>
 
-            <div className="grid gap-4 sm:grid-cols-3">
-              <label className="grid gap-2 text-sm text-[var(--foreground)]">
-                Статус
-                <Select name="status" defaultValue={ProductStatus.ACTIVE}>
-                  {Object.values(ProductStatus).map((status) => (
-                    <option key={status} value={status}>
-                      {statusLabels[status]}
-                    </option>
-                  ))}
-                </Select>
-              </label>
+            <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)] lg:col-span-2">
+              Статус
+              <Select name="status" defaultValue={ProductStatus.ACTIVE}>
+                {Object.values(ProductStatus).map((status) => (
+                  <option key={status} value={status}>
+                    {statusLabels[status]}
+                  </option>
+                ))}
+              </Select>
+            </label>
 
-              <label className="grid gap-2 text-sm text-[var(--foreground)]">
-                Режим заказа
-                <Select
-                  name="orderMode"
-                  defaultValue={ProductOrderMode.REQUEST_PRICE}
-                >
-                  {Object.values(ProductOrderMode).map((mode) => (
-                    <option key={mode} value={mode}>
-                      {orderModeLabels[mode]}
-                    </option>
-                  ))}
-                </Select>
-              </label>
+            <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)] lg:col-span-2">
+              Заказ
+              <Select
+                name="orderMode"
+                defaultValue={ProductOrderMode.REQUEST_PRICE}
+              >
+                {Object.values(ProductOrderMode).map((mode) => (
+                  <option key={mode} value={mode}>
+                    {orderModeLabels[mode]}
+                  </option>
+                ))}
+              </Select>
+            </label>
 
-              <label className="grid gap-2 text-sm text-[var(--foreground)]">
-                Наличие
-                <Select
-                  name="inventoryStatus"
-                  defaultValue={InventoryStatus.ON_REQUEST}
-                >
-                  {Object.values(InventoryStatus).map((status) => (
-                    <option key={status} value={status}>
-                      {inventoryLabels[status]}
-                    </option>
-                  ))}
-                </Select>
-              </label>
-            </div>
+            <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)] lg:col-span-2">
+              Наличие
+              <Select
+                name="inventoryStatus"
+                defaultValue={InventoryStatus.ON_REQUEST}
+              >
+                {Object.values(InventoryStatus).map((status) => (
+                  <option key={status} value={status}>
+                    {inventoryLabels[status]}
+                  </option>
+                ))}
+              </Select>
+            </label>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="grid gap-2 text-sm text-[var(--foreground)]">
-                Формат
-                <Input name="format" placeholder="2800 x 2070 мм, 16 мм" />
-              </label>
-              <label className="grid gap-2 text-sm text-[var(--foreground)]">
-                Изображение
-                <Input
-                  name="imageUrl"
-                  type="url"
-                  placeholder="https://example.com/image.jpg"
-                />
-              </label>
-            </div>
+            <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)] lg:col-span-3">
+              Формат
+              <Input name="format" placeholder="2800 x 2070 мм, 16 мм" />
+            </label>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="grid gap-2 text-sm text-[var(--foreground)]">
-                Материал для калькулятора
-                <Select name="calculatorMaterialId" defaultValue="">
-                  <option value="">Не привязывать</option>
-                  {calculatorMaterials.map((material) => (
-                    <option key={material.slug} value={material.slug}>
-                      {material.label}
-                    </option>
-                  ))}
-                </Select>
-              </label>
-              <label className="grid gap-2 text-sm text-[var(--foreground)]">
-                Формат листа для калькулятора
-                <Select name="calculatorSheetPresetId" defaultValue="">
-                  <option value="">Не привязывать</option>
-                  {calculatorSheetFormats.map((sheet) => (
-                    <option key={sheet.slug} value={sheet.slug}>
-                      {sheet.label}
-                    </option>
-                  ))}
-                </Select>
-              </label>
-            </div>
+            <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)] lg:col-span-5">
+              Изображение
+              <Input
+                name="imageUrl"
+                type="url"
+                placeholder="https://example.com/image.jpg"
+              />
+            </label>
 
-            <label className="grid gap-2 text-sm text-[var(--foreground)]">
+            <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)] lg:col-span-2">
+              Материал расчета
+              <Select name="calculatorMaterialId" defaultValue="">
+                <option value="">Не привязывать</option>
+                {calculatorMaterials.map((material) => (
+                  <option key={material.slug} value={material.slug}>
+                    {material.label}
+                  </option>
+                ))}
+              </Select>
+            </label>
+
+            <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)] lg:col-span-2">
+              Формат листа
+              <Select name="calculatorSheetPresetId" defaultValue="">
+                <option value="">Не привязывать</option>
+                {calculatorSheetFormats.map((sheet) => (
+                  <option key={sheet.slug} value={sheet.slug}>
+                    {sheet.label}
+                  </option>
+                ))}
+              </Select>
+            </label>
+
+            <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)] lg:col-span-8">
               Краткое описание
               <Textarea
                 name="summary"
-                rows={4}
+                rows={3}
                 placeholder="Короткое коммерческое описание для карточки товара."
               />
             </label>
 
-            <Checkbox
-              name="isFeatured"
-              value="on"
-              label="Показывать в подборках и выделенных блоках"
-              description="Используется для внутренних подборок и акцентных блоков витрины."
-              className="rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] px-4 py-3"
-            />
+            <div className="grid min-w-0 gap-3 lg:col-span-4">
+              <Checkbox
+                name="isFeatured"
+                value="on"
+                label="Показывать в подборках"
+                description="Для акцентных блоков витрины и внутренних подборок."
+                className="rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] px-4 py-3"
+              />
 
-            <AdminSubmitButton
-              type="submit"
-              variant="accent"
-              className="w-full sm:w-auto"
-              idleLabel="Добавить товар"
-              pendingLabel="Добавляем..."
-            />
+              <AdminSubmitButton
+                type="submit"
+                variant="accent"
+                className="w-full"
+                idleLabel="Добавить товар"
+                pendingLabel="Добавляем..."
+              />
+            </div>
           </form>
         </article>
 
         <article className="space-y-4">
-          <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-6">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-              <div className="max-w-2xl">
+          <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-5 sm:p-6">
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center">
+              <div className="min-w-0">
                 <p className="font-mono text-[10px] tracking-[0.24em] text-[var(--accent)] uppercase">
                   Массовые действия
                 </p>
-                <h3 className="mt-3 text-xl font-semibold text-[var(--foreground)]">
-                  Работа с текущей выборкой
+                <h3 className="mt-2 text-xl font-semibold text-[var(--foreground)]">
+                  Управление выбранными товарами
                 </h3>
-                <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-                  Выделите нужные позиции в таблице и быстро переведите их в
-                  нужный статус или коммерческий режим.
-                </p>
               </div>
 
               <BulkSelectionTools checkboxSelector="[data-product-bulk-checkbox='true']" />
@@ -784,7 +780,7 @@ export default async function AdminProductsPage({
             <form
               id="bulk-products-form"
               action={bulkUpdateProductsAction}
-              className="mt-5 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]"
+              className="mt-5 grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_auto]"
             >
               <Select name="bulkAction" defaultValue="">
                 <option value="" disabled>
@@ -799,6 +795,7 @@ export default async function AdminProductsPage({
               <AdminSubmitButton
                 type="submit"
                 variant="secondary"
+                className="w-full lg:w-auto"
                 idleLabel="Применить"
                 pendingLabel="Применяем..."
               />
