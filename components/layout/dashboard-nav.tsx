@@ -24,6 +24,7 @@ import type { NavItem } from "@/types/navigation";
 type DashboardNavProps = {
   items: NavItem[];
   variant?: "admin" | "account";
+  mode?: "sidebar" | "mobile";
 };
 
 const iconMap = {
@@ -103,11 +104,11 @@ function AccountNav({
   pathname: string;
 }) {
   return (
-    <div className="space-y-2">
-      <p className="px-2 font-mono text-[10px] tracking-[0.24em] text-white/34 uppercase">
+    <div className="space-y-2 xl:space-y-2">
+      <p className="hidden px-2 font-mono text-[10px] tracking-[0.24em] text-white/34 uppercase xl:block">
         Разделы
       </p>
-      <div className="grid gap-1.5">
+      <div className="flex gap-2 overflow-x-auto pb-1 xl:grid xl:gap-1.5 xl:overflow-visible xl:pb-0">
         {items.map((item) => {
           const Icon =
             iconMap[item.href as keyof typeof iconMap] ?? LayoutDashboard;
@@ -119,7 +120,7 @@ function AccountNav({
               href={item.href}
               title={item.description ?? item.label}
               className={cn(
-                "group flex items-center justify-between gap-3 rounded-[18px] px-3 py-3 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#111111]",
+                "group flex h-10 shrink-0 items-center justify-between gap-2 rounded-full px-4 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#111111] xl:h-auto xl:gap-3 xl:rounded-[18px] xl:px-3 xl:py-3",
                 active
                   ? "bg-white text-[#111111]"
                   : "text-white/76 hover:bg-white/[0.06] hover:text-white",
@@ -128,7 +129,7 @@ function AccountNav({
               <span className="flex min-w-0 items-center gap-3">
                 <span
                   className={cn(
-                    "inline-flex size-9 shrink-0 items-center justify-center rounded-2xl border",
+                    "hidden size-9 shrink-0 items-center justify-center rounded-2xl border xl:inline-flex",
                     active
                       ? "border-black/8 bg-black/[0.05]"
                       : "border-white/10 bg-white/[0.04]",
@@ -138,13 +139,13 @@ function AccountNav({
                 </span>
 
                 <span className="min-w-0">
-                  <span className="block truncate text-sm font-semibold">
+                  <span className="block truncate text-xs font-semibold uppercase tracking-[0.1em] xl:text-sm xl:normal-case xl:tracking-normal">
                     {item.label}
                   </span>
                   {item.description ? (
                     <span
                       className={cn(
-                        "mt-0.5 block truncate text-xs",
+                        "mt-0.5 hidden truncate text-xs xl:block",
                         active ? "text-black/55" : "text-white/42",
                       )}
                     >
@@ -161,13 +162,54 @@ function AccountNav({
   );
 }
 
+function AccountMobileNav({
+  items,
+  pathname,
+}: {
+  items: NavItem[];
+  pathname: string;
+}) {
+  return (
+    <nav aria-label="Разделы кабинета" className="grid grid-cols-2 gap-2 min-[460px]:grid-cols-4">
+      {items.map((item) => {
+        const Icon =
+          iconMap[item.href as keyof typeof iconMap] ?? LayoutDashboard;
+        const active = isItemActive(pathname, item.href);
+
+        return (
+          <Link
+            key={item.href}
+            href={item.href}
+            title={item.description ?? item.label}
+            aria-current={active ? "page" : undefined}
+            className={cn(
+              "flex h-11 min-w-0 items-center justify-center gap-2 rounded-full border px-3 text-[0.68rem] font-extrabold uppercase tracking-[0.16em] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70",
+              active
+                ? "border-white bg-white text-[#111111]"
+                : "border-white/10 bg-white/[0.06] text-white/64 hover:border-white/25 hover:bg-white/[0.1] hover:text-white",
+            )}
+          >
+            <Icon className="size-3.5 shrink-0" strokeWidth={1.9} />
+            <span className="truncate">{item.label}</span>
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
 export function DashboardNav({
   items,
   variant = "account",
+  mode = "sidebar",
 }: DashboardNavProps) {
   const pathname = usePathname();
 
   if (variant !== "admin") {
+    if (mode === "mobile") {
+      return <AccountMobileNav items={items} pathname={pathname} />;
+    }
+
     return <AccountNav items={items} pathname={pathname} />;
   }
 

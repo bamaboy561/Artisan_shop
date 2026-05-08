@@ -175,7 +175,26 @@ function AccountFrame({
   return (
     <div className="min-h-screen overflow-x-clip bg-[linear-gradient(180deg,#f6f2ec_0%,#f2ede6_100%)]">
       <Container className="grid min-w-0 gap-4 py-4 xl:grid-cols-[280px_minmax(0,1fr)] xl:items-start xl:py-6">
-        <aside className="relative min-w-0 overflow-hidden rounded-[28px] border border-white/10 bg-[#111111] p-4 text-white shadow-[0_28px_80px_rgba(17,17,17,0.24)] xl:sticky xl:top-4 xl:h-[calc(100vh-2rem)]">
+        <section className="relative min-w-0 overflow-hidden rounded-[24px] border border-white/10 bg-[#111111] p-3 text-white shadow-[0_20px_58px_rgba(17,17,17,0.2)] xl:hidden">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(199,106,63,0.22),transparent_40%),linear-gradient(180deg,rgba(255,255,255,0.04),transparent_50%)]" />
+
+          <div className="relative space-y-3">
+            <div className="rounded-[20px] border border-white/10 bg-white/[0.045] p-3">
+              <p className="font-mono text-[9px] tracking-[0.22em] text-white/42 uppercase">
+                {eyebrow}
+              </p>
+              <h1 className="mt-1 text-[1.55rem] font-semibold leading-[1.02] tracking-[-0.04em] text-white">
+                {title}
+              </h1>
+            </div>
+
+            {actions ? <div>{actions}</div> : null}
+
+            <DashboardNav items={items} variant={variant} mode="mobile" />
+          </div>
+        </section>
+
+        <aside className="relative hidden min-w-0 overflow-hidden rounded-[28px] border border-white/10 bg-[#111111] p-4 text-white shadow-[0_28px_80px_rgba(17,17,17,0.24)] xl:sticky xl:top-4 xl:flex xl:h-[calc(100vh-2rem)]">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(199,106,63,0.22),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.03),transparent_42%)]" />
 
           <div className="relative flex h-full flex-col gap-5">
@@ -211,7 +230,7 @@ function AccountFrame({
         </aside>
 
         <main id="main-content" className="min-w-0 space-y-4 overflow-x-clip">
-          <section className="surface-glow rounded-[24px] border border-[color:var(--line)] bg-white/92 px-5 py-4 shadow-[0_20px_56px_rgba(17,17,17,0.05)]">
+          <section className="surface-glow hidden rounded-[24px] border border-[color:var(--line)] bg-white/92 px-5 py-4 shadow-[0_20px_56px_rgba(17,17,17,0.05)] xl:block">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div className="max-w-3xl">
                 <p className="font-mono text-[10px] tracking-[0.24em] text-[var(--accent)] uppercase">
