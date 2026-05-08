@@ -7,6 +7,7 @@ import type {
   ProductImage,
 } from "@/generated/prisma";
 import { getDb, hasDatabaseUrl } from "@/lib/db";
+import { ensureBrandLogoColumn } from "@/lib/server/brand-schema";
 import type {
   Brand,
   CalculatorMaterialId,
@@ -257,6 +258,7 @@ export async function getPublicBrands(): Promise<Brand[]> {
   if (!hasDatabaseUrl()) return [];
 
   const db = getDb();
+  await ensureBrandLogoColumn(db);
   const brands = await db.brand.findMany({
     include: {
       _count: { select: { products: true } },

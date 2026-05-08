@@ -24,6 +24,7 @@ import {
 } from "@/features/admin/operations-filters";
 import { requireAdminSession } from "@/lib/auth/dal";
 import { hasDatabaseUrl, getDb } from "@/lib/db";
+import { ensureBrandLogoColumn } from "@/lib/server/brand-schema";
 import { logOperationEvent } from "@/lib/server/operation-events";
 import {
   bulkUpdateOrderInboxItems,
@@ -446,7 +447,10 @@ export async function createBrandAction(formData: FormData) {
     return;
   }
 
-  await getDb().brand.create({
+  const db = getDb();
+  await ensureBrandLogoColumn(db);
+
+  await db.brand.create({
     data: {
       name,
       slug,
@@ -477,6 +481,7 @@ export async function updateBrandAction(formData: FormData) {
   }
 
   const db = getDb();
+  await ensureBrandLogoColumn(db);
   const previousBrand = await db.brand.findUnique({
     where: { id },
     select: { slug: true },

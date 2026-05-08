@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { ensureBrandLogoColumn } from "@/lib/server/brand-schema";
 
 export async function getAdminCategories() {
   const db = getDb();
@@ -18,6 +19,7 @@ export async function getAdminCategories() {
 
 export async function getAdminBrands() {
   const db = getDb();
+  await ensureBrandLogoColumn(db);
 
   return db.brand.findMany({
     orderBy: { name: "asc" },
