@@ -174,7 +174,7 @@ function AccountFrame({
 
   return (
     <div className="min-h-screen overflow-x-clip bg-[linear-gradient(180deg,#f6f2ec_0%,#f2ede6_100%)]">
-      <Container className="grid min-w-0 gap-4 py-4 xl:grid-cols-[280px_minmax(0,1fr)] xl:items-start xl:py-6">
+      <Container className="grid min-w-0 gap-4 overflow-x-clip py-4 xl:grid-cols-[340px_minmax(0,1fr)] xl:items-start xl:py-6 2xl:grid-cols-[360px_minmax(0,1fr)]">
         <section className="relative min-w-0 overflow-hidden rounded-[24px] border border-white/10 bg-[#111111] p-3 text-white shadow-[0_20px_58px_rgba(17,17,17,0.2)] xl:hidden">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(199,106,63,0.22),transparent_40%),linear-gradient(180deg,rgba(255,255,255,0.04),transparent_50%)]" />
 
@@ -194,18 +194,18 @@ function AccountFrame({
           </div>
         </section>
 
-        <aside className="relative hidden min-w-0 overflow-hidden rounded-[28px] border border-white/10 bg-[#111111] p-4 text-white shadow-[0_28px_80px_rgba(17,17,17,0.24)] xl:sticky xl:top-4 xl:flex xl:h-[calc(100vh-2rem)]">
+        <aside className="relative hidden min-w-0 max-w-full overflow-hidden rounded-[28px] border border-white/10 bg-[#111111] p-4 text-white shadow-[0_28px_80px_rgba(17,17,17,0.24)] xl:sticky xl:top-4 xl:flex xl:h-[calc(100vh-2rem)]">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(199,106,63,0.22),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.03),transparent_42%)]" />
 
-          <div className="relative flex h-full flex-col gap-5">
-            <div className="rounded-[22px] border border-white/10 bg-white/[0.04] p-4">
+          <div className="relative flex h-full min-w-0 flex-col gap-5">
+            <div className="min-w-0 rounded-[22px] border border-white/10 bg-white/[0.04] p-4">
               <p className="font-mono text-[10px] tracking-[0.24em] text-white/38 uppercase">
                 {eyebrow}
               </p>
-              <h1 className="mt-3 text-[1.85rem] font-semibold leading-[1.02] text-balance text-white">
+              <h1 className="mt-3 max-w-full text-[1.65rem] font-semibold leading-[1.04] tracking-[-0.035em] break-words text-white 2xl:text-[1.85rem]">
                 {title}
               </h1>
-              <p className="mt-3 text-sm leading-6 text-white/58">
+              <p className="mt-3 text-sm leading-6 break-words text-white/58">
                 {description}
               </p>
             </div>
@@ -216,16 +216,7 @@ function AccountFrame({
               <DashboardNav items={items} variant={variant} />
             </div>
 
-            <div className="flex flex-wrap gap-2">
-              {meta.chips.map((chip) => (
-                <span
-                  key={chip}
-                  className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[10px] font-semibold tracking-[0.16em] text-white/48 uppercase"
-                >
-                  {chip}
-                </span>
-              ))}
-            </div>
+            <div className="h-px bg-white/8" />
           </div>
         </aside>
 

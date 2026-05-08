@@ -18,7 +18,7 @@ export default async function AccountLayout({
     <DashboardFrame
       eyebrow="Кабинет клиента"
       title="Личный кабинет"
-      description="Профиль клиента, персональная скидка, баллы, история заказов, заявки и сохранённые позиции в одном рабочем разделе."
+      description="Профиль, скидки, баллы, заказы и заявки в одном разделе."
       items={accountNavigation}
       variant="account"
       actions={
@@ -30,7 +30,9 @@ export default async function AccountLayout({
             <p className="mt-3 text-sm font-semibold text-white">
               {accountName}
             </p>
-            <p className="mt-1 text-xs text-white/52">{session.email}</p>
+            <p className="mt-1 truncate text-xs text-white/52">
+              {session.email}
+            </p>
           </div>
 
           <div className="flex min-w-0 items-center justify-between gap-3 rounded-[18px] border border-white/10 bg-white/[0.055] p-3 xl:hidden">

@@ -104,11 +104,11 @@ function AccountNav({
   pathname: string;
 }) {
   return (
-    <div className="space-y-2 xl:space-y-2">
-      <p className="hidden px-2 font-mono text-[10px] tracking-[0.24em] text-white/34 uppercase xl:block">
+    <nav aria-label="Разделы кабинета" className="space-y-2">
+      <p className="px-2 font-mono text-[10px] tracking-[0.24em] text-white/34 uppercase">
         Разделы
       </p>
-      <div className="flex gap-2 overflow-x-auto pb-1 xl:grid xl:gap-1.5 xl:overflow-visible xl:pb-0">
+      <div className="grid gap-1.5">
         {items.map((item) => {
           const Icon =
             iconMap[item.href as keyof typeof iconMap] ?? LayoutDashboard;
@@ -120,16 +120,16 @@ function AccountNav({
               href={item.href}
               title={item.description ?? item.label}
               className={cn(
-                "group flex h-10 shrink-0 items-center justify-between gap-2 rounded-full px-4 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#111111] xl:h-auto xl:gap-3 xl:rounded-[18px] xl:px-3 xl:py-3",
+                "group flex min-w-0 items-center gap-3 rounded-[18px] px-3 py-3 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#111111]",
                 active
                   ? "bg-white text-[#111111]"
                   : "text-white/76 hover:bg-white/[0.06] hover:text-white",
               )}
             >
-              <span className="flex min-w-0 items-center gap-3">
+              <span className="flex min-w-0 flex-1 items-center gap-3">
                 <span
                   className={cn(
-                    "hidden size-9 shrink-0 items-center justify-center rounded-2xl border xl:inline-flex",
+                    "inline-flex size-9 shrink-0 items-center justify-center rounded-2xl border",
                     active
                       ? "border-black/8 bg-black/[0.05]"
                       : "border-white/10 bg-white/[0.04]",
@@ -139,13 +139,13 @@ function AccountNav({
                 </span>
 
                 <span className="min-w-0">
-                  <span className="block truncate text-xs font-semibold uppercase tracking-[0.1em] xl:text-sm xl:normal-case xl:tracking-normal">
+                  <span className="block truncate text-sm font-semibold">
                     {item.label}
                   </span>
                   {item.description ? (
                     <span
                       className={cn(
-                        "mt-0.5 hidden truncate text-xs xl:block",
+                        "mt-0.5 block truncate text-xs",
                         active ? "text-black/55" : "text-white/42",
                       )}
                     >
@@ -158,7 +158,7 @@ function AccountNav({
           );
         })}
       </div>
-    </div>
+    </nav>
   );
 }
 
