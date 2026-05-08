@@ -425,6 +425,59 @@ export async function updateCategoryKindAction(formData: FormData) {
   revalidateAdminCatalog();
 }
 
+export async function updateCategoryAction(formData: FormData) {
+  if (!hasDatabaseUrl()) {
+    return;
+  }
+
+  await ensureAdminAccess();
+
+  const id = getString(formData, "id");
+  const name = getString(formData, "name");
+  const slug = getString(formData, "slug");
+
+  if (!id || !name || !slug) {
+    return;
+  }
+
+  const kindRaw = getString(formData, "kind");
+  const kind =
+    Object.values(CategoryKind).find((item) => item === kindRaw) ??
+    CategoryKind.OTHER;
+
+  const db = getDb();
+  const previousCategory = await db.category.findUnique({
+    where: { id },
+    select: { slug: true },
+  });
+
+  await db.category.update({
+    where: { id },
+    data: {
+      name,
+      slug,
+      kind,
+      summary: getOptionalString(formData, "summary"),
+      description: getOptionalString(formData, "description"),
+      indicator: getOptionalString(formData, "indicator"),
+      scenario: getOptionalString(formData, "scenario"),
+      coverImage: getOptionalString(formData, "coverImage"),
+      spotlight: getOptionalString(formData, "spotlight"),
+      seoTitle: getOptionalString(formData, "seoTitle"),
+      seoDescription: getOptionalString(formData, "seoDescription"),
+      sortOrder: getOptionalInt(formData, "sortOrder") ?? 0,
+      isFeatured: getString(formData, "isFeatured") === "on",
+    },
+  });
+
+  revalidatePath(`/admin/categories/${id}`);
+  revalidatePath(`/catalog/${slug}`);
+  if (previousCategory?.slug && previousCategory.slug !== slug) {
+    revalidatePath(`/catalog/${previousCategory.slug}`);
+  }
+  revalidateAdminCatalog();
+}
+
 export async function deleteCategoryAction(formData: FormData) {
   if (!hasDatabaseUrl()) {
     return;

@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SectionHeading } from "@/components/ui/section-heading";
@@ -46,9 +48,12 @@ export default async function AdminCategoriesPage() {
   const rows = categories.map((category) => ({
     name: (
       <div className="space-y-1">
-        <p className="font-semibold text-[var(--foreground)]">
+        <Link
+          href={`/admin/categories/${category.id}`}
+          className="font-semibold text-[var(--foreground)] transition hover:text-[#9d573d]"
+        >
           {category.name}
-        </p>
+        </Link>
         <p className="text-xs text-[var(--muted)]">{category.slug}</p>
       </div>
     ),
@@ -95,18 +100,26 @@ export default async function AdminCategoriesPage() {
       </div>
     ),
     actions: (
-      <form action={deleteCategoryAction}>
-        <input type="hidden" name="id" value={category.id} />
-        <Button
-          type="submit"
-          variant="ghost"
-          size="sm"
-          disabled={category._count.products > 0}
-          className="text-red-600 hover:bg-red-50 disabled:text-[var(--muted)]"
+      <div className="flex flex-col items-start gap-1.5">
+        <Link
+          href={`/admin/categories/${category.id}`}
+          className="inline-flex h-9 items-center border border-[var(--line-strong)] px-4 font-mono text-[11px] tracking-[0.16em] text-[var(--foreground)] uppercase transition hover:border-[var(--foreground)] hover:bg-[var(--foreground)] hover:text-white"
         >
-          Удалить
-        </Button>
-      </form>
+          Редактировать
+        </Link>
+        <form action={deleteCategoryAction}>
+          <input type="hidden" name="id" value={category.id} />
+          <Button
+            type="submit"
+            variant="ghost"
+            size="sm"
+            disabled={category._count.products > 0}
+            className="text-red-600 hover:bg-red-50 disabled:text-[var(--muted)]"
+          >
+            Удалить
+          </Button>
+        </form>
+      </div>
     ),
   }));
 
