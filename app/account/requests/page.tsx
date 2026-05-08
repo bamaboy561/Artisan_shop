@@ -1,14 +1,18 @@
 import { SetupState } from "@/components/admin/setup-state";
 import { StatusBadge } from "@/components/admin/status-badge";
+import { AdminSubmitButton } from "@/components/admin/admin-submit-button";
 import { ClientOperationTimeline } from "@/components/account/client-operation-timeline";
+import { Input } from "@/components/ui/input";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { DataTable } from "@/components/ui/table";
+import { RequestFileKind, RequestStatus } from "@/generated/prisma";
 import {
   requestStatusLabels,
   requestTypeLabels,
 } from "@/features/admin/operations-filters";
 import { hasDatabaseUrl } from "@/lib/db";
 import { getAccountRequests, getAccountUser } from "@/lib/server/account-data";
+import { uploadAccountRequestFilesAction } from "@/app/account/requests/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +35,14 @@ function formatBudget(value: number | null) {
     maximumFractionDigits: 0,
   }).format(value);
 }
+
+const requestUploadStatuses = new Set<RequestStatus>([
+  RequestStatus.NEW,
+  RequestStatus.IN_REVIEW,
+  RequestStatus.QUOTE_SENT,
+  RequestStatus.WAITING_FOR_CLIENT,
+  RequestStatus.IN_PROGRESS,
+]);
 
 export default async function AccountRequestsPage() {
   if (!hasDatabaseUrl()) {
@@ -55,7 +67,16 @@ export default async function AccountRequestsPage() {
 
   const requests = await getAccountRequests(user.id);
 
-  const rows = requests.map((request) => ({
+  const rows = requests.map((request) => {
+    const clientFiles = request.files.filter(
+      (file) => file.kind === RequestFileKind.CLIENT_UPLOAD,
+    );
+    const resultFiles = request.files.filter(
+      (file) => file.kind === RequestFileKind.MANAGER_RESULT,
+    );
+    const canUploadFiles = requestUploadStatuses.has(request.status);
+
+    return {
     request: (
       <div className="space-y-1">
         <p className="font-semibold text-[var(--foreground)]">
@@ -72,6 +93,54 @@ export default async function AccountRequestsPage() {
         <p className="text-xs text-[var(--muted)]">
           {requestTypeLabels[request.type]}
         </p>
+      </div>
+    ),
+    clientFiles: (
+      <div className="space-y-3">
+        {clientFiles.length > 0 ? (
+          <div className="flex flex-wrap gap-2">
+            {clientFiles.map((file) => (
+              <a
+                key={file.id}
+                href={file.fileUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-full border border-[color:var(--line)] bg-white px-3 py-1 text-xs font-medium text-[var(--foreground)] transition hover:border-[color:var(--foreground)]"
+              >
+                {file.fileName}
+              </a>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-[var(--muted)]">Файлы не загружены.</p>
+        )}
+        {canUploadFiles ? (
+          <form
+            action={uploadAccountRequestFilesAction}
+            encType="multipart/form-data"
+            className="grid gap-2"
+          >
+            <input type="hidden" name="requestId" value={request.id} />
+            <Input
+              name="files"
+              type="file"
+              multiple
+              accept=".pdf,.xls,.xlsx,.csv,.zip,.rar,.jpg,.jpeg,.png,.webp,.dwg,.dxf"
+              className="h-auto py-2 text-xs"
+            />
+            <AdminSubmitButton
+              type="submit"
+              variant="secondary"
+              size="sm"
+              idleLabel="Добавить файл"
+              pendingLabel="Загружаем..."
+            />
+          </form>
+        ) : (
+          <p className="text-xs text-[var(--muted)]">
+            Загрузка закрыта после завершения заявки.
+          </p>
+        )}
       </div>
     ),
     status: (
@@ -91,9 +160,9 @@ export default async function AccountRequestsPage() {
         ) : (
           <p className="text-sm text-[var(--muted)]">Результат появится после расчета.</p>
         )}
-        {request.files.length > 0 ? (
+        {resultFiles.length > 0 ? (
           <div className="flex flex-wrap gap-2">
-            {request.files.map((file) => (
+            {resultFiles.map((file) => (
               <a
                 key={file.id}
                 href={file.fileUrl}
@@ -131,7 +200,8 @@ export default async function AccountRequestsPage() {
         </p>
       </div>
     ),
-  }));
+    };
+  });
 
   return (
     <div className="space-y-4">
@@ -148,6 +218,7 @@ export default async function AccountRequestsPage() {
         columns={[
           { key: "request", label: "Заявка" },
           { key: "service", label: "Содержание" },
+          { key: "clientFiles", label: "Ваши файлы" },
           { key: "status", label: "Статус" },
           { key: "result", label: "Расчет и файлы" },
           { key: "history", label: "История" },

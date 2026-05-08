@@ -218,12 +218,21 @@ export async function getAccountRequests(userId: string) {
       },
       files: {
         where: {
-          kind: RequestFileKind.MANAGER_RESULT,
-          isVisibleToClient: true,
+          OR: [
+            {
+              kind: RequestFileKind.MANAGER_RESULT,
+              isVisibleToClient: true,
+            },
+            {
+              kind: RequestFileKind.CLIENT_UPLOAD,
+              isVisibleToClient: true,
+            },
+          ],
         },
         orderBy: { createdAt: "desc" },
         select: {
           id: true,
+          kind: true,
           fileName: true,
           fileUrl: true,
           note: true,

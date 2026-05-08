@@ -630,7 +630,16 @@ export async function createCuttingRequest(
     });
 
     if (uploadedFiles.length > 0) {
-      const storedFiles = await persistRequestFiles(createdRequest.id, uploadedFiles);
+      const storedFiles = await persistRequestFiles(
+        createdRequest.id,
+        uploadedFiles,
+        {
+          kind: RequestFileKind.CLIENT_UPLOAD,
+          isVisibleToClient: Boolean(input.userId),
+          uploadedByUserId: input.userId ?? null,
+          uploadedByName: input.contactName,
+        },
+      );
 
       if (storedFiles.length > 0) {
         await db.requestFile.createMany({
@@ -694,7 +703,12 @@ export async function createCuttingRequest(
   });
 
   if (uploadedFiles.length > 0) {
-    created.files = await persistRequestFiles(created.id, uploadedFiles);
+    created.files = await persistRequestFiles(created.id, uploadedFiles, {
+      kind: RequestFileKind.CLIENT_UPLOAD,
+      isVisibleToClient: Boolean(input.userId),
+      uploadedByUserId: input.userId ?? null,
+      uploadedByName: input.contactName,
+    });
     created._count.files = created.files.length;
   }
 
