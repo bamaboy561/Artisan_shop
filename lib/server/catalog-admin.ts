@@ -61,6 +61,17 @@ export async function getAdminProducts() {
   });
 }
 
+const DEFAULT_CALCULATOR_MATERIALS = [
+  { slug: "ldsp-16", label: "ЛДСП 16 мм" },
+  { slug: "mdf-16", label: "МДФ 16 мм" },
+];
+
+const DEFAULT_CALCULATOR_SHEETS = [
+  { slug: "2800x2070", label: "2800 × 2070 мм" },
+  { slug: "2750x1830", label: "2750 × 1830 мм" },
+  { slug: "2800x1220", label: "2800 × 1220 мм" },
+];
+
 export async function getAdminProductFormOptions() {
   const db = getDb();
 
@@ -71,6 +82,7 @@ export async function getAdminProductFormOptions() {
       select: {
         id: true,
         name: true,
+        kind: true,
       },
     }),
     db.brand.findMany({
@@ -98,5 +110,16 @@ export async function getAdminProductFormOptions() {
     }),
   ]);
 
-  return { categories, brands, calculatorMaterials, calculatorSheetFormats };
+  return {
+    categories,
+    brands,
+    calculatorMaterials:
+      calculatorMaterials.length > 0
+        ? calculatorMaterials
+        : DEFAULT_CALCULATOR_MATERIALS,
+    calculatorSheetFormats:
+      calculatorSheetFormats.length > 0
+        ? calculatorSheetFormats
+        : DEFAULT_CALCULATOR_SHEETS,
+  };
 }

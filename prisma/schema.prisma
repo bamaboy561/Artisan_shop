@@ -73,6 +73,12 @@ enum RequestFileKind {
   MANAGER_RESULT
 }
 
+enum CategoryKind {
+  PLATE
+  FITTINGS
+  OTHER
+}
+
 enum PromotionTargetType {
   PRODUCT
   CATEGORY
@@ -195,6 +201,7 @@ model Category {
   id             String              @id @default(cuid())
   slug           String              @unique
   name           String
+  kind           CategoryKind        @default(OTHER)
   summary        String?
   description    String?
   indicator      String?
@@ -248,6 +255,7 @@ model Product {
   compareAtPrice          Int?
   stockQuantity           Int?
   format                  String?
+  thicknessMm             Int?
   isFeatured              Boolean            @default(false)
   seoTitle                String?
   seoDescription          String?

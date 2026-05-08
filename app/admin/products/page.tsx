@@ -8,22 +8,19 @@ import {
 } from "@/generated/prisma";
 import {
   bulkUpdateProductsAction,
-  createProductAction,
   deleteProductAction,
-  updateProductAction,
 } from "@/app/admin/actions";
+import { NewProductForm } from "@/app/admin/products/new-product-form";
 import { AdminSubmitButton } from "@/components/admin/admin-submit-button";
 import { BulkSelectionTools } from "@/components/admin/bulk-selection-tools";
 import { MetricCard } from "@/components/admin/metric-card";
 import { SetupState } from "@/components/admin/setup-state";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { Select } from "@/components/ui/select";
 import { DataTable } from "@/components/ui/table";
-import { Textarea } from "@/components/ui/textarea";
 import { requireAdminSession } from "@/lib/auth/dal";
 import { hasDatabaseUrl } from "@/lib/db";
 import {
@@ -261,33 +258,35 @@ export default async function AdminProductsPage({
       />
     ),
     product: (
-      <div className="space-y-1">
-        <p className="font-semibold text-[var(--foreground)]">{product.name}</p>
-        <p className="text-xs text-[var(--muted)]">
+      <div className="min-w-0 space-y-1">
+        <Link
+          href={`/admin/products/${product.id}`}
+          className="font-semibold text-[var(--foreground)] transition hover:text-[#9d573d]"
+        >
+          {product.name}
+        </Link>
+        <p className="text-[11px] text-[var(--muted)]">
           {product.sku} · {product.slug}
         </p>
       </div>
     ),
     placement: (
-      <div className="space-y-1">
-        <p>{product.category.name}</p>
-        <p className="text-xs text-[var(--muted)]">
-          {product.brand?.name ?? "Без бренда"}
-        </p>
-        <p className="text-xs text-[var(--muted)]">
-          Обновлён {formatDate(product.updatedAt)}
-        </p>
+      <div className="min-w-0 text-xs leading-5 text-[var(--muted)]">
+        <p className="text-[var(--foreground)]">{product.category.name}</p>
+        <p>{product.brand?.name ?? "Без бренда"}</p>
+        <p className="text-[10px]">{formatDate(product.updatedAt)}</p>
       </div>
     ),
     commercial: (
-      <div className="space-y-2">
-        <p className="font-medium text-[var(--foreground)]">
+      <div className="space-y-1.5">
+        <p className="font-semibold text-[var(--foreground)]">
           {formatPrice(product.price)}
         </p>
-        <p className="text-xs text-[var(--muted)]">
+        <p className="text-[11px] text-[var(--muted)]">
           {product.format ?? "Формат не указан"}
+          {product.thicknessMm ? ` · ${product.thicknessMm} мм` : ""}
         </p>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-1">
           <StatusBadge tone={getStatusTone(product.status)}>
             {statusLabels[product.status]}
           </StatusBadge>
@@ -301,108 +300,36 @@ export default async function AdminProductsPage({
       </div>
     ),
     metrics: (
-      <div className="space-y-2">
+      <div className="space-y-1.5">
         <StatusBadge tone={getInventoryTone(product.inventoryStatus)}>
           {inventoryLabels[product.inventoryStatus]}
         </StatusBadge>
-        <div className="text-xs leading-5 text-[var(--muted)]">
-          <p>
-            Калькулятор:{" "}
-            {product.calculatorMaterialId && product.calculatorSheetPresetId
-              ? `${product.calculatorMaterialId} / ${product.calculatorSheetPresetId}`
-              : "не привязан"}
-          </p>
+        <div className="text-[11px] leading-4 text-[var(--muted)]">
           <p>Заказов: {product._count.orderItems}</p>
           <p>Избранное: {product._count.favorites}</p>
         </div>
       </div>
     ),
     manage: (
-      <form action={updateProductAction} className="grid gap-2">
-        <input type="hidden" name="id" value={product.id} />
-        <Select
-          name="status"
-          defaultValue={product.status}
-          className="h-9 text-xs"
+      <div className="flex flex-col items-start gap-1.5">
+        <Link
+          href={`/admin/products/${product.id}`}
+          className="inline-flex h-9 items-center border border-[var(--line-strong)] px-4 font-mono text-[11px] tracking-[0.16em] text-[var(--foreground)] uppercase transition hover:border-[var(--foreground)] hover:bg-[var(--foreground)] hover:text-white"
         >
-          {Object.values(ProductStatus).map((status) => (
-            <option key={status} value={status}>
-              {statusLabels[status]}
-            </option>
-          ))}
-        </Select>
-        <Select
-          name="orderMode"
-          defaultValue={product.orderMode}
-          className="h-9 text-xs"
-        >
-          {Object.values(ProductOrderMode).map((mode) => (
-            <option key={mode} value={mode}>
-              {orderModeLabels[mode]}
-            </option>
-          ))}
-        </Select>
-        <Select
-          name="inventoryStatus"
-          defaultValue={product.inventoryStatus}
-          className="h-9 text-xs"
-        >
-          {Object.values(InventoryStatus).map((status) => (
-            <option key={status} value={status}>
-              {inventoryLabels[status]}
-            </option>
-          ))}
-        </Select>
-        <Select
-          name="calculatorMaterialId"
-          defaultValue={product.calculatorMaterialId ?? ""}
-          className="h-9 text-xs"
-        >
-          <option value="">Материал расчета</option>
-          {calculatorMaterials.map((material) => (
-            <option key={material.slug} value={material.slug}>
-              {material.label}
-            </option>
-          ))}
-        </Select>
-        <Select
-          name="calculatorSheetPresetId"
-          defaultValue={product.calculatorSheetPresetId ?? ""}
-          className="h-9 text-xs"
-        >
-          <option value="">Формат листа</option>
-          {calculatorSheetFormats.map((sheet) => (
-            <option key={sheet.slug} value={sheet.slug}>
-              {sheet.label}
-            </option>
-          ))}
-        </Select>
-        <Checkbox
-          name="isFeatured"
-          value="on"
-          defaultChecked={product.isFeatured}
-          label="В подборках"
-          className="rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] px-3 py-2"
-        />
-        <div className="flex flex-wrap gap-2">
-          <AdminSubmitButton
-            type="submit"
-            variant="secondary"
-            size="sm"
-            idleLabel="Сохранить"
-            pendingLabel="Сохраняем..."
-          />
+          Редактировать
+        </Link>
+        <form action={deleteProductAction}>
+          <input type="hidden" name="id" value={product.id} />
           <Button
             type="submit"
             variant="ghost"
             size="sm"
-            formAction={deleteProductAction}
-            className="text-red-600 hover:bg-red-50"
+            className="h-8 px-2 text-[11px] text-red-600 hover:bg-red-50"
           >
             Удалить
           </Button>
-        </div>
-      </form>
+        </form>
+      </div>
     ),
   }));
 
@@ -609,157 +536,12 @@ export default async function AdminProductsPage({
             </p>
           </div>
 
-          <form action={createProductAction} className="mt-5 grid min-w-0 gap-4 lg:grid-cols-12">
-            <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)] lg:col-span-4">
-              Название
-              <Input name="name" placeholder="Swiss Krono Кашемир" required />
-            </label>
-
-            <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)] lg:col-span-3">
-              Slug
-              <Input name="slug" placeholder="swiss-krono-kashmir" required />
-            </label>
-
-            <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)] lg:col-span-3">
-              SKU
-              <Input name="sku" placeholder="SK-KASHMIR-16" required />
-            </label>
-
-            <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)] lg:col-span-2">
-              Цена, сом
-              <Input name="price" type="number" min="0" placeholder="3150" />
-            </label>
-
-            <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)] lg:col-span-3">
-              Категория
-              <Select name="categoryId" required defaultValue="">
-                <option value="" disabled>
-                  Выберите категорию
-                </option>
-                {categories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </Select>
-            </label>
-
-            <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)] lg:col-span-3">
-              Бренд
-              <Select name="brandId" defaultValue="">
-                <option value="">Без бренда</option>
-                {brands.map((brand) => (
-                  <option key={brand.id} value={brand.id}>
-                    {brand.name}
-                  </option>
-                ))}
-              </Select>
-            </label>
-
-            <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)] lg:col-span-2">
-              Статус
-              <Select name="status" defaultValue={ProductStatus.ACTIVE}>
-                {Object.values(ProductStatus).map((status) => (
-                  <option key={status} value={status}>
-                    {statusLabels[status]}
-                  </option>
-                ))}
-              </Select>
-            </label>
-
-            <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)] lg:col-span-2">
-              Заказ
-              <Select
-                name="orderMode"
-                defaultValue={ProductOrderMode.REQUEST_PRICE}
-              >
-                {Object.values(ProductOrderMode).map((mode) => (
-                  <option key={mode} value={mode}>
-                    {orderModeLabels[mode]}
-                  </option>
-                ))}
-              </Select>
-            </label>
-
-            <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)] lg:col-span-2">
-              Наличие
-              <Select
-                name="inventoryStatus"
-                defaultValue={InventoryStatus.ON_REQUEST}
-              >
-                {Object.values(InventoryStatus).map((status) => (
-                  <option key={status} value={status}>
-                    {inventoryLabels[status]}
-                  </option>
-                ))}
-              </Select>
-            </label>
-
-            <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)] lg:col-span-3">
-              Формат
-              <Input name="format" placeholder="2800 x 2070 мм, 16 мм" />
-            </label>
-
-            <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)] lg:col-span-5">
-              Изображение
-              <Input
-                name="imageUrl"
-                type="url"
-                placeholder="https://example.com/image.jpg"
-              />
-            </label>
-
-            <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)] lg:col-span-2">
-              Материал расчета
-              <Select name="calculatorMaterialId" defaultValue="">
-                <option value="">Не привязывать</option>
-                {calculatorMaterials.map((material) => (
-                  <option key={material.slug} value={material.slug}>
-                    {material.label}
-                  </option>
-                ))}
-              </Select>
-            </label>
-
-            <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)] lg:col-span-2">
-              Формат листа
-              <Select name="calculatorSheetPresetId" defaultValue="">
-                <option value="">Не привязывать</option>
-                {calculatorSheetFormats.map((sheet) => (
-                  <option key={sheet.slug} value={sheet.slug}>
-                    {sheet.label}
-                  </option>
-                ))}
-              </Select>
-            </label>
-
-            <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)] lg:col-span-8">
-              Краткое описание
-              <Textarea
-                name="summary"
-                rows={3}
-                placeholder="Короткое коммерческое описание для карточки товара."
-              />
-            </label>
-
-            <div className="grid min-w-0 gap-3 lg:col-span-4">
-              <Checkbox
-                name="isFeatured"
-                value="on"
-                label="Показывать в подборках"
-                description="Для акцентных блоков витрины и внутренних подборок."
-                className="rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] px-4 py-3"
-              />
-
-              <AdminSubmitButton
-                type="submit"
-                variant="accent"
-                className="w-full"
-                idleLabel="Добавить товар"
-                pendingLabel="Добавляем..."
-              />
-            </div>
-          </form>
+          <NewProductForm
+            categories={categories}
+            brands={brands}
+            calculatorMaterials={calculatorMaterials}
+            calculatorSheetFormats={calculatorSheetFormats}
+          />
         </article>
 
         <article className="space-y-4">
@@ -808,8 +590,8 @@ export default async function AdminProductsPage({
               { key: "product", label: "Товар" },
               { key: "placement", label: "Раздел" },
               { key: "commercial", label: "Коммерция" },
-              { key: "metrics", label: "Наличие и метрики" },
-              { key: "manage", label: "Быстрое управление" },
+              { key: "metrics", label: "Наличие" },
+              { key: "manage", label: "Действия" },
             ]}
             rows={rows}
             caption="Товары"

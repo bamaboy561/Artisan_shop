@@ -1,17 +1,16 @@
+import Link from "next/link";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { Textarea } from "@/components/ui/textarea";
+import { DataTable } from "@/components/ui/table";
 import { SetupState } from "@/components/admin/setup-state";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { requireAdminSession } from "@/lib/auth/dal";
 import { hasDatabaseUrl } from "@/lib/db";
 import { getAdminBrands } from "@/lib/server/catalog-admin";
-import {
-  createBrandAction,
-  deleteBrandAction,
-  updateBrandAction,
-} from "@/app/admin/actions";
+import { createBrandAction, deleteBrandAction } from "@/app/admin/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +23,7 @@ export default async function AdminBrandsPage() {
         steps={[
           "Укажите DATABASE_URL в .env.",
           "Создайте таблицы через prisma db push.",
-          "Создайте реальные бренды вручную или импортом перед публикацией каталога.",
+          "Загрузите стартовые данные через prisma db seed.",
         ]}
       />
     );
@@ -33,6 +32,69 @@ export default async function AdminBrandsPage() {
   await requireAdminSession("/login?next=/admin/brands");
 
   const brands = await getAdminBrands();
+
+  const rows = brands.map((brand) => ({
+    brand: (
+      <div className="flex min-w-0 items-center gap-3">
+        <span
+          className="flex size-11 shrink-0 items-center justify-center rounded-2xl border border-[color:var(--line)] bg-[#171614] bg-contain bg-center bg-no-repeat text-sm font-semibold text-white"
+          style={
+            brand.logoUrl
+              ? { backgroundImage: `url(${brand.logoUrl})` }
+              : undefined
+          }
+          aria-label={`Логотип ${brand.name}`}
+        >
+          {brand.logoUrl ? null : brand.name.trim().slice(0, 1).toUpperCase()}
+        </span>
+
+        <div className="min-w-0 space-y-1">
+          <Link
+            href={`/admin/brands/${brand.id}`}
+            className="font-semibold text-[var(--foreground)] transition hover:text-[#9d573d]"
+          >
+            {brand.name}
+          </Link>
+          <p className="break-all text-[11px] text-[var(--muted)]">
+            {brand.slug}
+          </p>
+        </div>
+      </div>
+    ),
+    country: brand.country ?? "Страна не указана",
+    description: (
+      <p className="max-w-md text-sm leading-6 text-[var(--muted)]">
+        {brand.description ?? "Описание бренда пока не добавлено."}
+      </p>
+    ),
+    linked: (
+      <StatusBadge tone="accent">
+        {String(brand._count.products)} товаров
+      </StatusBadge>
+    ),
+    actions: (
+      <div className="flex flex-col items-start gap-1.5">
+        <Link
+          href={`/admin/brands/${brand.id}`}
+          className="inline-flex h-9 items-center border border-[var(--line-strong)] px-4 font-mono text-[11px] tracking-[0.16em] text-[var(--foreground)] uppercase transition hover:border-[var(--foreground)] hover:bg-[var(--foreground)] hover:text-white"
+        >
+          Редактировать
+        </Link>
+        <form action={deleteBrandAction}>
+          <input type="hidden" name="id" value={brand.id} />
+          <Button
+            type="submit"
+            variant="ghost"
+            size="sm"
+            disabled={brand._count.products > 0}
+            className="h-8 px-2 text-[11px] text-red-600 hover:bg-red-50 disabled:text-[var(--muted)]"
+          >
+            Удалить
+          </Button>
+        </form>
+      </div>
+    ),
+  }));
 
   return (
     <div className="space-y-4">
@@ -66,7 +128,7 @@ export default async function AdminBrandsPage() {
               </label>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2">
               <label className="grid gap-2 text-sm text-[var(--foreground)]">
                 Страна
                 <Input name="country" placeholder="Швейцария / Польша" />
@@ -79,7 +141,7 @@ export default async function AdminBrandsPage() {
                   placeholder="https://brand.com"
                 />
               </label>
-              <label className="grid gap-2 text-sm text-[var(--foreground)]">
+              <label className="grid gap-2 text-sm text-[var(--foreground)] sm:col-span-2">
                 Логотип
                 <Input
                   name="logoUrl"
@@ -104,187 +166,18 @@ export default async function AdminBrandsPage() {
           </form>
         </article>
 
-        <article className="surface-glow min-w-0 overflow-hidden rounded-[24px] border border-[color:var(--line)] bg-[var(--surface-strong)]">
-          <div className="flex flex-col gap-4 border-b border-[color:var(--line)] p-6 sm:flex-row sm:items-start sm:justify-between">
-            <SectionHeading
-              title="Список брендов"
-              description="Все поставщики и производители каталога в удобном рабочем виде."
-              titleClassName="text-xl sm:text-2xl"
-              descriptionClassName="text-sm leading-7"
-            />
-
-            <StatusBadge tone="neutral" className="shrink-0">
-              {brands.length} брендов
-            </StatusBadge>
-          </div>
-
-          {brands.length > 0 ? (
-            <div className="divide-y divide-[color:var(--line)]">
-              {brands.map((brand) => {
-                const initial = brand.name.trim().slice(0, 1).toUpperCase();
-                const canDelete = brand._count.products === 0;
-                const logoStyle = brand.logoUrl
-                  ? { backgroundImage: `url(${brand.logoUrl})` }
-                  : undefined;
-
-                return (
-                  <div
-                    key={brand.id}
-                    className="grid min-w-0 gap-4 p-5 transition hover:bg-[#faf8f5] lg:grid-cols-[minmax(0,1fr)_auto] lg:p-6"
-                  >
-                    <div className="min-w-0">
-                      <div className="flex min-w-0 items-start gap-4">
-                        <div
-                          className="flex size-14 shrink-0 items-center justify-center rounded-2xl border border-[color:var(--line)] bg-[#171614] bg-contain bg-center bg-no-repeat text-base font-semibold text-white"
-                          style={logoStyle}
-                          aria-label={`Логотип ${brand.name}`}
-                        >
-                          {brand.logoUrl ? null : initial || "A"}
-                        </div>
-
-                        <div className="min-w-0">
-                          <p className="text-lg font-semibold leading-tight text-[var(--foreground)]">
-                            {brand.name}
-                          </p>
-                          <p className="mt-1 break-all font-mono text-[10px] tracking-[0.18em] text-[var(--muted)] uppercase">
-                            {brand.slug}
-                          </p>
-                        </div>
-                      </div>
-
-                      <p className="mt-4 max-w-3xl text-sm leading-6 break-words text-[var(--muted)]">
-                        {brand.description ?? "Описание бренда пока не добавлено."}
-                      </p>
-
-                      <div className="mt-4 flex flex-wrap gap-2 text-xs text-[var(--muted)]">
-                        <span className="rounded-full border border-[color:var(--line)] bg-white px-3 py-1">
-                          {brand.country ?? "Страна не указана"}
-                        </span>
-                        {brand.website ? (
-                          <a
-                            href={brand.website}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="rounded-full border border-[color:var(--line)] bg-white px-3 py-1 text-[var(--foreground)] transition hover:border-[color:var(--foreground)]"
-                          >
-                            Сайт бренда
-                          </a>
-                        ) : null}
-                        {brand.logoUrl ? (
-                          <span className="rounded-full border border-[color:var(--line)] bg-white px-3 py-1">
-                            Логотип добавлен
-                          </span>
-                        ) : (
-                          <span className="rounded-full border border-dashed border-[color:var(--line)] bg-white/60 px-3 py-1">
-                            Без логотипа
-                          </span>
-                        )}
-                      </div>
-
-                      <details className="mt-4 rounded-2xl border border-[color:var(--line)] bg-white/70 p-4">
-                        <summary className="cursor-pointer font-mono text-[10px] tracking-[0.16em] text-[var(--foreground)] uppercase">
-                          Редактировать профиль бренда
-                        </summary>
-
-                        <form
-                          action={updateBrandAction}
-                          className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3"
-                        >
-                          <input type="hidden" name="id" value={brand.id} />
-
-                          <label className="grid gap-2 text-sm text-[var(--foreground)]">
-                            Название
-                            <Input
-                              name="name"
-                              defaultValue={brand.name}
-                              required
-                            />
-                          </label>
-                          <label className="grid gap-2 text-sm text-[var(--foreground)]">
-                            Slug
-                            <Input
-                              name="slug"
-                              defaultValue={brand.slug}
-                              required
-                            />
-                          </label>
-                          <label className="grid gap-2 text-sm text-[var(--foreground)]">
-                            Страна
-                            <Input
-                              name="country"
-                              defaultValue={brand.country ?? ""}
-                            />
-                          </label>
-                          <label className="grid gap-2 text-sm text-[var(--foreground)]">
-                            Сайт
-                            <Input
-                              name="website"
-                              type="url"
-                              defaultValue={brand.website ?? ""}
-                            />
-                          </label>
-                          <label className="grid gap-2 text-sm text-[var(--foreground)] md:col-span-2">
-                            URL логотипа
-                            <Input
-                              name="logoUrl"
-                              type="url"
-                              defaultValue={brand.logoUrl ?? ""}
-                              placeholder="https://brand.com/logo.svg"
-                            />
-                          </label>
-                          <label className="grid gap-2 text-sm text-[var(--foreground)] md:col-span-2 xl:col-span-3">
-                            Описание
-                            <Textarea
-                              name="description"
-                              rows={3}
-                              defaultValue={brand.description ?? ""}
-                            />
-                          </label>
-
-                          <Button
-                            type="submit"
-                            variant="secondary"
-                            className="md:w-fit"
-                          >
-                            Сохранить бренд
-                          </Button>
-                        </form>
-                      </details>
-                    </div>
-
-                    <div className="flex items-center justify-between gap-3 lg:min-w-[132px] lg:flex-col lg:items-end lg:justify-start">
-                      <StatusBadge tone="accent">
-                        {String(brand._count.products)} товаров
-                      </StatusBadge>
-
-                      <form action={deleteBrandAction}>
-                        <input type="hidden" name="id" value={brand.id} />
-                        <Button
-                          type="submit"
-                          variant="ghost"
-                          size="sm"
-                          disabled={!canDelete}
-                          title={
-                            canDelete
-                              ? "Удалить бренд"
-                              : "Нельзя удалить бренд, пока к нему привязаны товары"
-                          }
-                          className="text-red-600 hover:bg-red-50 disabled:text-[var(--muted)]"
-                        >
-                          Удалить
-                        </Button>
-                      </form>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="p-8 text-center text-sm text-[var(--muted)]">
-              После добавления первых брендов они появятся в этом списке.
-            </div>
-          )}
-        </article>
+        <DataTable
+          columns={[
+            { key: "brand", label: "Бренд" },
+            { key: "country", label: "Страна" },
+            { key: "description", label: "Описание" },
+            { key: "linked", label: "Товары" },
+            { key: "actions", label: "Действия" },
+          ]}
+          rows={rows}
+          caption="Бренды"
+          emptyMessage="После добавления первых брендов они появятся в этом списке."
+        />
       </section>
     </div>
   );

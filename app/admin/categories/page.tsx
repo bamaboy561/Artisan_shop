@@ -1,17 +1,26 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SectionHeading } from "@/components/ui/section-heading";
+import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { DataTable } from "@/components/ui/table";
 import { SetupState } from "@/components/admin/setup-state";
 import { StatusBadge } from "@/components/admin/status-badge";
+import { CategoryKind } from "@/generated/prisma";
 import { requireAdminSession } from "@/lib/auth/dal";
 import { hasDatabaseUrl } from "@/lib/db";
 import { getAdminCategories } from "@/lib/server/catalog-admin";
 import {
   createCategoryAction,
   deleteCategoryAction,
+  updateCategoryKindAction,
 } from "@/app/admin/actions";
+
+const categoryKindLabels: Record<CategoryKind, string> = {
+  [CategoryKind.PLATE]: "Плитный материал",
+  [CategoryKind.FITTINGS]: "Фурнитура",
+  [CategoryKind.OTHER]: "Другое",
+};
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +33,7 @@ export default async function AdminCategoriesPage() {
         steps={[
           "Добавьте DATABASE_URL в .env.",
           "Примените схему базы через prisma db push.",
-          "Создайте реальные категории и бренды перед наполнением каталога.",
+          "Загрузите стартовые категории и бренды через prisma db seed.",
         ]}
       />
     );
@@ -50,6 +59,25 @@ export default async function AdminCategoriesPage() {
           {category.scenario ?? "Сценарий не задан"}
         </p>
       </div>
+    ),
+    kind: (
+      <form action={updateCategoryKindAction} className="flex items-center gap-2">
+        <input type="hidden" name="id" value={category.id} />
+        <Select
+          name="kind"
+          defaultValue={category.kind}
+          className="h-9 min-w-[10rem] text-xs"
+        >
+          {Object.values(CategoryKind).map((kindValue) => (
+            <option key={kindValue} value={kindValue}>
+              {categoryKindLabels[kindValue]}
+            </option>
+          ))}
+        </Select>
+        <Button type="submit" variant="ghost" size="sm">
+          Сохранить
+        </Button>
+      </form>
     ),
     summary: (
       <p className="max-w-md text-sm leading-6 text-[var(--muted)]">
@@ -116,9 +144,22 @@ export default async function AdminCategoriesPage() {
 
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="grid gap-2 text-sm text-[var(--foreground)]">
+                Тип
+                <Select name="kind" defaultValue={CategoryKind.OTHER}>
+                  {Object.values(CategoryKind).map((kindValue) => (
+                    <option key={kindValue} value={kindValue}>
+                      {categoryKindLabels[kindValue]}
+                    </option>
+                  ))}
+                </Select>
+              </label>
+              <label className="grid gap-2 text-sm text-[var(--foreground)]">
                 Индикатор
                 <Input name="indicator" placeholder="Extravert" />
               </label>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
               <label className="grid gap-2 text-sm text-[var(--foreground)]">
                 Порядок
                 <Input
@@ -128,6 +169,7 @@ export default async function AdminCategoriesPage() {
                   placeholder="90"
                 />
               </label>
+              <span />
             </div>
 
             <label className="grid gap-2 text-sm text-[var(--foreground)]">
@@ -156,6 +198,7 @@ export default async function AdminCategoriesPage() {
         <DataTable
           columns={[
             { key: "name", label: "Категория" },
+            { key: "kind", label: "Тип" },
             { key: "indicator", label: "Индикатор" },
             { key: "summary", label: "Описание" },
             { key: "stats", label: "Статистика" },

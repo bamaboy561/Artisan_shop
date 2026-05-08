@@ -38,9 +38,10 @@ export type AdminProductItem = {
   inventoryStatus: InventoryStatus;
   price: number | null;
   format: string | null;
+  thicknessMm: number | null;
+  isFeatured: boolean;
   calculatorMaterialId: string | null;
   calculatorSheetPresetId: string | null;
-  isFeatured: boolean;
   updatedAt: Date;
   category: {
     name: string;

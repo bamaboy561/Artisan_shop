@@ -7,6 +7,11 @@ export function ensureBrandLogoColumn(db: PrismaClient) {
     .$executeRawUnsafe(
       'ALTER TABLE "Brand" ADD COLUMN IF NOT EXISTS "logoUrl" TEXT',
     )
+    .then(() =>
+      db.$executeRawUnsafe(
+        'UPDATE "Brand" SET "name" = \'Emaks\' WHERE "slug" = \'emmax\' AND "name" = \'Emmax\'',
+      ),
+    )
     .then(() => undefined)
     .catch((error) => {
       brandLogoColumnPromise = null;

@@ -1,6 +1,7 @@
 "use server";
 
 import {
+  CategoryKind,
   DiscountType,
   InventoryStatus,
   LoyaltyTier,
@@ -385,15 +386,40 @@ export async function createCategoryAction(formData: FormData) {
     return;
   }
 
+  const kindRaw = getString(formData, "kind");
+  const kind =
+    Object.values(CategoryKind).find((item) => item === kindRaw) ??
+    CategoryKind.OTHER;
+
   await getDb().category.create({
     data: {
       name,
       slug,
+      kind,
       summary: getOptionalString(formData, "summary"),
       indicator: getOptionalString(formData, "indicator"),
       scenario: getOptionalString(formData, "scenario"),
       sortOrder: getOptionalInt(formData, "sortOrder") ?? 0,
     },
+  });
+
+  revalidateAdminCatalog();
+}
+
+export async function updateCategoryKindAction(formData: FormData) {
+  if (!hasDatabaseUrl()) return;
+  await ensureAdminAccess();
+
+  const id = getString(formData, "id");
+  const kindRaw = getString(formData, "kind");
+  if (!id) return;
+
+  const kind = Object.values(CategoryKind).find((item) => item === kindRaw);
+  if (!kind) return;
+
+  await getDb().category.update({
+    where: { id },
+    data: { kind },
   });
 
   revalidateAdminCatalog();
@@ -499,6 +525,7 @@ export async function updateBrandAction(formData: FormData) {
     },
   });
 
+  revalidatePath(`/admin/brands/${id}`);
   revalidatePath(`/brands/${slug}`);
   if (previousBrand?.slug && previousBrand.slug !== slug) {
     revalidatePath(`/brands/${previousBrand.slug}`);
@@ -564,6 +591,7 @@ export async function createProductAction(formData: FormData) {
       brandId: getOptionalString(formData, "brandId"),
       summary: getOptionalString(formData, "summary"),
       format: getOptionalString(formData, "format"),
+      thicknessMm: getOptionalInt(formData, "thicknessMm"),
       calculatorMaterialId: getOptionalString(formData, "calculatorMaterialId"),
       calculatorSheetPresetId: getOptionalString(
         formData,
@@ -663,6 +691,89 @@ export async function updateProductAction(formData: FormData) {
   });
 
   revalidateAdminCatalog();
+}
+
+export async function updateProductDetailsAction(formData: FormData) {
+  if (!hasDatabaseUrl()) {
+    return;
+  }
+
+  await ensureAdminAccess();
+
+  const id = getString(formData, "id");
+  const name = getString(formData, "name");
+  const slug = getString(formData, "slug");
+  const sku = getString(formData, "sku");
+  const categoryId = getString(formData, "categoryId");
+
+  if (!id || !name || !slug || !sku || !categoryId) {
+    return;
+  }
+
+  const status = getString(formData, "status");
+  const orderMode = getString(formData, "orderMode");
+  const inventoryStatus = getString(formData, "inventoryStatus");
+  const imageUrl = getOptionalString(formData, "imageUrl");
+
+  const db = getDb();
+
+  await db.$transaction(async (tx) => {
+    await tx.product.update({
+      where: { id },
+      data: {
+        name,
+        slug,
+        sku,
+        categoryId,
+        brandId: getOptionalString(formData, "brandId"),
+        summary: getOptionalString(formData, "summary"),
+        description: getOptionalString(formData, "description"),
+        format: getOptionalString(formData, "format"),
+        thicknessMm: getOptionalInt(formData, "thicknessMm"),
+        calculatorMaterialId: getOptionalString(
+          formData,
+          "calculatorMaterialId",
+        ),
+        calculatorSheetPresetId: getOptionalString(
+          formData,
+          "calculatorSheetPresetId",
+        ),
+        price: getOptionalInt(formData, "price"),
+        status:
+          Object.values(ProductStatus).find((item) => item === status) ??
+          ProductStatus.DRAFT,
+        orderMode:
+          Object.values(ProductOrderMode).find((item) => item === orderMode) ??
+          ProductOrderMode.REQUEST_PRICE,
+        inventoryStatus:
+          Object.values(InventoryStatus).find(
+            (item) => item === inventoryStatus,
+          ) ?? InventoryStatus.ON_REQUEST,
+        isFeatured: getString(formData, "isFeatured") === "on",
+      },
+    });
+
+    if (imageUrl) {
+      const existing = await tx.productImage.findFirst({
+        where: { productId: id },
+        orderBy: { sortOrder: "asc" },
+      });
+      if (existing) {
+        await tx.productImage.update({
+          where: { id: existing.id },
+          data: { url: imageUrl, alt: name },
+        });
+      } else {
+        await tx.productImage.create({
+          data: { productId: id, url: imageUrl, alt: name, sortOrder: 10 },
+        });
+      }
+    }
+  });
+
+  revalidateAdminCatalog();
+  revalidatePath(`/admin/products/${id}`);
+  revalidatePath(`/product/${slug}`);
 }
 
 export async function bulkUpdateProductsAction(formData: FormData) {

@@ -83,7 +83,7 @@ export const brandCatalogAssignments: BrandCatalogAssignment[] = [
   },
   {
     slug: "emmax",
-    name: "Emmax",
+    name: "Emaks",
     sectionSlug: "furniture-fittings",
     sectionName: "Фурнитура",
     subcategories: ["Петли", "Опоры", "Комплектующие"],
@@ -142,7 +142,7 @@ export const brandCatalogAssignments: BrandCatalogAssignment[] = [
 export const partnerBrands: PartnerBrand[] = [
   {
     slug: "emmax",
-    name: "Emmax",
+    name: "Emaks",
     label: "Мебельная фурнитура",
     description:
       "Фурнитура и комплектующие для корпусной мебели, кухонь и шкафов.",
