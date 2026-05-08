@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   BadgePercent,
-  Box,
   Calculator,
   FileStack,
   FolderTree,
@@ -14,7 +13,6 @@ import {
   ReceiptText,
   Rocket,
   Scissors,
-  Settings,
   Users2,
 } from "lucide-react";
 
@@ -45,12 +43,6 @@ const iconMap = {
   "/account/favorites": BadgePercent,
 } as const;
 
-const adminSecondaryItems = [
-  { href: "/admin/products", label: "Склад и остатки", icon: Box },
-  { href: "/admin", label: "Отчеты", icon: LayoutDashboard },
-  { href: "/admin", label: "Настройки", icon: Settings },
-] as const;
-
 function isItemActive(pathname: string, href: string) {
   return href === "/admin" || href === "/account"
     ? pathname === href
@@ -72,9 +64,9 @@ function AdminNavItem({
       href={item.href}
       title={item.description ?? item.label}
       className={cn(
-        "group flex h-11 shrink-0 items-center justify-between gap-3 rounded-lg px-3 text-[14px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 lg:w-full",
+        "group flex h-10 shrink-0 items-center justify-between gap-3 rounded-lg px-3 text-[13px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 lg:w-full",
         active
-          ? "bg-[#a8492b] text-white shadow-[0_16px_36px_rgba(168,73,43,0.34)]"
+          ? "bg-[#a8492b] text-white shadow-[0_12px_26px_rgba(168,73,43,0.28)]"
           : "text-white/76 hover:bg-white/[0.075] hover:text-white",
       )}
     >
@@ -214,26 +206,10 @@ export function DashboardNav({
   }
 
   return (
-    <nav className="flex gap-2 overflow-x-auto pb-1 lg:grid lg:gap-1.5 lg:overflow-visible lg:pb-0">
+    <nav className="flex gap-2 overflow-x-auto pb-1 lg:grid lg:gap-1 lg:overflow-visible lg:pb-0">
       {items.map((item) => (
         <AdminNavItem key={item.href} item={item} pathname={pathname} />
       ))}
-
-      <div className="my-3 hidden h-px bg-white/8 lg:block" />
-
-      {adminSecondaryItems.map((item) => {
-        const Icon = item.icon;
-        return (
-          <Link
-            key={`${item.href}-${item.label}`}
-            href={item.href}
-            className="group hidden h-11 items-center gap-3 rounded-lg px-3 text-[14px] font-medium text-white/60 transition hover:bg-white/[0.075] hover:text-white lg:flex"
-          >
-            <Icon className="size-[18px]" strokeWidth={1.85} />
-            <span>{item.label}</span>
-          </Link>
-        );
-      })}
     </nav>
   );
 }

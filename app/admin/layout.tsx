@@ -36,22 +36,12 @@ export default async function AdminLayout({
 
     return item;
   });
-  const navigationItems = [
-    ...adminItems.slice(0, 3),
-    {
-      href: "/calculator",
-      label: "Калькулятор",
-      description: "Раскрой и быстрый расчет.",
-    },
-    ...adminItems.slice(3),
-  ];
-
   return (
     <DashboardFrame
       eyebrow="Панель управления"
       title="Админка Artisan"
       description="Рабочая среда команды: каталог, входящие заявки, заказы, клиенты и акции."
-      items={navigationItems}
+      items={adminItems}
       variant="admin"
       actions={
         <div className="space-y-3">
