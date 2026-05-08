@@ -2,7 +2,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { Textarea } from "@/components/ui/textarea";
-import { DataTable } from "@/components/ui/table";
 import { SetupState } from "@/components/admin/setup-state";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { requireAdminSession } from "@/lib/auth/dal";
@@ -30,40 +29,6 @@ export default async function AdminBrandsPage() {
   await requireAdminSession("/login?next=/admin/brands");
 
   const brands = await getAdminBrands();
-
-  const rows = brands.map((brand) => ({
-    brand: (
-      <div className="space-y-1">
-        <p className="font-semibold text-[var(--foreground)]">{brand.name}</p>
-        <p className="text-xs text-[var(--muted)]">{brand.slug}</p>
-      </div>
-    ),
-    country: brand.country ?? "Страна не указана",
-    description: (
-      <p className="max-w-md text-sm leading-6 text-[var(--muted)]">
-        {brand.description ?? "Описание бренда пока не добавлено."}
-      </p>
-    ),
-    linked: (
-      <StatusBadge tone="accent">
-        {String(brand._count.products)} товаров
-      </StatusBadge>
-    ),
-    actions: (
-      <form action={deleteBrandAction}>
-        <input type="hidden" name="id" value={brand.id} />
-        <Button
-          type="submit"
-          variant="ghost"
-          size="sm"
-          disabled={brand._count.products > 0}
-          className="text-red-600 hover:bg-red-50 disabled:text-[var(--muted)]"
-        >
-          Удалить
-        </Button>
-      </form>
-    ),
-  }));
 
   return (
     <div className="space-y-4">
@@ -127,18 +92,101 @@ export default async function AdminBrandsPage() {
           </form>
         </article>
 
-        <DataTable
-          columns={[
-            { key: "brand", label: "Бренд" },
-            { key: "country", label: "Страна" },
-            { key: "description", label: "Описание" },
-            { key: "linked", label: "Товары" },
-            { key: "actions", label: "Действия" },
-          ]}
-          rows={rows}
-          caption="Бренды"
-          emptyMessage="После добавления первых брендов они появятся в этом списке."
-        />
+        <article className="surface-glow min-w-0 overflow-hidden rounded-[24px] border border-[color:var(--line)] bg-[var(--surface-strong)]">
+          <div className="flex flex-col gap-4 border-b border-[color:var(--line)] p-6 sm:flex-row sm:items-start sm:justify-between">
+            <SectionHeading
+              title="Список брендов"
+              description="Все поставщики и производители каталога в удобном рабочем виде."
+              titleClassName="text-xl sm:text-2xl"
+              descriptionClassName="text-sm leading-7"
+            />
+
+            <StatusBadge tone="neutral" className="shrink-0">
+              {brands.length} брендов
+            </StatusBadge>
+          </div>
+
+          {brands.length > 0 ? (
+            <div className="divide-y divide-[color:var(--line)]">
+              {brands.map((brand) => {
+                const initial = brand.name.trim().slice(0, 1).toUpperCase();
+                const canDelete = brand._count.products === 0;
+
+                return (
+                  <div
+                    key={brand.id}
+                    className="grid min-w-0 gap-4 p-5 transition hover:bg-[#faf8f5] lg:grid-cols-[minmax(0,1fr)_auto] lg:p-6"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex min-w-0 items-start gap-4">
+                        <div className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-[#171614] text-base font-semibold text-white">
+                          {initial || "A"}
+                        </div>
+
+                        <div className="min-w-0">
+                          <p className="text-lg font-semibold leading-tight text-[var(--foreground)]">
+                            {brand.name}
+                          </p>
+                          <p className="mt-1 break-all font-mono text-[10px] tracking-[0.18em] text-[var(--muted)] uppercase">
+                            {brand.slug}
+                          </p>
+                        </div>
+                      </div>
+
+                      <p className="mt-4 max-w-3xl text-sm leading-6 break-words text-[var(--muted)]">
+                        {brand.description ?? "Описание бренда пока не добавлено."}
+                      </p>
+
+                      <div className="mt-4 flex flex-wrap gap-2 text-xs text-[var(--muted)]">
+                        <span className="rounded-full border border-[color:var(--line)] bg-white px-3 py-1">
+                          {brand.country ?? "Страна не указана"}
+                        </span>
+                        {brand.website ? (
+                          <a
+                            href={brand.website}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="rounded-full border border-[color:var(--line)] bg-white px-3 py-1 text-[var(--foreground)] transition hover:border-[color:var(--foreground)]"
+                          >
+                            Сайт бренда
+                          </a>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-3 lg:min-w-[132px] lg:flex-col lg:items-end lg:justify-start">
+                      <StatusBadge tone="accent">
+                        {String(brand._count.products)} товаров
+                      </StatusBadge>
+
+                      <form action={deleteBrandAction}>
+                        <input type="hidden" name="id" value={brand.id} />
+                        <Button
+                          type="submit"
+                          variant="ghost"
+                          size="sm"
+                          disabled={!canDelete}
+                          title={
+                            canDelete
+                              ? "Удалить бренд"
+                              : "Нельзя удалить бренд, пока к нему привязаны товары"
+                          }
+                          className="text-red-600 hover:bg-red-50 disabled:text-[var(--muted)]"
+                        >
+                          Удалить
+                        </Button>
+                      </form>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="p-8 text-center text-sm text-[var(--muted)]">
+              После добавления первых брендов они появятся в этом списке.
+            </div>
+          )}
+        </article>
       </section>
     </div>
   );
