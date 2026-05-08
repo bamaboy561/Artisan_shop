@@ -52,9 +52,9 @@ function AdminFrame({
 
   return (
     <div className="min-h-screen bg-[#f7f7f5] text-[#22201e] lg:grid lg:grid-cols-[286px_minmax(0,1fr)]">
-      <aside className="relative z-30 bg-[#111210] text-white lg:sticky lg:top-0 lg:h-screen">
+      <aside className="relative z-30 bg-[#111210] text-white lg:sticky lg:top-0 lg:h-screen lg:overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_8%_8%,rgba(197,89,53,0.22),transparent_28%),linear-gradient(180deg,rgba(255,255,255,0.035),rgba(255,255,255,0))]" />
-        <div className="relative flex flex-col px-4 py-4 lg:min-h-full lg:py-5">
+        <div className="relative flex flex-col px-4 py-4 lg:h-full lg:min-h-0 lg:py-5">
           <Link href="/admin" className="flex items-center gap-3 px-1">
             <span className="flex size-12 items-center justify-center rounded-xl bg-white text-[22px] font-black text-[#151513] shadow-[0_10px_30px_rgba(255,255,255,0.08)]">
               A
