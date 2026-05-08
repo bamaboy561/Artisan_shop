@@ -1,1 +1,14 @@
 .env*
+node_modules
+.next
+.vercel
+.claude
+.artisan-runtime
+public/uploads
+tmp-*.png
+.codex-*.png
+.codex-*.log
+.dev-server*.log
+.next-dev-*.log
+.next-start.log
+tsconfig.tsbuildinfo
