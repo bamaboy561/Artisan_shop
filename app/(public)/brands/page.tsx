@@ -41,19 +41,22 @@ function BrandCard({ profile }: { profile: BrandProfile }) {
       href={profile.brandPageHref}
       className="group view-rise block border border-[#151411]/10 bg-white/80 p-5 transition hover:border-[#151411] hover:bg-white"
     >
-      <div className="relative flex min-h-[14rem] items-end overflow-hidden border border-[#151411]/8 bg-[#f6f2ea] p-5 sm:min-h-[15rem] sm:p-6">
-        <div
-          className={
-            profile.logoUrl
-              ? "absolute right-4 top-4 inline-flex h-12 w-28 items-center justify-center rounded-2xl border border-[#151411]/10 bg-white/88 bg-contain bg-center bg-no-repeat px-3"
-              : "absolute right-4 top-4 inline-flex h-11 w-11 items-center justify-center rounded-full bg-[#151411] text-[11px] font-semibold tracking-[0.18em] text-white uppercase"
-          }
-          style={logoStyle}
-          aria-label={`Логотип ${profile.name}`}
-        >
-          {profile.logoUrl ? null : getBrandMonogram(profile.name)}
+      <div className="relative flex min-h-[15.5rem] items-end overflow-hidden border border-[#151411]/8 bg-[#f6f2ea] p-5 sm:min-h-[17rem] sm:p-6">
+        <div className="absolute inset-x-5 top-5 flex h-[8.7rem] items-center justify-center rounded-[28px] border border-[#151411]/8 bg-white/72 shadow-[0_24px_60px_rgba(21,20,17,0.08)] transition duration-500 group-hover:scale-[1.015] group-hover:bg-white/88 sm:inset-x-6 sm:top-6 sm:h-[9.5rem]">
+          <div
+            className={
+              profile.logoUrl
+                ? "h-full w-full bg-contain bg-center bg-no-repeat"
+                : "flex h-full w-full items-center justify-center text-[3.6rem] leading-none font-semibold tracking-[-0.06em] text-[#151411] sm:text-[4.7rem]"
+            }
+            style={logoStyle}
+            aria-label={`Логотип ${profile.name}`}
+          >
+            {profile.logoUrl ? null : getBrandMonogram(profile.name)}
+          </div>
         </div>
-        <div>
+
+        <div className="relative z-10">
           <p className="font-mono text-[10px] tracking-[0.16em] text-[#8a837b] uppercase">
             {profile.sectionName}
           </p>
