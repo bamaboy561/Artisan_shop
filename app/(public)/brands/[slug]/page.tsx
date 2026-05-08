@@ -65,6 +65,9 @@ export default async function BrandDetailPage({ params }: BrandPageProps) {
   }
 
   const heroImage = brand.products[0]?.image;
+  const logoStyle = brand.logoUrl
+    ? { backgroundImage: `url(${brand.logoUrl})` }
+    : undefined;
   const previewProducts = brand.products.slice(0, 4);
   const allProfiles = await getBrandProfiles();
   const relatedBrands = allProfiles
@@ -107,6 +110,13 @@ export default async function BrandDetailPage({ params }: BrandPageProps) {
         <div className="relative mx-auto max-w-[1500px] px-5 pt-20 pb-10 sm:px-8 lg:px-10">
           <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(300px,0.42fr)] lg:items-end">
             <div className="max-w-[42rem]">
+              {brand.logoUrl ? (
+                <div
+                  className="mb-6 h-14 w-36 rounded-2xl border border-white/20 bg-white/92 bg-contain bg-center bg-no-repeat shadow-[0_18px_48px_rgba(0,0,0,0.2)]"
+                  style={logoStyle}
+                  aria-label={`Логотип ${brand.name}`}
+                />
+              ) : null}
               <p className="font-mono text-[10px] tracking-[0.22em] text-white/58 uppercase">
                 {brand.sectionName}
               </p>

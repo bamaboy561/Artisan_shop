@@ -15,6 +15,7 @@ export type BrandGalleryItem = {
   previewLabels?: string[];
   statusLabel?: string;
   tags?: string[];
+  logoUrl?: string;
 };
 
 type BrandGalleryProps = {
@@ -28,6 +29,20 @@ function getPreviewProducts(products?: FeaturedProduct[]) {
 
 function isPlannedTone(item: BrandGalleryItem) {
   return item.tone === "planned";
+}
+
+function BrandLogoBadge({ item }: { item: BrandGalleryItem }) {
+  if (!item.logoUrl) {
+    return null;
+  }
+
+  return (
+    <div
+      className="absolute top-4 right-4 z-10 h-12 w-28 rounded-2xl border border-white/30 bg-white/90 bg-contain bg-center bg-no-repeat shadow-[0_18px_44px_rgba(0,0,0,0.16)] sm:top-6 sm:right-6 sm:h-14 sm:w-32"
+      style={{ backgroundImage: `url(${item.logoUrl})` }}
+      aria-label={`Логотип ${item.name}`}
+    />
+  );
 }
 
 function PlaceholderVisual({
@@ -74,6 +89,7 @@ function PlaceholderVisual({
         ))}
         <span />
       </div>
+      <BrandLogoBadge item={item} />
       <div className="relative flex min-h-[inherit] flex-col justify-end p-4 sm:p-7">
         <p
           className={cn(
@@ -130,6 +146,7 @@ function BrandHero({
         className="object-cover transition duration-700 group-hover:scale-[1.025]"
         sizes="100vw"
       />
+      <BrandLogoBadge item={item} />
       <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.02)_0%,rgba(0,0,0,0.16)_54%,rgba(0,0,0,0.72)_100%)]" />
       <div className="absolute inset-x-0 bottom-0 grid gap-4 p-3.5 text-white sm:gap-5 sm:p-7 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end lg:p-12">
         <div>

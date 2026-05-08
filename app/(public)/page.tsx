@@ -171,6 +171,7 @@ export default async function HomePage() {
       previewLabels: profile.previewLabels,
       statusLabel: profile.statusLabel,
       tags: profile.subcategories,
+      logoUrl: profile.logoUrl,
     }));
   const activeItems = galleryItems.filter((item) => item.tone !== "planned");
   const plannedItems = galleryItems.filter((item) => item.tone === "planned");

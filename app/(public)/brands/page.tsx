@@ -32,14 +32,26 @@ function getWordmarkClass(name: string) {
 }
 
 function BrandCard({ profile }: { profile: BrandProfile }) {
+  const logoStyle = profile.logoUrl
+    ? { backgroundImage: `url(${profile.logoUrl})` }
+    : undefined;
+
   return (
     <Link
       href={profile.brandPageHref}
       className="group view-rise block border border-[#151411]/10 bg-white/80 p-5 transition hover:border-[#151411] hover:bg-white"
     >
       <div className="relative flex min-h-[14rem] items-end overflow-hidden border border-[#151411]/8 bg-[#f6f2ea] p-5 sm:min-h-[15rem] sm:p-6">
-        <div className="absolute right-4 top-4 inline-flex h-11 w-11 items-center justify-center rounded-full bg-[#151411] text-[11px] font-semibold tracking-[0.18em] text-white uppercase">
-          {getBrandMonogram(profile.name)}
+        <div
+          className={
+            profile.logoUrl
+              ? "absolute right-4 top-4 inline-flex h-12 w-28 items-center justify-center rounded-2xl border border-[#151411]/10 bg-white/88 bg-contain bg-center bg-no-repeat px-3"
+              : "absolute right-4 top-4 inline-flex h-11 w-11 items-center justify-center rounded-full bg-[#151411] text-[11px] font-semibold tracking-[0.18em] text-white uppercase"
+          }
+          style={logoStyle}
+          aria-label={`Логотип ${profile.name}`}
+        >
+          {profile.logoUrl ? null : getBrandMonogram(profile.name)}
         </div>
         <div>
           <p className="font-mono text-[10px] tracking-[0.16em] text-[#8a837b] uppercase">

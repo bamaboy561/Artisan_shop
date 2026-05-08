@@ -157,6 +157,7 @@ function mapBrand(
     name: brand.name,
     description: brand.description ?? "",
     country: brand.country ?? "",
+    logoUrl: brand.logoUrl ?? undefined,
     productCount: brand._count?.products ?? 0,
     highlight: brand.description ?? "",
     categorySlug: categorySlug ?? "",
@@ -257,11 +258,6 @@ export async function getPublicBrands(): Promise<Brand[]> {
 
   const db = getDb();
   const brands = await db.brand.findMany({
-    where: {
-      products: {
-        some: { status: ProductStatus.ACTIVE },
-      },
-    },
     include: {
       _count: { select: { products: true } },
       products: {

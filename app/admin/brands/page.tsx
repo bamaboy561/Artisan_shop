@@ -7,7 +7,11 @@ import { StatusBadge } from "@/components/admin/status-badge";
 import { requireAdminSession } from "@/lib/auth/dal";
 import { hasDatabaseUrl } from "@/lib/db";
 import { getAdminBrands } from "@/lib/server/catalog-admin";
-import { createBrandAction, deleteBrandAction } from "@/app/admin/actions";
+import {
+  createBrandAction,
+  deleteBrandAction,
+  updateBrandAction,
+} from "@/app/admin/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -62,7 +66,7 @@ export default async function AdminBrandsPage() {
               </label>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-3">
               <label className="grid gap-2 text-sm text-[var(--foreground)]">
                 Страна
                 <Input name="country" placeholder="Швейцария / Польша" />
@@ -73,6 +77,14 @@ export default async function AdminBrandsPage() {
                   name="website"
                   type="url"
                   placeholder="https://brand.com"
+                />
+              </label>
+              <label className="grid gap-2 text-sm text-[var(--foreground)]">
+                Логотип
+                <Input
+                  name="logoUrl"
+                  type="url"
+                  placeholder="https://brand.com/logo.svg"
                 />
               </label>
             </div>
@@ -111,6 +123,9 @@ export default async function AdminBrandsPage() {
               {brands.map((brand) => {
                 const initial = brand.name.trim().slice(0, 1).toUpperCase();
                 const canDelete = brand._count.products === 0;
+                const logoStyle = brand.logoUrl
+                  ? { backgroundImage: `url(${brand.logoUrl})` }
+                  : undefined;
 
                 return (
                   <div
@@ -119,8 +134,12 @@ export default async function AdminBrandsPage() {
                   >
                     <div className="min-w-0">
                       <div className="flex min-w-0 items-start gap-4">
-                        <div className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-[#171614] text-base font-semibold text-white">
-                          {initial || "A"}
+                        <div
+                          className="flex size-14 shrink-0 items-center justify-center rounded-2xl border border-[color:var(--line)] bg-[#171614] bg-contain bg-center bg-no-repeat text-base font-semibold text-white"
+                          style={logoStyle}
+                          aria-label={`Логотип ${brand.name}`}
+                        >
+                          {brand.logoUrl ? null : initial || "A"}
                         </div>
 
                         <div className="min-w-0">
@@ -151,7 +170,86 @@ export default async function AdminBrandsPage() {
                             Сайт бренда
                           </a>
                         ) : null}
+                        {brand.logoUrl ? (
+                          <span className="rounded-full border border-[color:var(--line)] bg-white px-3 py-1">
+                            Логотип добавлен
+                          </span>
+                        ) : (
+                          <span className="rounded-full border border-dashed border-[color:var(--line)] bg-white/60 px-3 py-1">
+                            Без логотипа
+                          </span>
+                        )}
                       </div>
+
+                      <details className="mt-4 rounded-2xl border border-[color:var(--line)] bg-white/70 p-4">
+                        <summary className="cursor-pointer font-mono text-[10px] tracking-[0.16em] text-[var(--foreground)] uppercase">
+                          Редактировать профиль бренда
+                        </summary>
+
+                        <form
+                          action={updateBrandAction}
+                          className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3"
+                        >
+                          <input type="hidden" name="id" value={brand.id} />
+
+                          <label className="grid gap-2 text-sm text-[var(--foreground)]">
+                            Название
+                            <Input
+                              name="name"
+                              defaultValue={brand.name}
+                              required
+                            />
+                          </label>
+                          <label className="grid gap-2 text-sm text-[var(--foreground)]">
+                            Slug
+                            <Input
+                              name="slug"
+                              defaultValue={brand.slug}
+                              required
+                            />
+                          </label>
+                          <label className="grid gap-2 text-sm text-[var(--foreground)]">
+                            Страна
+                            <Input
+                              name="country"
+                              defaultValue={brand.country ?? ""}
+                            />
+                          </label>
+                          <label className="grid gap-2 text-sm text-[var(--foreground)]">
+                            Сайт
+                            <Input
+                              name="website"
+                              type="url"
+                              defaultValue={brand.website ?? ""}
+                            />
+                          </label>
+                          <label className="grid gap-2 text-sm text-[var(--foreground)] md:col-span-2">
+                            URL логотипа
+                            <Input
+                              name="logoUrl"
+                              type="url"
+                              defaultValue={brand.logoUrl ?? ""}
+                              placeholder="https://brand.com/logo.svg"
+                            />
+                          </label>
+                          <label className="grid gap-2 text-sm text-[var(--foreground)] md:col-span-2 xl:col-span-3">
+                            Описание
+                            <Textarea
+                              name="description"
+                              rows={3}
+                              defaultValue={brand.description ?? ""}
+                            />
+                          </label>
+
+                          <Button
+                            type="submit"
+                            variant="secondary"
+                            className="md:w-fit"
+                          >
+                            Сохранить бренд
+                          </Button>
+                        </form>
+                      </details>
                     </div>
 
                     <div className="flex items-center justify-between gap-3 lg:min-w-[132px] lg:flex-col lg:items-end lg:justify-start">

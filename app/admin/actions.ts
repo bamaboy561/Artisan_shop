@@ -78,6 +78,23 @@ function getOptionalString(formData: FormData, key: string) {
   return value.length > 0 ? value : null;
 }
 
+function getOptionalUrl(formData: FormData, key: string) {
+  const value = getOptionalString(formData, key);
+
+  if (!value) {
+    return null;
+  }
+
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:"
+      ? url.toString()
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 function getOptionalInt(formData: FormData, key: string) {
   const value = getString(formData, key);
 
@@ -125,6 +142,9 @@ function revalidateAdminCatalog() {
   revalidatePath("/admin/categories");
   revalidatePath("/admin/brands");
   revalidatePath("/admin/products");
+  revalidatePath("/");
+  revalidatePath("/brands");
+  revalidatePath("/catalog");
 }
 
 function revalidateAdminOperations() {
@@ -431,11 +451,53 @@ export async function createBrandAction(formData: FormData) {
       name,
       slug,
       country: getOptionalString(formData, "country"),
-      website: getOptionalString(formData, "website"),
+      website: getOptionalUrl(formData, "website"),
+      logoUrl: getOptionalUrl(formData, "logoUrl"),
       description: getOptionalString(formData, "description"),
     },
   });
 
+  revalidatePath(`/brands/${slug}`);
+  revalidateAdminCatalog();
+}
+
+export async function updateBrandAction(formData: FormData) {
+  if (!hasDatabaseUrl()) {
+    return;
+  }
+
+  await ensureAdminAccess();
+
+  const id = getString(formData, "id");
+  const name = getString(formData, "name");
+  const slug = getString(formData, "slug");
+
+  if (!id || !name || !slug) {
+    return;
+  }
+
+  const db = getDb();
+  const previousBrand = await db.brand.findUnique({
+    where: { id },
+    select: { slug: true },
+  });
+
+  await db.brand.update({
+    where: { id },
+    data: {
+      name,
+      slug,
+      country: getOptionalString(formData, "country"),
+      website: getOptionalUrl(formData, "website"),
+      logoUrl: getOptionalUrl(formData, "logoUrl"),
+      description: getOptionalString(formData, "description"),
+    },
+  });
+
+  revalidatePath(`/brands/${slug}`);
+  if (previousBrand?.slug && previousBrand.slug !== slug) {
+    revalidatePath(`/brands/${previousBrand.slug}`);
+  }
   revalidateAdminCatalog();
 }
 

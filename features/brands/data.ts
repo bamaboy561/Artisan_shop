@@ -34,6 +34,7 @@ export type BrandProfile = {
   products: FeaturedProduct[];
   productCount: number;
   country?: string;
+  logoUrl?: string;
   categorySlug?: string;
   catalogHref?: string;
   brandPageHref: string;
@@ -205,6 +206,7 @@ function buildBrandProfilesFrom(
         products: brandProducts,
         productCount: brandProducts.length,
         country: activeBrand?.country,
+        logoUrl: activeBrand?.logoUrl,
         categorySlug: activeBrand?.categorySlug,
         catalogHref: activeBrand?.categorySlug
           ? `/catalog/${activeBrand.categorySlug}?brand=${activeBrand.slug}`

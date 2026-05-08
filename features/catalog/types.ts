@@ -77,6 +77,7 @@ export type Brand = {
   name: string;
   description: string;
   country: string;
+  logoUrl?: string;
   productCount: number;
   highlight: string;
   categorySlug: string;
