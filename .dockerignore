@@ -15,7 +15,10 @@ tmp-*.png
 .next-start.log
 .env
 .env.local
+.env.*.local
 .env.production
+!.env.example
+!.env.production.example
 Dockerfile*
 docker-compose*.yml
 README.md
