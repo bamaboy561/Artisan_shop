@@ -39,14 +39,14 @@ function BrandCard({ profile }: { profile: BrandProfile }) {
   return (
     <Link
       href={profile.brandPageHref}
-      className="group view-rise block border border-[#151411]/10 bg-white/80 p-5 transition hover:border-[#151411] hover:bg-white"
+      className="group view-rise flex h-full flex-col border border-[#151411]/10 bg-white/80 p-5 transition hover:border-[#151411] hover:bg-white"
     >
-      <div className="relative flex min-h-[15.5rem] items-end overflow-hidden border border-[#151411]/8 bg-[#f6f2ea] p-5 sm:min-h-[17rem] sm:p-6">
-        <div className="absolute inset-x-5 top-5 flex h-[8.7rem] items-center justify-center rounded-[28px] border border-[#151411]/8 bg-white/72 shadow-[0_24px_60px_rgba(21,20,17,0.08)] transition duration-500 group-hover:scale-[1.015] group-hover:bg-white/88 sm:inset-x-6 sm:top-6 sm:h-[9.5rem]">
+      <div className="grid gap-4 border border-[#151411]/8 bg-[#f6f2ea] p-4 sm:gap-5 sm:p-5">
+        <div className="flex h-[9.5rem] items-center justify-center rounded-[28px] border border-[#151411]/8 bg-white/72 shadow-[0_22px_54px_rgba(21,20,17,0.08)] transition duration-500 group-hover:bg-white/88 sm:h-[10.5rem]">
           <div
             className={
               profile.logoUrl
-                ? "h-full w-full bg-contain bg-center bg-no-repeat"
+                ? "h-full w-full bg-center bg-no-repeat [background-size:82%_auto] sm:[background-size:76%_auto]"
                 : "flex h-full w-full items-center justify-center text-[3.6rem] leading-none font-semibold tracking-[-0.06em] text-[#151411] sm:text-[4.7rem]"
             }
             style={logoStyle}
@@ -56,7 +56,7 @@ function BrandCard({ profile }: { profile: BrandProfile }) {
           </div>
         </div>
 
-        <div className="relative z-10">
+        <div className="min-h-[6rem]">
           <p className="font-mono text-[10px] tracking-[0.16em] text-[#8a837b] uppercase">
             {profile.sectionName}
           </p>
@@ -68,7 +68,7 @@ function BrandCard({ profile }: { profile: BrandProfile }) {
         </div>
       </div>
 
-      <div className="pt-5">
+      <div className="mt-auto pt-5">
         <p className="text-[15px] leading-7 text-[#5f5952]">
           {profile.headline}
         </p>
@@ -95,7 +95,11 @@ export default async function BrandsPage() {
 
           <div className="mt-10 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {profiles.map((profile, index) => (
-              <div key={profile.slug} style={{ animationDelay: `${index * 60}ms` }}>
+              <div
+                key={profile.slug}
+                className="h-full"
+                style={{ animationDelay: `${index * 60}ms` }}
+              >
                 <BrandCard profile={profile} />
               </div>
             ))}
