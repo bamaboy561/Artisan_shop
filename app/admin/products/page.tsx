@@ -10,6 +10,7 @@ import {
   bulkUpdateProductsAction,
   deleteProductAction,
 } from "@/app/admin/actions";
+import { ProductImportForm } from "@/app/admin/products/product-import-form";
 import { NewProductForm } from "@/app/admin/products/new-product-form";
 import { AdminSubmitButton } from "@/components/admin/admin-submit-button";
 import { BulkSelectionTools } from "@/components/admin/bulk-selection-tools";
@@ -138,6 +139,25 @@ function getStateHref(
   });
 }
 
+function getImportNumber(
+  searchParams: Record<string, string | string[] | undefined>,
+  key: string,
+) {
+  const value = searchParams[key];
+  const rawValue = Array.isArray(value) ? value[0] : value;
+  const parsed = Number.parseInt(rawValue ?? "", 10);
+
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function getImportText(
+  searchParams: Record<string, string | string[] | undefined>,
+  key: string,
+) {
+  const value = searchParams[key];
+  return Array.isArray(value) ? value[0] ?? "" : value ?? "";
+}
+
 export default async function AdminProductsPage({
   searchParams,
 }: AdminProductsPageProps) {
@@ -176,6 +196,23 @@ export default async function AdminProductsPage({
     filterAdminProducts(products, state),
     state.sort,
   );
+  const importSummary = {
+    created: getImportNumber(resolvedSearchParams, "importCreated"),
+    updated: getImportNumber(resolvedSearchParams, "importUpdated"),
+    skipped: getImportNumber(resolvedSearchParams, "importSkipped"),
+    errors: getImportNumber(resolvedSearchParams, "importErrors"),
+    warnings: getImportNumber(resolvedSearchParams, "importWarnings"),
+    mapped: getImportNumber(resolvedSearchParams, "importMapped"),
+    message: getImportText(resolvedSearchParams, "importMessage"),
+  };
+  const hasImportSummary =
+    importSummary.created > 0 ||
+    importSummary.updated > 0 ||
+    importSummary.skipped > 0 ||
+    importSummary.errors > 0 ||
+    importSummary.warnings > 0 ||
+    importSummary.mapped > 0 ||
+    Boolean(importSummary.message);
 
   const activeCount = products.filter(
     (product) => product.status === ProductStatus.ACTIVE,
@@ -430,6 +467,67 @@ export default async function AdminProductsPage({
             ))}
           </div>
         ) : null}
+      </section>
+
+      {hasImportSummary ? (
+        <section
+          className={`rounded-[24px] border p-5 ${
+            importSummary.errors > 0
+              ? "border-red-200 bg-red-50 text-red-950"
+              : "border-emerald-200 bg-emerald-50 text-emerald-950"
+          }`}
+        >
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="font-mono text-[10px] tracking-[0.22em] uppercase opacity-70">
+                Импорт Excel / 1С
+              </p>
+              <h3 className="mt-2 text-xl font-semibold tracking-[-0.03em]">
+                {importSummary.message || "Импорт товаров завершен"}
+              </h3>
+            </div>
+            <div className="flex flex-wrap gap-2 text-sm">
+              <span className="rounded-full bg-white/70 px-3 py-1">
+                Создано: {importSummary.created}
+              </span>
+              <span className="rounded-full bg-white/70 px-3 py-1">
+                Обновлено: {importSummary.updated}
+              </span>
+              <span className="rounded-full bg-white/70 px-3 py-1">
+                Пропущено: {importSummary.skipped}
+              </span>
+              <span className="rounded-full bg-white/70 px-3 py-1">
+                Ошибки: {importSummary.errors}
+              </span>
+              <span className="rounded-full bg-white/70 px-3 py-1">
+                Распознано колонок: {importSummary.mapped}
+              </span>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
+      <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-5 sm:p-6">
+        <div className="flex flex-col gap-3 border-b border-[color:var(--line)] pb-5 lg:flex-row lg:items-end lg:justify-between">
+          <SectionHeading
+            title="Импорт из Excel / 1С"
+            description="Загрузите выгрузку из 1С или прайс поставщика. Система сама сопоставит колонки и создаст или обновит товары по артикулу."
+            titleClassName="text-xl sm:text-2xl"
+            descriptionClassName="text-sm leading-6"
+          />
+
+          <p className="max-w-sm text-xs leading-5 text-[var(--muted)]">
+            Рекомендуемые колонки: Наименование, Артикул, Цена, Остаток,
+            Категория, Бренд, Фото, Формат, Толщина.
+          </p>
+        </div>
+
+        <ProductImportForm
+          categories={categories}
+          brands={brands}
+          calculatorMaterials={calculatorMaterials}
+          calculatorSheetFormats={calculatorSheetFormats}
+        />
       </section>
 
       <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-5 sm:p-6">

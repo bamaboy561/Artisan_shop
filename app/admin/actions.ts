@@ -12,7 +12,12 @@ import {
   PromotionStatus,
   PromotionTargetType,
   RequestStatus,
+  type Prisma,
 } from "@/generated/prisma";
+import {
+  parseProductImportFile,
+  slugifyImportValue,
+} from "@/features/admin/product-import";
 import {
   handleOrderUpdated,
   handleOrderCreated,
@@ -52,6 +57,7 @@ import {
   updateRequestProductionResult,
 } from "@/lib/server/request-production";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 
 type ManagerSnapshot = {
   firstName?: string | null;
@@ -220,6 +226,96 @@ async function resolveProductImageUrl(formData: FormData, productSlug: string) {
   }
 
   return getOptionalString(formData, "imageUrl");
+}
+
+const PRODUCT_IMPORT_MAX_FILE_SIZE = 10 * 1024 * 1024;
+
+function getValidImportImageUrl(value: string | null) {
+  if (!value) {
+    return null;
+  }
+
+  if (value.startsWith("/")) {
+    return value;
+  }
+
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:"
+      ? url.toString()
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeImportLookup(value: string) {
+  return value
+    .trim()
+    .toLocaleLowerCase("ru-RU")
+    .replaceAll("ё", "е")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function makeUniqueImportSlug(baseValue: string, usedSlugs: Set<string>) {
+  const fallback = "item";
+  const base = slugifyImportValue(baseValue) || fallback;
+  let candidate = base;
+  let index = 2;
+
+  while (usedSlugs.has(candidate)) {
+    candidate = `${base}-${index}`;
+    index += 1;
+  }
+
+  usedSlugs.add(candidate);
+  return candidate;
+}
+
+function inferImportCategoryKind(name: string) {
+  const normalized = normalizeImportLookup(name);
+
+  if (
+    normalized.includes("фурнитур") ||
+    normalized.includes("петл") ||
+    normalized.includes("направля")
+  ) {
+    return CategoryKind.FITTINGS;
+  }
+
+  if (
+    normalized.includes("лдсп") ||
+    normalized.includes("мдф") ||
+    normalized.includes("панел") ||
+    normalized.includes("столеш") ||
+    normalized.includes("кром")
+  ) {
+    return CategoryKind.PLATE;
+  }
+
+  return CategoryKind.OTHER;
+}
+
+function getProductImportRedirect(params: {
+  created?: number;
+  updated?: number;
+  skipped?: number;
+  errors?: number;
+  warnings?: number;
+  mapped?: number;
+  message?: string;
+}) {
+  const searchParams = new URLSearchParams();
+
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") {
+      searchParams.set(`import${key[0].toUpperCase()}${key.slice(1)}`, String(value));
+    }
+  });
+
+  return `/admin/products?${searchParams.toString()}`;
 }
 
 function revalidateAdminCatalog() {
@@ -947,6 +1043,315 @@ export async function updateProductDetailsAction(formData: FormData) {
     revalidatePath(`/product/${previousProduct.slug}`);
   }
   revalidatePath(`/product/${slug}`);
+}
+
+export async function importProductsFromExcelAction(formData: FormData) {
+  if (!hasDatabaseUrl()) {
+    return;
+  }
+
+  await ensureAdminAccess();
+
+  const file = getFileList(formData, "productsFile")[0];
+
+  if (!file) {
+    redirect(
+      getProductImportRedirect({
+        message: "Файл не выбран",
+        errors: 1,
+      }),
+    );
+  }
+
+  if (file.size > PRODUCT_IMPORT_MAX_FILE_SIZE) {
+    redirect(
+      getProductImportRedirect({
+        message: "Файл больше 10 МБ",
+        errors: 1,
+      }),
+    );
+  }
+
+  let parsed: Awaited<ReturnType<typeof parseProductImportFile>>;
+
+  try {
+    parsed = await parseProductImportFile(file);
+  } catch {
+    redirect(
+      getProductImportRedirect({
+        message: "Не удалось прочитать файл",
+        errors: 1,
+      }),
+    );
+  }
+
+  if (parsed.rows.length === 0) {
+    redirect(
+      getProductImportRedirect({
+        message: "В файле не найдено строк товаров",
+        warnings: parsed.warnings.length,
+      }),
+    );
+  }
+
+  const defaultStatus =
+    Object.values(ProductStatus).find(
+      (item) => item === getString(formData, "defaultStatus"),
+    ) ?? ProductStatus.DRAFT;
+  const defaultOrderMode =
+    Object.values(ProductOrderMode).find(
+      (item) => item === getString(formData, "defaultOrderMode"),
+    ) ?? ProductOrderMode.REQUEST_PRICE;
+  const defaultInventoryStatus =
+    Object.values(InventoryStatus).find(
+      (item) => item === getString(formData, "defaultInventoryStatus"),
+    ) ?? InventoryStatus.ON_REQUEST;
+  const defaultCategoryId = getOptionalString(formData, "defaultCategoryId");
+  const defaultBrandId = getOptionalString(formData, "defaultBrandId");
+  const defaultCalculatorMaterialId = getOptionalString(
+    formData,
+    "defaultCalculatorMaterialId",
+  );
+  const defaultCalculatorSheetPresetId = getOptionalString(
+    formData,
+    "defaultCalculatorSheetPresetId",
+  );
+  const updateExisting = getString(formData, "updateExisting") === "on";
+  const createMissingRelations =
+    getString(formData, "createMissingRelations") === "on";
+  const importAttributes = getString(formData, "importAttributes") === "on";
+
+  const db = getDb();
+  await ensureBrandLogoColumn(db);
+
+  const [categories, brands, existingProducts] = await Promise.all([
+    db.category.findMany({
+      select: { id: true, name: true, slug: true },
+    }),
+    db.brand.findMany({
+      select: { id: true, name: true, slug: true },
+    }),
+    db.product.findMany({
+      select: { id: true, sku: true, slug: true },
+    }),
+  ]);
+
+  const categoryById = new Map(categories.map((item) => [item.id, item]));
+  const brandById = new Map(brands.map((item) => [item.id, item]));
+  const categoryByLookup = new Map(
+    categories.flatMap((item) => [
+      [normalizeImportLookup(item.name), item],
+      [normalizeImportLookup(item.slug), item],
+    ]),
+  );
+  const brandByLookup = new Map(
+    brands.flatMap((item) => [
+      [normalizeImportLookup(item.name), item],
+      [normalizeImportLookup(item.slug), item],
+    ]),
+  );
+  const productBySku = new Map(existingProducts.map((item) => [item.sku, item]));
+  const usedProductSlugs = new Set(existingProducts.map((item) => item.slug));
+  const usedCategorySlugs = new Set(categories.map((item) => item.slug));
+  const usedBrandSlugs = new Set(brands.map((item) => item.slug));
+
+  let created = 0;
+  let updated = 0;
+  let skipped = 0;
+  let errors = 0;
+
+  for (const row of parsed.rows) {
+    try {
+      if (!row.name || !row.sku) {
+        skipped += 1;
+        continue;
+      }
+
+      const existingProduct = productBySku.get(row.sku);
+
+      if (existingProduct && !updateExisting) {
+        skipped += 1;
+        continue;
+      }
+
+      let categoryId =
+        defaultCategoryId && categoryById.has(defaultCategoryId)
+          ? defaultCategoryId
+          : null;
+
+      if (row.categoryName) {
+        const categoryName = row.categoryName
+          .split(/[\\/]/)
+          .map((part) => part.trim())
+          .filter(Boolean)
+          .at(-1);
+        const normalizedCategory = categoryName
+          ? normalizeImportLookup(categoryName)
+          : "";
+        const existingCategory = categoryByLookup.get(normalizedCategory);
+
+        if (existingCategory) {
+          categoryId = existingCategory.id;
+        } else if (categoryName && createMissingRelations) {
+          const category = await db.category.create({
+            data: {
+              name: categoryName,
+              slug: makeUniqueImportSlug(categoryName, usedCategorySlugs),
+              kind: inferImportCategoryKind(categoryName),
+              sortOrder: 1000,
+            },
+            select: { id: true, name: true, slug: true },
+          });
+          categoryById.set(category.id, category);
+          categoryByLookup.set(normalizeImportLookup(category.name), category);
+          categoryByLookup.set(normalizeImportLookup(category.slug), category);
+          categoryId = category.id;
+        }
+      }
+
+      if (!existingProduct && !categoryId) {
+        skipped += 1;
+        continue;
+      }
+
+      let brandId =
+        defaultBrandId && brandById.has(defaultBrandId) ? defaultBrandId : null;
+
+      if (row.brandName) {
+        const normalizedBrand = normalizeImportLookup(row.brandName);
+        const existingBrand = brandByLookup.get(normalizedBrand);
+
+        if (existingBrand) {
+          brandId = existingBrand.id;
+        } else if (createMissingRelations) {
+          const brand = await db.brand.create({
+            data: {
+              name: row.brandName,
+              slug: makeUniqueImportSlug(row.brandName, usedBrandSlugs),
+            },
+            select: { id: true, name: true, slug: true },
+          });
+          brandById.set(brand.id, brand);
+          brandByLookup.set(normalizeImportLookup(brand.name), brand);
+          brandByLookup.set(normalizeImportLookup(brand.slug), brand);
+          brandId = brand.id;
+        }
+      }
+
+      const imageUrl = getValidImportImageUrl(row.imageUrl);
+      const attributeCreates = row.attributes.map((attribute, index) => ({
+        name: attribute.name,
+        value: attribute.value,
+        sortOrder: (index + 1) * 10,
+      }));
+
+      if (existingProduct) {
+        const updateData: Prisma.ProductUpdateInput = {
+          name: row.name,
+          status: row.status ?? defaultStatus,
+          orderMode: row.orderMode ?? defaultOrderMode,
+          inventoryStatus: row.inventoryStatus ?? defaultInventoryStatus,
+        };
+
+        if (row.slug) {
+          usedProductSlugs.delete(existingProduct.slug);
+          updateData.slug = makeUniqueImportSlug(row.slug, usedProductSlugs);
+        }
+        if (categoryId) updateData.category = { connect: { id: categoryId } };
+        if (brandId) updateData.brand = { connect: { id: brandId } };
+        if (row.price !== null) updateData.price = row.price;
+        if (row.compareAtPrice !== null) {
+          updateData.compareAtPrice = row.compareAtPrice;
+        }
+        if (row.stockQuantity !== null) {
+          updateData.stockQuantity = row.stockQuantity;
+        }
+        if (row.format) updateData.format = row.format;
+        if (row.thicknessMm !== null) updateData.thicknessMm = row.thicknessMm;
+        if (row.summary) updateData.summary = row.summary;
+        if (row.description) updateData.description = row.description;
+        if (defaultCalculatorMaterialId) {
+          updateData.calculatorMaterialId = defaultCalculatorMaterialId;
+        }
+        if (defaultCalculatorSheetPresetId) {
+          updateData.calculatorSheetPresetId = defaultCalculatorSheetPresetId;
+        }
+        if (imageUrl) {
+          updateData.images = {
+            deleteMany: {},
+            create: [{ url: imageUrl, alt: row.name, sortOrder: 10 }],
+          };
+        }
+        if (importAttributes && attributeCreates.length > 0) {
+          updateData.attributes = {
+            deleteMany: {},
+            create: attributeCreates,
+          };
+        }
+
+        await db.product.update({
+          where: { id: existingProduct.id },
+          data: updateData,
+        });
+        updated += 1;
+        continue;
+      }
+
+      const productSlug = makeUniqueImportSlug(
+        row.slug ?? `${row.brandName ?? ""} ${row.name} ${row.sku}`,
+        usedProductSlugs,
+      );
+      const createData: Prisma.ProductCreateInput = {
+        name: row.name,
+        slug: productSlug,
+        sku: row.sku,
+        category: { connect: { id: categoryId as string } },
+        brand: brandId ? { connect: { id: brandId } } : undefined,
+        price: row.price,
+        compareAtPrice: row.compareAtPrice,
+        stockQuantity: row.stockQuantity,
+        format: row.format,
+        thicknessMm: row.thicknessMm,
+        summary: row.summary,
+        description: row.description,
+        status: row.status ?? defaultStatus,
+        orderMode: row.orderMode ?? defaultOrderMode,
+        inventoryStatus: row.inventoryStatus ?? defaultInventoryStatus,
+        calculatorMaterialId: defaultCalculatorMaterialId,
+        calculatorSheetPresetId: defaultCalculatorSheetPresetId,
+        images: imageUrl
+          ? {
+              create: [{ url: imageUrl, alt: row.name, sortOrder: 10 }],
+            }
+          : undefined,
+        attributes:
+          importAttributes && attributeCreates.length > 0
+            ? { create: attributeCreates }
+            : undefined,
+      };
+
+      const product = await db.product.create({
+        data: createData,
+        select: { id: true, sku: true, slug: true },
+      });
+      productBySku.set(product.sku, product);
+      created += 1;
+    } catch {
+      errors += 1;
+    }
+  }
+
+  revalidateAdminCatalog();
+  redirect(
+    getProductImportRedirect({
+      created,
+      updated,
+      skipped,
+      errors,
+      warnings: parsed.warnings.length,
+      mapped: parsed.mappedColumns.length,
+    }),
+  );
 }
 
 export async function bulkUpdateProductsAction(formData: FormData) {
