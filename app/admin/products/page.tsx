@@ -20,7 +20,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { Select } from "@/components/ui/select";
-import { DataTable } from "@/components/ui/table";
 import { requireAdminSession } from "@/lib/auth/dal";
 import { hasDatabaseUrl } from "@/lib/db";
 import {
@@ -78,11 +77,9 @@ function formatPrice(value: number | null) {
     return "По запросу";
   }
 
-  return new Intl.NumberFormat("ru-RU", {
-    style: "currency",
-    currency: "KGS",
+  return `${new Intl.NumberFormat("ru-RU", {
     maximumFractionDigits: 0,
-  }).format(value);
+  }).format(value)} сом`;
 }
 
 function formatDate(date: Date) {
@@ -148,11 +145,11 @@ export default async function AdminProductsPage({
     return (
       <SetupState
         title="Товары появятся после подключения базы данных"
-        description="Раздел уже подготовлен под реальную работу с Prisma: можно создавать товары, привязывать их к категориям и брендам, а также управлять режимом заказа."
+        description="Раздел подготовлен под реальную работу каталога: создание товаров, привязка к категориям и брендам, сценарии заказа, цены, остатки и параметры калькулятора."
         steps={[
-          "Настройте DATABASE_URL в .env.",
-          "Примените схему через prisma db push или prisma migrate dev.",
-          "Создайте реальные товары вручную или через импорт после production bootstrap.",
+          "Настройте DATABASE_URL в окружении.",
+          "Примените схему через prisma db push или миграции.",
+          "Создайте реальные товары вручную или через импорт.",
         ]}
       />
     );
@@ -202,20 +199,19 @@ export default async function AdminProductsPage({
     state.categoryId
       ? {
           key: "categoryId",
-          label: categories.find((item) => item.id === state.categoryId)?.name
-            ? `Категория: ${
-                categories.find((item) => item.id === state.categoryId)?.name
-              }`
-            : "Категория",
+          label: `Категория: ${
+            categories.find((item) => item.id === state.categoryId)?.name ??
+            "выбрана"
+          }`,
           href: getStateHref(state, { categoryId: "" }),
         }
       : null,
     state.brandId
       ? {
           key: "brandId",
-          label: brands.find((item) => item.id === state.brandId)?.name
-            ? `Бренд: ${brands.find((item) => item.id === state.brandId)?.name}`
-            : "Бренд",
+          label: `Бренд: ${
+            brands.find((item) => item.id === state.brandId)?.name ?? "выбран"
+          }`,
           href: getStateHref(state, { brandId: "" }),
         }
       : null,
@@ -245,100 +241,12 @@ export default async function AdminProductsPage({
       : null,
   ].filter(Boolean) as Array<{ key: string; label: string; href: string }>;
 
-  const rows = filteredProducts.map((product) => ({
-    select: (
-      <input
-        type="checkbox"
-        name="productIds"
-        value={product.id}
-        form="bulk-products-form"
-        data-product-bulk-checkbox="true"
-        className="size-4 rounded border-[color:var(--line-strong)] accent-[var(--accent)]"
-        aria-label={`Выбрать ${product.name}`}
-      />
-    ),
-    product: (
-      <div className="min-w-0 space-y-1">
-        <Link
-          href={`/admin/products/${product.id}`}
-          className="font-semibold text-[var(--foreground)] transition hover:text-[#9d573d]"
-        >
-          {product.name}
-        </Link>
-        <p className="text-[11px] text-[var(--muted)]">
-          {product.sku} · {product.slug}
-        </p>
-      </div>
-    ),
-    placement: (
-      <div className="min-w-0 text-xs leading-5 text-[var(--muted)]">
-        <p className="text-[var(--foreground)]">{product.category.name}</p>
-        <p>{product.brand?.name ?? "Без бренда"}</p>
-        <p className="text-[10px]">{formatDate(product.updatedAt)}</p>
-      </div>
-    ),
-    commercial: (
-      <div className="space-y-1.5">
-        <p className="font-semibold text-[var(--foreground)]">
-          {formatPrice(product.price)}
-        </p>
-        <p className="text-[11px] text-[var(--muted)]">
-          {product.format ?? "Формат не указан"}
-          {product.thicknessMm ? ` · ${product.thicknessMm} мм` : ""}
-        </p>
-        <div className="flex flex-wrap gap-1">
-          <StatusBadge tone={getStatusTone(product.status)}>
-            {statusLabels[product.status]}
-          </StatusBadge>
-          <StatusBadge tone={getOrderModeTone(product.orderMode)}>
-            {orderModeLabels[product.orderMode]}
-          </StatusBadge>
-          {product.isFeatured ? (
-            <StatusBadge tone="accent">В подборках</StatusBadge>
-          ) : null}
-        </div>
-      </div>
-    ),
-    metrics: (
-      <div className="space-y-1.5">
-        <StatusBadge tone={getInventoryTone(product.inventoryStatus)}>
-          {inventoryLabels[product.inventoryStatus]}
-        </StatusBadge>
-        <div className="text-[11px] leading-4 text-[var(--muted)]">
-          <p>Заказов: {product._count.orderItems}</p>
-          <p>Избранное: {product._count.favorites}</p>
-        </div>
-      </div>
-    ),
-    manage: (
-      <div className="flex flex-col items-start gap-1.5">
-        <Link
-          href={`/admin/products/${product.id}`}
-          className="inline-flex h-9 items-center border border-[var(--line-strong)] px-4 font-mono text-[11px] tracking-[0.16em] text-[var(--foreground)] uppercase transition hover:border-[var(--foreground)] hover:bg-[var(--foreground)] hover:text-white"
-        >
-          Редактировать
-        </Link>
-        <form action={deleteProductAction}>
-          <input type="hidden" name="id" value={product.id} />
-          <Button
-            type="submit"
-            variant="ghost"
-            size="sm"
-            className="h-8 px-2 text-[11px] text-red-600 hover:bg-red-50"
-          >
-            Удалить
-          </Button>
-        </form>
-      </div>
-    ),
-  }));
-
   return (
     <div className="space-y-5">
       <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-6 sm:p-7">
         <SectionHeading
           title="Управление товарами"
-          description="Рабочий контур для каталога: фильтруйте позиции, переключайте сценарии заказа, быстро публикуйте товары и управляйте подборками без перехода в отдельные экраны."
+          description="Рабочий контур каталога: добавляйте реальные позиции, задавайте цены в сомах, сценарии заказа, остатки, изображения и параметры калькулятора."
           titleClassName="text-2xl sm:text-3xl"
           descriptionClassName="max-w-3xl text-sm leading-7"
         />
@@ -353,21 +261,24 @@ export default async function AdminProductsPage({
         <MetricCard
           label="Опубликовано"
           value={activeCount}
-          detail="Позиции, уже доступные для публичной витрины"
+          detail="Позиции, доступные на публичной витрине"
+          tone="success"
         />
         <MetricCard
           label="Черновики"
           value={draftCount}
-          detail="Карточки, которые ещё не выпущены в каталог"
+          detail="Карточки, которые еще не выпущены в каталог"
+          tone="warning"
         />
         <MetricCard
-          label="Подборки"
-          value={featuredCount}
-          detail={`${requestPriceCount} товаров работают через запрос цены`}
+          label="Запрос цены"
+          value={requestPriceCount}
+          detail={`${featuredCount} товаров добавлены в подборки`}
+          tone="accent"
         />
       </section>
 
-      <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-6">
+      <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-5 sm:p-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-2xl">
             <p className="font-mono text-[10px] tracking-[0.24em] text-[var(--accent)] uppercase">
@@ -377,8 +288,8 @@ export default async function AdminProductsPage({
               Быстрый срез каталога
             </h3>
             <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-              Фильтры держатся в URL, поэтому команде удобно возвращаться к
-              нужной выборке или делиться рабочим состоянием страницы.
+              Фильтры сохраняются в URL, поэтому можно возвращаться к нужной
+              выборке и делиться рабочим состоянием страницы.
             </p>
           </div>
 
@@ -413,7 +324,7 @@ export default async function AdminProductsPage({
         <Form action="" scroll={false} className="mt-6 grid gap-4 xl:grid-cols-6">
           <label className="grid gap-2 xl:col-span-2">
             <span className="text-sm text-[var(--foreground)]">
-              Поиск по названию, SKU или slug
+              Поиск по названию, SKU или адресу
             </span>
             <Input
               name="q"
@@ -459,6 +370,17 @@ export default async function AdminProductsPage({
           </label>
 
           <label className="grid gap-2">
+            <span className="text-sm text-[var(--foreground)]">Сортировка</span>
+            <Select name="sort" defaultValue={state.sort}>
+              {adminProductSortOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </Select>
+          </label>
+
+          <label className="grid gap-2">
             <span className="text-sm text-[var(--foreground)]">Сценарий</span>
             <Select name="orderMode" defaultValue={state.orderMode}>
               <option value="all">Все сценарии</option>
@@ -479,17 +401,6 @@ export default async function AdminProductsPage({
             </Select>
           </label>
 
-          <label className="grid gap-2">
-            <span className="text-sm text-[var(--foreground)]">Сортировка</span>
-            <Select name="sort" defaultValue={state.sort}>
-              {adminProductSortOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </Select>
-          </label>
-
           <div className="flex flex-wrap items-end gap-3 xl:col-span-6">
             <Button type="submit" variant="accent">
               Применить
@@ -498,7 +409,7 @@ export default async function AdminProductsPage({
               href="/admin/products"
               className="inline-flex h-11 items-center justify-center border border-[color:var(--line-strong)] px-5 font-mono text-[11px] font-semibold tracking-[0.14em] text-[var(--foreground)] uppercase transition hover:border-[color:var(--foreground)] hover:bg-[var(--foreground)] hover:text-white"
             >
-              Сбросить всё
+              Сбросить все
             </Link>
             <span className="text-sm text-[var(--muted)]">
               Найдено {filteredProducts.length} из {products.length} позиций
@@ -521,83 +432,216 @@ export default async function AdminProductsPage({
         ) : null}
       </section>
 
-      <section className="grid gap-4">
-        <article className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-6">
-          <div className="flex flex-col gap-3 border-b border-[color:var(--line)] pb-5 lg:flex-row lg:items-end lg:justify-between">
-            <SectionHeading
-              title="Новый товар"
-              description="Заполните базовые поля, затем доработайте карточку в списке ниже."
-              titleClassName="text-xl sm:text-2xl"
-              descriptionClassName="text-sm leading-6"
-            />
-
-            <p className="max-w-sm text-xs leading-5 text-[var(--muted)]">
-              Для плитных материалов привяжите материал и формат листа, чтобы калькулятор открывался с правильными параметрами.
-            </p>
-          </div>
-
-          <NewProductForm
-            categories={categories}
-            brands={brands}
-            calculatorMaterials={calculatorMaterials}
-            calculatorSheetFormats={calculatorSheetFormats}
+      <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-5 sm:p-6">
+        <div className="flex flex-col gap-3 border-b border-[color:var(--line)] pb-5 lg:flex-row lg:items-end lg:justify-between">
+          <SectionHeading
+            title="Новый товар"
+            description="Создайте карточку товара. После сохранения ее можно сразу открыть в списке и доработать."
+            titleClassName="text-xl sm:text-2xl"
+            descriptionClassName="text-sm leading-6"
           />
-        </article>
 
-        <article className="space-y-4">
-          <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-5 sm:p-6">
-            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center">
-              <div className="min-w-0">
-                <p className="font-mono text-[10px] tracking-[0.24em] text-[var(--accent)] uppercase">
-                  Массовые действия
-                </p>
-                <h3 className="mt-2 text-xl font-semibold text-[var(--foreground)]">
-                  Управление выбранными товарами
-                </h3>
-              </div>
+          <p className="max-w-sm text-xs leading-5 text-[var(--muted)]">
+            Для плитных материалов важно привязать формат листа и материал
+            расчета, чтобы калькулятор открывался с правильными параметрами.
+          </p>
+        </div>
 
-              <BulkSelectionTools checkboxSelector="[data-product-bulk-checkbox='true']" />
+        <NewProductForm
+          categories={categories}
+          brands={brands}
+          calculatorMaterials={calculatorMaterials}
+          calculatorSheetFormats={calculatorSheetFormats}
+        />
+      </section>
+
+      <section className="space-y-4">
+        <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-5 sm:p-6">
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center">
+            <div className="min-w-0">
+              <p className="font-mono text-[10px] tracking-[0.24em] text-[var(--accent)] uppercase">
+                Массовые действия
+              </p>
+              <h3 className="mt-2 text-xl font-semibold text-[var(--foreground)]">
+                Управление выбранными товарами
+              </h3>
             </div>
 
-            <form
-              id="bulk-products-form"
-              action={bulkUpdateProductsAction}
-              className="mt-5 grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_auto]"
-            >
-              <Select name="bulkAction" defaultValue="">
-                <option value="" disabled>
-                  Выберите действие для отмеченных товаров
-                </option>
-                {bulkActionOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </Select>
-              <AdminSubmitButton
-                type="submit"
-                variant="secondary"
-                className="w-full lg:w-auto"
-                idleLabel="Применить"
-                pendingLabel="Применяем..."
-              />
-            </form>
-          </section>
+            <BulkSelectionTools checkboxSelector="[data-product-bulk-checkbox='true']" />
+          </div>
 
-          <DataTable
-            columns={[
-              { key: "select", label: "" },
-              { key: "product", label: "Товар" },
-              { key: "placement", label: "Раздел" },
-              { key: "commercial", label: "Коммерция" },
-              { key: "metrics", label: "Наличие" },
-              { key: "manage", label: "Действия" },
-            ]}
-            rows={rows}
-            caption="Товары"
-            emptyMessage="По текущим фильтрам ничего не найдено. Измените срез или сбросьте параметры."
-          />
-        </article>
+          <form
+            id="bulk-products-form"
+            action={bulkUpdateProductsAction}
+            className="mt-5 grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_auto]"
+          >
+            <Select name="bulkAction" defaultValue="">
+              <option value="" disabled>
+                Выберите действие для отмеченных товаров
+              </option>
+              {bulkActionOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </Select>
+            <AdminSubmitButton
+              type="submit"
+              variant="secondary"
+              className="w-full lg:w-auto"
+              idleLabel="Применить"
+              pendingLabel="Применяем..."
+            />
+          </form>
+        </section>
+
+        {filteredProducts.length > 0 ? (
+          <div className="grid gap-3">
+            {filteredProducts.map((product) => {
+              const imageUrl = product.images[0]?.url ?? "";
+              const imageStyle = imageUrl
+                ? { backgroundImage: `url(${imageUrl})` }
+                : undefined;
+
+              return (
+                <article
+                  key={product.id}
+                  className="surface-glow grid gap-4 rounded-[24px] border border-[color:var(--line)] bg-white/88 p-4 sm:p-5 xl:grid-cols-[auto_116px_minmax(0,1fr)_260px]"
+                >
+                  <div className="flex items-start">
+                    <input
+                      type="checkbox"
+                      name="productIds"
+                      value={product.id}
+                      form="bulk-products-form"
+                      data-product-bulk-checkbox="true"
+                      className="mt-1 size-4 rounded border-[color:var(--line-strong)] accent-[var(--accent)]"
+                      aria-label={`Выбрать ${product.name}`}
+                    />
+                  </div>
+
+                  <div
+                    className="flex aspect-[4/3] w-full items-center justify-center rounded-[18px] border border-[color:var(--line)] bg-[#f3efe8] bg-cover bg-center text-2xl font-semibold text-[var(--muted)] xl:w-[116px]"
+                    style={imageStyle}
+                    aria-label={product.images[0]?.alt ?? product.name}
+                  >
+                    {imageUrl ? null : product.name.slice(0, 1).toUpperCase()}
+                  </div>
+
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Link
+                        href={`/admin/products/${product.id}`}
+                        className="text-xl font-semibold tracking-[-0.03em] text-[var(--foreground)] transition hover:text-[#9d573d]"
+                      >
+                        {product.name}
+                      </Link>
+                      <StatusBadge tone={getStatusTone(product.status)}>
+                        {statusLabels[product.status]}
+                      </StatusBadge>
+                      {product.isFeatured ? (
+                        <StatusBadge tone="accent">В подборках</StatusBadge>
+                      ) : null}
+                    </div>
+
+                    <p className="mt-2 text-xs leading-5 text-[var(--muted)]">
+                      SKU: {product.sku} · /product/{product.slug}
+                    </p>
+
+                    <p className="mt-3 max-w-4xl text-sm leading-6 text-[var(--muted)]">
+                      {product.summary ?? "Краткое описание пока не добавлено."}
+                    </p>
+
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <StatusBadge tone="neutral">
+                        {product.category.name}
+                      </StatusBadge>
+                      <StatusBadge tone="neutral">
+                        {product.brand?.name ?? "Без бренда"}
+                      </StatusBadge>
+                      <StatusBadge tone={getOrderModeTone(product.orderMode)}>
+                        {orderModeLabels[product.orderMode]}
+                      </StatusBadge>
+                      <StatusBadge
+                        tone={getInventoryTone(product.inventoryStatus)}
+                      >
+                        {inventoryLabels[product.inventoryStatus]}
+                      </StatusBadge>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 xl:justify-items-stretch">
+                    <div className="rounded-2xl border border-[color:var(--line)] bg-[#faf8f4] p-4">
+                      <p className="text-lg font-semibold text-[var(--foreground)]">
+                        {formatPrice(product.price)}
+                      </p>
+                      {product.compareAtPrice ? (
+                        <p className="mt-1 text-xs text-[var(--muted)] line-through">
+                          {formatPrice(product.compareAtPrice)}
+                        </p>
+                      ) : null}
+                      <p className="mt-3 text-xs leading-5 text-[var(--muted)]">
+                        {product.format ?? "Формат не указан"}
+                        {product.thicknessMm ? ` · ${product.thicknessMm} мм` : ""}
+                      </p>
+                      <p className="text-xs leading-5 text-[var(--muted)]">
+                        Остаток: {product.stockQuantity ?? "не указан"}
+                      </p>
+                      <p className="text-xs leading-5 text-[var(--muted)]">
+                        Обновлено: {formatDate(product.updatedAt)}
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      <Link
+                        href={`/admin/products/${product.id}`}
+                        className="inline-flex h-10 flex-1 items-center justify-center border border-[var(--line-strong)] px-4 font-mono text-[11px] tracking-[0.16em] text-[var(--foreground)] uppercase transition hover:border-[var(--foreground)] hover:bg-[var(--foreground)] hover:text-white"
+                      >
+                        Редактировать
+                      </Link>
+                      <Link
+                        href={`/product/${product.slug}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex h-10 items-center justify-center border border-[var(--line-strong)] px-4 font-mono text-[11px] tracking-[0.16em] text-[var(--foreground)] uppercase transition hover:border-[var(--foreground)]"
+                      >
+                        Сайт
+                      </Link>
+                    </div>
+
+                    <form action={deleteProductAction}>
+                      <input type="hidden" name="id" value={product.id} />
+                      <Button
+                        type="submit"
+                        variant="ghost"
+                        size="sm"
+                        className="h-9 w-full text-red-600 hover:bg-red-50"
+                      >
+                        Удалить
+                      </Button>
+                    </form>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="surface-glow rounded-[24px] border border-[color:var(--line)] bg-white/88 p-8 text-center">
+            <h3 className="text-xl font-semibold text-[var(--foreground)]">
+              По текущим фильтрам ничего не найдено
+            </h3>
+            <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
+              Измените параметры поиска или сбросьте фильтры, чтобы увидеть
+              товары каталога.
+            </p>
+            <Link
+              href="/admin/products"
+              className="mt-5 inline-flex h-11 items-center justify-center border border-[color:var(--line-strong)] px-5 font-mono text-[11px] font-semibold tracking-[0.14em] text-[var(--foreground)] uppercase transition hover:border-[color:var(--foreground)] hover:bg-[var(--foreground)] hover:text-white"
+            >
+              Сбросить фильтры
+            </Link>
+          </div>
+        )}
       </section>
     </div>
   );

@@ -51,6 +51,14 @@ export async function getAdminProducts() {
           name: true,
         },
       },
+      images: {
+        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+        take: 1,
+        select: {
+          url: true,
+          alt: true,
+        },
+      },
       _count: {
         select: {
           orderItems: true,
@@ -77,38 +85,38 @@ export async function getAdminProductFormOptions() {
 
   const [categories, brands, calculatorMaterials, calculatorSheetFormats] =
     await Promise.all([
-    db.category.findMany({
-      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-      select: {
-        id: true,
-        name: true,
-        kind: true,
-      },
-    }),
-    db.brand.findMany({
-      orderBy: { name: "asc" },
-      select: {
-        id: true,
-        name: true,
-      },
-    }),
-    db.calculatorMaterial.findMany({
-      where: { isActive: true },
-      orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
-      select: {
-        slug: true,
-        label: true,
-      },
-    }),
-    db.calculatorSheetFormat.findMany({
-      where: { isActive: true },
-      orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
-      select: {
-        slug: true,
-        label: true,
-      },
-    }),
-  ]);
+      db.category.findMany({
+        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+        select: {
+          id: true,
+          name: true,
+          kind: true,
+        },
+      }),
+      db.brand.findMany({
+        orderBy: { name: "asc" },
+        select: {
+          id: true,
+          name: true,
+        },
+      }),
+      db.calculatorMaterial.findMany({
+        where: { isActive: true },
+        orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
+        select: {
+          slug: true,
+          label: true,
+        },
+      }),
+      db.calculatorSheetFormat.findMany({
+        where: { isActive: true },
+        orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
+        select: {
+          slug: true,
+          label: true,
+        },
+      }),
+    ]);
 
   return {
     categories,

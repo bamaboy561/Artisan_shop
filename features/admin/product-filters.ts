@@ -37,6 +37,8 @@ export type AdminProductItem = {
   orderMode: ProductOrderMode;
   inventoryStatus: InventoryStatus;
   price: number | null;
+  compareAtPrice: number | null;
+  stockQuantity: number | null;
   format: string | null;
   thicknessMm: number | null;
   isFeatured: boolean;
@@ -49,6 +51,10 @@ export type AdminProductItem = {
   brand: {
     name: string;
   } | null;
+  images: Array<{
+    url: string;
+    alt: string | null;
+  }>;
   _count: {
     orderItems: number;
     favorites: number;
@@ -117,8 +123,9 @@ export function parseAdminProductSearchParams(
       Object.values(ProductStatus).find((item) => item === statusCandidate) ??
       "all",
     orderMode:
-      Object.values(ProductOrderMode).find((item) => item === orderModeCandidate) ??
-      "all",
+      Object.values(ProductOrderMode).find(
+        (item) => item === orderModeCandidate,
+      ) ?? "all",
     featured: validFeaturedFilters.has(
       featuredCandidate as AdminProductFeaturedFilter,
     )

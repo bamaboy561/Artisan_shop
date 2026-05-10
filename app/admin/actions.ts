@@ -128,6 +128,35 @@ function getStringList(formData: FormData, key: string) {
     .filter(Boolean);
 }
 
+function parseProductAttributes(value: string) {
+  return value
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .flatMap((line, index) => {
+      const separatorIndex = line.search(/[:=]/);
+
+      if (separatorIndex <= 0) {
+        return [];
+      }
+
+      const name = line.slice(0, separatorIndex).trim();
+      const attributeValue = line.slice(separatorIndex + 1).trim();
+
+      if (!name || !attributeValue) {
+        return [];
+      }
+
+      return [
+        {
+          name,
+          value: attributeValue,
+          sortOrder: (index + 1) * 10,
+        },
+      ];
+    });
+}
+
 function getFileList(formData: FormData, key: string) {
   return formData
     .getAll(key)
@@ -634,6 +663,7 @@ export async function createProductAction(formData: FormData) {
   const status = getString(formData, "status");
   const orderMode = getString(formData, "orderMode");
   const inventoryStatus = getString(formData, "inventoryStatus");
+  const attributes = parseProductAttributes(getString(formData, "attributes"));
 
   await getDb().product.create({
     data: {
@@ -643,6 +673,7 @@ export async function createProductAction(formData: FormData) {
       categoryId,
       brandId: getOptionalString(formData, "brandId"),
       summary: getOptionalString(formData, "summary"),
+      description: getOptionalString(formData, "description"),
       format: getOptionalString(formData, "format"),
       thicknessMm: getOptionalInt(formData, "thicknessMm"),
       calculatorMaterialId: getOptionalString(formData, "calculatorMaterialId"),
@@ -651,6 +682,10 @@ export async function createProductAction(formData: FormData) {
         "calculatorSheetPresetId",
       ),
       price: getOptionalInt(formData, "price"),
+      compareAtPrice: getOptionalInt(formData, "compareAtPrice"),
+      stockQuantity: getOptionalInt(formData, "stockQuantity"),
+      seoTitle: getOptionalString(formData, "seoTitle"),
+      seoDescription: getOptionalString(formData, "seoDescription"),
       status:
         Object.values(ProductStatus).find((item) => item === status) ??
         ProductStatus.DRAFT,
@@ -673,6 +708,12 @@ export async function createProductAction(formData: FormData) {
             ],
           }
         : undefined,
+      attributes:
+        attributes.length > 0
+          ? {
+              create: attributes,
+            }
+          : undefined,
     },
   });
 
@@ -767,8 +808,13 @@ export async function updateProductDetailsAction(formData: FormData) {
   const orderMode = getString(formData, "orderMode");
   const inventoryStatus = getString(formData, "inventoryStatus");
   const imageUrl = getOptionalString(formData, "imageUrl");
+  const attributes = parseProductAttributes(getString(formData, "attributes"));
 
   const db = getDb();
+  const previousProduct = await db.product.findUnique({
+    where: { id },
+    select: { slug: true },
+  });
 
   await db.$transaction(async (tx) => {
     await tx.product.update({
@@ -792,6 +838,10 @@ export async function updateProductDetailsAction(formData: FormData) {
           "calculatorSheetPresetId",
         ),
         price: getOptionalInt(formData, "price"),
+        compareAtPrice: getOptionalInt(formData, "compareAtPrice"),
+        stockQuantity: getOptionalInt(formData, "stockQuantity"),
+        seoTitle: getOptionalString(formData, "seoTitle"),
+        seoDescription: getOptionalString(formData, "seoDescription"),
         status:
           Object.values(ProductStatus).find((item) => item === status) ??
           ProductStatus.DRAFT,
@@ -821,11 +871,26 @@ export async function updateProductDetailsAction(formData: FormData) {
           data: { productId: id, url: imageUrl, alt: name, sortOrder: 10 },
         });
       }
+    } else {
+      await tx.productImage.deleteMany({ where: { productId: id } });
+    }
+
+    await tx.productAttribute.deleteMany({ where: { productId: id } });
+    if (attributes.length > 0) {
+      await tx.productAttribute.createMany({
+        data: attributes.map((attribute) => ({
+          ...attribute,
+          productId: id,
+        })),
+      });
     }
   });
 
   revalidateAdminCatalog();
   revalidatePath(`/admin/products/${id}`);
+  if (previousProduct?.slug && previousProduct.slug !== slug) {
+    revalidatePath(`/product/${previousProduct.slug}`);
+  }
   revalidatePath(`/product/${slug}`);
 }
 
