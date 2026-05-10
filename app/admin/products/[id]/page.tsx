@@ -229,6 +229,7 @@ export default async function EditProductPage({ params }: EditProductPageProps) 
           brands={options.brands}
           calculatorMaterials={options.calculatorMaterials}
           calculatorSheetFormats={options.calculatorSheetFormats}
+          canUploadImages={Boolean(process.env.BLOB_READ_WRITE_TOKEN)}
           defaults={defaults}
         />
       </section>

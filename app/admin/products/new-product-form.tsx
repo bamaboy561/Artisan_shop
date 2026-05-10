@@ -75,6 +75,7 @@ type Props = {
   brands: BrandOption[];
   calculatorMaterials: SlugLabelOption[];
   calculatorSheetFormats: SlugLabelOption[];
+  canUploadImages: boolean;
   defaults?: ProductFormDefaults;
 };
 
@@ -118,6 +119,7 @@ export function NewProductForm({
   brands,
   calculatorMaterials,
   calculatorSheetFormats,
+  canUploadImages,
   defaults,
 }: Props) {
   const isEdit = Boolean(defaults);
@@ -129,6 +131,7 @@ export function NewProductForm({
   return (
     <form
       action={isEdit ? updateProductDetailsAction : createProductAction}
+      encType="multipart/form-data"
       className="mt-5 grid min-w-0 gap-4"
     >
       {defaults ? (
@@ -369,18 +372,35 @@ export function NewProductForm({
         title="Медиа и тексты"
         description="Фото, описание карточки и характеристики, которые увидит клиент."
       >
-        <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)]">
-          Изображение
-          <Input
-            name="imageUrl"
-            placeholder="https://... или /images/product.jpg"
-            defaultValue={defaults?.imageUrl ?? ""}
-          />
-          <FieldHint>
-            Сейчас используем ссылку или путь к файлу в public. Загрузку файлов
-            добавим следующим шагом.
-          </FieldHint>
-        </label>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)]">
+            Загрузить изображение
+            <Input
+              name="imageFile"
+              type="file"
+              accept="image/avif,image/jpeg,image/png,image/webp"
+              disabled={!canUploadImages}
+            />
+            <FieldHint>
+              {canUploadImages
+                ? "JPG, PNG, WebP или AVIF до 8 МБ. Файл сохранится в Vercel Blob."
+                : "Загрузка файлов выключена: подключите Vercel Blob и переменную BLOB_READ_WRITE_TOKEN. Пока можно указать ссылку ниже."}
+            </FieldHint>
+          </label>
+
+          <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)]">
+            Ссылка на изображение
+            <Input
+              name="imageUrl"
+              placeholder="https://... или /images/product.jpg"
+              defaultValue={defaults?.imageUrl ?? ""}
+            />
+            <FieldHint>
+              Можно использовать вместо загрузки файла или оставить текущую
+              ссылку при редактировании.
+            </FieldHint>
+          </label>
+        </div>
 
         <div className="grid gap-4 lg:grid-cols-2">
           <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)]">

@@ -168,6 +168,60 @@ function getFileList(formData: FormData, key: string) {
     );
 }
 
+const PRODUCT_IMAGE_MAX_SIZE = 8 * 1024 * 1024;
+const PRODUCT_IMAGE_TYPES = new Set([
+  "image/avif",
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+]);
+
+function sanitizeUploadSegment(value: string) {
+  return value
+    .normalize("NFKD")
+    .replace(/[^\w.\-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .toLowerCase();
+}
+
+function isAllowedProductImage(file: File) {
+  return (
+    PRODUCT_IMAGE_TYPES.has(file.type) && file.size <= PRODUCT_IMAGE_MAX_SIZE
+  );
+}
+
+async function uploadProductImageFile(file: File, productSlug: string) {
+  if (!process.env.BLOB_READ_WRITE_TOKEN || !isAllowedProductImage(file)) {
+    return null;
+  }
+
+  const { put } = await import("@vercel/blob");
+  const safeSlug = sanitizeUploadSegment(productSlug) || "product";
+  const safeFileName = sanitizeUploadSegment(file.name) || "image";
+  const pathname = `products/${safeSlug}/${Date.now()}-${safeFileName}`;
+  const blob = await put(pathname, file, {
+    access: "public",
+    addRandomSuffix: true,
+  });
+
+  return blob.url;
+}
+
+async function resolveProductImageUrl(formData: FormData, productSlug: string) {
+  const uploadedImage = getFileList(formData, "imageFile")[0];
+
+  if (uploadedImage) {
+    const blobUrl = await uploadProductImageFile(uploadedImage, productSlug);
+
+    if (blobUrl) {
+      return blobUrl;
+    }
+  }
+
+  return getOptionalString(formData, "imageUrl");
+}
+
 function revalidateAdminCatalog() {
   revalidatePath("/admin");
   revalidatePath("/admin/categories");
@@ -664,6 +718,7 @@ export async function createProductAction(formData: FormData) {
   const orderMode = getString(formData, "orderMode");
   const inventoryStatus = getString(formData, "inventoryStatus");
   const attributes = parseProductAttributes(getString(formData, "attributes"));
+  const imageUrl = await resolveProductImageUrl(formData, slug);
 
   await getDb().product.create({
     data: {
@@ -697,11 +752,11 @@ export async function createProductAction(formData: FormData) {
           (item) => item === inventoryStatus,
         ) ?? InventoryStatus.ON_REQUEST,
       isFeatured: getString(formData, "isFeatured") === "on",
-      images: getOptionalString(formData, "imageUrl")
+      images: imageUrl
         ? {
             create: [
               {
-                url: getString(formData, "imageUrl"),
+                url: imageUrl,
                 alt: name,
                 sortOrder: 10,
               },
@@ -807,7 +862,7 @@ export async function updateProductDetailsAction(formData: FormData) {
   const status = getString(formData, "status");
   const orderMode = getString(formData, "orderMode");
   const inventoryStatus = getString(formData, "inventoryStatus");
-  const imageUrl = getOptionalString(formData, "imageUrl");
+  const imageUrl = await resolveProductImageUrl(formData, slug);
   const attributes = parseProductAttributes(getString(formData, "attributes"));
 
   const db = getDb();

@@ -452,6 +452,7 @@ export default async function AdminProductsPage({
           brands={brands}
           calculatorMaterials={calculatorMaterials}
           calculatorSheetFormats={calculatorSheetFormats}
+          canUploadImages={Boolean(process.env.BLOB_READ_WRITE_TOKEN)}
         />
       </section>
 
