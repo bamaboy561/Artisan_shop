@@ -14,7 +14,6 @@ import { ProductImportForm } from "@/app/admin/products/product-import-form";
 import { NewProductForm } from "@/app/admin/products/new-product-form";
 import { AdminSubmitButton } from "@/components/admin/admin-submit-button";
 import { BulkSelectionTools } from "@/components/admin/bulk-selection-tools";
-import { MetricCard } from "@/components/admin/metric-card";
 import { SetupState } from "@/components/admin/setup-state";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { Button } from "@/components/ui/button";
@@ -158,6 +157,30 @@ function getImportText(
   return Array.isArray(value) ? value[0] ?? "" : value ?? "";
 }
 
+function MiniStat({
+  label,
+  value,
+  tone = "neutral",
+}: {
+  label: string;
+  value: number;
+  tone?: "neutral" | "success" | "warning" | "accent";
+}) {
+  const toneClass = {
+    neutral: "bg-[#f7f4ef] text-[var(--foreground)]",
+    success: "bg-emerald-50 text-emerald-800",
+    warning: "bg-amber-50 text-amber-800",
+    accent: "bg-[#f4e7df] text-[#9d573d]",
+  }[tone];
+
+  return (
+    <div className={`rounded-2xl px-3 py-2 ${toneClass}`}>
+      <p className="text-lg font-semibold leading-none">{value}</p>
+      <p className="mt-1 text-[10px] tracking-[0.14em] uppercase">{label}</p>
+    </div>
+  );
+}
+
 export default async function AdminProductsPage({
   searchParams,
 }: AdminProductsPageProps) {
@@ -165,7 +188,7 @@ export default async function AdminProductsPage({
     return (
       <SetupState
         title="Товары появятся после подключения базы данных"
-        description="Раздел подготовлен под реальную работу каталога: создание товаров, привязка к категориям и брендам, сценарии заказа, цены, остатки и параметры калькулятора."
+        description="Раздел подготовлен под реальную работу каталога: создание товаров, импорт, цены, остатки, изображения и параметры калькулятора."
         steps={[
           "Настройте DATABASE_URL в окружении.",
           "Примените схему через prisma db push или миграции.",
@@ -220,7 +243,6 @@ export default async function AdminProductsPage({
   const draftCount = products.filter(
     (product) => product.status === ProductStatus.DRAFT,
   ).length;
-  const featuredCount = products.filter((product) => product.isFeatured).length;
   const requestPriceCount = products.filter(
     (product) => product.orderMode === ProductOrderMode.REQUEST_PRICE,
   ).length;
@@ -279,63 +301,119 @@ export default async function AdminProductsPage({
   ].filter(Boolean) as Array<{ key: string; label: string; href: string }>;
 
   return (
-    <div className="space-y-5">
-      <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-6 sm:p-7">
-        <SectionHeading
-          title="Управление товарами"
-          description="Рабочий контур каталога: добавляйте реальные позиции, задавайте цены в сомах, сценарии заказа, остатки, изображения и параметры калькулятора."
-          titleClassName="text-2xl sm:text-3xl"
-          descriptionClassName="max-w-3xl text-sm leading-7"
-        />
-      </section>
+    <div className="space-y-4">
+      <section className="surface-glow rounded-[22px] border border-[color:var(--line)] bg-white/84 p-4 sm:p-5">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center">
+          <SectionHeading
+            title="Товары"
+            description="Быстрое добавление, импорт прайсов и управление каталогом в одном рабочем экране."
+            titleClassName="text-2xl sm:text-3xl"
+            descriptionClassName="max-w-3xl text-sm leading-6"
+          />
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard
-          label="Всего товаров"
-          value={products.length}
-          detail={`${filteredProducts.length} позиций видно по текущему срезу`}
-        />
-        <MetricCard
-          label="Опубликовано"
-          value={activeCount}
-          detail="Позиции, доступные на публичной витрине"
-          tone="success"
-        />
-        <MetricCard
-          label="Черновики"
-          value={draftCount}
-          detail="Карточки, которые еще не выпущены в каталог"
-          tone="warning"
-        />
-        <MetricCard
-          label="Запрос цены"
-          value={requestPriceCount}
-          detail={`${featuredCount} товаров добавлены в подборки`}
-          tone="accent"
-        />
-      </section>
-
-      <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-5 sm:p-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="max-w-2xl">
-            <p className="font-mono text-[10px] tracking-[0.24em] text-[var(--accent)] uppercase">
-              Фильтры
-            </p>
-            <h3 className="mt-3 text-xl font-semibold text-[var(--foreground)]">
-              Быстрый срез каталога
-            </h3>
-            <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-              Фильтры сохраняются в URL, поэтому можно возвращаться к нужной
-              выборке и делиться рабочим состоянием страницы.
-            </p>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:min-w-[540px]">
+            <MiniStat label="всего" value={products.length} />
+            <MiniStat label="на сайте" value={activeCount} tone="success" />
+            <MiniStat label="черновики" value={draftCount} tone="warning" />
+            <MiniStat label="запрос цены" value={requestPriceCount} tone="accent" />
           </div>
+        </div>
+      </section>
+
+      {hasImportSummary ? (
+        <section
+          className={`rounded-[20px] border p-4 ${
+            importSummary.errors > 0
+              ? "border-red-200 bg-red-50 text-red-950"
+              : "border-emerald-200 bg-emerald-50 text-emerald-950"
+          }`}
+        >
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="font-mono text-[10px] tracking-[0.22em] uppercase opacity-70">
+                Импорт Excel / 1С
+              </p>
+              <h3 className="mt-1 text-lg font-semibold tracking-[-0.03em]">
+                {importSummary.message || "Импорт товаров завершен"}
+              </h3>
+            </div>
+            <div className="flex flex-wrap gap-2 text-sm">
+              <span className="rounded-full bg-white/70 px-3 py-1">
+                Создано: {importSummary.created}
+              </span>
+              <span className="rounded-full bg-white/70 px-3 py-1">
+                Обновлено: {importSummary.updated}
+              </span>
+              <span className="rounded-full bg-white/70 px-3 py-1">
+                Пропущено: {importSummary.skipped}
+              </span>
+              <span className="rounded-full bg-white/70 px-3 py-1">
+                Ошибки: {importSummary.errors}
+              </span>
+              <span className="rounded-full bg-white/70 px-3 py-1">
+                Колонки: {importSummary.mapped}
+              </span>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
+      <section className="grid items-start gap-4 2xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.65fr)]">
+        <article
+          id="new-product"
+          className="surface-glow rounded-[22px] border border-[color:var(--line)] bg-white/84 p-4 sm:p-5"
+        >
+          <SectionHeading
+            title="Быстро добавить товар"
+            description="Главные поля сразу видны. Фото, SEO и дополнительные данные раскрываются только когда нужны."
+            titleClassName="text-xl sm:text-2xl"
+            descriptionClassName="text-sm leading-6"
+          />
+
+          <NewProductForm
+            categories={categories}
+            brands={brands}
+            calculatorMaterials={calculatorMaterials}
+            calculatorSheetFormats={calculatorSheetFormats}
+            canUploadImages={Boolean(process.env.BLOB_READ_WRITE_TOKEN)}
+          />
+        </article>
+
+        <article
+          id="import-products"
+          className="surface-glow rounded-[22px] border border-[color:var(--line)] bg-white/84 p-4 sm:p-5 2xl:sticky 2xl:top-20"
+        >
+          <SectionHeading
+            title="Импорт Excel"
+            description="Для прайсов поставщиков и выгрузок 1С. Новые позиции попадут в черновики."
+            titleClassName="text-xl sm:text-2xl"
+            descriptionClassName="text-sm leading-6"
+          />
+
+          <ProductImportForm
+            categories={categories}
+            brands={brands}
+            calculatorMaterials={calculatorMaterials}
+            calculatorSheetFormats={calculatorSheetFormats}
+          />
+        </article>
+      </section>
+
+      <section className="surface-glow rounded-[22px] border border-[color:var(--line)] bg-white/84 p-4 sm:p-5">
+        <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
+          <SectionHeading
+            title="Список товаров"
+            description={`Найдено ${filteredProducts.length} из ${products.length} позиций.`}
+            titleClassName="text-xl sm:text-2xl"
+            descriptionClassName="text-sm leading-6"
+          />
 
           <div className="flex flex-wrap gap-2">
             <Link
               href={getStateHref(state, { status: "all", featured: "all" })}
               className="rounded-full border border-[color:var(--line)] bg-[var(--surface)] px-3 py-1.5 text-[11px] font-semibold tracking-[0.14em] text-[var(--muted)] uppercase transition hover:border-[color:var(--line-strong)]"
             >
-              Все товары
+              Все
             </Link>
             <Link
               href={getStateHref(state, { status: ProductStatus.ACTIVE })}
@@ -358,21 +436,24 @@ export default async function AdminProductsPage({
           </div>
         </div>
 
-        <Form action="" scroll={false} className="mt-6 grid gap-4 xl:grid-cols-6">
-          <label className="grid gap-2 xl:col-span-2">
-            <span className="text-sm text-[var(--foreground)]">
-              Поиск по названию, SKU или адресу
+        <Form action="" scroll={false} className="mt-4 grid gap-3 xl:grid-cols-6">
+          <label className="grid gap-1.5 xl:col-span-2">
+            <span className="text-xs font-medium text-[var(--foreground)]">
+              Поиск
             </span>
             <Input
               name="q"
               defaultValue={state.q}
-              placeholder="Например, Swiss Krono D302"
+              placeholder="Название, SKU или адрес"
+              className="h-10"
             />
           </label>
 
-          <label className="grid gap-2">
-            <span className="text-sm text-[var(--foreground)]">Категория</span>
-            <Select name="categoryId" defaultValue={state.categoryId}>
+          <label className="grid gap-1.5">
+            <span className="text-xs font-medium text-[var(--foreground)]">
+              Категория
+            </span>
+            <Select name="categoryId" defaultValue={state.categoryId} className="h-10">
               <option value="">Все категории</option>
               {categories.map((category) => (
                 <option key={category.id} value={category.id}>
@@ -382,9 +463,11 @@ export default async function AdminProductsPage({
             </Select>
           </label>
 
-          <label className="grid gap-2">
-            <span className="text-sm text-[var(--foreground)]">Бренд</span>
-            <Select name="brandId" defaultValue={state.brandId}>
+          <label className="grid gap-1.5">
+            <span className="text-xs font-medium text-[var(--foreground)]">
+              Бренд
+            </span>
+            <Select name="brandId" defaultValue={state.brandId} className="h-10">
               <option value="">Все бренды</option>
               {brands.map((brand) => (
                 <option key={brand.id} value={brand.id}>
@@ -394,9 +477,11 @@ export default async function AdminProductsPage({
             </Select>
           </label>
 
-          <label className="grid gap-2">
-            <span className="text-sm text-[var(--foreground)]">Статус</span>
-            <Select name="status" defaultValue={state.status}>
+          <label className="grid gap-1.5">
+            <span className="text-xs font-medium text-[var(--foreground)]">
+              Статус
+            </span>
+            <Select name="status" defaultValue={state.status} className="h-10">
               <option value="all">Все статусы</option>
               {Object.values(ProductStatus).map((status) => (
                 <option key={status} value={status}>
@@ -406,9 +491,11 @@ export default async function AdminProductsPage({
             </Select>
           </label>
 
-          <label className="grid gap-2">
-            <span className="text-sm text-[var(--foreground)]">Сортировка</span>
-            <Select name="sort" defaultValue={state.sort}>
+          <label className="grid gap-1.5">
+            <span className="text-xs font-medium text-[var(--foreground)]">
+              Сортировка
+            </span>
+            <Select name="sort" defaultValue={state.sort} className="h-10">
               {adminProductSortOptions.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
@@ -417,9 +504,11 @@ export default async function AdminProductsPage({
             </Select>
           </label>
 
-          <label className="grid gap-2">
-            <span className="text-sm text-[var(--foreground)]">Сценарий</span>
-            <Select name="orderMode" defaultValue={state.orderMode}>
+          <label className="grid gap-1.5">
+            <span className="text-xs font-medium text-[var(--foreground)]">
+              Сценарий
+            </span>
+            <Select name="orderMode" defaultValue={state.orderMode} className="h-10">
               <option value="all">Все сценарии</option>
               {Object.values(ProductOrderMode).map((mode) => (
                 <option key={mode} value={mode}>
@@ -429,33 +518,32 @@ export default async function AdminProductsPage({
             </Select>
           </label>
 
-          <label className="grid gap-2">
-            <span className="text-sm text-[var(--foreground)]">Подборки</span>
-            <Select name="featured" defaultValue={state.featured}>
+          <label className="grid gap-1.5">
+            <span className="text-xs font-medium text-[var(--foreground)]">
+              Подборки
+            </span>
+            <Select name="featured" defaultValue={state.featured} className="h-10">
               <option value="all">Все позиции</option>
               <option value="featured">Только подборки</option>
               <option value="regular">Без подборок</option>
             </Select>
           </label>
 
-          <div className="flex flex-wrap items-end gap-3 xl:col-span-6">
-            <Button type="submit" variant="accent">
+          <div className="flex flex-wrap items-end gap-2 xl:col-span-6">
+            <Button type="submit" variant="accent" className="h-10">
               Применить
             </Button>
             <Link
               href="/admin/products"
-              className="inline-flex h-11 items-center justify-center border border-[color:var(--line-strong)] px-5 font-mono text-[11px] font-semibold tracking-[0.14em] text-[var(--foreground)] uppercase transition hover:border-[color:var(--foreground)] hover:bg-[var(--foreground)] hover:text-white"
+              className="inline-flex h-10 items-center justify-center border border-[color:var(--line-strong)] px-4 font-mono text-[11px] font-semibold tracking-[0.14em] text-[var(--foreground)] uppercase transition hover:border-[color:var(--foreground)] hover:bg-[var(--foreground)] hover:text-white"
             >
-              Сбросить все
+              Сбросить
             </Link>
-            <span className="text-sm text-[var(--muted)]">
-              Найдено {filteredProducts.length} из {products.length} позиций
-            </span>
           </div>
         </Form>
 
         {activeFilters.length > 0 ? (
-          <div className="mt-5 flex flex-wrap gap-2 border-t border-[color:var(--line)] pt-5">
+          <div className="mt-4 flex flex-wrap gap-2 border-t border-[color:var(--line)] pt-4">
             {activeFilters.map((filter) => (
               <Link
                 key={filter.key}
@@ -469,101 +557,16 @@ export default async function AdminProductsPage({
         ) : null}
       </section>
 
-      {hasImportSummary ? (
-        <section
-          className={`rounded-[24px] border p-5 ${
-            importSummary.errors > 0
-              ? "border-red-200 bg-red-50 text-red-950"
-              : "border-emerald-200 bg-emerald-50 text-emerald-950"
-          }`}
-        >
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <p className="font-mono text-[10px] tracking-[0.22em] uppercase opacity-70">
-                Импорт Excel / 1С
-              </p>
-              <h3 className="mt-2 text-xl font-semibold tracking-[-0.03em]">
-                {importSummary.message || "Импорт товаров завершен"}
-              </h3>
-            </div>
-            <div className="flex flex-wrap gap-2 text-sm">
-              <span className="rounded-full bg-white/70 px-3 py-1">
-                Создано: {importSummary.created}
-              </span>
-              <span className="rounded-full bg-white/70 px-3 py-1">
-                Обновлено: {importSummary.updated}
-              </span>
-              <span className="rounded-full bg-white/70 px-3 py-1">
-                Пропущено: {importSummary.skipped}
-              </span>
-              <span className="rounded-full bg-white/70 px-3 py-1">
-                Ошибки: {importSummary.errors}
-              </span>
-              <span className="rounded-full bg-white/70 px-3 py-1">
-                Распознано колонок: {importSummary.mapped}
-              </span>
-            </div>
-          </div>
-        </section>
-      ) : null}
-
-      <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-5 sm:p-6">
-        <div className="flex flex-col gap-3 border-b border-[color:var(--line)] pb-5 lg:flex-row lg:items-end lg:justify-between">
-          <SectionHeading
-            title="Импорт из Excel / 1С"
-            description="Загрузите выгрузку из 1С или прайс поставщика. Система сама сопоставит колонки и создаст или обновит товары по артикулу."
-            titleClassName="text-xl sm:text-2xl"
-            descriptionClassName="text-sm leading-6"
-          />
-
-          <p className="max-w-sm text-xs leading-5 text-[var(--muted)]">
-            Рекомендуемые колонки: Наименование, Артикул, Цена, Остаток,
-            Категория, Бренд, Фото, Формат, Толщина.
-          </p>
-        </div>
-
-        <ProductImportForm
-          categories={categories}
-          brands={brands}
-          calculatorMaterials={calculatorMaterials}
-          calculatorSheetFormats={calculatorSheetFormats}
-        />
-      </section>
-
-      <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-5 sm:p-6">
-        <div className="flex flex-col gap-3 border-b border-[color:var(--line)] pb-5 lg:flex-row lg:items-end lg:justify-between">
-          <SectionHeading
-            title="Новый товар"
-            description="Создайте карточку товара. После сохранения ее можно сразу открыть в списке и доработать."
-            titleClassName="text-xl sm:text-2xl"
-            descriptionClassName="text-sm leading-6"
-          />
-
-          <p className="max-w-sm text-xs leading-5 text-[var(--muted)]">
-            Для плитных материалов важно привязать формат листа и материал
-            расчета, чтобы калькулятор открывался с правильными параметрами.
-          </p>
-        </div>
-
-        <NewProductForm
-          categories={categories}
-          brands={brands}
-          calculatorMaterials={calculatorMaterials}
-          calculatorSheetFormats={calculatorSheetFormats}
-          canUploadImages={Boolean(process.env.BLOB_READ_WRITE_TOKEN)}
-        />
-      </section>
-
-      <section className="space-y-4">
-        <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-5 sm:p-6">
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center">
+      <section className="space-y-3">
+        <section className="surface-glow rounded-[22px] border border-[color:var(--line)] bg-white/84 p-4">
+          <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center">
             <div className="min-w-0">
-              <p className="font-mono text-[10px] tracking-[0.24em] text-[var(--accent)] uppercase">
+              <p className="font-mono text-[10px] tracking-[0.22em] text-[var(--accent)] uppercase">
                 Массовые действия
               </p>
-              <h3 className="mt-2 text-xl font-semibold text-[var(--foreground)]">
-                Управление выбранными товарами
-              </h3>
+              <p className="mt-1 text-sm text-[var(--muted)]">
+                Отметьте позиции в списке и примените действие.
+              </p>
             </div>
 
             <BulkSelectionTools checkboxSelector="[data-product-bulk-checkbox='true']" />
@@ -572,9 +575,9 @@ export default async function AdminProductsPage({
           <form
             id="bulk-products-form"
             action={bulkUpdateProductsAction}
-            className="mt-5 grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_auto]"
+            className="mt-3 grid min-w-0 gap-2 lg:grid-cols-[minmax(0,1fr)_auto]"
           >
-            <Select name="bulkAction" defaultValue="">
+            <Select name="bulkAction" defaultValue="" className="h-10">
               <option value="" disabled>
                 Выберите действие для отмеченных товаров
               </option>
@@ -587,7 +590,7 @@ export default async function AdminProductsPage({
             <AdminSubmitButton
               type="submit"
               variant="secondary"
-              className="w-full lg:w-auto"
+              className="h-10 w-full lg:w-auto"
               idleLabel="Применить"
               pendingLabel="Применяем..."
             />
@@ -595,7 +598,7 @@ export default async function AdminProductsPage({
         </section>
 
         {filteredProducts.length > 0 ? (
-          <div className="grid gap-3">
+          <div className="grid gap-2">
             {filteredProducts.map((product) => {
               const imageUrl = product.images[0]?.url ?? "";
               const imageStyle = imageUrl
@@ -605,7 +608,7 @@ export default async function AdminProductsPage({
               return (
                 <article
                   key={product.id}
-                  className="surface-glow grid gap-4 rounded-[24px] border border-[color:var(--line)] bg-white/88 p-4 sm:p-5 xl:grid-cols-[auto_116px_minmax(0,1fr)_260px]"
+                  className="surface-glow grid gap-3 rounded-[20px] border border-[color:var(--line)] bg-white/88 p-3 sm:grid-cols-[auto_72px_minmax(0,1fr)] xl:grid-cols-[auto_76px_minmax(0,1fr)_230px]"
                 >
                   <div className="flex items-start">
                     <input
@@ -620,7 +623,7 @@ export default async function AdminProductsPage({
                   </div>
 
                   <div
-                    className="flex aspect-[4/3] w-full items-center justify-center rounded-[18px] border border-[color:var(--line)] bg-[#f3efe8] bg-cover bg-center text-2xl font-semibold text-[var(--muted)] xl:w-[116px]"
+                    className="flex aspect-square w-full items-center justify-center rounded-[16px] border border-[color:var(--line)] bg-[#f3efe8] bg-cover bg-center text-xl font-semibold text-[var(--muted)] sm:w-[72px] xl:w-[76px]"
                     style={imageStyle}
                     aria-label={product.images[0]?.alt ?? product.name}
                   >
@@ -631,7 +634,7 @@ export default async function AdminProductsPage({
                     <div className="flex flex-wrap items-center gap-2">
                       <Link
                         href={`/admin/products/${product.id}`}
-                        className="text-xl font-semibold tracking-[-0.03em] text-[var(--foreground)] transition hover:text-[#9d573d]"
+                        className="text-base font-semibold tracking-[-0.02em] text-[var(--foreground)] transition hover:text-[#9d573d]"
                       >
                         {product.name}
                       </Link>
@@ -639,19 +642,15 @@ export default async function AdminProductsPage({
                         {statusLabels[product.status]}
                       </StatusBadge>
                       {product.isFeatured ? (
-                        <StatusBadge tone="accent">В подборках</StatusBadge>
+                        <StatusBadge tone="accent">Подборка</StatusBadge>
                       ) : null}
                     </div>
 
-                    <p className="mt-2 text-xs leading-5 text-[var(--muted)]">
+                    <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
                       SKU: {product.sku} · /product/{product.slug}
                     </p>
 
-                    <p className="mt-3 max-w-4xl text-sm leading-6 text-[var(--muted)]">
-                      {product.summary ?? "Краткое описание пока не добавлено."}
-                    </p>
-
-                    <div className="mt-4 flex flex-wrap gap-2">
+                    <div className="mt-2 flex flex-wrap gap-2">
                       <StatusBadge tone="neutral">
                         {product.category.name}
                       </StatusBadge>
@@ -669,17 +668,12 @@ export default async function AdminProductsPage({
                     </div>
                   </div>
 
-                  <div className="grid gap-3 xl:justify-items-stretch">
-                    <div className="rounded-2xl border border-[color:var(--line)] bg-[#faf8f4] p-4">
-                      <p className="text-lg font-semibold text-[var(--foreground)]">
+                  <div className="grid gap-2 xl:justify-items-stretch">
+                    <div className="rounded-2xl border border-[color:var(--line)] bg-[#faf8f4] p-3">
+                      <p className="text-base font-semibold text-[var(--foreground)]">
                         {formatPrice(product.price)}
                       </p>
-                      {product.compareAtPrice ? (
-                        <p className="mt-1 text-xs text-[var(--muted)] line-through">
-                          {formatPrice(product.compareAtPrice)}
-                        </p>
-                      ) : null}
-                      <p className="mt-3 text-xs leading-5 text-[var(--muted)]">
+                      <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
                         {product.format ?? "Формат не указан"}
                         {product.thicknessMm ? ` · ${product.thicknessMm} мм` : ""}
                       </p>
@@ -694,48 +688,46 @@ export default async function AdminProductsPage({
                     <div className="flex flex-wrap gap-2">
                       <Link
                         href={`/admin/products/${product.id}`}
-                        className="inline-flex h-10 flex-1 items-center justify-center border border-[var(--line-strong)] px-4 font-mono text-[11px] tracking-[0.16em] text-[var(--foreground)] uppercase transition hover:border-[var(--foreground)] hover:bg-[var(--foreground)] hover:text-white"
+                        className="inline-flex h-9 flex-1 items-center justify-center border border-[var(--line-strong)] px-3 font-mono text-[10px] tracking-[0.14em] text-[var(--foreground)] uppercase transition hover:border-[var(--foreground)] hover:bg-[var(--foreground)] hover:text-white"
                       >
-                        Редактировать
+                        Править
                       </Link>
                       <Link
                         href={`/product/${product.slug}`}
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex h-10 items-center justify-center border border-[var(--line-strong)] px-4 font-mono text-[11px] tracking-[0.16em] text-[var(--foreground)] uppercase transition hover:border-[var(--foreground)]"
+                        className="inline-flex h-9 items-center justify-center border border-[var(--line-strong)] px-3 font-mono text-[10px] tracking-[0.14em] text-[var(--foreground)] uppercase transition hover:border-[var(--foreground)]"
                       >
                         Сайт
                       </Link>
+                      <form action={deleteProductAction}>
+                        <input type="hidden" name="id" value={product.id} />
+                        <Button
+                          type="submit"
+                          variant="ghost"
+                          size="sm"
+                          className="h-9 text-red-600 hover:bg-red-50"
+                        >
+                          Удалить
+                        </Button>
+                      </form>
                     </div>
-
-                    <form action={deleteProductAction}>
-                      <input type="hidden" name="id" value={product.id} />
-                      <Button
-                        type="submit"
-                        variant="ghost"
-                        size="sm"
-                        className="h-9 w-full text-red-600 hover:bg-red-50"
-                      >
-                        Удалить
-                      </Button>
-                    </form>
                   </div>
                 </article>
               );
             })}
           </div>
         ) : (
-          <div className="surface-glow rounded-[24px] border border-[color:var(--line)] bg-white/88 p-8 text-center">
+          <div className="surface-glow rounded-[22px] border border-[color:var(--line)] bg-white/88 p-8 text-center">
             <h3 className="text-xl font-semibold text-[var(--foreground)]">
               По текущим фильтрам ничего не найдено
             </h3>
             <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-              Измените параметры поиска или сбросьте фильтры, чтобы увидеть
-              товары каталога.
+              Измените параметры поиска или сбросьте фильтры.
             </p>
             <Link
               href="/admin/products"
-              className="mt-5 inline-flex h-11 items-center justify-center border border-[color:var(--line-strong)] px-5 font-mono text-[11px] font-semibold tracking-[0.14em] text-[var(--foreground)] uppercase transition hover:border-[color:var(--foreground)] hover:bg-[var(--foreground)] hover:text-white"
+              className="mt-5 inline-flex h-10 items-center justify-center border border-[color:var(--line-strong)] px-5 font-mono text-[11px] font-semibold tracking-[0.14em] text-[var(--foreground)] uppercase transition hover:border-[color:var(--foreground)] hover:bg-[var(--foreground)] hover:text-white"
             >
               Сбросить фильтры
             </Link>

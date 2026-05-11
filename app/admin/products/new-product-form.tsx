@@ -10,7 +10,6 @@ import { AdminSubmitButton } from "@/components/admin/admin-submit-button";
 import {
   GeneratedSkuInput,
   GeneratedSlugInput,
-  ManagerHelpCard,
 } from "@/components/admin/generated-fields";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -88,34 +87,74 @@ function FieldHint({ children }: { children: ReactNode }) {
   return <span className="text-xs leading-5 text-[var(--muted)]">{children}</span>;
 }
 
-function FormSection({
+function CompactPanel({
   title,
-  description,
   children,
   className,
 }: {
   title: string;
-  description: string;
   children: ReactNode;
   className?: string;
 }) {
   return (
     <section
       className={cn(
-        "rounded-[22px] border border-[color:var(--line)] bg-white/72 p-4 sm:p-5",
+        "rounded-[18px] border border-[color:var(--line)] bg-white/74 p-3.5 sm:p-4",
         className,
       )}
     >
-      <div className="border-b border-[color:var(--line)] pb-4">
-        <p className="font-mono text-[10px] tracking-[0.18em] text-[var(--accent)] uppercase">
-          {title}
-        </p>
-        <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-          {description}
-        </p>
-      </div>
-      <div className="mt-5 grid min-w-0 gap-4">{children}</div>
+      <p className="mb-3 font-mono text-[10px] tracking-[0.18em] text-[var(--accent)] uppercase">
+        {title}
+      </p>
+      {children}
     </section>
+  );
+}
+
+function CompactDetails({
+  title,
+  summary,
+  children,
+}: {
+  title: string;
+  summary?: string;
+  children: ReactNode;
+}) {
+  return (
+    <details className="rounded-[18px] border border-[color:var(--line)] bg-white/70 p-3.5 open:bg-white/86 sm:p-4">
+      <summary className="cursor-pointer list-none">
+        <span className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+          <span className="font-mono text-[10px] tracking-[0.18em] text-[var(--accent)] uppercase">
+            {title}
+          </span>
+          {summary ? (
+            <span className="text-xs leading-5 text-[var(--muted)]">{summary}</span>
+          ) : null}
+        </span>
+      </summary>
+      <div className="mt-4 grid gap-3 border-t border-[color:var(--line)] pt-4">
+        {children}
+      </div>
+    </details>
+  );
+}
+
+function FieldLabel({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <label
+      className={cn(
+        "grid min-w-0 gap-1.5 text-xs font-medium text-[var(--foreground)]",
+        className,
+      )}
+    >
+      {children}
+    </label>
   );
 }
 
@@ -143,52 +182,32 @@ export function NewProductForm({
     <form
       action={isEdit ? updateProductDetailsAction : createProductAction}
       encType="multipart/form-data"
-      className="mt-5 grid min-w-0 gap-4"
+      className="mt-4 grid min-w-0 gap-3"
     >
       {defaults ? <input type="hidden" name="id" value={defaults.id} /> : null}
 
-      <FormSection
-        title="Основное"
-        description="Название, категория и бренд. Адрес страницы и артикул можно оставить автоматическими."
-      >
-        <ManagerHelpCard title="Быстрое заполнение">
-          Менеджеру достаточно заполнить название, категорию и бренд. Если
-          артикула поставщика пока нет, система создаст внутренний SKU сама.
-        </ManagerHelpCard>
-
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_220px]">
-          <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)]">
-            Название товара
+      <CompactPanel title="Быстрое заполнение">
+        <div className="grid gap-3 lg:grid-cols-12">
+          <FieldLabel className="lg:col-span-4">
+            Название
             <Input
               name="name"
-              placeholder="Swiss Krono Kashmir"
+              placeholder="Extravert Дуб Уральский"
               value={name}
               onChange={(event) => setName(event.target.value)}
               required
+              className="h-10"
             />
-          </label>
+          </FieldLabel>
 
-          <GeneratedSlugInput
-            basePath="/product/"
-            defaultValue={defaults?.slug}
-            placeholder="swiss-krono-kashmir"
-            sourceValue={productIdentity || name}
-          />
-
-          <GeneratedSkuInput
-            defaultValue={defaults?.sku}
-            sourceValue={productIdentity || name}
-          />
-        </div>
-
-        <div className="grid gap-4 lg:grid-cols-2">
-          <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)]">
+          <FieldLabel className="lg:col-span-3">
             Категория
             <Select
               name="categoryId"
               required
               value={categoryId}
               onChange={(event) => setCategoryId(event.target.value)}
+              className="h-10"
             >
               <option value="" disabled>
                 Выберите категорию
@@ -199,14 +218,15 @@ export function NewProductForm({
                 </option>
               ))}
             </Select>
-          </label>
+          </FieldLabel>
 
-          <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)]">
+          <FieldLabel className="lg:col-span-3">
             Бренд
             <Select
               name="brandId"
               value={brandId}
               onChange={(event) => setBrandId(event.target.value)}
+              className="h-10"
             >
               <option value="">Без бренда</option>
               {brands.map((brand) => (
@@ -215,60 +235,28 @@ export function NewProductForm({
                 </option>
               ))}
             </Select>
-          </label>
-        </div>
-      </FormSection>
+          </FieldLabel>
 
-      <FormSection
-        title="Продажи"
-        description="Выберите, как товар будет продаваться: через корзину, запрос цены или сервисную заявку."
-      >
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)]">
-            Статус
-            <Select
-              name="status"
-              defaultValue={defaults?.status ?? ProductStatus.DRAFT}
-            >
-              {Object.values(ProductStatus).map((status) => (
-                <option key={status} value={status}>
-                  {statusLabels[status]}
-                </option>
-              ))}
-            </Select>
-          </label>
+          <div className="lg:col-span-2">
+            <GeneratedSkuInput
+              defaultValue={defaults?.sku}
+              sourceValue={productIdentity || name}
+            />
+          </div>
 
-          <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)]">
-            Сценарий заказа
-            <Select
-              name="orderMode"
-              defaultValue={defaults?.orderMode ?? ProductOrderMode.REQUEST_PRICE}
-            >
-              {Object.values(ProductOrderMode).map((mode) => (
-                <option key={mode} value={mode}>
-                  {orderModeLabels[mode]}
-                </option>
-              ))}
-            </Select>
-          </label>
+          <FieldLabel className="lg:col-span-2">
+            Цена, сом
+            <Input
+              name="price"
+              type="number"
+              min="0"
+              placeholder="0"
+              defaultValue={defaults?.price ?? ""}
+              className="h-10"
+            />
+          </FieldLabel>
 
-          <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)]">
-            Наличие
-            <Select
-              name="inventoryStatus"
-              defaultValue={
-                defaults?.inventoryStatus ?? InventoryStatus.ON_REQUEST
-              }
-            >
-              {Object.values(InventoryStatus).map((status) => (
-                <option key={status} value={status}>
-                  {inventoryLabels[status]}
-                </option>
-              ))}
-            </Select>
-          </label>
-
-          <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)]">
+          <FieldLabel className="lg:col-span-2">
             Остаток
             <Input
               name="stockQuantity"
@@ -276,218 +264,253 @@ export function NewProductForm({
               min="0"
               placeholder="0"
               defaultValue={defaults?.stockQuantity ?? ""}
+              className="h-10"
             />
-          </label>
+          </FieldLabel>
+
+          <FieldLabel className="lg:col-span-2">
+            Статус
+            <Select
+              name="status"
+              defaultValue={defaults?.status ?? ProductStatus.DRAFT}
+              className="h-10"
+            >
+              {Object.values(ProductStatus).map((status) => (
+                <option key={status} value={status}>
+                  {statusLabels[status]}
+                </option>
+              ))}
+            </Select>
+          </FieldLabel>
+
+          <FieldLabel className="lg:col-span-3">
+            Сценарий
+            <Select
+              name="orderMode"
+              defaultValue={defaults?.orderMode ?? ProductOrderMode.REQUEST_PRICE}
+              className="h-10"
+            >
+              {Object.values(ProductOrderMode).map((mode) => (
+                <option key={mode} value={mode}>
+                  {orderModeLabels[mode]}
+                </option>
+              ))}
+            </Select>
+          </FieldLabel>
+
+          <FieldLabel className="lg:col-span-3">
+            Наличие
+            <Select
+              name="inventoryStatus"
+              defaultValue={
+                defaults?.inventoryStatus ?? InventoryStatus.ON_REQUEST
+              }
+              className="h-10"
+            >
+              {Object.values(InventoryStatus).map((status) => (
+                <option key={status} value={status}>
+                  {inventoryLabels[status]}
+                </option>
+              ))}
+            </Select>
+          </FieldLabel>
         </div>
+      </CompactPanel>
 
-        <div className="grid gap-4 md:grid-cols-2">
-          <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)]">
-            Цена, KGS
-            <Input
-              name="price"
-              type="number"
-              min="0"
-              placeholder="0"
-              defaultValue={defaults?.price ?? ""}
-            />
-            <FieldHint>Если цена не указана, товар работает через запрос.</FieldHint>
-          </label>
+      {showPlateFields ? (
+        <CompactPanel title="Плитный материал">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <FieldLabel>
+              Формат листа
+              <Input
+                name="format"
+                placeholder="2800 x 2070 мм"
+                defaultValue={defaults?.format ?? ""}
+                className="h-10"
+              />
+            </FieldLabel>
 
-          <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)]">
-            Старая цена, KGS
+            <FieldLabel>
+              Толщина
+              <Select
+                name="thicknessMm"
+                defaultValue={defaults?.thicknessMm?.toString() ?? ""}
+                className="h-10"
+              >
+                <option value="">Не указана</option>
+                {THICKNESS_OPTIONS.map((value) => (
+                  <option key={value} value={value}>
+                    {value} мм
+                  </option>
+                ))}
+              </Select>
+            </FieldLabel>
+
+            <FieldLabel>
+              Материал расчета
+              <Select
+                name="calculatorMaterialId"
+                defaultValue={defaults?.calculatorMaterialId ?? ""}
+                className="h-10"
+              >
+                <option value="">Авто / не задан</option>
+                {calculatorMaterials.map((material) => (
+                  <option key={material.slug} value={material.slug}>
+                    {material.label}
+                  </option>
+                ))}
+              </Select>
+            </FieldLabel>
+
+            <FieldLabel>
+              Формат калькулятора
+              <Select
+                name="calculatorSheetPresetId"
+                defaultValue={defaults?.calculatorSheetPresetId ?? ""}
+                className="h-10"
+              >
+                <option value="">Авто / не задан</option>
+                {calculatorSheetFormats.map((format) => (
+                  <option key={format.slug} value={format.slug}>
+                    {format.label}
+                  </option>
+                ))}
+              </Select>
+            </FieldLabel>
+          </div>
+        </CompactPanel>
+      ) : null}
+
+      <CompactDetails title="Дополнительно" summary="адрес, старая цена, подборки">
+        <div className="grid gap-3 lg:grid-cols-3">
+          <GeneratedSlugInput
+            basePath="/product/"
+            defaultValue={defaults?.slug}
+            placeholder="extravert-dub-uralskiy"
+            sourceValue={productIdentity || name}
+          />
+
+          <FieldLabel>
+            Старая цена, сом
             <Input
               name="compareAtPrice"
               type="number"
               min="0"
               placeholder="0"
               defaultValue={defaults?.compareAtPrice ?? ""}
+              className="h-10"
             />
-          </label>
+          </FieldLabel>
+
+          <Checkbox
+            name="isFeatured"
+            defaultChecked={defaults?.isFeatured ?? false}
+            label="Показывать в подборках"
+            description="Для главной, брендов и ручных витрин."
+            className="rounded-2xl border border-[color:var(--line)] bg-[#faf8f4] px-3 py-3"
+          />
         </div>
+      </CompactDetails>
 
-        <Checkbox
-          name="isFeatured"
-          defaultChecked={defaults?.isFeatured ?? false}
-          label="Показывать в важных подборках"
-          description="Подходит для главной страницы, витрин брендов и ручных подборок."
-        />
-      </FormSection>
-
-      <FormSection
-        title="Материал и калькулятор"
-        description="Для плитных материалов укажите формат и привязку к калькулятору распила."
-      >
-        {showPlateFields ? (
-          <>
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)]">
-                Формат листа
-                <Input
-                  name="format"
-                  placeholder="2800 x 2070 мм"
-                  defaultValue={defaults?.format ?? ""}
-                />
-              </label>
-
-              <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)]">
-                Толщина, мм
-                <Select
-                  name="thicknessMm"
-                  defaultValue={defaults?.thicknessMm?.toString() ?? ""}
-                >
-                  <option value="">Не указана</option>
-                  {THICKNESS_OPTIONS.map((value) => (
-                    <option key={value} value={value}>
-                      {value} мм
-                    </option>
-                  ))}
-                </Select>
-              </label>
-
-              <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)]">
-                Материал калькулятора
-                <Select
-                  name="calculatorMaterialId"
-                  defaultValue={defaults?.calculatorMaterialId ?? ""}
-                >
-                  <option value="">Авто / не задан</option>
-                  {calculatorMaterials.map((material) => (
-                    <option key={material.slug} value={material.slug}>
-                      {material.label}
-                    </option>
-                  ))}
-                </Select>
-              </label>
-
-              <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)]">
-                Пресет листа
-                <Select
-                  name="calculatorSheetPresetId"
-                  defaultValue={defaults?.calculatorSheetPresetId ?? ""}
-                >
-                  <option value="">Авто / не задан</option>
-                  {calculatorSheetFormats.map((format) => (
-                    <option key={format.slug} value={format.slug}>
-                      {format.label}
-                    </option>
-                  ))}
-                </Select>
-              </label>
-            </div>
-            <FieldHint>
-              Для Swiss Krono, Extravert и AGT формат листа может подставляться
-              автоматически в калькуляторе по товару.
-            </FieldHint>
-          </>
-        ) : (
-          <ManagerHelpCard title="Фурнитура">
-            Для фурнитуры формат листа и калькулятор распила не нужны. Эти поля
-            не показываются, чтобы не перегружать менеджера.
-          </ManagerHelpCard>
-        )}
-      </FormSection>
-
-      <FormSection
-        title="Медиа и описание"
-        description="Загрузите фото, добавьте короткое описание и характеристики для карточки товара."
-      >
-        <div className="grid gap-4 lg:grid-cols-2">
-          <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)]">
+      <CompactDetails title="Фото и описание" summary="можно заполнить позже">
+        <div className="grid gap-3 lg:grid-cols-2">
+          <FieldLabel>
             Фото товара
             <Input
               name="imageFile"
               type="file"
               accept="image/png,image/jpeg,image/webp,image/avif"
               disabled={!canUploadImages}
+              className="h-10"
             />
             <FieldHint>
               {canUploadImages
-                ? "Можно загрузить PNG, JPG, WEBP или AVIF до 8 МБ."
+                ? "PNG, JPG, WEBP или AVIF до 8 МБ."
                 : "Загрузка файлов включится после подключения Vercel Blob."}
             </FieldHint>
-          </label>
+          </FieldLabel>
 
-          <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)]">
+          <FieldLabel>
             Ссылка на изображение
             <Input
               name="imageUrl"
               type="url"
               placeholder="https://..."
               defaultValue={defaults?.imageUrl ?? ""}
+              className="h-10"
             />
-            <FieldHint>Если файл не загружен, можно оставить внешнюю ссылку.</FieldHint>
-          </label>
+          </FieldLabel>
         </div>
 
-        <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)]">
-          Короткое описание
-          <Textarea
-            name="summary"
-            rows={3}
-            placeholder="Кратко для карточки и каталога."
-            defaultValue={defaults?.summary ?? ""}
-          />
-        </label>
+        <div className="grid gap-3 lg:grid-cols-2">
+          <FieldLabel>
+            Короткое описание
+            <Textarea
+              name="summary"
+              rows={3}
+              placeholder="Кратко для карточки и каталога."
+              defaultValue={defaults?.summary ?? ""}
+            />
+          </FieldLabel>
 
-        <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)]">
-          Полное описание
-          <Textarea
-            name="description"
-            rows={5}
-            placeholder="Подробное описание, особенности, область применения."
-            defaultValue={defaults?.description ?? ""}
-          />
-        </label>
+          <FieldLabel>
+            Полное описание
+            <Textarea
+              name="description"
+              rows={3}
+              placeholder="Особенности, применение, примечания."
+              defaultValue={defaults?.description ?? ""}
+            />
+          </FieldLabel>
+        </div>
 
-        <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)]">
+        <FieldLabel>
           Характеристики
           <Textarea
             name="attributes"
-            rows={5}
+            rows={4}
             placeholder={"Цвет: Кашемир\nПоверхность: Матовая\nТолщина: 16 мм"}
             defaultValue={defaults?.attributesText ?? ""}
           />
-          <FieldHint>Каждая характеристика с новой строки в формате ключ: значение.</FieldHint>
-        </label>
-      </FormSection>
+        </FieldLabel>
+      </CompactDetails>
 
-      <FormSection
-        title="SEO"
-        description="Можно оставить пустым: сайт использует название и описание товара."
-      >
-        <div className="grid gap-4 lg:grid-cols-2">
-          <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)]">
+      <CompactDetails title="SEO" summary="обычно можно не заполнять">
+        <div className="grid gap-3 lg:grid-cols-2">
+          <FieldLabel>
             SEO title
             <Input
               name="seoTitle"
               placeholder="Заголовок для поиска"
               defaultValue={defaults?.seoTitle ?? ""}
+              className="h-10"
             />
-          </label>
+          </FieldLabel>
 
-          <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)]">
+          <FieldLabel>
             SEO description
             <Input
               name="seoDescription"
               placeholder="Краткое описание для поиска"
               defaultValue={defaults?.seoDescription ?? ""}
+              className="h-10"
             />
-          </label>
+          </FieldLabel>
         </div>
-      </FormSection>
+      </CompactDetails>
 
-      <div className="sticky bottom-4 z-10 flex flex-col gap-3 rounded-[22px] border border-[color:var(--line)] bg-[rgba(250,248,244,0.92)] p-4 shadow-[0_18px_45px_rgba(27,24,20,0.12)] backdrop-blur md:flex-row md:items-center md:justify-between">
-        <p className="text-sm leading-6 text-[var(--muted)]">
+      <div className="sticky bottom-3 z-10 flex flex-col gap-2 rounded-[18px] border border-[color:var(--line)] bg-[rgba(250,248,244,0.94)] p-3 shadow-[0_18px_45px_rgba(27,24,20,0.12)] backdrop-blur md:flex-row md:items-center md:justify-between">
+        <p className="text-xs leading-5 text-[var(--muted)]">
           {isEdit
-            ? "Сохраните изменения, чтобы обновить карточку на сайте."
-            : "После создания товар появится в рабочем списке админки."}
+            ? "Сохраните изменения, чтобы обновить карточку."
+            : "Новый товар создастся в рабочем списке. По умолчанию удобно оставлять черновиком."}
         </p>
         <AdminSubmitButton
           type="submit"
           variant="accent"
           idleLabel={isEdit ? "Сохранить товар" : "Создать товар"}
           pendingLabel="Сохраняем..."
-          className="w-full md:w-auto"
+          className="h-10 w-full md:w-auto"
         />
       </div>
     </form>
