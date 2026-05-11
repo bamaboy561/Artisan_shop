@@ -360,7 +360,7 @@ export default async function AdminProductsPage({
         </section>
       ) : null}
 
-      <section className="grid items-start gap-4 xl:grid-cols-[minmax(360px,420px)_minmax(0,1fr)] 2xl:grid-cols-[minmax(380px,440px)_minmax(0,1fr)]">
+      <section className="grid items-start gap-4 xl:grid-cols-[360px_minmax(0,1fr)] 2xl:grid-cols-[390px_minmax(0,1fr)]">
         <aside className="min-w-0 space-y-3 xl:sticky xl:top-24 xl:max-h-[calc(100vh-7rem)] xl:overflow-y-auto xl:pr-1">
           <article
             id="new-product"
