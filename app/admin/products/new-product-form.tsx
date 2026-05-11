@@ -81,10 +81,13 @@ type Props = {
   calculatorSheetFormats: SlugLabelOption[];
   canUploadImages: boolean;
   defaults?: ProductFormDefaults;
+  compact?: boolean;
 };
 
 function FieldHint({ children }: { children: ReactNode }) {
-  return <span className="text-xs leading-5 text-[var(--muted)]">{children}</span>;
+  return (
+    <span className="text-xs leading-5 text-[var(--muted)]">{children}</span>
+  );
 }
 
 function CompactPanel({
@@ -128,7 +131,9 @@ function CompactDetails({
             {title}
           </span>
           {summary ? (
-            <span className="text-xs leading-5 text-[var(--muted)]">{summary}</span>
+            <span className="text-xs leading-5 text-[var(--muted)]">
+              {summary}
+            </span>
           ) : null}
         </span>
       </summary>
@@ -165,6 +170,7 @@ export function NewProductForm({
   calculatorSheetFormats,
   canUploadImages,
   defaults,
+  compact = false,
 }: Props) {
   const isEdit = Boolean(defaults);
   const [name, setName] = useState(defaults?.name ?? "");
@@ -177,18 +183,28 @@ export function NewProductForm({
     .join(" ");
   const isFittings = selectedCategory?.kind === CategoryKind.FITTINGS;
   const showPlateFields = !isFittings;
+  const inputClassName = compact ? "h-9 px-3 text-[13px] sm:h-9" : "h-10";
+  const quickGridClassName = compact
+    ? "grid gap-2.5 sm:grid-cols-2"
+    : "grid gap-3 lg:grid-cols-12";
+  const plateGridClassName = compact
+    ? "grid gap-2.5 sm:grid-cols-2"
+    : "grid gap-3 md:grid-cols-2 xl:grid-cols-4";
+  const detailsGridClassName = compact
+    ? "grid gap-2.5 sm:grid-cols-2"
+    : "grid gap-3 lg:grid-cols-2";
 
   return (
     <form
       action={isEdit ? updateProductDetailsAction : createProductAction}
       encType="multipart/form-data"
-      className="mt-4 grid min-w-0 gap-3"
+      className={cn("grid min-w-0 gap-3", compact ? "mt-3" : "mt-4")}
     >
       {defaults ? <input type="hidden" name="id" value={defaults.id} /> : null}
 
       <CompactPanel title="Быстрое заполнение">
-        <div className="grid gap-3 lg:grid-cols-12">
-          <FieldLabel className="lg:col-span-4">
+        <div className={quickGridClassName}>
+          <FieldLabel className={compact ? "sm:col-span-2" : "lg:col-span-4"}>
             Название
             <Input
               name="name"
@@ -196,18 +212,18 @@ export function NewProductForm({
               value={name}
               onChange={(event) => setName(event.target.value)}
               required
-              className="h-10"
+              className={inputClassName}
             />
           </FieldLabel>
 
-          <FieldLabel className="lg:col-span-3">
+          <FieldLabel className={compact ? "" : "lg:col-span-3"}>
             Категория
             <Select
               name="categoryId"
               required
               value={categoryId}
               onChange={(event) => setCategoryId(event.target.value)}
-              className="h-10"
+              className={inputClassName}
             >
               <option value="" disabled>
                 Выберите категорию
@@ -220,13 +236,13 @@ export function NewProductForm({
             </Select>
           </FieldLabel>
 
-          <FieldLabel className="lg:col-span-3">
+          <FieldLabel className={compact ? "" : "lg:col-span-3"}>
             Бренд
             <Select
               name="brandId"
               value={brandId}
               onChange={(event) => setBrandId(event.target.value)}
-              className="h-10"
+              className={inputClassName}
             >
               <option value="">Без бренда</option>
               {brands.map((brand) => (
@@ -237,14 +253,14 @@ export function NewProductForm({
             </Select>
           </FieldLabel>
 
-          <div className="lg:col-span-2">
+          <div className={compact ? "sm:col-span-2" : "lg:col-span-2"}>
             <GeneratedSkuInput
               defaultValue={defaults?.sku}
               sourceValue={productIdentity || name}
             />
           </div>
 
-          <FieldLabel className="lg:col-span-2">
+          <FieldLabel className={compact ? "" : "lg:col-span-2"}>
             Цена, сом
             <Input
               name="price"
@@ -252,11 +268,11 @@ export function NewProductForm({
               min="0"
               placeholder="0"
               defaultValue={defaults?.price ?? ""}
-              className="h-10"
+              className={inputClassName}
             />
           </FieldLabel>
 
-          <FieldLabel className="lg:col-span-2">
+          <FieldLabel className={compact ? "" : "lg:col-span-2"}>
             Остаток
             <Input
               name="stockQuantity"
@@ -264,16 +280,16 @@ export function NewProductForm({
               min="0"
               placeholder="0"
               defaultValue={defaults?.stockQuantity ?? ""}
-              className="h-10"
+              className={inputClassName}
             />
           </FieldLabel>
 
-          <FieldLabel className="lg:col-span-2">
+          <FieldLabel className={compact ? "" : "lg:col-span-2"}>
             Статус
             <Select
               name="status"
               defaultValue={defaults?.status ?? ProductStatus.DRAFT}
-              className="h-10"
+              className={inputClassName}
             >
               {Object.values(ProductStatus).map((status) => (
                 <option key={status} value={status}>
@@ -283,12 +299,14 @@ export function NewProductForm({
             </Select>
           </FieldLabel>
 
-          <FieldLabel className="lg:col-span-3">
+          <FieldLabel className={compact ? "" : "lg:col-span-3"}>
             Сценарий
             <Select
               name="orderMode"
-              defaultValue={defaults?.orderMode ?? ProductOrderMode.REQUEST_PRICE}
-              className="h-10"
+              defaultValue={
+                defaults?.orderMode ?? ProductOrderMode.REQUEST_PRICE
+              }
+              className={inputClassName}
             >
               {Object.values(ProductOrderMode).map((mode) => (
                 <option key={mode} value={mode}>
@@ -298,14 +316,14 @@ export function NewProductForm({
             </Select>
           </FieldLabel>
 
-          <FieldLabel className="lg:col-span-3">
+          <FieldLabel className={compact ? "" : "lg:col-span-3"}>
             Наличие
             <Select
               name="inventoryStatus"
               defaultValue={
                 defaults?.inventoryStatus ?? InventoryStatus.ON_REQUEST
               }
-              className="h-10"
+              className={inputClassName}
             >
               {Object.values(InventoryStatus).map((status) => (
                 <option key={status} value={status}>
@@ -319,14 +337,14 @@ export function NewProductForm({
 
       {showPlateFields ? (
         <CompactPanel title="Плитный материал">
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className={plateGridClassName}>
             <FieldLabel>
               Формат листа
               <Input
                 name="format"
                 placeholder="2800 x 2070 мм"
                 defaultValue={defaults?.format ?? ""}
-                className="h-10"
+                className={inputClassName}
               />
             </FieldLabel>
 
@@ -335,7 +353,7 @@ export function NewProductForm({
               <Select
                 name="thicknessMm"
                 defaultValue={defaults?.thicknessMm?.toString() ?? ""}
-                className="h-10"
+                className={inputClassName}
               >
                 <option value="">Не указана</option>
                 {THICKNESS_OPTIONS.map((value) => (
@@ -351,7 +369,7 @@ export function NewProductForm({
               <Select
                 name="calculatorMaterialId"
                 defaultValue={defaults?.calculatorMaterialId ?? ""}
-                className="h-10"
+                className={inputClassName}
               >
                 <option value="">Авто / не задан</option>
                 {calculatorMaterials.map((material) => (
@@ -367,7 +385,7 @@ export function NewProductForm({
               <Select
                 name="calculatorSheetPresetId"
                 defaultValue={defaults?.calculatorSheetPresetId ?? ""}
-                className="h-10"
+                className={inputClassName}
               >
                 <option value="">Авто / не задан</option>
                 {calculatorSheetFormats.map((format) => (
@@ -381,8 +399,11 @@ export function NewProductForm({
         </CompactPanel>
       ) : null}
 
-      <CompactDetails title="Дополнительно" summary="адрес, старая цена, подборки">
-        <div className="grid gap-3 lg:grid-cols-3">
+      <CompactDetails
+        title="Дополнительно"
+        summary="адрес, старая цена, подборки"
+      >
+        <div className={compact ? "grid gap-2.5" : "grid gap-3 lg:grid-cols-3"}>
           <GeneratedSlugInput
             basePath="/product/"
             defaultValue={defaults?.slug}
@@ -398,7 +419,7 @@ export function NewProductForm({
               min="0"
               placeholder="0"
               defaultValue={defaults?.compareAtPrice ?? ""}
-              className="h-10"
+              className={inputClassName}
             />
           </FieldLabel>
 
@@ -413,7 +434,7 @@ export function NewProductForm({
       </CompactDetails>
 
       <CompactDetails title="Фото и описание" summary="можно заполнить позже">
-        <div className="grid gap-3 lg:grid-cols-2">
+        <div className={detailsGridClassName}>
           <FieldLabel>
             Фото товара
             <Input
@@ -421,7 +442,7 @@ export function NewProductForm({
               type="file"
               accept="image/png,image/jpeg,image/webp,image/avif"
               disabled={!canUploadImages}
-              className="h-10"
+              className={inputClassName}
             />
             <FieldHint>
               {canUploadImages
@@ -437,12 +458,12 @@ export function NewProductForm({
               type="url"
               placeholder="https://..."
               defaultValue={defaults?.imageUrl ?? ""}
-              className="h-10"
+              className={inputClassName}
             />
           </FieldLabel>
         </div>
 
-        <div className="grid gap-3 lg:grid-cols-2">
+        <div className={detailsGridClassName}>
           <FieldLabel>
             Короткое описание
             <Textarea
@@ -476,14 +497,14 @@ export function NewProductForm({
       </CompactDetails>
 
       <CompactDetails title="SEO" summary="обычно можно не заполнять">
-        <div className="grid gap-3 lg:grid-cols-2">
+        <div className={detailsGridClassName}>
           <FieldLabel>
             SEO title
             <Input
               name="seoTitle"
               placeholder="Заголовок для поиска"
               defaultValue={defaults?.seoTitle ?? ""}
-              className="h-10"
+              className={inputClassName}
             />
           </FieldLabel>
 
@@ -493,24 +514,31 @@ export function NewProductForm({
               name="seoDescription"
               placeholder="Краткое описание для поиска"
               defaultValue={defaults?.seoDescription ?? ""}
-              className="h-10"
+              className={inputClassName}
             />
           </FieldLabel>
         </div>
       </CompactDetails>
 
-      <div className="sticky bottom-3 z-10 flex flex-col gap-2 rounded-[18px] border border-[color:var(--line)] bg-[rgba(250,248,244,0.94)] p-3 shadow-[0_18px_45px_rgba(27,24,20,0.12)] backdrop-blur md:flex-row md:items-center md:justify-between">
-        <p className="text-xs leading-5 text-[var(--muted)]">
-          {isEdit
-            ? "Сохраните изменения, чтобы обновить карточку."
-            : "Новый товар создастся в рабочем списке. По умолчанию удобно оставлять черновиком."}
-        </p>
+      <div
+        className={cn(
+          "z-10 flex flex-col gap-2 rounded-[18px] border border-[color:var(--line)] bg-[rgba(250,248,244,0.94)] p-3 shadow-[0_18px_45px_rgba(27,24,20,0.12)] backdrop-blur md:flex-row md:items-center md:justify-between",
+          compact ? "static" : "sticky bottom-3",
+        )}
+      >
+        {compact ? null : (
+          <p className="text-xs leading-5 text-[var(--muted)]">
+            {isEdit
+              ? "Сохраните изменения, чтобы обновить карточку."
+              : "Новый товар создастся в рабочем списке. По умолчанию удобно оставлять черновиком."}
+          </p>
+        )}
         <AdminSubmitButton
           type="submit"
           variant="accent"
           idleLabel={isEdit ? "Сохранить товар" : "Создать товар"}
           pendingLabel="Сохраняем..."
-          className="h-10 w-full md:w-auto"
+          className={cn("h-10 w-full", compact ? "" : "md:w-auto")}
         />
       </div>
     </form>
