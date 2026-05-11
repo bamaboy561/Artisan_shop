@@ -3,11 +3,7 @@ import { AdminSubmitButton } from "@/components/admin/admin-submit-button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import {
-  InventoryStatus,
-  ProductOrderMode,
-  ProductStatus,
-} from "@/generated/prisma";
+import { InventoryStatus, ProductOrderMode } from "@/generated/prisma";
 
 type Option = { id: string; name: string };
 type SlugLabelOption = { slug: string; label: string };
@@ -17,12 +13,6 @@ type ProductImportFormProps = {
   brands: Option[];
   calculatorMaterials: SlugLabelOption[];
   calculatorSheetFormats: SlugLabelOption[];
-};
-
-const statusLabels: Record<ProductStatus, string> = {
-  [ProductStatus.DRAFT]: "Черновик",
-  [ProductStatus.ACTIVE]: "Опубликован",
-  [ProductStatus.ARCHIVED]: "Архив",
 };
 
 const orderModeLabels: Record<ProductOrderMode, string> = {
@@ -91,23 +81,25 @@ export function ProductImportForm({
             ))}
           </Select>
           <span className="text-xs leading-5 text-[var(--muted)]">
-            Можно оставить пустым для смешанного файла.
+            Можно выбрать бренд поставщика, если прайс содержит только один
+            бренд.
           </span>
         </label>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)]">
-          Статус
-          <Select name="defaultStatus" defaultValue={ProductStatus.DRAFT}>
-            {Object.values(ProductStatus).map((status) => (
-              <option key={status} value={status}>
-                {statusLabels[status]}
-              </option>
-            ))}
-          </Select>
-        </label>
+      <div className="rounded-[22px] border border-[#eadfd4] bg-[#fbf6ef] p-4 text-sm leading-6 text-[var(--muted)]">
+        <p className="font-mono text-[10px] tracking-[0.18em] text-[var(--accent)] uppercase">
+          Безопасная публикация
+        </p>
+        <p className="mt-2">
+          Новые товары из файла всегда создаются как черновики. Статус из Excel
+          не публикует карточку автоматически: менеджер сначала проверяет цену,
+          остаток, фото и категорию, а потом публикует выбранные товары массовым
+          действием.
+        </p>
+      </div>
 
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)]">
           Сценарий
           <Select
@@ -161,7 +153,7 @@ export function ProductImportForm({
         </label>
       </div>
 
-      <div className="grid gap-3 rounded-[22px] border border-[color:var(--line)] bg-[#faf8f4] p-4 lg:grid-cols-3">
+      <div className="grid gap-3 rounded-[22px] border border-[color:var(--line)] bg-[#faf8f4] p-4 lg:grid-cols-4">
         <Checkbox
           name="updateExisting"
           value="on"
@@ -179,6 +171,13 @@ export function ProductImportForm({
           className="rounded-2xl bg-white/70 px-3 py-3"
         />
         <Checkbox
+          name="moveUpdatedToDraft"
+          value="on"
+          label="Обновленные тоже в черновики"
+          description="Включите, если нужно снять с витрины товары, которые обновились из файла."
+          className="rounded-2xl bg-white/70 px-3 py-3"
+        />
+        <Checkbox
           name="importAttributes"
           value="on"
           defaultChecked
@@ -190,9 +189,9 @@ export function ProductImportForm({
 
       <div className="flex flex-col gap-3 border-t border-[color:var(--line)] pt-5 sm:flex-row sm:items-center sm:justify-between">
         <p className="max-w-3xl text-sm leading-6 text-[var(--muted)]">
-          Импорт сам ищет колонки: номенклатура, артикул, цена, остаток,
-          бренд, категория, фото, формат и толщина. Неизвестные колонки можно
-          сохранить как характеристики товара.
+          Импорт сам ищет колонки: номенклатура, артикул, цена, остаток, бренд,
+          категория, фото, формат и толщина. Неизвестные колонки можно сохранить
+          как характеристики товара.
         </p>
         <AdminSubmitButton
           type="submit"

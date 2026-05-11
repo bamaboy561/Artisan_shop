@@ -1255,10 +1255,6 @@ export async function importProductsFromExcelAction(formData: FormData) {
     );
   }
 
-  const defaultStatus =
-    Object.values(ProductStatus).find(
-      (item) => item === getString(formData, "defaultStatus"),
-    ) ?? ProductStatus.DRAFT;
   const defaultOrderMode =
     Object.values(ProductOrderMode).find(
       (item) => item === getString(formData, "defaultOrderMode"),
@@ -1281,6 +1277,7 @@ export async function importProductsFromExcelAction(formData: FormData) {
   const createMissingRelations =
     getString(formData, "createMissingRelations") === "on";
   const importAttributes = getString(formData, "importAttributes") === "on";
+  const moveUpdatedToDraft = getString(formData, "moveUpdatedToDraft") === "on";
 
   const db = getDb();
   await ensureBrandLogoColumn(db);
@@ -1409,10 +1406,13 @@ export async function importProductsFromExcelAction(formData: FormData) {
       if (existingProduct) {
         const updateData: Prisma.ProductUpdateInput = {
           name: row.name,
-          status: row.status ?? defaultStatus,
           orderMode: row.orderMode ?? defaultOrderMode,
           inventoryStatus: row.inventoryStatus ?? defaultInventoryStatus,
         };
+
+        if (moveUpdatedToDraft) {
+          updateData.status = ProductStatus.DRAFT;
+        }
 
         if (row.slug) {
           usedProductSlugs.delete(existingProduct.slug);
@@ -1475,7 +1475,7 @@ export async function importProductsFromExcelAction(formData: FormData) {
         thicknessMm: row.thicknessMm,
         summary: row.summary,
         description: row.description,
-        status: row.status ?? defaultStatus,
+        status: ProductStatus.DRAFT,
         orderMode: row.orderMode ?? defaultOrderMode,
         inventoryStatus: row.inventoryStatus ?? defaultInventoryStatus,
         calculatorMaterialId: defaultCalculatorMaterialId,
