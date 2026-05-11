@@ -134,6 +134,118 @@ function getStringList(formData: FormData, key: string) {
     .filter(Boolean);
 }
 
+const categoryDefaults: Record<
+  CategoryKind,
+  { indicator: string; scenario: string }
+> = {
+  [CategoryKind.PLATE]: {
+    indicator: "Плитные материалы",
+    scenario: "Запрос цены, образцы и расчет распила",
+  },
+  [CategoryKind.FITTINGS]: {
+    indicator: "Фурнитура",
+    scenario: "Покупка онлайн или запрос наличия",
+  },
+  [CategoryKind.OTHER]: {
+    indicator: "Каталог",
+    scenario: "Консультация менеджера",
+  },
+};
+
+function safeSlugBase(value: string, fallback: string) {
+  return slugifyImportValue(value) || fallback;
+}
+
+function safeSkuBase(value: string) {
+  return (
+    safeSlugBase(value, "artisan")
+      .replace(/-/g, "")
+      .toUpperCase()
+      .slice(0, 18) || "ARTISAN"
+  );
+}
+
+async function getUniqueCategorySlug(
+  db: ReturnType<typeof getDb>,
+  value: string,
+  currentId?: string,
+) {
+  const base = safeSlugBase(value, "category");
+  let candidate = base;
+  let index = 2;
+
+  while (true) {
+    const existing = await db.category.findUnique({
+      where: { slug: candidate },
+      select: { id: true },
+    });
+
+    if (!existing || existing.id === currentId) {
+      return candidate;
+    }
+
+    candidate = `${base}-${index}`;
+    index += 1;
+  }
+}
+
+async function getUniqueProductSlug(
+  db: ReturnType<typeof getDb>,
+  value: string,
+  currentId?: string,
+) {
+  const base = safeSlugBase(value, "product");
+  let candidate = base;
+  let index = 2;
+
+  while (true) {
+    const existing = await db.product.findUnique({
+      where: { slug: candidate },
+      select: { id: true },
+    });
+
+    if (!existing || existing.id === currentId) {
+      return candidate;
+    }
+
+    candidate = `${base}-${index}`;
+    index += 1;
+  }
+}
+
+async function getUniqueProductSku(
+  db: ReturnType<typeof getDb>,
+  value: string,
+  currentId?: string,
+) {
+  const base = safeSkuBase(value);
+  let candidate = base;
+  let index = 2;
+
+  while (true) {
+    const existing = await db.product.findUnique({
+      where: { sku: candidate },
+      select: { id: true },
+    });
+
+    if (!existing || existing.id === currentId) {
+      return candidate;
+    }
+
+    candidate = `${base}-${index}`;
+    index += 1;
+  }
+}
+
+async function getNextCategorySortOrder(db: ReturnType<typeof getDb>) {
+  const lastCategory = await db.category.findFirst({
+    orderBy: { sortOrder: "desc" },
+    select: { sortOrder: true },
+  });
+
+  return (lastCategory?.sortOrder ?? 0) + 10;
+}
+
 function parseProductAttributes(value: string) {
   return value
     .split(/\r?\n/)
@@ -559,9 +671,8 @@ export async function createCategoryAction(formData: FormData) {
   await ensureAdminAccess();
 
   const name = getString(formData, "name");
-  const slug = getString(formData, "slug");
 
-  if (!name || !slug) {
+  if (!name) {
     return;
   }
 
@@ -569,16 +680,20 @@ export async function createCategoryAction(formData: FormData) {
   const kind =
     Object.values(CategoryKind).find((item) => item === kindRaw) ??
     CategoryKind.OTHER;
+  const db = getDb();
+  const slug = await getUniqueCategorySlug(db, getString(formData, "slug") || name);
+  const defaults = categoryDefaults[kind];
 
-  await getDb().category.create({
+  await db.category.create({
     data: {
       name,
       slug,
       kind,
       summary: getOptionalString(formData, "summary"),
-      indicator: getOptionalString(formData, "indicator"),
-      scenario: getOptionalString(formData, "scenario"),
-      sortOrder: getOptionalInt(formData, "sortOrder") ?? 0,
+      indicator: getOptionalString(formData, "indicator") ?? defaults.indicator,
+      scenario: getOptionalString(formData, "scenario") ?? defaults.scenario,
+      sortOrder:
+        getOptionalInt(formData, "sortOrder") ?? (await getNextCategorySortOrder(db)),
     },
   });
 
@@ -613,9 +728,8 @@ export async function updateCategoryAction(formData: FormData) {
 
   const id = getString(formData, "id");
   const name = getString(formData, "name");
-  const slug = getString(formData, "slug");
 
-  if (!id || !name || !slug) {
+  if (!id || !name) {
     return;
   }
 
@@ -629,6 +743,12 @@ export async function updateCategoryAction(formData: FormData) {
     where: { id },
     select: { slug: true },
   });
+  const slug = await getUniqueCategorySlug(
+    db,
+    getString(formData, "slug") || name,
+    id,
+  );
+  const defaults = categoryDefaults[kind];
 
   await db.category.update({
     where: { id },
@@ -638,8 +758,8 @@ export async function updateCategoryAction(formData: FormData) {
       kind,
       summary: getOptionalString(formData, "summary"),
       description: getOptionalString(formData, "description"),
-      indicator: getOptionalString(formData, "indicator"),
-      scenario: getOptionalString(formData, "scenario"),
+      indicator: getOptionalString(formData, "indicator") ?? defaults.indicator,
+      scenario: getOptionalString(formData, "scenario") ?? defaults.scenario,
       coverImage: getOptionalString(formData, "coverImage"),
       spotlight: getOptionalString(formData, "spotlight"),
       seoTitle: getOptionalString(formData, "seoTitle"),
@@ -802,11 +922,9 @@ export async function createProductAction(formData: FormData) {
   await ensureAdminAccess();
 
   const name = getString(formData, "name");
-  const slug = getString(formData, "slug");
-  const sku = getString(formData, "sku");
   const categoryId = getString(formData, "categoryId");
 
-  if (!name || !slug || !sku || !categoryId) {
+  if (!name || !categoryId) {
     return;
   }
 
@@ -814,15 +932,37 @@ export async function createProductAction(formData: FormData) {
   const orderMode = getString(formData, "orderMode");
   const inventoryStatus = getString(formData, "inventoryStatus");
   const attributes = parseProductAttributes(getString(formData, "attributes"));
+  const brandId = getOptionalString(formData, "brandId");
+  const db = getDb();
+  const [category, brand] = await Promise.all([
+    db.category.findUnique({ where: { id: categoryId }, select: { name: true } }),
+    brandId
+      ? db.brand.findUnique({ where: { id: brandId }, select: { name: true } })
+      : null,
+  ]);
+
+  if (!category) {
+    return;
+  }
+
+  const identity = [brand?.name, category.name, name].filter(Boolean).join(" ");
+  const slug = await getUniqueProductSlug(
+    db,
+    getString(formData, "slug") || identity || name,
+  );
+  const sku = await getUniqueProductSku(
+    db,
+    getString(formData, "sku") || identity || name,
+  );
   const imageUrl = await resolveProductImageUrl(formData, slug);
 
-  await getDb().product.create({
+  await db.product.create({
     data: {
       name,
       slug,
       sku,
       categoryId,
-      brandId: getOptionalString(formData, "brandId"),
+      brandId,
       summary: getOptionalString(formData, "summary"),
       description: getOptionalString(formData, "description"),
       format: getOptionalString(formData, "format"),
@@ -947,25 +1087,46 @@ export async function updateProductDetailsAction(formData: FormData) {
 
   const id = getString(formData, "id");
   const name = getString(formData, "name");
-  const slug = getString(formData, "slug");
-  const sku = getString(formData, "sku");
   const categoryId = getString(formData, "categoryId");
 
-  if (!id || !name || !slug || !sku || !categoryId) {
+  if (!id || !name || !categoryId) {
     return;
   }
 
   const status = getString(formData, "status");
   const orderMode = getString(formData, "orderMode");
   const inventoryStatus = getString(formData, "inventoryStatus");
-  const imageUrl = await resolveProductImageUrl(formData, slug);
   const attributes = parseProductAttributes(getString(formData, "attributes"));
+  const brandId = getOptionalString(formData, "brandId");
 
   const db = getDb();
-  const previousProduct = await db.product.findUnique({
-    where: { id },
-    select: { slug: true },
-  });
+  const [previousProduct, category, brand] = await Promise.all([
+    db.product.findUnique({
+      where: { id },
+      select: { slug: true, sku: true },
+    }),
+    db.category.findUnique({ where: { id: categoryId }, select: { name: true } }),
+    brandId
+      ? db.brand.findUnique({ where: { id: brandId }, select: { name: true } })
+      : null,
+  ]);
+
+  if (!previousProduct || !category) {
+    return;
+  }
+
+  const identity = [brand?.name, category.name, name].filter(Boolean).join(" ");
+  const slug = await getUniqueProductSlug(
+    db,
+    getString(formData, "slug") || identity || name,
+    id,
+  );
+  const sku = await getUniqueProductSku(
+    db,
+    getString(formData, "sku") || identity || name,
+    id,
+  );
+  const imageUrl = await resolveProductImageUrl(formData, slug);
 
   await db.$transaction(async (tx) => {
     await tx.product.update({
@@ -975,7 +1136,7 @@ export async function updateProductDetailsAction(formData: FormData) {
         slug,
         sku,
         categoryId,
-        brandId: getOptionalString(formData, "brandId"),
+        brandId,
         summary: getOptionalString(formData, "summary"),
         description: getOptionalString(formData, "description"),
         format: getOptionalString(formData, "format"),

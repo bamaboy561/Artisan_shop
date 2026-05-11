@@ -1,13 +1,11 @@
 import Link from "next/link";
 
-import { createCategoryAction, deleteCategoryAction } from "@/app/admin/actions";
+import { deleteCategoryAction } from "@/app/admin/actions";
+import { CategoryCreateForm } from "@/app/admin/categories/category-create-form";
 import { SetupState } from "@/components/admin/setup-state";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { SectionHeading } from "@/components/ui/section-heading";
-import { Select } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import { CategoryKind } from "@/generated/prisma";
 import { requireAdminSession } from "@/lib/auth/dal";
 import { hasDatabaseUrl } from "@/lib/db";
@@ -42,10 +40,10 @@ export default async function AdminCategoriesPage() {
 
   return (
     <div className="space-y-4">
-      <section className="surface-glow rounded-[24px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-6 sm:p-8">
+      <section className="surface-glow rounded-[24px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-5 sm:p-8">
         <SectionHeading
           title="Категории каталога"
-          description="Настройте разделы сайта: название, адрес страницы, тип материала, сценарий заказа и порядок показа в каталоге."
+          description="Менеджеру достаточно добавить название и тип. Технический адрес страницы, порядок и базовые подсказки система подготовит сама."
           titleClassName="text-2xl sm:text-3xl"
           descriptionClassName="max-w-3xl text-sm leading-7"
         />
@@ -55,79 +53,19 @@ export default async function AdminCategoriesPage() {
         <article className="surface-glow rounded-[24px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-5 sm:p-6 2xl:sticky 2xl:top-24">
           <SectionHeading
             title="Новая категория"
-            description="Заполните основные поля. Остальные настройки можно будет уточнить на странице редактирования категории."
+            description="Упрощенная форма для быстрого добавления разделов без технических лишних полей."
             titleClassName="text-xl sm:text-2xl"
             descriptionClassName="text-sm leading-6"
           />
 
-          <form action={createCategoryAction} className="mt-6 grid gap-4">
-            <label className="grid gap-2 text-sm text-[var(--foreground)]">
-              Название
-              <Input name="name" placeholder="Стеновые панели" required />
-            </label>
-
-            <label className="grid gap-2 text-sm text-[var(--foreground)]">
-              Адрес страницы
-              <Input name="slug" placeholder="wall-panels" required />
-              <span className="text-xs leading-5 text-[var(--muted)]">
-                Это часть ссылки после /catalog/. Например: wall-panels.
-              </span>
-            </label>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="grid gap-2 text-sm text-[var(--foreground)]">
-                Тип
-                <Select name="kind" defaultValue={CategoryKind.OTHER}>
-                  {Object.values(CategoryKind).map((kindValue) => (
-                    <option key={kindValue} value={kindValue}>
-                      {categoryKindLabels[kindValue]}
-                    </option>
-                  ))}
-                </Select>
-              </label>
-
-              <label className="grid gap-2 text-sm text-[var(--foreground)]">
-                Порядок
-                <Input name="sortOrder" type="number" min="0" placeholder="90" />
-              </label>
-            </div>
-
-            <label className="grid gap-2 text-sm text-[var(--foreground)]">
-              Индикатор
-              <Input name="indicator" placeholder="МДФ панели" />
-              <span className="text-xs leading-5 text-[var(--muted)]">
-                Короткая подпись для карточек и витрины. Можно оставить пустым.
-              </span>
-            </label>
-
-            <label className="grid gap-2 text-sm text-[var(--foreground)]">
-              Сценарий заказа
-              <Input name="scenario" placeholder="Запрос цены и консультация" />
-              <span className="text-xs leading-5 text-[var(--muted)]">
-                Подсказка менеджеру и клиенту: покупка, запрос цены или расчет.
-              </span>
-            </label>
-
-            <label className="grid gap-2 text-sm text-[var(--foreground)]">
-              Краткое описание
-              <Textarea
-                name="summary"
-                rows={4}
-                placeholder="Коротко опишите направление для админки и витрины."
-              />
-            </label>
-
-            <Button type="submit" variant="accent" className="w-full sm:w-auto">
-              Добавить категорию
-            </Button>
-          </form>
+          <CategoryCreateForm />
         </article>
 
         <article className="surface-glow min-w-0 overflow-hidden rounded-[24px] border border-[color:var(--line)] bg-[var(--surface-strong)]">
           <div className="flex flex-col gap-4 border-b border-[color:var(--line)] p-5 sm:p-6 lg:flex-row lg:items-start lg:justify-between">
             <SectionHeading
               title="Список категорий"
-              description="Карточки не сжимают длинные описания и сразу показывают, какие разделы уже привязаны к товарам."
+              description="Карточки не ломают верстку длинными описаниями и сразу показывают, где уже есть товары."
               titleClassName="text-xl sm:text-2xl"
               descriptionClassName="max-w-2xl text-sm leading-6"
             />

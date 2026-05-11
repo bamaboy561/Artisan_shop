@@ -127,7 +127,7 @@ export function ProductCard({
 
         <div
           className={cn(
-            "mt-auto flex items-end justify-between gap-3",
+            "mt-auto grid min-w-0 gap-1.5",
             mobileList ? "pt-2.5 sm:pt-3.5" : "pt-3 sm:pt-4",
           )}
         >
@@ -164,7 +164,7 @@ export function ProductCard({
 
           <span
             className={cn(
-              "shrink-0 truncate font-mono tracking-[0.12em] text-[var(--muted)] uppercase",
+              "block max-w-full font-mono leading-4 tracking-[0.12em] break-words text-[var(--muted)] uppercase",
               compact ? "text-[9px]" : "text-[9px] sm:text-[10px]",
             )}
           >

@@ -7,6 +7,11 @@ import {
   updateProductDetailsAction,
 } from "@/app/admin/actions";
 import { AdminSubmitButton } from "@/components/admin/admin-submit-button";
+import {
+  GeneratedSkuInput,
+  GeneratedSlugInput,
+  ManagerHelpCard,
+} from "@/components/admin/generated-fields";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -123,8 +128,14 @@ export function NewProductForm({
   defaults,
 }: Props) {
   const isEdit = Boolean(defaults);
+  const [name, setName] = useState(defaults?.name ?? "");
   const [categoryId, setCategoryId] = useState(defaults?.categoryId ?? "");
-  const selectedCategory = categories.find((c) => c.id === categoryId) ?? null;
+  const [brandId, setBrandId] = useState(defaults?.brandId ?? "");
+  const selectedCategory = categories.find((item) => item.id === categoryId);
+  const selectedBrand = brands.find((item) => item.id === brandId);
+  const productIdentity = [selectedBrand?.name, selectedCategory?.name, name]
+    .filter(Boolean)
+    .join(" ");
   const isFittings = selectedCategory?.kind === CategoryKind.FITTINGS;
   const showPlateFields = !isFittings;
 
@@ -134,45 +145,40 @@ export function NewProductForm({
       encType="multipart/form-data"
       className="mt-5 grid min-w-0 gap-4"
     >
-      {defaults ? (
-        <input type="hidden" name="id" value={defaults.id} />
-      ) : null}
+      {defaults ? <input type="hidden" name="id" value={defaults.id} /> : null}
 
       <FormSection
         title="Основное"
-        description="Название, адрес страницы, артикул и привязка к разделу каталога."
+        description="Название, категория и бренд. Адрес страницы и артикул можно оставить автоматическими."
       >
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_220px]">
+        <ManagerHelpCard title="Быстрое заполнение">
+          Менеджеру достаточно заполнить название, категорию и бренд. Если
+          артикула поставщика пока нет, система создаст внутренний SKU сама.
+        </ManagerHelpCard>
+
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_220px]">
           <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)]">
-            Название
+            Название товара
             <Input
               name="name"
-              placeholder="Swiss Krono Кашемир"
-              defaultValue={defaults?.name ?? ""}
+              placeholder="Swiss Krono Kashmir"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
               required
             />
           </label>
 
-          <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)]">
-            Адрес страницы
-            <Input
-              name="slug"
-              placeholder="swiss-krono-kashmir"
-              defaultValue={defaults?.slug ?? ""}
-              required
-            />
-            <FieldHint>Часть ссылки после /product/. Латиница и дефисы.</FieldHint>
-          </label>
+          <GeneratedSlugInput
+            basePath="/product/"
+            defaultValue={defaults?.slug}
+            placeholder="swiss-krono-kashmir"
+            sourceValue={productIdentity || name}
+          />
 
-          <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)]">
-            Артикул / SKU
-            <Input
-              name="sku"
-              placeholder="SK-KASHMIR-16"
-              defaultValue={defaults?.sku ?? ""}
-              required
-            />
-          </label>
+          <GeneratedSkuInput
+            defaultValue={defaults?.sku}
+            sourceValue={productIdentity || name}
+          />
         </div>
 
         <div className="grid gap-4 lg:grid-cols-2">
@@ -197,7 +203,11 @@ export function NewProductForm({
 
           <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)]">
             Бренд
-            <Select name="brandId" defaultValue={defaults?.brandId ?? ""}>
+            <Select
+              name="brandId"
+              value={brandId}
+              onChange={(event) => setBrandId(event.target.value)}
+            >
               <option value="">Без бренда</option>
               {brands.map((brand) => (
                 <option key={brand.id} value={brand.id}>
@@ -210,8 +220,8 @@ export function NewProductForm({
       </FormSection>
 
       <FormSection
-        title="Коммерция"
-        description="Как товар продается: напрямую в корзину, через запрос цены или как сервисная заявка."
+        title="Продажи"
+        description="Выберите, как товар будет продаваться: через корзину, запрос цены или сервисную заявку."
       >
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)]">
@@ -259,12 +269,12 @@ export function NewProductForm({
           </label>
 
           <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)]">
-            Остаток, шт.
+            Остаток
             <Input
               name="stockQuantity"
               type="number"
               min="0"
-              placeholder="12"
+              placeholder="0"
               defaultValue={defaults?.stockQuantity ?? ""}
             />
           </label>
@@ -272,119 +282,128 @@ export function NewProductForm({
 
         <div className="grid gap-4 md:grid-cols-2">
           <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)]">
-            Цена, сом
+            Цена, KGS
             <Input
               name="price"
               type="number"
               min="0"
-              placeholder="3150"
+              placeholder="0"
               defaultValue={defaults?.price ?? ""}
             />
-            <FieldHint>Оставьте пустым, если товар работает по запросу цены.</FieldHint>
+            <FieldHint>Если цена не указана, товар работает через запрос.</FieldHint>
           </label>
 
           <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)]">
-            Старая цена, сом
+            Старая цена, KGS
             <Input
               name="compareAtPrice"
               type="number"
               min="0"
-              placeholder="3500"
+              placeholder="0"
               defaultValue={defaults?.compareAtPrice ?? ""}
             />
-            <FieldHint>Показывается как зачеркнутая цена, если она выше основной.</FieldHint>
           </label>
         </div>
+
+        <Checkbox
+          name="isFeatured"
+          defaultChecked={defaults?.isFeatured ?? false}
+          label="Показывать в важных подборках"
+          description="Подходит для главной страницы, витрин брендов и ручных подборок."
+        />
       </FormSection>
 
       <FormSection
         title="Материал и калькулятор"
-        description="Для плитных материалов задайте формат, толщину и пресеты расчета. Для фурнитуры эти поля можно не заполнять."
+        description="Для плитных материалов укажите формат и привязку к калькулятору распила."
       >
         {showPlateFields ? (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)]">
-              Формат на витрине
-              <Select name="format" defaultValue={defaults?.format ?? ""}>
-                <option value="">Не указан</option>
-                {calculatorSheetFormats.map((sheet) => (
-                  <option key={sheet.slug} value={sheet.label}>
-                    {sheet.label}
-                  </option>
-                ))}
-              </Select>
-            </label>
+          <>
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)]">
+                Формат листа
+                <Input
+                  name="format"
+                  placeholder="2800 x 2070 мм"
+                  defaultValue={defaults?.format ?? ""}
+                />
+              </label>
 
-            <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)]">
-              Толщина, мм
-              <Select
-                name="thicknessMm"
-                defaultValue={defaults?.thicknessMm ?? ""}
-              >
-                <option value="">Не указана</option>
-                {THICKNESS_OPTIONS.map((thickness) => (
-                  <option key={thickness} value={thickness}>
-                    {thickness} мм
-                  </option>
-                ))}
-              </Select>
-            </label>
+              <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)]">
+                Толщина, мм
+                <Select
+                  name="thicknessMm"
+                  defaultValue={defaults?.thicknessMm?.toString() ?? ""}
+                >
+                  <option value="">Не указана</option>
+                  {THICKNESS_OPTIONS.map((value) => (
+                    <option key={value} value={value}>
+                      {value} мм
+                    </option>
+                  ))}
+                </Select>
+              </label>
 
-            <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)]">
-              Материал расчета
-              <Select
-                name="calculatorMaterialId"
-                defaultValue={defaults?.calculatorMaterialId ?? ""}
-              >
-                <option value="">Не привязывать</option>
-                {calculatorMaterials.map((material) => (
-                  <option key={material.slug} value={material.slug}>
-                    {material.label}
-                  </option>
-                ))}
-              </Select>
-            </label>
+              <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)]">
+                Материал калькулятора
+                <Select
+                  name="calculatorMaterialId"
+                  defaultValue={defaults?.calculatorMaterialId ?? ""}
+                >
+                  <option value="">Авто / не задан</option>
+                  {calculatorMaterials.map((material) => (
+                    <option key={material.slug} value={material.slug}>
+                      {material.label}
+                    </option>
+                  ))}
+                </Select>
+              </label>
 
-            <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)]">
-              Формат листа
-              <Select
-                name="calculatorSheetPresetId"
-                defaultValue={defaults?.calculatorSheetPresetId ?? ""}
-              >
-                <option value="">Не привязывать</option>
-                {calculatorSheetFormats.map((sheet) => (
-                  <option key={sheet.slug} value={sheet.slug}>
-                    {sheet.label}
-                  </option>
-                ))}
-              </Select>
-            </label>
-          </div>
+              <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)]">
+                Пресет листа
+                <Select
+                  name="calculatorSheetPresetId"
+                  defaultValue={defaults?.calculatorSheetPresetId ?? ""}
+                >
+                  <option value="">Авто / не задан</option>
+                  {calculatorSheetFormats.map((format) => (
+                    <option key={format.slug} value={format.slug}>
+                      {format.label}
+                    </option>
+                  ))}
+                </Select>
+              </label>
+            </div>
+            <FieldHint>
+              Для Swiss Krono, Extravert и AGT формат листа может подставляться
+              автоматически в калькуляторе по товару.
+            </FieldHint>
+          </>
         ) : (
-          <div className="rounded-2xl border border-[color:var(--line)] bg-[#faf8f4] p-4 text-sm leading-6 text-[var(--muted)]">
-            Для выбранной категории это похоже на фурнитуру. Параметры листа и
-            калькулятора скрыты, чтобы не мешать заполнению карточки.
-          </div>
+          <ManagerHelpCard title="Фурнитура">
+            Для фурнитуры формат листа и калькулятор распила не нужны. Эти поля
+            не показываются, чтобы не перегружать менеджера.
+          </ManagerHelpCard>
         )}
       </FormSection>
 
       <FormSection
-        title="Медиа и тексты"
-        description="Фото, описание карточки и характеристики, которые увидит клиент."
+        title="Медиа и описание"
+        description="Загрузите фото, добавьте короткое описание и характеристики для карточки товара."
       >
         <div className="grid gap-4 lg:grid-cols-2">
           <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)]">
-            Загрузить изображение
+            Фото товара
             <Input
               name="imageFile"
               type="file"
-              accept="image/avif,image/jpeg,image/png,image/webp"
+              accept="image/png,image/jpeg,image/webp,image/avif"
               disabled={!canUploadImages}
             />
             <FieldHint>
               {canUploadImages
-                ? "JPG, PNG, WebP или AVIF до 8 МБ. Файл сохранится в Vercel Blob."
-                : "Загрузка файлов выключена: подключите Vercel Blob и переменную BLOB_READ_WRITE_TOKEN. Пока можно указать ссылку ниже."}
+                ? "Можно загрузить PNG, JPG, WEBP или AVIF до 8 МБ."
+                : "Загрузка файлов включится после подключения Vercel Blob."}
             </FieldHint>
           </label>
 
@@ -392,49 +411,43 @@ export function NewProductForm({
             Ссылка на изображение
             <Input
               name="imageUrl"
-              placeholder="https://... или /images/product.jpg"
+              type="url"
+              placeholder="https://..."
               defaultValue={defaults?.imageUrl ?? ""}
             />
-            <FieldHint>
-              Можно использовать вместо загрузки файла или оставить текущую
-              ссылку при редактировании.
-            </FieldHint>
+            <FieldHint>Если файл не загружен, можно оставить внешнюю ссылку.</FieldHint>
           </label>
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-2">
-          <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)]">
-            Краткое описание
-            <Textarea
-              name="summary"
-              rows={4}
-              placeholder="Короткое коммерческое описание для карточки товара."
-              defaultValue={defaults?.summary ?? ""}
-            />
-          </label>
+        <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)]">
+          Короткое описание
+          <Textarea
+            name="summary"
+            rows={3}
+            placeholder="Кратко для карточки и каталога."
+            defaultValue={defaults?.summary ?? ""}
+          />
+        </label>
 
-          <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)]">
-            Полное описание
-            <Textarea
-              name="description"
-              rows={4}
-              placeholder="Подробное описание для страницы товара."
-              defaultValue={defaults?.description ?? ""}
-            />
-          </label>
-        </div>
+        <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)]">
+          Полное описание
+          <Textarea
+            name="description"
+            rows={5}
+            placeholder="Подробное описание, особенности, область применения."
+            defaultValue={defaults?.description ?? ""}
+          />
+        </label>
 
         <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)]">
           Характеристики
           <Textarea
             name="attributes"
             rows={5}
-            placeholder={"Цвет: Кашемир\nПокрытие: Матовая поверхность\nТекстура: Однотонная"}
+            placeholder={"Цвет: Кашемир\nПоверхность: Матовая\nТолщина: 16 мм"}
             defaultValue={defaults?.attributesText ?? ""}
           />
-          <FieldHint>
-            Каждая характеристика с новой строки в формате “Название: значение”.
-          </FieldHint>
+          <FieldHint>Каждая характеристика с новой строки в формате ключ: значение.</FieldHint>
         </label>
       </FormSection>
 
@@ -447,7 +460,7 @@ export function NewProductForm({
             SEO title
             <Input
               name="seoTitle"
-              placeholder="Заголовок для поисковиков"
+              placeholder="Заголовок для поиска"
               defaultValue={defaults?.seoTitle ?? ""}
             />
           </label>
@@ -456,31 +469,27 @@ export function NewProductForm({
             SEO description
             <Input
               name="seoDescription"
-              placeholder="Описание для поисковой выдачи"
+              placeholder="Краткое описание для поиска"
               defaultValue={defaults?.seoDescription ?? ""}
             />
           </label>
         </div>
       </FormSection>
 
-      <section className="surface-glow sticky bottom-3 z-10 flex flex-col gap-3 rounded-[20px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-4 shadow-[0_18px_50px_rgba(30,28,25,0.08)] sm:flex-row sm:items-center sm:justify-between">
-        <Checkbox
-          name="isFeatured"
-          value="on"
-          defaultChecked={defaults?.isFeatured ?? false}
-          label="Показывать в подборках"
-          description="Для главной, брендов и внутренних промо-блоков."
-          className="rounded-2xl border border-[color:var(--line)] bg-white/72 px-4 py-3"
-        />
-
+      <div className="sticky bottom-4 z-10 flex flex-col gap-3 rounded-[22px] border border-[color:var(--line)] bg-[rgba(250,248,244,0.92)] p-4 shadow-[0_18px_45px_rgba(27,24,20,0.12)] backdrop-blur md:flex-row md:items-center md:justify-between">
+        <p className="text-sm leading-6 text-[var(--muted)]">
+          {isEdit
+            ? "Сохраните изменения, чтобы обновить карточку на сайте."
+            : "После создания товар появится в рабочем списке админки."}
+        </p>
         <AdminSubmitButton
           type="submit"
           variant="accent"
-          className="w-full sm:w-auto"
-          idleLabel={isEdit ? "Сохранить изменения" : "Добавить товар"}
-          pendingLabel={isEdit ? "Сохраняем..." : "Добавляем..."}
+          idleLabel={isEdit ? "Сохранить товар" : "Создать товар"}
+          pendingLabel="Сохраняем..."
+          className="w-full md:w-auto"
         />
-      </section>
+      </div>
     </form>
   );
 }
