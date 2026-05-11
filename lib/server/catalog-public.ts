@@ -110,6 +110,8 @@ function mapProduct(product: PrismaProductWithRelations): FeaturedProduct {
     format: product.format ?? "",
     summary: product.summary ?? "",
     description: product.description ?? "",
+    seoTitle: product.seoTitle ?? undefined,
+    seoDescription: product.seoDescription ?? undefined,
     action,
     purchaseMode,
     availabilityText,
@@ -132,6 +134,7 @@ function mapProduct(product: PrismaProductWithRelations): FeaturedProduct {
     ]),
     calculatorMaterialId,
     sheetPresetId,
+    updatedAt: product.updatedAt,
   };
 }
 
@@ -142,10 +145,14 @@ function mapCategory(
     slug: category.slug,
     name: category.name,
     summary: category.summary ?? "",
+    description: category.description ?? undefined,
     indicator: category.indicator ?? "",
     scenario: category.scenario ?? "",
     coverImage: category.coverImage ?? "",
     spotlight: category.spotlight ?? "",
+    seoTitle: category.seoTitle ?? undefined,
+    seoDescription: category.seoDescription ?? undefined,
+    updatedAt: category.updatedAt,
   };
 }
 
@@ -162,6 +169,7 @@ function mapBrand(
     productCount: brand._count?.products ?? 0,
     highlight: brand.description ?? "",
     categorySlug: categorySlug ?? "",
+    updatedAt: brand.updatedAt,
   };
 }
 

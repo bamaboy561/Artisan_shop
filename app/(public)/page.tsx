@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -13,6 +14,14 @@ import {
   getPublicProductsByBrand,
   getPublicProductsByCategory,
 } from "@/lib/server/catalog-public";
+import { createSeoMetadata } from "@/lib/seo";
+
+export const metadata: Metadata = createSeoMetadata({
+  title: "Мебельные материалы, распил и фурнитура в Бишкеке",
+  description:
+    "Artisan — каталог ЛДСП, МДФ, мебельных панелей, фурнитуры и онлайн-заявок на распил в Бишкеке.",
+  path: "/",
+});
 
 type CategoryTile = {
   title: string;

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Image from "next/image";
 
 import { ButtonLink } from "@/components/ui/button-link";
@@ -6,6 +7,14 @@ import {
   getPublicProductsByBrand,
   getPublicProductsByCategory,
 } from "@/lib/server/catalog-public";
+import { createSeoMetadata } from "@/lib/seo";
+
+export const metadata: Metadata = createSeoMetadata({
+  title: "Распил и кромление мебельных плит",
+  description:
+    "Услуги распила ЛДСП и МДФ в Artisan: расчет по файлу, кромка 1 мм, карта раскроя, ведомость и заявка на производство.",
+  path: "/services",
+});
 
 const serviceHighlights = [
   {

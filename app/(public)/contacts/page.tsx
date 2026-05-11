@@ -5,13 +5,16 @@ import { ArrowUpRight, Clock, Mail, MapPin, MessageCircle, Phone } from "lucide-
 import { BranchStatus } from "@/app/(public)/contacts/branch-status";
 import { ContactForm } from "@/app/(public)/contacts/contact-form";
 import { ContactsFaq } from "@/app/(public)/contacts/faq";
+import { StructuredData } from "@/components/seo/structured-data";
+import { createSeoMetadata, organizationJsonLd } from "@/lib/seo";
 import { companyBranches, companyContacts } from "@/lib/site-config";
 
-export const metadata: Metadata = {
-  title: "Контакты",
+export const metadata: Metadata = createSeoMetadata({
+  title: "Контакты Artisan в Бишкеке",
   description:
-    "Свяжитесь с Artisan по вопросам подбора материалов, расчета распила и комплектации проекта. Адреса филиалов в Бишкеке.",
-};
+    "Контакты Artisan: подбор материалов, расчет распила, комплектация проекта, WhatsApp, телефон и адреса филиалов в Бишкеке.",
+  path: "/contacts",
+});
 
 const contactTopics = [
   "Подбор материала",
@@ -23,6 +26,7 @@ const contactTopics = [
 export default function ContactsPage() {
   return (
     <div className="bg-[#f1eee8]">
+      <StructuredData data={organizationJsonLd()} />
       <section className="relative overflow-hidden border-b border-[color:var(--line)] bg-gradient-to-b from-[#f6f1e7] via-[#efeadf] to-[#f1eee8]">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[var(--foreground)]/12 to-transparent" />
         <div className="pointer-events-none absolute inset-0 opacity-[0.035] [background-image:radial-gradient(circle_at_1px_1px,#151411_1px,transparent_0)] [background-size:18px_18px]" />

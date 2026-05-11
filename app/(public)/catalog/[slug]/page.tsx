@@ -1,11 +1,13 @@
 import Image from "next/image";
 import Link from "next/link";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import {
   CatalogSidebar,
   CatalogToolbar,
 } from "@/components/catalog/catalog-filters";
+import { StructuredData } from "@/components/seo/structured-data";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { ProductCard } from "@/components/ui/cards";
 import { Pagination } from "@/components/ui/pagination";
@@ -23,6 +25,12 @@ import {
   getPublicCategoryBySlug,
   getPublicProductsByCategory,
 } from "@/lib/server/catalog-public";
+import {
+  breadcrumbJsonLd,
+  categoryDescription,
+  collectionJsonLd,
+  createSeoMetadata,
+} from "@/lib/seo";
 
 type CategoryPageProps = {
   params: Promise<{ slug: string }>;
@@ -41,6 +49,28 @@ const categoryCopy = {
     description: "Фасадные панели AGT.",
   },
 } as const;
+
+export async function generateMetadata({
+  params,
+}: CategoryPageProps): Promise<Metadata> {
+  const { slug } = await params;
+  const category = await getPublicCategoryBySlug(slug);
+
+  if (!category) {
+    return createSeoMetadata({
+      title: "Раздел каталога",
+      description: "Каталог материалов Artisan.",
+      path: "/catalog",
+    });
+  }
+
+  return createSeoMetadata({
+    title: category.seoTitle || category.name,
+    description: categoryDescription(category),
+    path: `/catalog/${category.slug}`,
+    images: category.coverImage ? [category.coverImage] : undefined,
+  });
+}
 
 export default async function CategoryPage({
   params,
@@ -72,6 +102,21 @@ export default async function CategoryPage({
 
   return (
     <div className="bg-[#f1eee8]">
+      <StructuredData
+        data={[
+          breadcrumbJsonLd([
+            { name: "Главная", href: "/" },
+            { name: "Каталог", href: "/catalog" },
+            { name: category.name, href: basePath },
+          ]),
+          collectionJsonLd({
+            name: category.name,
+            description: categoryDescription(category),
+            path: basePath,
+            products: sortedProducts,
+          }),
+        ]}
+      />
       <section className="border-b border-[color:var(--line)] bg-[#f1eee8] px-4 pt-3 pb-2.5 lg:hidden">
         <div className="mx-auto max-w-[1500px] space-y-2">
           <Link

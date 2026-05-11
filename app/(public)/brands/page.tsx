@@ -1,13 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { StructuredData } from "@/components/seo/structured-data";
 import { type BrandProfile, getBrandProfiles } from "@/features/brands/data";
+import { createSeoMetadata, canonicalUrl } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "Бренды",
+export const metadata: Metadata = createSeoMetadata({
+  title: "Бренды мебельных материалов и фурнитуры",
   description:
-    "Все бренды Artisan: EXTRAVERT, SWISS KRONO, AGT и другие — логотипы, описания и переход в каталог.",
-};
+    "Все бренды Artisan: EXTRAVERT, SWISS KRONO, AGT, Hettich, Samet, Slotex и другие — логотипы, описания и переход в каталог.",
+  path: "/brands",
+});
 
 function getBrandMonogram(name: string) {
   return name
@@ -82,6 +85,21 @@ export default async function BrandsPage() {
 
   return (
     <div className="bg-[#f1eee8]">
+      <StructuredData
+        data={{
+          "@context": "https://schema.org",
+          "@type": "ItemList",
+          name: "Бренды Artisan",
+          url: canonicalUrl("/brands"),
+          numberOfItems: profiles.length,
+          itemListElement: profiles.map((profile, index) => ({
+            "@type": "ListItem",
+            position: index + 1,
+            name: profile.name,
+            url: canonicalUrl(profile.brandPageHref),
+          })),
+        }}
+      />
       <section className="px-5 pt-14 pb-12 sm:px-8 lg:px-10">
         <div className="mx-auto max-w-[1500px]">
           <div className="max-w-[46rem]">

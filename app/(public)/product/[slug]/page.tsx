@@ -1,8 +1,10 @@
 import Image from "next/image";
 import Link from "next/link";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { AddToCartButton } from "@/components/ecommerce/add-to-cart-button";
+import { StructuredData } from "@/components/seo/structured-data";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { ButtonLink } from "@/components/ui/button-link";
 import { ProductCard } from "@/components/ui/cards";
@@ -12,10 +14,38 @@ import {
   getPublicProductsByCategory,
 } from "@/lib/server/catalog-public";
 import { formatPrice } from "@/lib/commerce";
+import {
+  breadcrumbJsonLd,
+  createSeoMetadata,
+  productDescription,
+  productJsonLd,
+} from "@/lib/seo";
 
 type ProductPageProps = {
   params: Promise<{ slug: string }>;
 };
+
+export async function generateMetadata({
+  params,
+}: ProductPageProps): Promise<Metadata> {
+  const { slug } = await params;
+  const product = await getPublicProductBySlug(slug);
+
+  if (!product) {
+    return createSeoMetadata({
+      title: "Товар не найден",
+      description: "Карточка товара Artisan не найдена.",
+      path: "/catalog",
+    });
+  }
+
+  return createSeoMetadata({
+    title: product.seoTitle || `${product.name} ${product.sku}`,
+    description: productDescription(product),
+    path: `/product/${product.slug}`,
+    images: product.gallery.length > 0 ? product.gallery : [product.image],
+  });
+}
 
 export default async function ProductPage({ params }: ProductPageProps) {
   const { slug } = await params;
@@ -51,6 +81,19 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
   return (
     <div className="bg-[#f1eee8]">
+      <StructuredData
+        data={[
+          breadcrumbJsonLd([
+            { name: "Главная", href: "/" },
+            { name: "Каталог", href: "/catalog" },
+            ...(category
+              ? [{ name: category.name, href: categoryHref }]
+              : []),
+            { name: product.name, href: `/product/${product.slug}` },
+          ]),
+          productJsonLd(product),
+        ]}
+      />
       <div className="border-b border-[color:var(--line)] px-4 py-3 sm:px-8 sm:py-4 lg:px-10">
         <div className="mx-auto max-w-[1500px]">
           <Breadcrumbs

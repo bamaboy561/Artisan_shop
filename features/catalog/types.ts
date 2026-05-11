@@ -2,10 +2,14 @@ export type CatalogCategory = {
   slug: string;
   name: string;
   summary: string;
+  description?: string;
   indicator: string;
   scenario: string;
   coverImage: string;
   spotlight: string;
+  seoTitle?: string;
+  seoDescription?: string;
+  updatedAt?: Date;
 };
 
 export type CatalogSection = {
@@ -60,6 +64,8 @@ export type FeaturedProduct = {
   format: string;
   summary: string;
   description: string;
+  seoTitle?: string;
+  seoDescription?: string;
   action: string;
   purchaseMode: "cart" | "request";
   availabilityText: string;
@@ -70,6 +76,7 @@ export type FeaturedProduct = {
   sourceUrl?: string;
   calculatorMaterialId?: CalculatorMaterialId;
   sheetPresetId?: CalculatorSheetPresetId;
+  updatedAt?: Date;
 };
 
 export type Brand = {
@@ -81,6 +88,7 @@ export type Brand = {
   productCount: number;
   highlight: string;
   categorySlug: string;
+  updatedAt?: Date;
 };
 
 export type PartnerBrand = {

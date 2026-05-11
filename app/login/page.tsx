@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
 import { LoginForm } from "@/app/login/login-form";
@@ -10,8 +11,13 @@ import {
 import { getOptionalSession, getSafeRedirectPath } from "@/lib/auth/dal";
 import { canAccessAdmin } from "@/lib/auth/roles";
 import { hasDatabaseUrl } from "@/lib/db";
+import { noIndexRobots } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
+export const metadata: Metadata = {
+  title: "Вход",
+  robots: noIndexRobots,
+};
 
 type LoginPageProps = {
   searchParams: Promise<{

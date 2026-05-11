@@ -7,13 +7,15 @@ import {
   getPublicProductsByBrand,
   getPublicProductsByCategory,
 } from "@/lib/server/catalog-public";
+import { createSeoMetadata } from "@/lib/seo";
 import { companyName } from "@/lib/site-config";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = createSeoMetadata({
   title: "О компании",
   description:
-    "Artisan — рабочая платформа для материалов и сервиса. Каталог, расчет распила и заявки в одном маршруте.",
-};
+    "Artisan — мебельные материалы, распил, кромление и проектные заявки в Бишкеке. Каталог, расчет и сервис в одном маршруте.",
+  path: "/about",
+});
 
 const principles = [
   {

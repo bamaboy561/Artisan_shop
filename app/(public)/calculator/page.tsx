@@ -4,12 +4,14 @@ import { ButtonLink } from "@/components/ui/button-link";
 import { CutCalculator } from "@/features/services/cut-calculator";
 import { getCalculatorBundle } from "@/lib/server/calculator-config";
 import { getCalculatorContextBySlug } from "@/lib/server/catalog-public";
+import { createSeoMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "Калькулятор распила",
+export const metadata: Metadata = createSeoMetadata({
+  title: "Онлайн-калькулятор распила ЛДСП и МДФ",
   description:
-    "Онлайн-калькулятор для расчета раскроя, карты листа и цеховой ведомости. Результат — готовый файл для производства.",
-};
+    "Калькулятор распила Artisan: расчет раскроя листа, кромки 1 мм, карты деталей и заявки на производство в Бишкеке.",
+  path: "/calculator",
+});
 
 type CalculatorPageProps = {
   searchParams: Promise<{ product?: string | string[] | undefined }>;

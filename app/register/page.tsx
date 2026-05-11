@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
 import { RegisterForm } from "@/app/register/register-form";
@@ -7,8 +8,13 @@ import { isDemoAdminEnabled } from "@/lib/auth/demo-access";
 import { getOptionalSession, getSafeRedirectPath } from "@/lib/auth/dal";
 import { canAccessAdmin } from "@/lib/auth/roles";
 import { hasDatabaseUrl } from "@/lib/db";
+import { noIndexRobots } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
+export const metadata: Metadata = {
+  title: "Регистрация",
+  robots: noIndexRobots,
+};
 
 type RegisterPageProps = {
   searchParams: Promise<{

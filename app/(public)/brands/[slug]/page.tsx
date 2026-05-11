@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 
+import { StructuredData } from "@/components/seo/structured-data";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { ButtonLink } from "@/components/ui/button-link";
 import { ProductCard } from "@/components/ui/cards";
@@ -11,6 +12,11 @@ import {
   getBrandProfiles,
 } from "@/features/brands/data";
 import { companyName } from "@/lib/site-config";
+import {
+  breadcrumbJsonLd,
+  collectionJsonLd,
+  createSeoMetadata,
+} from "@/lib/seo";
 
 type BrandPageProps = {
   params: Promise<{ slug: string }>;
@@ -33,10 +39,16 @@ export async function generateMetadata({
     };
   }
 
-  return {
-    title: `${brand.name} | ${companyName}`,
+  return createSeoMetadata({
+    title: brand.name,
     description: brand.overview,
-  };
+    path: `/brands/${brand.slug}`,
+    images: brand.logoUrl
+      ? [brand.logoUrl]
+      : brand.products[0]?.image
+        ? [brand.products[0].image]
+        : undefined,
+  });
 }
 
 function PreviewTiles({ labels }: { labels: string[] }) {
@@ -80,6 +92,21 @@ export default async function BrandDetailPage({ params }: BrandPageProps) {
 
   return (
     <div className="bg-[#f1eee8]">
+      <StructuredData
+        data={[
+          breadcrumbJsonLd([
+            { name: "Главная", href: "/" },
+            { name: "Бренды", href: "/brands" },
+            { name: brand.name, href: `/brands/${brand.slug}` },
+          ]),
+          collectionJsonLd({
+            name: `${brand.name} в Artisan`,
+            description: brand.overview,
+            path: `/brands/${brand.slug}`,
+            products: brand.products,
+          }),
+        ]}
+      />
       <div className="border-b border-[color:var(--line)] px-5 py-4 sm:px-8 lg:px-10">
         <div className="mx-auto max-w-[1500px]">
           <Breadcrumbs

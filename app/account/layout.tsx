@@ -1,10 +1,17 @@
+import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 import { signOutAction } from "@/app/auth/actions";
 import { DashboardFrame } from "@/components/layout/dashboard-frame";
 import { Button } from "@/components/ui/button";
 import { verifySession } from "@/lib/auth/dal";
+import { noIndexRobots } from "@/lib/seo";
 import { accountNavigation } from "@/lib/site-config";
+
+export const metadata: Metadata = {
+  title: "Личный кабинет",
+  robots: noIndexRobots,
+};
 
 export default async function AccountLayout({
   children,

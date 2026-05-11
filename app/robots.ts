@@ -1,14 +1,25 @@
 import type { MetadataRoute } from "next";
 
+import { canonicalUrl, getSiteUrl } from "@/lib/seo";
+
 export default function robots(): MetadataRoute.Robots {
   return {
     rules: [
       {
         userAgent: "*",
         allow: "/",
-        disallow: ["/admin/", "/account/", "/login", "/register", "/checkout/"],
+        disallow: [
+          "/admin/",
+          "/account/",
+          "/api/",
+          "/login",
+          "/register",
+          "/cart",
+          "/checkout",
+        ],
       },
     ],
-    sitemap: "https://artisan.kg/sitemap.xml",
+    sitemap: canonicalUrl("/sitemap.xml"),
+    host: getSiteUrl(),
   };
 }

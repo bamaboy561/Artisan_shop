@@ -1,9 +1,15 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import { Container } from "@/components/ui/container";
+import { noIndexRobots } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
+export const metadata: Metadata = {
+  title: "Заказ принят",
+  robots: noIndexRobots,
+};
 
 type CheckoutSuccessPageProps = {
   searchParams: Promise<{

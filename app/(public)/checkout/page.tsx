@@ -1,3 +1,5 @@
+import type { Metadata } from "next";
+
 import { CheckoutForm } from "@/app/(public)/checkout/checkout-form";
 import { getOptionalSession } from "@/lib/auth/dal";
 import { getDb, hasDatabaseUrl } from "@/lib/db";
@@ -6,8 +8,13 @@ import {
   getLoyaltyTierBenefits,
   getLoyaltyTierLabel,
 } from "@/lib/server/pricing";
+import { noIndexRobots } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
+export const metadata: Metadata = {
+  title: "Оформление заказа",
+  robots: noIndexRobots,
+};
 
 export default async function CheckoutPage() {
   const databaseReady = hasDatabaseUrl();

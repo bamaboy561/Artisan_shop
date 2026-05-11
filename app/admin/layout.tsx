@@ -1,10 +1,17 @@
+import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 import { signOutAction } from "@/app/auth/actions";
 import { DashboardFrame } from "@/components/layout/dashboard-frame";
 import { requireAdminSession } from "@/lib/auth/dal";
+import { noIndexRobots } from "@/lib/seo";
 import { adminNavigation } from "@/lib/site-config";
 import { getAdminDashboardMetrics } from "@/lib/server/admin-data";
+
+export const metadata: Metadata = {
+  title: "Админка",
+  robots: noIndexRobots,
+};
 
 function formatRoleLabel(roleCode: string) {
   const labels: Record<string, string> = {
