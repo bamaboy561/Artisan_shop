@@ -26,9 +26,9 @@ import {
 import { collectionJsonLd, createSeoMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = createSeoMetadata({
-  title: "Каталог мебельных материалов",
+  title: "Каталог ЛДСП, МДФ, панелей и мебельной фурнитуры",
   description:
-    "Каталог мебельных панелей ЛДСП, МДФ и декоров от EXTRAVERT, SWISS KRONO и AGT. Фильтры, сортировка и быстрый запрос цены.",
+    "Каталог Artisan в Бишкеке: ЛДСП, МДФ панели, мебельные декоры, кромка и фурнитура. EXTRAVERT, SWISS KRONO, AGT, фильтры и запрос цены.",
   path: "/catalog",
 });
 

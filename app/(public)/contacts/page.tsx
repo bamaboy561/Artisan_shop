@@ -10,9 +10,9 @@ import { createSeoMetadata, organizationJsonLd } from "@/lib/seo";
 import { companyBranches, companyContacts } from "@/lib/site-config";
 
 export const metadata: Metadata = createSeoMetadata({
-  title: "Контакты Artisan в Бишкеке",
+  title: "Контакты Artisan — материалы и распил в Бишкеке",
   description:
-    "Контакты Artisan: подбор материалов, расчет распила, комплектация проекта, WhatsApp, телефон и адреса филиалов в Бишкеке.",
+    "Контакты Artisan в Бишкеке: ЛДСП, МДФ, фурнитура, расчет распила, WhatsApp, телефон, график работы и адреса филиалов.",
   path: "/contacts",
 });
 

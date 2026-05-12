@@ -1,6 +1,14 @@
+import type { Metadata } from "next";
+
 import { Container } from "@/components/ui/container";
 import { SectionIntro } from "@/components/ui/section-intro";
 import { UiKitShowcase } from "@/features/ui/ui-kit-showcase";
+import { noIndexRobots } from "@/lib/seo";
+
+export const metadata: Metadata = {
+  title: "UI-кит Artisan",
+  robots: noIndexRobots,
+};
 
 export default function UiKitPage() {
   return (

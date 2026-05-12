@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import type { CatalogCategory, FeaturedProduct } from "@/features/catalog/types";
 import {
+  type CompanyBranch,
   companyBranches,
   companyContacts,
   companyName,
@@ -10,9 +11,19 @@ import {
 
 export type JsonLdData = Record<string, unknown>;
 
-const fallbackSiteUrl = "https://artisan-shop-vercel.vercel.app";
+const fallbackSiteUrl = "https://artisan.shop.kg";
 const locale = "ru_KG";
 const defaultOgImage = "/opengraph-image";
+const localMarket = "Бишкеке";
+const dayNames = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+] as const;
 
 function stripTrailingSlash(value: string) {
   return value.replace(/\/+$/, "");
@@ -117,8 +128,36 @@ function normalizeText(value: string | null | undefined, fallback: string) {
   return text && text.length > 0 ? text : fallback;
 }
 
+function truncateText(value: string, maxLength = 170) {
+  const text = value.replace(/\s+/g, " ").trim();
+
+  if (text.length <= maxLength) {
+    return text;
+  }
+
+  const candidate = text.slice(0, maxLength - 1);
+  const lastSpace = candidate.lastIndexOf(" ");
+  const cutAt = lastSpace > maxLength * 0.62 ? lastSpace : candidate.length;
+
+  return `${candidate.slice(0, cutAt).trim()}…`;
+}
+
+function formatHour(hour: number) {
+  return `${String(hour).padStart(2, "0")}:00`;
+}
+
+function openingHoursSpecification(branch: CompanyBranch) {
+  return branch.schedule.map((schedule) => ({
+    "@type": "OpeningHoursSpecification",
+    dayOfWeek: schedule.days.map((day) => dayNames[day]),
+    opens: formatHour(schedule.open),
+    closes: formatHour(schedule.close),
+  }));
+}
+
 export function organizationJsonLd(): JsonLdData {
   const branch = companyBranches[0];
+  const logoUrl = absoluteUrl(defaultOgImage);
 
   return {
     "@context": "https://schema.org",
@@ -128,6 +167,8 @@ export function organizationJsonLd(): JsonLdData {
         "@id": `${getSiteUrl()}/#organization`,
         name: companyName,
         url: getSiteUrl(),
+        logo: logoUrl,
+        image: logoUrl,
         email: companyContacts.email,
         telephone: companyContacts.phone,
         address: {
@@ -143,6 +184,16 @@ export function organizationJsonLd(): JsonLdData {
           areaServed: "KG",
           availableLanguage: ["ru"],
         },
+        areaServed: [
+          {
+            "@type": "Country",
+            name: "Кыргызстан",
+          },
+          {
+            "@type": "City",
+            name: "Бишкек",
+          },
+        ],
       },
       {
         "@type": "WebSite",
@@ -165,6 +216,32 @@ export function organizationJsonLd(): JsonLdData {
         name: primaryNavigation.map((item) => item.label),
         url: primaryNavigation.map((item) => absoluteUrl(item.href)),
       },
+      ...companyBranches.map((companyBranch) => ({
+        "@type": "HomeGoodsStore",
+        "@id": `${getSiteUrl()}/#branch-${companyBranch.slug}`,
+        name: `${companyName} — ${companyBranch.name}`,
+        url: absoluteUrl("/contacts"),
+        image: logoUrl,
+        telephone: companyContacts.phone,
+        email: companyContacts.email,
+        priceRange: "KGS",
+        address: {
+          "@type": "PostalAddress",
+          addressLocality: "Бишкек",
+          streetAddress: companyBranch.address,
+          addressCountry: "KG",
+        },
+        openingHoursSpecification:
+          openingHoursSpecification(companyBranch),
+        hasMap: companyBranch.mapUrl,
+        areaServed: {
+          "@type": "City",
+          name: "Бишкек",
+        },
+        parentOrganization: {
+          "@id": `${getSiteUrl()}/#organization`,
+        },
+      })),
     ],
   };
 }
@@ -264,9 +341,73 @@ export function categoryDescription(category: CatalogCategory) {
   );
 }
 
+export function categorySeoTitle(category: CatalogCategory) {
+  return (
+    category.seoTitle?.trim() ||
+    `${category.name} в Бишкеке — каталог, наличие и распил`
+  );
+}
+
+export function categorySeoDescription(category: CatalogCategory) {
+  const description = category.seoDescription
+    ? normalizeText(category.seoDescription, "")
+    : `${categoryDescription(category)} Подбор, консультация, запрос цены и услуги распила в ${localMarket}.`;
+
+  return truncateText(description);
+}
+
 export function productDescription(product: FeaturedProduct) {
   return normalizeText(
     product.seoDescription || product.summary || product.description,
     `${product.name} ${product.brand}: характеристики, формат, наличие и запрос цены в Artisan.`,
+  );
+}
+
+export function productSeoTitle(product: FeaturedProduct) {
+  return (
+    product.seoTitle?.trim() ||
+    [
+      product.name,
+      product.brand,
+      product.categoryName,
+      `в ${localMarket}`,
+    ]
+      .filter(Boolean)
+      .join(" — ")
+  );
+}
+
+export function productSeoDescription(product: FeaturedProduct) {
+  if (product.seoDescription?.trim()) {
+    return truncateText(product.seoDescription);
+  }
+
+  const base = normalizeText(
+    product.summary || product.description,
+    `${product.name} ${product.brand}: характеристики, формат и наличие.`,
+  );
+  const conciseBase = truncateText(base, 105).replace(/…$/, "");
+  const commercialTail =
+    typeof product.price === "number"
+      ? `Цена ${new Intl.NumberFormat("ru-RU").format(product.price)} сом. Консультация, заказ и распил в ${localMarket}.`
+      : `Запрос цены, наличие, консультация и распил в ${localMarket}.`;
+
+  return truncateText(`${conciseBase}. ${commercialTail}`);
+}
+
+type BrandSeoInput = {
+  name: string;
+  sectionName: string;
+  headline: string;
+  overview: string;
+};
+
+export function brandSeoTitle(brand: BrandSeoInput) {
+  return `${brand.name}: ${brand.sectionName} в Бишкеке`;
+}
+
+export function brandSeoDescription(brand: BrandSeoInput) {
+  return truncateText(
+    `${brand.headline} ${brand.overview} Каталог, подбор, наличие и консультация Artisan в ${localMarket}.`,
   );
 }

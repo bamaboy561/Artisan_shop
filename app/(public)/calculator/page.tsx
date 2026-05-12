@@ -7,9 +7,9 @@ import { getCalculatorContextBySlug } from "@/lib/server/catalog-public";
 import { createSeoMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = createSeoMetadata({
-  title: "Онлайн-калькулятор распила ЛДСП и МДФ",
+  title: "Онлайн-калькулятор распила ЛДСП и МДФ в Бишкеке",
   description:
-    "Калькулятор распила Artisan: расчет раскроя листа, кромки 1 мм, карты деталей и заявки на производство в Бишкеке.",
+    "Онлайн-калькулятор распила ЛДСП и МДФ Artisan: раскрой листа, кромка 1 мм, карта деталей, расчет в сомах и заявка на производство в Бишкеке.",
   path: "/calculator",
 });
 

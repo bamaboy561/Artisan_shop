@@ -17,8 +17,9 @@ import { formatPrice } from "@/lib/commerce";
 import {
   breadcrumbJsonLd,
   createSeoMetadata,
-  productDescription,
   productJsonLd,
+  productSeoDescription,
+  productSeoTitle,
 } from "@/lib/seo";
 
 type ProductPageProps = {
@@ -40,8 +41,8 @@ export async function generateMetadata({
   }
 
   return createSeoMetadata({
-    title: product.seoTitle || `${product.name} ${product.sku}`,
-    description: productDescription(product),
+    title: productSeoTitle(product),
+    description: productSeoDescription(product),
     path: `/product/${product.slug}`,
     images: product.gallery.length > 0 ? product.gallery : [product.image],
   });

@@ -11,9 +11,9 @@ import { createSeoMetadata } from "@/lib/seo";
 import { companyName } from "@/lib/site-config";
 
 export const metadata: Metadata = createSeoMetadata({
-  title: "О компании",
+  title: "О компании Artisan — мебельные материалы и распил",
   description:
-    "Artisan — мебельные материалы, распил, кромление и проектные заявки в Бишкеке. Каталог, расчет и сервис в одном маршруте.",
+    "Artisan в Бишкеке — поставка ЛДСП, МДФ, мебельных панелей и фурнитуры, услуги распила, кромления и комплектации мебельных проектов.",
   path: "/about",
 });
 

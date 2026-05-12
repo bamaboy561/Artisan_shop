@@ -52,7 +52,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     })),
     ...brands.map((brand) => ({
       url: canonicalUrl(`/brands/${brand.slug}`),
-      lastModified: now,
+      lastModified: brand.updatedAt ?? now,
       changeFrequency:
         brand.contentStatus === "active" ? ("weekly" as const) : ("monthly" as const),
       priority: brand.contentStatus === "active" ? 0.76 : 0.48,

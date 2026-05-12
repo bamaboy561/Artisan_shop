@@ -38,6 +38,7 @@ export type BrandProfile = {
   categorySlug?: string;
   catalogHref?: string;
   brandPageHref: string;
+  updatedAt?: Date;
 };
 
 const statusLabelMap = {
@@ -212,6 +213,7 @@ function buildBrandProfilesFrom(
           ? `/catalog/${activeBrand.categorySlug}?brand=${activeBrand.slug}`
           : undefined,
         brandPageHref: `/brands/${assignment.slug}`,
+        updatedAt: activeBrand?.updatedAt,
       });
 
       return result;

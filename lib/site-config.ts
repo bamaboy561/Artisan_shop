@@ -3,7 +3,7 @@ import type { NavItem } from "@/types/navigation";
 export const companyName = "Artisan";
 
 export const siteDescription =
-  "Artisan — материалы, распил и проектные заявки в одной системе.";
+  "Artisan — ЛДСП, МДФ, мебельные панели, фурнитура, распил и проектные заявки в Бишкеке.";
 
 export const primaryNavigation: NavItem[] = [
   { href: "/catalog", label: "Каталог" },

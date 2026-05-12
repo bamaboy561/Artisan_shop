@@ -17,6 +17,8 @@ import { formatPrice } from "@/lib/commerce";
 import { companyName } from "@/lib/site-config";
 import {
   breadcrumbJsonLd,
+  brandSeoDescription,
+  brandSeoTitle,
   collectionJsonLd,
   createSeoMetadata,
 } from "@/lib/seo";
@@ -43,8 +45,8 @@ export async function generateMetadata({
   }
 
   return createSeoMetadata({
-    title: brand.name,
-    description: brand.overview,
+    title: brandSeoTitle(brand),
+    description: brandSeoDescription(brand),
     path: `/brands/${brand.slug}`,
     images: brand.logoUrl
       ? [brand.logoUrl]

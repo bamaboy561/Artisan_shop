@@ -27,7 +27,8 @@ import {
 } from "@/lib/server/catalog-public";
 import {
   breadcrumbJsonLd,
-  categoryDescription,
+  categorySeoDescription,
+  categorySeoTitle,
   collectionJsonLd,
   createSeoMetadata,
 } from "@/lib/seo";
@@ -65,8 +66,8 @@ export async function generateMetadata({
   }
 
   return createSeoMetadata({
-    title: category.seoTitle || category.name,
-    description: categoryDescription(category),
+    title: categorySeoTitle(category),
+    description: categorySeoDescription(category),
     path: `/catalog/${category.slug}`,
     images: category.coverImage ? [category.coverImage] : undefined,
   });
@@ -111,7 +112,7 @@ export default async function CategoryPage({
           ]),
           collectionJsonLd({
             name: category.name,
-            description: categoryDescription(category),
+            description: categorySeoDescription(category),
             path: basePath,
             products: sortedProducts,
           }),
