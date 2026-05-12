@@ -174,18 +174,23 @@ function AccountFrame({
 
   return (
     <div className="min-h-screen overflow-x-clip bg-[linear-gradient(180deg,#f6f2ec_0%,#f2ede6_100%)]">
-      <Container className="grid min-w-0 gap-4 overflow-x-clip py-4 xl:grid-cols-[340px_minmax(0,1fr)] xl:items-start xl:py-6 2xl:grid-cols-[360px_minmax(0,1fr)]">
-        <section className="relative min-w-0 overflow-hidden rounded-[24px] border border-white/10 bg-[#111111] p-3 text-white shadow-[0_20px_58px_rgba(17,17,17,0.2)] xl:hidden">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(199,106,63,0.22),transparent_40%),linear-gradient(180deg,rgba(255,255,255,0.04),transparent_50%)]" />
+      <Container className="grid min-w-0 gap-3 overflow-x-clip py-3 xl:grid-cols-[340px_minmax(0,1fr)] xl:items-start xl:gap-4 xl:py-6 2xl:grid-cols-[360px_minmax(0,1fr)]">
+        <section className="relative min-w-0 overflow-hidden rounded-[22px] border border-white/10 bg-[#111111] p-3 text-white shadow-[0_18px_42px_rgba(17,17,17,0.18)] xl:hidden">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(199,106,63,0.2),transparent_36%),linear-gradient(180deg,rgba(255,255,255,0.035),transparent_54%)]" />
 
           <div className="relative space-y-3">
-            <div className="rounded-[20px] border border-white/10 bg-white/[0.045] p-3">
-              <p className="font-mono text-[9px] tracking-[0.22em] text-white/42 uppercase">
-                {eyebrow}
-              </p>
-              <h1 className="mt-1 text-[1.55rem] font-semibold leading-[1.02] tracking-[-0.04em] text-white">
-                {title}
-              </h1>
+            <div className="flex min-w-0 items-end justify-between gap-3">
+              <div className="min-w-0">
+                <p className="font-mono text-[8px] tracking-[0.2em] text-white/42 uppercase">
+                  {eyebrow}
+                </p>
+                <h1 className="mt-1 truncate text-[1.25rem] font-semibold leading-none tracking-[-0.035em] text-white">
+                  {title}
+                </h1>
+              </div>
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-white text-sm font-black text-[#111111]">
+                A
+              </span>
             </div>
 
             {actions ? <div>{actions}</div> : null}
@@ -220,7 +225,7 @@ function AccountFrame({
           </div>
         </aside>
 
-        <main id="main-content" className="min-w-0 space-y-4 overflow-x-clip">
+        <main id="main-content" className="min-w-0 space-y-3 overflow-x-clip xl:space-y-4">
           <section className="surface-glow hidden rounded-[24px] border border-[color:var(--line)] bg-white/92 px-5 py-4 shadow-[0_20px_56px_rgba(17,17,17,0.05)] xl:block">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div className="max-w-3xl">

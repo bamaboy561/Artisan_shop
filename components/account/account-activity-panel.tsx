@@ -1,6 +1,8 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import {
   ArrowDownLeft,
+  ArrowUpRight,
   ClipboardList,
   FolderClock,
   ShoppingBag,
@@ -14,8 +16,6 @@ import {
   RequestType,
 } from "@/generated/prisma";
 import { StatusBadge } from "@/components/admin/status-badge";
-import { Button } from "@/components/ui/button";
-import { ButtonLink } from "@/components/ui/button-link";
 import { formatPrice } from "@/lib/commerce";
 
 type LoyaltyTransactionItem = {
@@ -141,34 +141,46 @@ function getRequestTone(status: RequestStatus) {
   return "neutral";
 }
 
+function PanelLink({
+  href,
+  children,
+}: {
+  href: string;
+  children: ReactNode;
+}) {
+  return (
+    <Link
+      href={href}
+      className="inline-flex h-9 items-center gap-2 rounded-full border border-[color:var(--line)] px-3 text-[11px] font-semibold tracking-[0.12em] text-[var(--foreground)] uppercase transition hover:border-[color:var(--foreground)] hover:bg-[var(--foreground)] hover:text-white"
+    >
+      {children}
+      <ArrowUpRight className="size-3.5" strokeWidth={1.8} />
+    </Link>
+  );
+}
+
 export function AccountActivityPanel({
   transactions,
   recentOrders,
   recentRequests,
 }: AccountActivityPanelProps) {
   return (
-    <section className="grid gap-4 xl:grid-cols-[1.08fr_0.92fr]">
-      <article className="reveal-up surface-glow rounded-[30px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-6">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="max-w-2xl">
-            <p className="font-mono text-xs tracking-[0.24em] text-[var(--accent)] uppercase">
-              Loyalty activity
+    <section className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_420px]">
+      <article className="surface-glow rounded-[26px] border border-[color:var(--line)] bg-white/92 p-4 shadow-[0_18px_44px_rgba(17,17,17,0.04)] sm:p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="font-mono text-[10px] tracking-[0.2em] text-[var(--accent)] uppercase">
+              Бонусы
             </p>
-            <h3 className="font-display mt-3 text-3xl leading-tight text-balance text-[var(--foreground)]">
-              История начислений и списаний.
+            <h3 className="mt-1 text-xl font-semibold tracking-[-0.03em] text-[var(--foreground)] sm:text-2xl">
+              Движение баллов
             </h3>
-            <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
-              Каждая операция показывает, как меняется ваш баланс и с каким
-              заказом она связана.
-            </p>
           </div>
 
-          <ButtonLink href="/checkout" variant="secondary" icon>
-            Перейти к checkout
-          </ButtonLink>
+          <PanelLink href="/checkout">Списать</PanelLink>
         </div>
 
-        <div className="mt-6 space-y-3">
+        <div className="mt-4 space-y-2">
           {transactions.length > 0 ? (
             transactions.map((transaction) => {
               const meta = getTransactionMeta(
@@ -180,46 +192,44 @@ export function AccountActivityPanel({
               return (
                 <article
                   key={transaction.id}
-                  className="group rounded-[24px] border border-[color:var(--line)] bg-white/82 px-5 py-5 transition-transform duration-300 hover:-translate-y-1"
+                  className="rounded-[20px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-3"
                 >
-                  <div className="flex flex-wrap items-start justify-between gap-4">
-                    <div className="flex min-w-0 gap-4">
-                      <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-[var(--surface)]">
-                        <Icon className="size-5 text-[var(--accent)]" />
-                      </div>
+                  <div className="flex min-w-0 items-start justify-between gap-3">
+                    <div className="flex min-w-0 gap-3">
+                      <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-[var(--surface)] text-[var(--accent)]">
+                        <Icon className="size-4" strokeWidth={1.9} />
+                      </span>
 
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
-                          <p className="font-semibold text-[var(--foreground)]">
+                          <p className="truncate font-semibold text-[var(--foreground)]">
                             {transaction.title}
                           </p>
                           <StatusBadge tone={meta.tone}>
                             {meta.label}
                           </StatusBadge>
                         </div>
-                        <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
+                        <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
+                          {formatDate(transaction.createdAt)}
                           {transaction.order?.number
-                            ? `Связано с заказом ${transaction.order.number}.`
+                            ? ` · заказ ${transaction.order.number}`
                             : ""}
                           {transaction.description
-                            ? ` ${transaction.description}`
+                            ? ` · ${transaction.description}`
                             : ""}
                         </p>
                       </div>
                     </div>
 
-                    <div className="text-right">
+                    <div className="shrink-0 text-right">
                       <p
-                        className={`text-2xl font-semibold ${meta.pointsClass}`}
+                        className={`text-lg font-semibold ${meta.pointsClass}`}
                       >
                         {transaction.points >= 0 ? "+" : ""}
                         {formatNumber(transaction.points)}
                       </p>
-                      <p className="mt-1 text-sm text-[var(--muted)]">
-                        Баланс: {formatNumber(transaction.balanceAfter)}
-                      </p>
-                      <p className="mt-2 text-xs tracking-[0.16em] text-[var(--muted)] uppercase">
-                        {formatDate(transaction.createdAt)}
+                      <p className="text-[11px] text-[var(--muted)]">
+                        {formatNumber(transaction.balanceAfter)}
                       </p>
                     </div>
                   </div>
@@ -227,45 +237,40 @@ export function AccountActivityPanel({
               );
             })
           ) : (
-            <div className="rounded-[24px] border border-[color:var(--line)] bg-white/82 px-5 py-5 text-sm leading-7 text-[var(--muted)]">
-              После первого заказа здесь появится история накоплений, списаний и
-              ручных корректировок менеджером.
+            <div className="rounded-[20px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-4 text-sm leading-6 text-[var(--muted)]">
+              После первого заказа здесь появятся начисления и списания баллов.
             </div>
           )}
         </div>
       </article>
 
-      <div className="grid gap-4">
-        <article className="reveal-up surface-glow rounded-[30px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-6 delay-1">
+      <div className="grid gap-3">
+        <article className="surface-glow rounded-[26px] border border-[color:var(--line)] bg-white/92 p-4 shadow-[0_18px_44px_rgba(17,17,17,0.04)] sm:p-5">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="font-mono text-xs tracking-[0.22em] text-[var(--muted)] uppercase">
-                Orders
+              <p className="font-mono text-[10px] tracking-[0.2em] text-[var(--muted)] uppercase">
+                Заказы
               </p>
-              <h3 className="mt-2 text-2xl font-semibold text-[var(--foreground)]">
-                Последние заказы
+              <h3 className="mt-1 text-xl font-semibold tracking-[-0.03em] text-[var(--foreground)]">
+                Последние
               </h3>
             </div>
-            <Link href="/account/orders">
-              <Button variant="ghost" size="sm">
-                Все заказы
-              </Button>
-            </Link>
+            <PanelLink href="/account/orders">Все</PanelLink>
           </div>
 
-          <div className="mt-5 space-y-3">
+          <div className="mt-4 space-y-2">
             {recentOrders.length > 0 ? (
               recentOrders.map((order) => (
                 <div
                   key={order.id}
-                  className="rounded-[22px] border border-[color:var(--line)] bg-white/78 px-4 py-4"
+                  className="rounded-[20px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-3"
                 >
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <p className="font-semibold text-[var(--foreground)]">
+                  <div className="flex min-w-0 items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold text-[var(--foreground)]">
                         {order.number ?? order.id.slice(0, 8)}
                       </p>
-                      <p className="mt-1 text-sm text-[var(--muted)]">
+                      <p className="mt-1 text-xs text-[var(--muted)]">
                         {formatDate(order.createdAt)}
                       </p>
                     </div>
@@ -273,49 +278,45 @@ export function AccountActivityPanel({
                       {order.status}
                     </StatusBadge>
                   </div>
-                  <p className="mt-3 text-lg font-semibold text-[var(--foreground)]">
+                  <p className="mt-2 text-base font-semibold text-[var(--foreground)]">
                     {formatPrice(order.total)}
                   </p>
                 </div>
               ))
             ) : (
-              <div className="rounded-[22px] border border-[color:var(--line)] bg-white/78 px-4 py-4 text-sm leading-6 text-[var(--muted)]">
-                Как только вы оформите первый заказ, он появится в этой ленте.
+              <div className="rounded-[20px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-4 text-sm leading-6 text-[var(--muted)]">
+                Заказы появятся после оформления корзины.
               </div>
             )}
           </div>
         </article>
 
-        <article className="reveal-up surface-glow rounded-[30px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-6 delay-2">
+        <article className="surface-glow rounded-[26px] border border-[color:var(--line)] bg-white/92 p-4 shadow-[0_18px_44px_rgba(17,17,17,0.04)] sm:p-5">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="font-mono text-xs tracking-[0.22em] text-[var(--muted)] uppercase">
-                Requests
+              <p className="font-mono text-[10px] tracking-[0.2em] text-[var(--muted)] uppercase">
+                Заявки
               </p>
-              <h3 className="mt-2 text-2xl font-semibold text-[var(--foreground)]">
-                Запросы и расчёты
+              <h3 className="mt-1 text-xl font-semibold tracking-[-0.03em] text-[var(--foreground)]">
+                Расчёты
               </h3>
             </div>
-            <Link href="/account/requests">
-              <Button variant="ghost" size="sm">
-                Все заявки
-              </Button>
-            </Link>
+            <PanelLink href="/account/requests">Все</PanelLink>
           </div>
 
-          <div className="mt-5 space-y-3">
+          <div className="mt-4 space-y-2">
             {recentRequests.length > 0 ? (
               recentRequests.map((request) => (
                 <div
                   key={request.id}
-                  className="rounded-[22px] border border-[color:var(--line)] bg-white/78 px-4 py-4"
+                  className="rounded-[20px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-3"
                 >
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <p className="font-semibold text-[var(--foreground)]">
+                  <div className="flex min-w-0 items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold text-[var(--foreground)]">
                         {request.number ?? request.id.slice(0, 8)}
                       </p>
-                      <p className="mt-1 text-sm text-[var(--muted)]">
+                      <p className="mt-1 text-xs text-[var(--muted)]">
                         {request.type} · {formatDate(request.createdAt)}
                       </p>
                     </div>
@@ -326,26 +327,25 @@ export function AccountActivityPanel({
                 </div>
               ))
             ) : (
-              <div className="rounded-[22px] border border-[color:var(--line)] bg-white/78 px-4 py-4 text-sm leading-6 text-[var(--muted)]">
-                Новые расчёты, запросы цены и сервисные заявки будут появляться
-                здесь по мере работы с каталогом и услугами.
+              <div className="rounded-[20px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-4 text-sm leading-6 text-[var(--muted)]">
+                Запросы цены и распила будут видны здесь.
               </div>
             )}
           </div>
         </article>
 
-        <article className="rounded-[30px] border border-[color:var(--line)] bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(248,242,236,0.84))] p-6">
+        <article className="rounded-[26px] border border-[color:var(--line)] bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(248,242,236,0.86))] p-4 sm:p-5">
           <div className="flex items-start gap-3">
-            <FolderClock className="mt-0.5 size-5 text-[var(--accent)]" />
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-white text-[var(--accent)]">
+              <FolderClock className="size-4" strokeWidth={1.9} />
+            </span>
             <div>
-              <h3 className="text-lg font-semibold text-[var(--foreground)]">
-                Как быстрее перейти на следующий уровень
+              <h3 className="text-base font-semibold text-[var(--foreground)]">
+                Как ускорить работу
               </h3>
-              <p className="mt-2 text-sm leading-7 text-[var(--muted)]">
-                Оформляйте заказы через сайт, используйте единый кабинет для
-                заявок на распил и сохраняйте часто используемые позиции в
-                избранное. Так вся история закрепляется за вашим профилем и
-                ускоряет рост статуса.
+              <p className="mt-1 text-sm leading-6 text-[var(--muted)]">
+                Оформляйте заявки через кабинет: менеджер увидит историю,
+                файлы, статусы и быстрее подготовит расчёт.
               </p>
             </div>
           </div>

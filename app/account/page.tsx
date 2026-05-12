@@ -49,16 +49,7 @@ export default async function AccountPage() {
   );
 
   return (
-    <div className="space-y-4">
-      <section className="surface-glow rounded-[24px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-6 sm:p-8">
-        <SectionHeading
-          title="Личный кабинет"
-          description="Профиль клиента, программа лояльности, активные заказы и накопительная история в одной рабочей среде."
-          titleClassName="text-2xl sm:text-3xl"
-          descriptionClassName="max-w-2xl text-sm leading-7"
-        />
-      </section>
-
+    <div className="space-y-3 sm:space-y-4">
       <LoyaltyOverview
         user={{
           firstName: user.firstName,

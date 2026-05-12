@@ -25,7 +25,7 @@ export default async function AccountLayout({
     <DashboardFrame
       eyebrow="Кабинет клиента"
       title="Личный кабинет"
-      description="Профиль, скидки, баллы, заказы и заявки в одном разделе."
+      description="Скидки, баллы, заказы и заявки в одном рабочем экране."
       items={accountNavigation}
       variant="account"
       actions={
@@ -42,9 +42,9 @@ export default async function AccountLayout({
             </p>
           </div>
 
-          <div className="flex min-w-0 items-center justify-between gap-3 rounded-[18px] border border-white/10 bg-white/[0.055] p-3 xl:hidden">
+          <div className="flex min-w-0 items-center justify-between gap-3 rounded-[16px] border border-white/10 bg-white/[0.055] p-2.5 xl:hidden">
             <div className="min-w-0">
-              <p className="font-mono text-[9px] tracking-[0.22em] text-white/36 uppercase">
+              <p className="font-mono text-[8px] tracking-[0.2em] text-white/36 uppercase">
                 Профиль
               </p>
               <p className="mt-1 truncate text-sm font-semibold text-white">
@@ -58,7 +58,7 @@ export default async function AccountLayout({
                 type="submit"
                 size="sm"
                 variant="secondary"
-                className="h-9 border-white/16 px-3 text-[0.62rem] tracking-[0.16em] text-white hover:border-white hover:bg-white hover:text-[#111111]"
+                className="h-8 border-white/16 px-3 text-[0.6rem] tracking-[0.14em] text-white hover:border-white hover:bg-white hover:text-[#111111]"
               >
                 Выйти
               </Button>

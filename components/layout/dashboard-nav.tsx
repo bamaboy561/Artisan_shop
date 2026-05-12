@@ -162,7 +162,10 @@ function AccountMobileNav({
   pathname: string;
 }) {
   return (
-    <nav aria-label="Разделы кабинета" className="grid grid-cols-2 gap-2 min-[460px]:grid-cols-4">
+    <nav
+      aria-label="Разделы кабинета"
+      className="grid min-w-0 grid-cols-4 gap-1.5"
+    >
       {items.map((item) => {
         const Icon =
           iconMap[item.href as keyof typeof iconMap] ?? LayoutDashboard;
@@ -175,13 +178,13 @@ function AccountMobileNav({
             title={item.description ?? item.label}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "flex h-11 min-w-0 items-center justify-center gap-2 rounded-full border px-3 text-[0.68rem] font-extrabold uppercase tracking-[0.16em] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70",
+              "flex h-[58px] min-w-0 flex-col items-center justify-center gap-1 rounded-[16px] border px-1.5 text-center text-[9px] font-bold uppercase tracking-[0.08em] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70",
               active
-                ? "border-white bg-white text-[#111111]"
-                : "border-white/10 bg-white/[0.06] text-white/64 hover:border-white/25 hover:bg-white/[0.1] hover:text-white",
+                ? "border-white bg-white text-[#111111] shadow-[0_8px_24px_rgba(255,255,255,0.08)]"
+                : "border-white/10 bg-white/[0.055] text-white/62 hover:border-white/25 hover:bg-white/[0.1] hover:text-white",
             )}
           >
-            <Icon className="size-3.5 shrink-0" strokeWidth={1.9} />
+            <Icon className="size-4 shrink-0" strokeWidth={1.9} />
             <span className="truncate">{item.label}</span>
           </Link>
         );

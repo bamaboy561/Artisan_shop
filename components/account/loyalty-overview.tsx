@@ -1,4 +1,16 @@
-import { Gem, Layers3, ShieldCheck, Sparkles, Wallet } from "lucide-react";
+import Link from "next/link";
+import {
+  ArrowUpRight,
+  BadgePercent,
+  FileStack,
+  Gem,
+  Heart,
+  ReceiptText,
+  Scissors,
+  ShoppingBag,
+  Sparkles,
+  Wallet,
+} from "lucide-react";
 
 import { LoyaltyTier } from "@/generated/prisma";
 import { StatusBadge } from "@/components/admin/status-badge";
@@ -8,6 +20,7 @@ import {
   getLoyaltyTierLabel,
   loyaltyTierOrder,
 } from "@/lib/server/pricing";
+import { cn } from "@/lib/utils";
 
 type LoyaltyOverviewProps = {
   user: {
@@ -68,214 +81,228 @@ export function LoyaltyOverview({
   const currentBenefits = getLoyaltyTierBenefits(user.loyaltyTier);
   const displayName =
     [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email;
+  const nextTierLabel = progress.nextTier
+    ? getLoyaltyTierLabel(progress.nextTier)
+    : "Максимальный статус";
+
+  const stats = [
+    {
+      label: "Заказы",
+      value: summary.ordersCount,
+      caption: `В работе ${summary.activeOrdersCount}`,
+      href: "/account/orders",
+      icon: ReceiptText,
+    },
+    {
+      label: "Заявки",
+      value: summary.requestsCount,
+      caption: `Активные ${summary.activeRequestsCount}`,
+      href: "/account/requests",
+      icon: FileStack,
+    },
+    {
+      label: "Избранное",
+      value: summary.favoritesCount,
+      caption: "Сохранённые позиции",
+      href: "/account/favorites",
+      icon: Heart,
+    },
+    {
+      label: "Скидка",
+      value: `${effectiveDiscount}%`,
+      caption: "Персональная выгода",
+      href: "/account",
+      icon: BadgePercent,
+    },
+  ];
+
+  const quickActions = [
+    {
+      href: "/catalog",
+      label: "Каталог",
+      description: "Материалы и фурнитура",
+      icon: ShoppingBag,
+    },
+    {
+      href: "/calculator",
+      label: "Распил",
+      description: "Расчёт деталей",
+      icon: Scissors,
+    },
+    {
+      href: "/account/requests",
+      label: "Заявки",
+      description: "Статусы расчётов",
+      icon: FileStack,
+    },
+  ];
 
   return (
-    <section className="reveal-up space-y-4">
-      <article className="surface-glow relative overflow-hidden rounded-[32px] border border-[color:var(--line)] bg-[var(--surface-strong)]">
-        <div className="pointer-events-none absolute inset-0">
-          <div className="absolute inset-y-0 left-0 w-full bg-[radial-gradient(circle_at_top_left,rgba(185,95,63,0.22),transparent_42%),linear-gradient(135deg,rgba(255,255,255,0.96),rgba(248,242,236,0.92))]" />
-          <div className="absolute top-0 right-0 h-72 w-72 rounded-full bg-[radial-gradient(circle,rgba(48,42,36,0.14),transparent_68%)]" />
-          <div className="absolute inset-y-0 right-[8%] w-px bg-[linear-gradient(180deg,transparent,rgba(25,24,22,0.12),transparent)]" />
-        </div>
+    <section className="reveal-up space-y-3 sm:space-y-4">
+      <article className="relative overflow-hidden rounded-[26px] bg-[#111111] p-4 text-white shadow-[0_22px_58px_rgba(17,17,17,0.18)] sm:rounded-[32px] sm:p-6">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_0%,rgba(199,106,63,0.3),transparent_32%),linear-gradient(135deg,rgba(255,255,255,0.05),transparent_42%)]" />
 
-        <div className="relative grid gap-6 p-6 sm:p-8 xl:grid-cols-[1.2fr_0.8fr]">
-          <div className="space-y-6">
-            <div className="flex flex-wrap items-center gap-3">
-              <StatusBadge tone={getTierTone(user.loyaltyTier)}>
+        <div className="relative grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-stretch">
+          <div className="min-w-0 space-y-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <StatusBadge
+                tone={getTierTone(user.loyaltyTier)}
+                className="border-white/10 bg-white text-[#111111]"
+              >
                 {getLoyaltyTierLabel(user.loyaltyTier)}
               </StatusBadge>
-              <StatusBadge tone="accent">
-                Персональная скидка {effectiveDiscount}%
-              </StatusBadge>
+              <span className="rounded-md border border-white/10 bg-white/[0.06] px-2 py-1 text-xs font-medium text-white/72">
+                Скидка {effectiveDiscount}%
+              </span>
             </div>
 
-            <div className="max-w-3xl space-y-4">
-              <p className="font-mono text-xs tracking-[0.26em] text-[var(--muted)] uppercase">
-                Loyalty space
-              </p>
-              <h2 className="font-display max-w-3xl text-4xl leading-[0.95] text-balance text-[var(--foreground)] sm:text-5xl">
-                {formatNumber(user.loyaltyPointsBalance)} баллов доступны для
-                следующего заказа.
-              </h2>
-              <p className="max-w-2xl text-sm leading-7 text-[var(--muted)] sm:text-base">
-                Кабинет показывает ваш текущий статус клиента, накопленный объём
-                заказов и прямую выгоду от сотрудничества с Artisan без лишней
-                навигации по разделам.
-              </p>
-            </div>
-
-            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
-              <div className="rounded-[28px] border border-black/8 bg-white/76 p-5 backdrop-blur">
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div>
-                    <p className="text-sm text-[var(--muted)]">
-                      До следующего уровня
-                    </p>
-                    <p className="mt-2 text-2xl font-semibold text-[var(--foreground)]">
-                      {progress.nextTier
-                        ? getLoyaltyTierLabel(progress.nextTier)
-                        : "Максимальный статус"}
-                    </p>
-                  </div>
-                  <div className="rounded-2xl border border-[color:var(--line)] bg-white px-4 py-3 text-right">
-                    <p className="text-xs tracking-[0.16em] text-[var(--muted)] uppercase">
-                      Осталось
-                    </p>
-                    <p className="mt-2 text-xl font-semibold text-[var(--foreground)]">
-                      {progress.nextTier
-                        ? `${formatNumber(progress.pointsToNext)} баллов`
-                        : "0"}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="mt-5 h-3 rounded-full bg-black/6">
-                  <div
-                    className="h-3 rounded-full bg-[linear-gradient(90deg,var(--accent),#d6a07f)] transition-all duration-700"
-                    style={{ width: `${progress.progressPercent}%` }}
-                  />
-                </div>
-
-                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-[var(--muted)]">
-                  <span>
-                    Старт {formatNumber(progress.currentThreshold)} баллов
-                  </span>
-                  <span>
-                    {progress.nextThreshold
-                      ? `Цель ${formatNumber(progress.nextThreshold)}`
-                      : "Платина закреплена"}
-                  </span>
-                </div>
+            <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_190px] sm:items-end">
+              <div className="min-w-0">
+                <p className="font-mono text-[10px] tracking-[0.22em] text-white/42 uppercase">
+                  {displayName}
+                </p>
+                <h2 className="mt-2 text-[2.05rem] font-semibold leading-[0.95] tracking-[-0.055em] text-white sm:text-5xl">
+                  {formatNumber(user.loyaltyPointsBalance)}
+                </h2>
+                <p className="mt-2 text-sm text-white/58">
+                  баллов доступно для следующих заказов
+                </p>
               </div>
 
-              <div className="grid gap-3">
-                <div className="rounded-[24px] border border-black/8 bg-white/82 p-4">
-                  <div className="flex items-center gap-3">
-                    <Wallet className="size-4 text-[var(--accent)]" />
-                    <p className="text-sm text-[var(--muted)]">Кэшбэк уровня</p>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-1">
+                <div className="rounded-[18px] border border-white/10 bg-white/[0.06] p-3">
+                  <div className="flex items-center gap-2 text-white/52">
+                    <Wallet className="size-4" />
+                    <span className="text-[11px]">Кэшбэк</span>
                   </div>
-                  <p className="mt-3 text-2xl font-semibold text-[var(--foreground)]">
+                  <p className="mt-2 text-xl font-semibold">
                     {currentBenefits.accrualPercent}%
                   </p>
                 </div>
-                <div className="rounded-[24px] border border-black/8 bg-white/82 p-4">
-                  <div className="flex items-center gap-3">
-                    <Gem className="size-4 text-[var(--accent)]" />
-                    <p className="text-sm text-[var(--muted)]">
-                      Накоплено за всё время
-                    </p>
+                <div className="rounded-[18px] border border-white/10 bg-white/[0.06] p-3">
+                  <div className="flex items-center gap-2 text-white/52">
+                    <Gem className="size-4" />
+                    <span className="text-[11px]">Всего</span>
                   </div>
-                  <p className="mt-3 text-2xl font-semibold text-[var(--foreground)]">
+                  <p className="mt-2 text-xl font-semibold">
                     {formatNumber(user.loyaltyPointsLifetime)}
                   </p>
                 </div>
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-3">
-              <ButtonLink href="/checkout" variant="contrast" icon>
-                Использовать баллы
-              </ButtonLink>
-              <ButtonLink href="/account/orders" variant="secondary">
-                История заказов
-              </ButtonLink>
-              <ButtonLink href="/catalog" variant="ghost">
-                Вернуться в каталог
-              </ButtonLink>
+            <div className="rounded-[22px] border border-white/10 bg-white/[0.055] p-3 sm:p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs text-white/48">Следующий уровень</p>
+                  <p className="mt-1 text-base font-semibold text-white">
+                    {nextTierLabel}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-white/48">Осталось</p>
+                  <p className="mt-1 text-base font-semibold text-white">
+                    {progress.nextTier
+                      ? formatNumber(progress.pointsToNext)
+                      : "0"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-3 h-2 rounded-full bg-white/10">
+                <div
+                  className="h-2 rounded-full bg-[linear-gradient(90deg,var(--accent),#e5b08f)] transition-all duration-700"
+                  style={{ width: `${progress.progressPercent}%` }}
+                />
+              </div>
+
+              <div className="mt-2 flex items-center justify-between gap-3 text-[11px] text-white/42">
+                <span>{formatNumber(progress.currentThreshold)}</span>
+                <span>
+                  {progress.nextThreshold
+                    ? formatNumber(progress.nextThreshold)
+                    : "Платина"}
+                </span>
+              </div>
             </div>
           </div>
 
-          <div className="grid gap-4">
-            <div className="rounded-[30px] bg-[linear-gradient(180deg,var(--hero),#1e1b17)] p-6 text-white shadow-[var(--shadow-strong)]">
-              <p className="font-mono text-xs tracking-[0.24em] text-white/56 uppercase">
-                Профиль клиента
+          <div className="grid gap-2 rounded-[24px] border border-white/10 bg-white/[0.055] p-3 sm:p-4">
+            <div className="min-w-0">
+              <p className="font-mono text-[10px] tracking-[0.2em] text-white/38 uppercase">
+                Быстрые действия
               </p>
-              <h3 className="font-display mt-4 text-3xl leading-tight text-balance">
-                {displayName}
-              </h3>
-              <p className="mt-3 text-sm leading-7 text-white/70">
+              <p className="mt-1 truncate text-sm text-white/62">
                 {user.companyName ?? "Частный клиент"} · {user.roleName}
               </p>
-
-              <div className="mt-6 grid gap-3">
-                <div className="rounded-[22px] border border-white/10 bg-white/6 px-4 py-4">
-                  <p className="text-xs tracking-[0.16em] text-white/50 uppercase">
-                    Контакт
-                  </p>
-                  <p className="mt-2 text-sm text-white/88">{user.email}</p>
-                  <p className="mt-1 text-sm text-white/60">
-                    {user.phone ?? "Телефон не указан"}
-                  </p>
-                </div>
-
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="rounded-[22px] border border-white/10 bg-white/6 px-4 py-4">
-                    <div className="flex items-center gap-2 text-white/50">
-                      <Layers3 className="size-4" />
-                      <span className="text-xs tracking-[0.16em] uppercase">
-                        Заказы
-                      </span>
-                    </div>
-                    <p className="mt-3 text-2xl font-semibold">
-                      {summary.ordersCount}
-                    </p>
-                    <p className="mt-1 text-sm text-white/60">
-                      В работе: {summary.activeOrdersCount}
-                    </p>
-                  </div>
-
-                  <div className="rounded-[22px] border border-white/10 bg-white/6 px-4 py-4">
-                    <div className="flex items-center gap-2 text-white/50">
-                      <ShieldCheck className="size-4" />
-                      <span className="text-xs tracking-[0.16em] uppercase">
-                        Заявки
-                      </span>
-                    </div>
-                    <p className="mt-3 text-2xl font-semibold">
-                      {summary.requestsCount}
-                    </p>
-                    <p className="mt-1 text-sm text-white/60">
-                      Активные: {summary.activeRequestsCount}
-                    </p>
-                  </div>
-                </div>
-              </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="rounded-[24px] border border-[color:var(--line)] bg-white/82 p-5">
-                <div className="flex items-center gap-2 text-[var(--muted)]">
-                  <Sparkles className="size-4 text-[var(--accent)]" />
-                  <p className="text-sm">Избранное</p>
-                </div>
-                <p className="mt-3 text-2xl font-semibold text-[var(--foreground)]">
-                  {summary.favoritesCount}
-                </p>
-                <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-                  Сохранённые позиции для повторных заказов и быстрых расчётов.
-                </p>
-              </div>
+            <div className="grid gap-2">
+              {quickActions.map((action) => {
+                const Icon = action.icon;
 
-              <div className="rounded-[24px] border border-[color:var(--line)] bg-white/82 p-5">
-                <div className="flex items-center gap-2 text-[var(--muted)]">
-                  <Wallet className="size-4 text-[var(--accent)]" />
-                  <p className="text-sm">Личный бонус</p>
-                </div>
-                <p className="mt-3 text-2xl font-semibold text-[var(--foreground)]">
-                  +{user.personalDiscountPercent}%
-                </p>
-                <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-                  Дополнительная надбавка к скидке, закреплённая за вашим
-                  аккаунтом.
-                </p>
-              </div>
+                return (
+                  <Link
+                    key={action.href}
+                    href={action.href}
+                    className="group flex min-w-0 items-center justify-between gap-3 rounded-[18px] border border-white/10 bg-white/[0.065] p-3 transition hover:border-white/25 hover:bg-white/[0.1]"
+                  >
+                    <span className="flex min-w-0 items-center gap-3">
+                      <span className="flex size-9 shrink-0 items-center justify-center rounded-2xl bg-white text-[#111111]">
+                        <Icon className="size-4" strokeWidth={1.9} />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-semibold text-white">
+                          {action.label}
+                        </span>
+                        <span className="mt-0.5 block truncate text-xs text-white/46">
+                          {action.description}
+                        </span>
+                      </span>
+                    </span>
+                    <ArrowUpRight
+                      className="size-4 shrink-0 text-white/44 transition group-hover:text-white"
+                      strokeWidth={1.8}
+                    />
+                  </Link>
+                );
+              })}
             </div>
           </div>
         </div>
       </article>
 
-      <div className="grid gap-3 xl:grid-cols-4">
-        {loyaltyTierOrder.map((tier, index) => {
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        {stats.map((item) => {
+          const Icon = item.icon;
+
+          return (
+            <Link
+              key={item.label}
+              href={item.href}
+              className="group rounded-[22px] border border-[color:var(--line)] bg-white/92 p-4 shadow-[0_14px_34px_rgba(17,17,17,0.04)] transition hover:-translate-y-0.5 hover:border-[color:var(--accent)]/30"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm text-[var(--muted)]">{item.label}</p>
+                  <p className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-[var(--foreground)]">
+                    {item.value}
+                  </p>
+                </div>
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-[var(--surface)] text-[var(--accent)]">
+                  <Icon className="size-4" strokeWidth={1.9} />
+                </span>
+              </div>
+              <p className="mt-3 text-xs leading-5 text-[var(--muted)]">
+                {item.caption}
+              </p>
+            </Link>
+          );
+        })}
+      </div>
+
+      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        {loyaltyTierOrder.map((tier) => {
           const benefits = getLoyaltyTierBenefits(tier);
           const isCurrent = tier === user.loyaltyTier;
           const isUnlocked = user.loyaltyPointsLifetime >= benefits.threshold;
@@ -284,52 +311,68 @@ export function LoyaltyOverview({
           return (
             <article
               key={tier}
-              className={`reveal-up rounded-[26px] border p-5 transition-transform duration-300 hover:-translate-y-1 ${
+              className={cn(
+                "rounded-[22px] border p-4 transition-transform duration-300 hover:-translate-y-0.5",
                 isCurrent
-                  ? "border-[color:var(--accent)]/30 bg-[linear-gradient(180deg,rgba(185,95,63,0.12),rgba(255,255,255,0.92))] shadow-[var(--shadow-strong)]"
-                  : "border-[color:var(--line)] bg-[var(--surface-strong)]"
-              } ${index === 1 ? "delay-1" : ""} ${index > 1 ? "delay-2" : ""}`}
+                  ? "border-[color:var(--accent)]/35 bg-[linear-gradient(180deg,rgba(185,95,63,0.12),rgba(255,255,255,0.94))] shadow-[0_18px_42px_rgba(17,17,17,0.06)]"
+                  : "border-[color:var(--line)] bg-white/84",
+              )}
             >
               <div className="flex items-center justify-between gap-3">
                 <StatusBadge tone={getTierTone(tier)}>
                   {getLoyaltyTierLabel(tier)}
                 </StatusBadge>
-                <span className="text-[11px] tracking-[0.16em] text-[var(--muted)] uppercase">
+                <span className="text-[10px] tracking-[0.14em] text-[var(--muted)] uppercase">
                   {benefits.threshold === 0
                     ? "Старт"
                     : `${formatNumber(benefits.threshold)}+`}
                 </span>
               </div>
 
-              <div className="mt-5 space-y-3">
+              <div className="mt-4 grid grid-cols-2 gap-3">
                 <div>
-                  <p className="text-sm text-[var(--muted)]">Скидка</p>
-                  <p className="mt-1 text-2xl font-semibold text-[var(--foreground)]">
+                  <p className="text-xs text-[var(--muted)]">Скидка</p>
+                  <p className="mt-1 text-xl font-semibold text-[var(--foreground)]">
                     {benefits.baseDiscountPercent}%
                   </p>
                 </div>
                 <div>
-                  <p className="text-sm text-[var(--muted)]">
-                    Начисление баллов
-                  </p>
+                  <p className="text-xs text-[var(--muted)]">Баллы</p>
                   <p className="mt-1 text-xl font-semibold text-[var(--foreground)]">
                     {benefits.accrualPercent}%
                   </p>
                 </div>
               </div>
 
-              <p className="mt-5 text-sm leading-6 text-[var(--muted)]">
+              <p className="mt-4 flex items-center gap-2 text-xs leading-5 text-[var(--muted)]">
+                <Sparkles
+                  className={cn(
+                    "size-3.5 shrink-0",
+                    isCurrent || isUnlocked
+                      ? "text-[var(--accent)]"
+                      : "text-[var(--muted)]",
+                  )}
+                />
                 {isCurrent
-                  ? "Текущий активный уровень клиента."
+                  ? "Ваш текущий уровень"
                   : isUpcoming
-                    ? "Следующая цель в программе лояльности."
+                    ? "Следующая цель"
                     : isUnlocked
-                      ? "Уровень уже пройден и закреплён в вашей истории."
-                      : "Откроется после накопления нужного количества баллов."}
+                      ? "Уровень уже пройден"
+                      : "Откроется позже"}
               </p>
             </article>
           );
         })}
+      </div>
+
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <ButtonLink href="/checkout" variant="contrast" icon>
+          Использовать баллы
+        </ButtonLink>
+        <ButtonLink href="/catalog" variant="secondary">
+          Перейти в каталог
+        </ButtonLink>
       </div>
     </section>
   );
