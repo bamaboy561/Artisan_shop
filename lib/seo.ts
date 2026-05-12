@@ -142,6 +142,22 @@ function truncateText(value: string, maxLength = 170) {
   return `${candidate.slice(0, cutAt).trim()}…`;
 }
 
+function sentencePreview(value: string, maxLength = 112) {
+  const text = value.replace(/\s+/g, " ").trim();
+
+  if (text.length <= maxLength) {
+    return text;
+  }
+
+  const firstSentence = text.match(/^.{42,}?[.!?](?=\s|$)/u)?.[0];
+
+  if (firstSentence && firstSentence.length <= maxLength) {
+    return firstSentence;
+  }
+
+  return truncateText(text, maxLength);
+}
+
 function formatHour(hour: number) {
   return `${String(hour).padStart(2, "0")}:00`;
 }
@@ -364,17 +380,15 @@ export function productDescription(product: FeaturedProduct) {
 }
 
 export function productSeoTitle(product: FeaturedProduct) {
-  return (
-    product.seoTitle?.trim() ||
-    [
-      product.name,
-      product.brand,
-      product.categoryName,
-      `в ${localMarket}`,
-    ]
-      .filter(Boolean)
-      .join(" — ")
-  );
+  if (product.seoTitle?.trim()) {
+    return product.seoTitle;
+  }
+
+  const core = [product.name, product.brand, product.categoryName]
+    .filter(Boolean)
+    .join(" — ");
+
+  return `${core} в ${localMarket}`;
 }
 
 export function productSeoDescription(product: FeaturedProduct) {
@@ -386,13 +400,14 @@ export function productSeoDescription(product: FeaturedProduct) {
     product.summary || product.description,
     `${product.name} ${product.brand}: характеристики, формат и наличие.`,
   );
-  const conciseBase = truncateText(base, 105).replace(/…$/, "");
+  const conciseBase = sentencePreview(base);
+  const separator = /[.!?…]$/u.test(conciseBase) ? " " : ". ";
   const commercialTail =
     typeof product.price === "number"
       ? `Цена ${new Intl.NumberFormat("ru-RU").format(product.price)} сом. Консультация, заказ и распил в ${localMarket}.`
       : `Запрос цены, наличие, консультация и распил в ${localMarket}.`;
 
-  return truncateText(`${conciseBase}. ${commercialTail}`);
+  return truncateText(`${conciseBase}${separator}${commercialTail}`);
 }
 
 type BrandSeoInput = {
