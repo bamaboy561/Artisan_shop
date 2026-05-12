@@ -22,6 +22,8 @@ import {
   handleOrderUpdated,
   handleOrderCreated,
   handleRequestUpdated,
+  sendTelegramTestNotification,
+  type TelegramThreadKey,
 } from "@/lib/server/commercial-integrations";
 import {
   getManagerDisplayName,
@@ -430,6 +432,23 @@ function getProductImportRedirect(params: {
   return `/admin/products?${searchParams.toString()}`;
 }
 
+function getInventoryStatusFromStock(
+  stockQuantity: number | null,
+  zeroMissingAsOut: boolean,
+) {
+  if (stockQuantity === null) {
+    return null;
+  }
+
+  if (stockQuantity <= 0) {
+    return zeroMissingAsOut ? InventoryStatus.OUT_OF_STOCK : null;
+  }
+
+  return stockQuantity <= 5
+    ? InventoryStatus.LIMITED
+    : InventoryStatus.IN_STOCK;
+}
+
 function revalidateAdminCatalog() {
   revalidatePath("/admin");
   revalidatePath("/admin/categories");
@@ -551,6 +570,25 @@ async function syncRequestById(
 
 async function ensureAdminAccess() {
   return requireAdminSession("/login?next=/admin");
+}
+
+export async function sendTelegramTestAction(formData: FormData) {
+  await ensureAdminAccess();
+
+  const threadKeyCandidate = getString(formData, "threadKey");
+  const threadKey: TelegramThreadKey =
+    threadKeyCandidate === "orders" || threadKeyCandidate === "cutting"
+      ? threadKeyCandidate
+      : "requests";
+  const result = await sendTelegramTestNotification(threadKey);
+  const searchParams = new URLSearchParams({
+    telegramTest: result.ok ? "ok" : "error",
+    telegramMessage: result.message,
+    telegramThread: threadKey,
+  });
+
+  revalidatePath("/admin/launch");
+  redirect(`/admin/launch?${searchParams.toString()}`);
 }
 
 function getOptionalManagerLabel(manager: ManagerSnapshot) {
@@ -1506,6 +1544,146 @@ export async function importProductsFromExcelAction(formData: FormData) {
   redirect(
     getProductImportRedirect({
       created,
+      updated,
+      skipped,
+      errors,
+      warnings: parsed.warnings.length,
+      mapped: parsed.mappedColumns.length,
+    }),
+  );
+}
+
+export async function updateProductStockFromExcelAction(formData: FormData) {
+  if (!hasDatabaseUrl()) {
+    return;
+  }
+
+  await ensureAdminAccess();
+
+  const file = getFileList(formData, "stockFile")[0];
+
+  if (!file) {
+    redirect(
+      getProductImportRedirect({
+        message: "Файл не выбран",
+        errors: 1,
+      }),
+    );
+  }
+
+  if (file.size > PRODUCT_IMPORT_MAX_FILE_SIZE) {
+    redirect(
+      getProductImportRedirect({
+        message: "Файл больше 10 МБ",
+        errors: 1,
+      }),
+    );
+  }
+
+  let parsed: Awaited<ReturnType<typeof parseProductImportFile>>;
+
+  try {
+    parsed = await parseProductImportFile(file);
+  } catch {
+    redirect(
+      getProductImportRedirect({
+        message: "Не удалось прочитать файл",
+        errors: 1,
+      }),
+    );
+  }
+
+  if (parsed.rows.length === 0) {
+    redirect(
+      getProductImportRedirect({
+        message: "В файле не найдено строк для обновления",
+        warnings: parsed.warnings.length,
+      }),
+    );
+  }
+
+  const updatePrice = getString(formData, "updatePrice") === "on";
+  const updateStock = getString(formData, "updateStock") === "on";
+  const updateAvailability = getString(formData, "updateAvailability") === "on";
+  const zeroMissingAsOut = getString(formData, "zeroMissingAsOut") === "on";
+
+  if (!updatePrice && !updateStock && !updateAvailability) {
+    redirect(
+      getProductImportRedirect({
+        message: "Выберите хотя бы одно поле для обновления",
+        warnings: parsed.warnings.length,
+      }),
+    );
+  }
+
+  const db = getDb();
+  const existingProducts = await db.product.findMany({
+    select: { id: true, sku: true },
+  });
+  const productBySku = new Map(
+    existingProducts.map((product) => [
+      product.sku.trim().toLocaleLowerCase("ru-RU"),
+      product,
+    ]),
+  );
+
+  let updated = 0;
+  let skipped = 0;
+  let errors = 0;
+
+  for (const row of parsed.rows) {
+    try {
+      const skuKey = row.sku.trim().toLocaleLowerCase("ru-RU");
+      const product = productBySku.get(skuKey);
+
+      if (!skuKey || !product) {
+        skipped += 1;
+        continue;
+      }
+
+      const updateData: Prisma.ProductUpdateInput = {};
+
+      if (updatePrice && row.price !== null) {
+        updateData.price = row.price;
+      }
+
+      if (updatePrice && row.compareAtPrice !== null) {
+        updateData.compareAtPrice = row.compareAtPrice;
+      }
+
+      if (updateStock && row.stockQuantity !== null) {
+        updateData.stockQuantity = row.stockQuantity;
+      }
+
+      if (updateAvailability) {
+        const nextInventoryStatus =
+          row.inventoryStatus ??
+          getInventoryStatusFromStock(row.stockQuantity, zeroMissingAsOut);
+
+        if (nextInventoryStatus) {
+          updateData.inventoryStatus = nextInventoryStatus;
+        }
+      }
+
+      if (Object.keys(updateData).length === 0) {
+        skipped += 1;
+        continue;
+      }
+
+      await db.product.update({
+        where: { id: product.id },
+        data: updateData,
+      });
+      updated += 1;
+    } catch {
+      errors += 1;
+    }
+  }
+
+  revalidateAdminCatalog();
+  redirect(
+    getProductImportRedirect({
+      message: "Цены и остатки обновлены",
       updated,
       skipped,
       errors,

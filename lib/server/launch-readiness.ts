@@ -2,6 +2,7 @@ import "server-only";
 
 import { ProductStatus, RoleCode } from "@/generated/prisma";
 import { hasDatabaseUrl, isDemoModeEnabled, getDb } from "@/lib/db";
+import { getTelegramConfigurationStatus } from "@/lib/server/commercial-integrations";
 
 export type LaunchCheckStatus = "ready" | "warning" | "blocked";
 
@@ -22,14 +23,6 @@ export type LaunchReadiness = {
   blockedCount: number;
   score: number;
 };
-
-function isTelegramConfigured() {
-  return (
-    process.env.TELEGRAM_NOTIFICATIONS_ENABLED === "true" &&
-    Boolean(process.env.TELEGRAM_BOT_TOKEN?.trim()) &&
-    Boolean(process.env.TELEGRAM_CHAT_ID?.trim())
-  );
-}
 
 function makeScore(checks: LaunchReadinessCheck[]) {
   if (checks.length === 0) {
@@ -110,6 +103,10 @@ export async function getLaunchReadiness(): Promise<LaunchReadiness> {
     db.calculatorSheetFormat.count({ where: { isActive: true } }),
     db.deliveryMethod.count({ where: { isActive: true } }),
   ]);
+  const telegramStatus = getTelegramConfigurationStatus();
+  const configuredTelegramThreads = Object.values(
+    telegramStatus.threadsConfigured,
+  ).filter(Boolean).length;
 
   checks.push(
     {
@@ -174,11 +171,18 @@ export async function getLaunchReadiness(): Promise<LaunchReadiness> {
     {
       key: "telegram",
       title: "Telegram-уведомления",
-      description: isTelegramConfigured()
-        ? "Новые заявки и изменения статусов могут уходить менеджерам."
-        : "Укажите TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID и включите TELEGRAM_NOTIFICATIONS_ENABLED.",
-      status: isTelegramConfigured() ? "ready" : "warning",
-      value: isTelegramConfigured() ? "Включено" : "Не настроено",
+      description: telegramStatus.enabled
+        ? configuredTelegramThreads >= 2
+          ? "Новые заявки, распил и заказы могут уходить в отдельные темы Telegram."
+          : "Бот включен, но отдельные темы для распила и заказов еще не заданы."
+        : `Укажите ${telegramStatus.missingEnv.join(", ")} в Vercel Environment Variables.`,
+      status:
+        telegramStatus.enabled && configuredTelegramThreads >= 2
+          ? "ready"
+          : "warning",
+      value: telegramStatus.enabled
+        ? `Включено · тем: ${configuredTelegramThreads}/3`
+        : "Не настроено",
     },
   );
 

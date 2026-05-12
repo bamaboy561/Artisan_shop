@@ -12,6 +12,7 @@ import {
   deleteProductAction,
 } from "@/app/admin/actions";
 import { ProductImportForm } from "@/app/admin/products/product-import-form";
+import { ProductStockImportForm } from "@/app/admin/products/product-stock-import-form";
 import { NewProductForm } from "@/app/admin/products/new-product-form";
 import { AdminSubmitButton } from "@/components/admin/admin-submit-button";
 import { BulkSelectionTools } from "@/components/admin/bulk-selection-tools";
@@ -430,37 +431,59 @@ export default async function AdminProductsPage({
         </div>
       </section>
 
-      <details
-        id="import-products"
-        className="surface-glow rounded-[22px] border border-[color:var(--line)] bg-white/88 p-3 sm:p-4"
-      >
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
-          <span className="flex min-w-0 items-center gap-3">
-            <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-[#f4e7df] text-[#9d573d]">
-              <UploadCloud className="size-5" strokeWidth={1.8} />
-            </span>
-            <span className="min-w-0">
-              <span className="block text-lg font-semibold tracking-[-0.03em] text-[var(--foreground)]">
-                Импорт Excel
+      <section id="import-products" className="grid gap-3 xl:grid-cols-2">
+        <details className="surface-glow rounded-[22px] border border-[color:var(--line)] bg-white/88 p-3 sm:p-4">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+            <span className="flex min-w-0 items-center gap-3">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-[#171613] text-white">
+                <UploadCloud className="size-5" strokeWidth={1.8} />
               </span>
-              <span className="mt-0.5 block text-xs leading-5 text-[var(--muted)]">
-                Загрузка прайса или выгрузки 1С. Новые позиции попадут в
-                черновики.
+              <span className="min-w-0">
+                <span className="block text-lg font-semibold tracking-[-0.03em] text-[var(--foreground)]">
+                  Быстро цены и остатки
+                </span>
+                <span className="mt-0.5 block text-xs leading-5 text-[var(--muted)]">
+                  Для ежедневной выгрузки из 1С: SKU, цена, остаток, наличие.
+                </span>
               </span>
             </span>
-          </span>
-          <span className="rounded-full border border-[color:var(--line)] px-3 py-1 font-mono text-[10px] tracking-[0.14em] text-[var(--muted)] uppercase">
-            Открыть
-          </span>
-        </summary>
+            <span className="rounded-full border border-[color:var(--line)] px-3 py-1 font-mono text-[10px] tracking-[0.14em] text-[var(--muted)] uppercase">
+              Открыть
+            </span>
+          </summary>
 
-        <ProductImportForm
-          categories={categories}
-          brands={brands}
-          calculatorMaterials={calculatorMaterials}
-          calculatorSheetFormats={calculatorSheetFormats}
-        />
-      </details>
+          <ProductStockImportForm />
+        </details>
+
+        <details className="surface-glow rounded-[22px] border border-[color:var(--line)] bg-white/88 p-3 sm:p-4">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+            <span className="flex min-w-0 items-center gap-3">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-[#f4e7df] text-[#9d573d]">
+                <UploadCloud className="size-5" strokeWidth={1.8} />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-lg font-semibold tracking-[-0.03em] text-[var(--foreground)]">
+                  Полный импорт товаров
+                </span>
+                <span className="mt-0.5 block text-xs leading-5 text-[var(--muted)]">
+                  Для новых карточек: категория, бренд, фото, описание и
+                  характеристики.
+                </span>
+              </span>
+            </span>
+            <span className="rounded-full border border-[color:var(--line)] px-3 py-1 font-mono text-[10px] tracking-[0.14em] text-[var(--muted)] uppercase">
+              Открыть
+            </span>
+          </summary>
+
+          <ProductImportForm
+            categories={categories}
+            brands={brands}
+            calculatorMaterials={calculatorMaterials}
+            calculatorSheetFormats={calculatorSheetFormats}
+          />
+        </details>
+      </section>
 
       <section id="catalog-list" className="min-w-0 space-y-3">
         <section className="surface-glow rounded-[22px] border border-[color:var(--line)] bg-white/88 p-3 sm:p-4">

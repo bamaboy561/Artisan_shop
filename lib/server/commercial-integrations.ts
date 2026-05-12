@@ -17,6 +17,8 @@ type TelegramMessagePayload = {
   threadKey?: "requests" | "orders" | "cutting";
 };
 
+export type TelegramThreadKey = NonNullable<TelegramMessagePayload["threadKey"]>;
+
 type OneCEventPayload = {
   event: "request.created" | "request.updated" | "order.created" | "order.updated";
   entityType: "request" | "order";
@@ -133,8 +135,18 @@ function isTelegramEnabled() {
   );
 }
 
-function getTelegramThreadId() {
-  const rawValue = process.env.TELEGRAM_MESSAGE_THREAD_ID?.trim();
+function getTelegramMissingEnv() {
+  return [
+    ["TELEGRAM_NOTIFICATIONS_ENABLED", process.env.TELEGRAM_NOTIFICATIONS_ENABLED],
+    ["TELEGRAM_BOT_TOKEN", process.env.TELEGRAM_BOT_TOKEN],
+    ["TELEGRAM_CHAT_ID", process.env.TELEGRAM_CHAT_ID],
+  ]
+    .filter(([, value]) => !String(value ?? "").trim())
+    .map(([key]) => key);
+}
+
+function parseTelegramThreadId(value?: string) {
+  const rawValue = value?.trim();
 
   if (!rawValue) {
     return null;
@@ -142,6 +154,10 @@ function getTelegramThreadId() {
 
   const parsed = Number.parseInt(rawValue, 10);
   return Number.isNaN(parsed) ? null : parsed;
+}
+
+function getTelegramThreadId() {
+  return parseTelegramThreadId(process.env.TELEGRAM_MESSAGE_THREAD_ID);
 }
 
 function getTypedTelegramThreadId(threadKey?: TelegramMessagePayload["threadKey"]) {
@@ -154,14 +170,41 @@ function getTypedTelegramThreadId(threadKey?: TelegramMessagePayload["threadKey"
           ? process.env.TELEGRAM_REQUESTS_THREAD_ID
           : null;
 
-  if (specificValue?.trim()) {
-    const parsed = Number.parseInt(specificValue.trim(), 10);
-    if (!Number.isNaN(parsed)) {
-      return parsed;
-    }
+  const specificThreadId = parseTelegramThreadId(specificValue ?? undefined);
+
+  if (specificThreadId) {
+    return specificThreadId;
   }
 
   return getTelegramThreadId();
+}
+
+export function getTelegramConfigurationStatus() {
+  const missingEnv = getTelegramMissingEnv();
+  const specificThreadIds = {
+    requests: parseTelegramThreadId(process.env.TELEGRAM_REQUESTS_THREAD_ID),
+    cutting: parseTelegramThreadId(process.env.TELEGRAM_CUTTING_THREAD_ID),
+    orders: parseTelegramThreadId(process.env.TELEGRAM_ORDERS_THREAD_ID),
+  };
+  const threadIds = {
+    requests: getTypedTelegramThreadId("requests"),
+    cutting: getTypedTelegramThreadId("cutting"),
+    orders: getTypedTelegramThreadId("orders"),
+  };
+
+  return {
+    enabled: isTelegramEnabled(),
+    missingEnv,
+    chatConfigured: Boolean(process.env.TELEGRAM_CHAT_ID?.trim()),
+    hasDefaultThread: Boolean(getTelegramThreadId()),
+    threadIds,
+    specificThreadIds,
+    threadsConfigured: {
+      requests: Boolean(specificThreadIds.requests),
+      cutting: Boolean(specificThreadIds.cutting),
+      orders: Boolean(specificThreadIds.orders),
+    },
+  };
 }
 
 function isOneCEnabled() {
@@ -578,6 +621,43 @@ async function sendTelegramMessage(payload: TelegramMessagePayload) {
     payload,
     createdAt: new Date().toISOString(),
   });
+}
+
+export async function sendTelegramTestNotification(threadKey: TelegramThreadKey) {
+  const config = getTelegramConfigurationStatus();
+
+  if (!config.enabled) {
+    return {
+      ok: false,
+      message: `Telegram не настроен: ${config.missingEnv.join(", ") || "проверьте env"}.`,
+    };
+  }
+
+  try {
+    await sendTelegramMessage({
+      title: `Artisan · тест Telegram (${threadKey})`,
+      threadKey,
+      lines: [
+        "Проверка уведомлений с сайта Artisan.",
+        threadKey === "cutting"
+          ? "Канал: заявки на распил."
+          : threadKey === "orders"
+            ? "Канал: онлайн-покупки и заказы."
+            : "Канал: общие заявки.",
+        "Если сообщение пришло в правильную тему, настройка работает.",
+      ],
+    });
+
+    return { ok: true, message: "Тестовое сообщение отправлено." };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Telegram вернул неизвестную ошибку.",
+    };
+  }
 }
 
 function getOneCAuthorizationHeader() {
