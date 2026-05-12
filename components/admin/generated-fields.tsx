@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from "react";
 
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 
 const cyrillicMap: Record<string, string> = {
   а: "a",
@@ -59,8 +60,12 @@ function buildSku(value: string) {
 
 type GeneratedSlugInputProps = {
   basePath: string;
+  className?: string;
+  compact?: boolean;
   defaultValue?: string | null;
   help?: string;
+  hideHelp?: boolean;
+  inputClassName?: string;
   label?: string;
   name?: string;
   placeholder?: string;
@@ -70,8 +75,12 @@ type GeneratedSlugInputProps = {
 
 export function GeneratedSlugInput({
   basePath,
+  className,
+  compact = false,
   defaultValue,
   help,
+  hideHelp = false,
+  inputClassName,
   label = "Адрес страницы",
   name = "slug",
   placeholder = "auto-generated",
@@ -84,7 +93,13 @@ export function GeneratedSlugInput({
   const value = isManual ? manualValue : autoValue;
 
   return (
-    <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)]">
+    <label
+      className={cn(
+        "grid min-w-0 text-[var(--foreground)]",
+        compact ? "gap-1.5 text-xs font-medium" : "gap-2 text-sm",
+        className,
+      )}
+    >
       <span className="flex items-center justify-between gap-3">
         {label}
         <button
@@ -103,21 +118,33 @@ export function GeneratedSlugInput({
         placeholder={placeholder}
         value={value}
         required={required}
+        className={cn(
+          compact ? "h-9 px-3 text-[13px] sm:h-9" : "",
+          inputClassName,
+        )}
         onChange={(event) => {
           setIsManual(true);
           setManualValue(slugifyAdminValue(event.target.value));
         }}
       />
-      <span className="text-xs leading-5 text-[var(--muted)]">
-        {value ? `${basePath}${value}` : "Заполнится автоматически после названия."}
-        {help ? ` ${help}` : ""}
-      </span>
+      {hideHelp ? null : (
+        <span className="text-xs leading-5 text-[var(--muted)]">
+          {value
+            ? `${basePath}${value}`
+            : "Заполнится автоматически после названия."}
+          {help ? ` ${help}` : ""}
+        </span>
+      )}
     </label>
   );
 }
 
 type GeneratedSkuInputProps = {
+  className?: string;
+  compact?: boolean;
   defaultValue?: string | null;
+  hideHelp?: boolean;
+  inputClassName?: string;
   label?: string;
   name?: string;
   required?: boolean;
@@ -125,7 +152,11 @@ type GeneratedSkuInputProps = {
 };
 
 export function GeneratedSkuInput({
+  className,
+  compact = false,
   defaultValue,
+  hideHelp = false,
+  inputClassName,
   label = "Артикул / SKU",
   name = "sku",
   required = false,
@@ -137,7 +168,13 @@ export function GeneratedSkuInput({
   const value = isManual ? manualValue : autoValue;
 
   return (
-    <label className="grid min-w-0 gap-2 text-sm text-[var(--foreground)]">
+    <label
+      className={cn(
+        "grid min-w-0 text-[var(--foreground)]",
+        compact ? "gap-1.5 text-xs font-medium" : "gap-2 text-sm",
+        className,
+      )}
+    >
       <span className="flex items-center justify-between gap-3">
         {label}
         <button
@@ -156,14 +193,20 @@ export function GeneratedSkuInput({
         placeholder="Создастся автоматически"
         value={value}
         required={required}
+        className={cn(
+          compact ? "h-9 px-3 text-[13px] sm:h-9" : "",
+          inputClassName,
+        )}
         onChange={(event) => {
           setIsManual(true);
           setManualValue(event.target.value.trim().toUpperCase());
         }}
       />
-      <span className="text-xs leading-5 text-[var(--muted)]">
-        Можно оставить авто или вписать артикул поставщика.
-      </span>
+      {hideHelp ? null : (
+        <span className="text-xs leading-5 text-[var(--muted)]">
+          Можно оставить авто или вписать артикул поставщика.
+        </span>
+      )}
     </label>
   );
 }

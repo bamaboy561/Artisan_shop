@@ -124,7 +124,11 @@ export function ProductImportForm({
 
             <label className="grid min-w-0 gap-1.5 text-xs font-medium text-[var(--foreground)]">
               Материал расчета
-              <Select name="defaultCalculatorMaterialId" defaultValue="" className="h-10">
+              <Select
+                name="defaultCalculatorMaterialId"
+                defaultValue=""
+                className="h-10"
+              >
                 <option value="">Не задавать</option>
                 {calculatorMaterials.map((material) => (
                   <option key={material.slug} value={material.slug}>
@@ -136,7 +140,11 @@ export function ProductImportForm({
 
             <label className="grid min-w-0 gap-1.5 text-xs font-medium text-[var(--foreground)]">
               Формат листа
-              <Select name="defaultCalculatorSheetPresetId" defaultValue="" className="h-10">
+              <Select
+                name="defaultCalculatorSheetPresetId"
+                defaultValue=""
+                className="h-10"
+              >
                 <option value="">Не задавать</option>
                 {calculatorSheetFormats.map((sheet) => (
                   <option key={sheet.slug} value={sheet.slug}>

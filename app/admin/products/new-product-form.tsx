@@ -185,10 +185,10 @@ export function NewProductForm({
   const showPlateFields = !isFittings;
   const inputClassName = compact ? "h-9 px-3 text-[13px] sm:h-9" : "h-10";
   const quickGridClassName = compact
-    ? "grid gap-2.5 sm:grid-cols-2"
+    ? "grid gap-2.5 md:grid-cols-2 xl:grid-cols-12"
     : "grid gap-3 lg:grid-cols-12";
   const plateGridClassName = compact
-    ? "grid gap-2.5 sm:grid-cols-2"
+    ? "grid gap-2.5 md:grid-cols-2 xl:grid-cols-4"
     : "grid gap-3 md:grid-cols-2 xl:grid-cols-4";
   const detailsGridClassName = compact
     ? "grid gap-2.5 sm:grid-cols-2"
@@ -204,7 +204,11 @@ export function NewProductForm({
 
       <CompactPanel title="Быстрое заполнение">
         <div className={quickGridClassName}>
-          <FieldLabel className={compact ? "sm:col-span-2" : "lg:col-span-4"}>
+          <FieldLabel
+            className={
+              compact ? "md:col-span-2 xl:col-span-4" : "lg:col-span-4"
+            }
+          >
             Название
             <Input
               name="name"
@@ -216,7 +220,7 @@ export function NewProductForm({
             />
           </FieldLabel>
 
-          <FieldLabel className={compact ? "" : "lg:col-span-3"}>
+          <FieldLabel className={compact ? "xl:col-span-3" : "lg:col-span-3"}>
             Категория
             <Select
               name="categoryId"
@@ -236,7 +240,7 @@ export function NewProductForm({
             </Select>
           </FieldLabel>
 
-          <FieldLabel className={compact ? "" : "lg:col-span-3"}>
+          <FieldLabel className={compact ? "xl:col-span-3" : "lg:col-span-3"}>
             Бренд
             <Select
               name="brandId"
@@ -253,14 +257,20 @@ export function NewProductForm({
             </Select>
           </FieldLabel>
 
-          <div className={compact ? "sm:col-span-2" : "lg:col-span-2"}>
+          <div
+            className={
+              compact ? "md:col-span-2 xl:col-span-2" : "lg:col-span-2"
+            }
+          >
             <GeneratedSkuInput
               defaultValue={defaults?.sku}
+              compact={compact}
+              hideHelp={compact}
               sourceValue={productIdentity || name}
             />
           </div>
 
-          <FieldLabel className={compact ? "" : "lg:col-span-2"}>
+          <FieldLabel className={compact ? "xl:col-span-2" : "lg:col-span-2"}>
             Цена, сом
             <Input
               name="price"
@@ -272,7 +282,7 @@ export function NewProductForm({
             />
           </FieldLabel>
 
-          <FieldLabel className={compact ? "" : "lg:col-span-2"}>
+          <FieldLabel className={compact ? "xl:col-span-2" : "lg:col-span-2"}>
             Остаток
             <Input
               name="stockQuantity"
@@ -284,7 +294,7 @@ export function NewProductForm({
             />
           </FieldLabel>
 
-          <FieldLabel className={compact ? "" : "lg:col-span-2"}>
+          <FieldLabel className={compact ? "xl:col-span-2" : "lg:col-span-2"}>
             Статус
             <Select
               name="status"
@@ -299,7 +309,7 @@ export function NewProductForm({
             </Select>
           </FieldLabel>
 
-          <FieldLabel className={compact ? "" : "lg:col-span-3"}>
+          <FieldLabel className={compact ? "xl:col-span-3" : "lg:col-span-3"}>
             Сценарий
             <Select
               name="orderMode"
@@ -316,7 +326,7 @@ export function NewProductForm({
             </Select>
           </FieldLabel>
 
-          <FieldLabel className={compact ? "" : "lg:col-span-3"}>
+          <FieldLabel className={compact ? "xl:col-span-3" : "lg:col-span-3"}>
             Наличие
             <Select
               name="inventoryStatus"
@@ -407,6 +417,7 @@ export function NewProductForm({
           <GeneratedSlugInput
             basePath="/product/"
             defaultValue={defaults?.slug}
+            compact={compact}
             placeholder="extravert-dub-uralskiy"
             sourceValue={productIdentity || name}
           />
