@@ -2,15 +2,18 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
+import { ArrowUpRight, Check, ChevronRight } from "lucide-react";
 
 import { StructuredData } from "@/components/seo/structured-data";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { ButtonLink } from "@/components/ui/button-link";
-import { ProductCard } from "@/components/ui/cards";
 import {
   getBrandProfileBySlug,
   getBrandProfiles,
+  type BrandProfile,
 } from "@/features/brands/data";
+import type { FeaturedProduct } from "@/features/catalog/data";
+import { formatPrice } from "@/lib/commerce";
 import { companyName } from "@/lib/site-config";
 import {
   breadcrumbJsonLd,
@@ -51,13 +54,152 @@ export async function generateMetadata({
   });
 }
 
+function getBrandMonogram(name: string) {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
+}
+
+function BrandLogo({
+  brand,
+  mode = "light",
+}: {
+  brand: BrandProfile;
+  mode?: "light" | "dark";
+}) {
+  if (brand.logoUrl) {
+    return (
+      <div
+        className="h-full min-h-[8rem] w-full rounded-[28px] border border-[#151411]/10 bg-white bg-contain bg-center bg-no-repeat shadow-[0_24px_70px_rgba(21,20,17,0.09)] sm:min-h-[10rem] lg:min-h-[13rem]"
+        style={{ backgroundImage: `url(${brand.logoUrl})` }}
+        aria-label={`Логотип ${brand.name}`}
+      />
+    );
+  }
+
+  return (
+    <div
+      className={`flex min-h-[8rem] items-center justify-center rounded-[28px] border text-[4.5rem] leading-none font-semibold tracking-[-0.08em] sm:min-h-[10rem] sm:text-[6rem] lg:min-h-[13rem] lg:text-[8rem] ${
+        mode === "dark"
+          ? "border-white/12 bg-white/8 text-white"
+          : "border-[#151411]/10 bg-white text-[#151411]"
+      }`}
+      aria-label={`Логотип ${brand.name}`}
+    >
+      {getBrandMonogram(brand.name)}
+    </div>
+  );
+}
+
+function ProductVisual({
+  product,
+  priority = false,
+  className = "",
+}: {
+  product?: FeaturedProduct;
+  priority?: boolean;
+  className?: string;
+}) {
+  if (!product?.image) {
+    return (
+      <div
+        className={`relative overflow-hidden bg-[radial-gradient(circle_at_28%_16%,rgba(255,255,255,0.92),transparent_34%),linear-gradient(135deg,#eee9df,#d8d0c3)] ${className}`}
+      >
+        <div className="absolute inset-0 opacity-[0.18] [background-image:linear-gradient(90deg,#151411_1px,transparent_1px),linear-gradient(#151411_1px,transparent_1px)] [background-size:42px_42px]" />
+      </div>
+    );
+  }
+
+  return (
+    <div className={`relative overflow-hidden bg-[#e6e0d5] ${className}`}>
+      <Image
+        src={product.image}
+        alt={product.name}
+        fill
+        priority={priority}
+        className="object-cover transition duration-700 group-hover:scale-[1.035]"
+        sizes="(max-width: 1024px) 100vw, 50vw"
+      />
+    </div>
+  );
+}
+
+function BrandHeroVisual({
+  brand,
+  products,
+}: {
+  brand: BrandProfile;
+  products: FeaturedProduct[];
+}) {
+  const [heroProduct, secondProduct, thirdProduct] = products;
+
+  return (
+    <div className="grid min-h-[27rem] gap-3 bg-[#151411] p-3 text-white sm:min-h-[34rem] lg:min-h-[42rem] lg:grid-cols-[1.2fr_0.8fr]">
+      <Link
+        href={
+          heroProduct ? `/product/${heroProduct.slug}` : brand.catalogHref ?? "/brands"
+        }
+        className="group relative min-h-[22rem] overflow-hidden lg:min-h-0"
+      >
+        <ProductVisual
+          product={heroProduct}
+          priority
+          className="absolute inset-0"
+        />
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,transparent_28%,rgba(0,0,0,0.72)_100%)]" />
+        <div className="absolute inset-x-0 bottom-0 p-4 sm:p-6">
+          <p className="font-mono text-[10px] tracking-[0.2em] text-white/62 uppercase">
+            {brand.sectionName}
+          </p>
+          <p className="mt-2 max-w-[24rem] text-2xl leading-[0.95] font-semibold tracking-[-0.05em] text-balance sm:text-4xl">
+            {heroProduct?.name ?? brand.name}
+          </p>
+        </div>
+      </Link>
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+        <Link
+          href={
+            secondProduct
+              ? `/product/${secondProduct.slug}`
+              : brand.catalogHref ?? "/brands"
+          }
+          className="group relative min-h-[12rem] overflow-hidden"
+        >
+          <ProductVisual product={secondProduct} className="absolute inset-0" />
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,transparent_30%,rgba(0,0,0,0.66)_100%)]" />
+          <p className="absolute right-4 bottom-4 left-4 text-sm font-semibold text-white">
+            {secondProduct?.name ?? brand.subcategories[0] ?? "Каталог"}
+          </p>
+        </Link>
+
+        <div className="grid min-h-[12rem] overflow-hidden bg-[#f4efe6] text-[#151411]">
+          {thirdProduct?.image ? (
+            <Link href={`/product/${thirdProduct.slug}`} className="group grid">
+              <ProductVisual product={thirdProduct} className="min-h-[12rem]" />
+            </Link>
+          ) : (
+            <div className="grid content-between p-4 sm:p-5">
+              <BrandLogo brand={brand} />
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PreviewTiles({ labels }: { labels: string[] }) {
   return (
-    <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       {labels.map((label) => (
         <div
           key={label}
-          className="flex min-h-[12rem] items-end bg-[#e1ddd4] p-4"
+          className="flex min-h-[12rem] items-end rounded-[26px] border border-[#151411]/8 bg-[linear-gradient(135deg,#f9f6ef,#dfd7ca)] p-4"
         >
           <span className="font-mono text-[10px] tracking-[0.16em] text-[#6f6962] uppercase">
             {label}
@@ -65,6 +207,73 @@ function PreviewTiles({ labels }: { labels: string[] }) {
         </div>
       ))}
     </div>
+  );
+}
+
+function ProductEditorialCard({ product }: { product: FeaturedProduct }) {
+  return (
+    <Link href={`/product/${product.slug}`} className="group block">
+      <div className="relative aspect-[0.92] overflow-hidden rounded-[28px] bg-[#e5dfd4]">
+        {product.image ? (
+          <Image
+            src={product.image}
+            alt={product.name}
+            fill
+            className="object-cover transition duration-700 group-hover:scale-[1.04]"
+            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+          />
+        ) : (
+          <div className="flex h-full items-center justify-center text-[var(--muted)]">
+            <span className="font-mono text-[10px] tracking-[0.2em] uppercase">
+              Artisan
+            </span>
+          </div>
+        )}
+      </div>
+      <div className="mt-3 min-w-0">
+        <p className="font-mono text-[10px] tracking-[0.18em] text-[var(--muted)] uppercase">
+          {product.brand}
+        </p>
+        <h3 className="mt-1.5 line-clamp-2 text-[15px] leading-[1.25] font-medium tracking-[-0.02em] text-[var(--foreground)] transition group-hover:text-[var(--accent)] sm:text-base">
+          {product.name}
+        </h3>
+        <div className="mt-3 flex min-w-0 items-end justify-between gap-3">
+          <p className="text-sm font-semibold text-[var(--foreground)]">
+            {product.price ? formatPrice(product.price) : product.action}
+          </p>
+          <span className="truncate font-mono text-[9px] tracking-[0.12em] text-[var(--muted)] uppercase">
+            {product.format}
+          </span>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+function RelatedBrandCard({ brand }: { brand: BrandProfile }) {
+  return (
+    <Link
+      href={brand.brandPageHref}
+      className="group grid min-h-[17rem] content-between rounded-[30px] border border-[#151411]/10 bg-white/86 p-5 transition hover:-translate-y-1 hover:border-[#151411]/24 hover:bg-white hover:shadow-[0_24px_60px_rgba(21,20,17,0.08)]"
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p className="font-mono text-[10px] tracking-[0.18em] text-[var(--accent)] uppercase">
+            {brand.sectionName}
+          </p>
+          <h3 className="mt-3 text-2xl leading-none font-semibold tracking-[-0.055em] text-[#151411]">
+            {brand.name}
+          </h3>
+        </div>
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-full border border-[#151411]/10 text-[#151411] transition group-hover:bg-[#151411] group-hover:text-white">
+          <ArrowUpRight className="size-4" strokeWidth={1.8} />
+        </span>
+      </div>
+
+      <p className="mt-8 line-clamp-3 text-sm leading-6 text-[#6a645d]">
+        {brand.headline}
+      </p>
+    </Link>
   );
 }
 
@@ -76,11 +285,8 @@ export default async function BrandDetailPage({ params }: BrandPageProps) {
     notFound();
   }
 
-  const heroImage = brand.products[0]?.image;
-  const logoStyle = brand.logoUrl
-    ? { backgroundImage: `url(${brand.logoUrl})` }
-    : undefined;
-  const previewProducts = brand.products.slice(0, 4);
+  const previewProducts = brand.products.slice(0, 8);
+  const heroProducts = brand.products.filter((product) => product.image).slice(0, 3);
   const allProfiles = await getBrandProfiles();
   const relatedBrands = allProfiles
     .filter(
@@ -89,9 +295,17 @@ export default async function BrandDetailPage({ params }: BrandPageProps) {
         candidate.slug !== brand.slug,
     )
     .slice(0, 3);
+  const primaryHref = brand.catalogHref ?? "/contacts";
+  const primaryLabel = brand.catalogHref
+    ? "Открыть каталог"
+    : "Запросить консультацию";
+  const secondaryHref = brand.catalogHref ? "/services#service-request" : "/brands";
+  const secondaryLabel = brand.catalogHref
+    ? "Подобрать под проект"
+    : "Все бренды";
 
   return (
-    <div className="bg-[#f1eee8]">
+    <div className="bg-[#f4f0e8] text-[#151411]">
       <StructuredData
         data={[
           breadcrumbJsonLd([
@@ -107,231 +321,207 @@ export default async function BrandDetailPage({ params }: BrandPageProps) {
           }),
         ]}
       />
-      <div className="border-b border-[color:var(--line)] px-5 py-4 sm:px-8 lg:px-10">
-        <div className="mx-auto max-w-[1500px]">
-          <Breadcrumbs
-            items={[
-              { label: "Главная", href: "/" },
-              { label: "Бренды", href: "/brands" },
-              { label: brand.name },
-            ]}
-          />
-        </div>
-      </div>
 
-      <section className="relative overflow-hidden bg-[#151411] text-white">
-        {heroImage ? (
-          <Image
-            src={heroImage}
-            alt={brand.name}
-            fill
-            priority
-            className="object-cover opacity-30"
-            sizes="100vw"
-          />
-        ) : (
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_24%_18%,rgba(255,255,255,0.16),transparent_26%),linear-gradient(135deg,#2f2922_0%,#151411_58%,#5b3427_100%)]" />
-        )}
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.16)_0%,rgba(0,0,0,0.4)_48%,rgba(0,0,0,0.82)_100%)]" />
+      <section className="px-4 pt-4 pb-8 sm:px-6 lg:px-8 lg:pt-6">
+        <div className="mx-auto max-w-[1540px]">
+          <div className="mb-4">
+            <Breadcrumbs
+              items={[
+                { label: "Главная", href: "/" },
+                { label: "Бренды", href: "/brands" },
+                { label: brand.name },
+              ]}
+            />
+          </div>
 
-        <div className="relative mx-auto max-w-[1500px] px-5 pt-20 pb-10 sm:px-8 lg:px-10">
-          <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(300px,0.42fr)] lg:items-end">
-            <div className="max-w-[42rem]">
-              {brand.logoUrl ? (
-                <div
-                  className="mb-6 h-14 w-36 rounded-2xl border border-white/20 bg-white/92 bg-contain bg-center bg-no-repeat shadow-[0_18px_48px_rgba(0,0,0,0.2)]"
-                  style={logoStyle}
-                  aria-label={`Логотип ${brand.name}`}
-                />
-              ) : null}
-              <p className="font-mono text-[10px] tracking-[0.22em] text-white/58 uppercase">
-                {brand.sectionName}
-              </p>
-              <h1 className="mt-3 text-[2.4rem] leading-[0.96] font-semibold tracking-[-0.05em] text-balance sm:text-[4rem]">
-                {brand.name}
-              </h1>
-              <p className="mt-4 max-w-[32rem] text-[1rem] leading-7 text-white/84 sm:text-[1.1rem]">
-                {brand.headline}
-              </p>
+          <div className="overflow-hidden rounded-[34px] border border-[#151411]/10 bg-[#fbf8f1] shadow-[0_28px_90px_rgba(21,20,17,0.08)]">
+            <div className="grid lg:grid-cols-[0.9fr_1.1fr]">
+              <div className="grid min-h-[32rem] content-between gap-8 p-5 sm:p-8 lg:min-h-[42rem] lg:p-10 xl:p-12">
+                <div className="grid gap-6">
+                  <BrandLogo brand={brand} />
 
-              <div className="mt-6 flex flex-wrap gap-2">
-                {[brand.statusLabel, ...brand.subcategories].map((chip) => (
-                  <span
-                    key={chip}
-                    className="inline-flex min-h-8 items-center border border-white/16 px-3 font-mono text-[10px] tracking-[0.14em] text-white/72 uppercase"
-                  >
-                    {chip}
-                  </span>
-                ))}
-              </div>
-            </div>
+                  <div>
+                    <div className="mb-4 flex flex-wrap gap-2">
+                      {[brand.statusLabel, brand.sectionName, brand.country]
+                        .filter(Boolean)
+                        .map((chip) => (
+                          <span
+                            key={chip}
+                            className="inline-flex min-h-8 items-center rounded-full border border-[#151411]/10 bg-white/72 px-3 font-mono text-[10px] tracking-[0.13em] text-[#6f6962] uppercase"
+                          >
+                            {chip}
+                          </span>
+                        ))}
+                    </div>
 
-            <div className="border border-white/12 bg-white/6 p-5 backdrop-blur-sm sm:p-6">
-              <p className="font-mono text-[10px] tracking-[0.18em] text-white/56 uppercase">
-                Профиль
-              </p>
-              <dl className="mt-5 grid gap-3 text-sm">
-                <div className="flex justify-between gap-6 border-b border-white/10 pb-3">
-                  <dt className="text-white/54">Статус</dt>
-                  <dd className="text-right font-medium text-white">
-                    {brand.statusLabel}
-                  </dd>
-                </div>
-                <div className="flex justify-between gap-6 border-b border-white/10 pb-3">
-                  <dt className="text-white/54">Направление</dt>
-                  <dd className="text-right font-medium text-white">
-                    {brand.sectionName}
-                  </dd>
-                </div>
-                {brand.country ? (
-                  <div className="flex justify-between gap-6 border-b border-white/10 pb-3">
-                    <dt className="text-white/54">Страна</dt>
-                    <dd className="text-right font-medium text-white">
-                      {brand.country}
-                    </dd>
+                    <h1 className="max-w-[11ch] text-[3.35rem] leading-[0.86] font-semibold tracking-[-0.075em] text-[#151411] sm:text-[5.2rem] lg:text-[6rem] xl:text-[7.2rem]">
+                      {brand.name}
+                    </h1>
+                    <p className="mt-5 max-w-[36rem] text-base leading-7 text-[#5f5952] sm:text-lg sm:leading-8">
+                      {brand.headline}
+                    </p>
                   </div>
-                ) : null}
-                <div className="flex justify-between gap-6 pb-1">
-                  <dt className="text-white/54">
-                    {brand.productCount > 0 ? "Позиции" : "Раздел"}
-                  </dt>
-                  <dd className="text-right font-medium text-white">
-                    {brand.productCount > 0
-                      ? `${brand.productCount} в каталоге`
-                      : "Готовится к наполнению"}
-                  </dd>
                 </div>
-              </dl>
 
-              <div className="mt-6 grid gap-3">
-                <ButtonLink
-                  href={brand.catalogHref ?? "/contacts"}
-                  variant="contrast"
-                >
-                  {brand.catalogHref
-                    ? "Открыть каталог бренда"
-                    : "Запросить консультацию"}
-                </ButtonLink>
-                <ButtonLink
-                  href={
-                    brand.catalogHref ? "/services#service-request" : "/brands"
-                  }
-                  variant="secondary"
-                >
-                  {brand.catalogHref
-                    ? "Подобрать под проект"
-                    : "Вернуться к брендам"}
-                </ButtonLink>
+                <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                  <p className="max-w-[40rem] text-sm leading-7 text-[#756f67]">
+                    {brand.overview}
+                  </p>
+                  <div className="flex flex-col gap-2 sm:min-w-[14rem]">
+                    <ButtonLink href={primaryHref} variant="contrast" icon>
+                      {primaryLabel}
+                    </ButtonLink>
+                    <ButtonLink href={secondaryHref} variant="secondary">
+                      {secondaryLabel}
+                    </ButtonLink>
+                  </div>
+                </div>
               </div>
+
+              <BrandHeroVisual brand={brand} products={heroProducts} />
             </div>
           </div>
         </div>
       </section>
 
-      <section className="px-5 py-10 sm:px-8 lg:px-10">
-        <div className="mx-auto grid max-w-[1500px] gap-5 lg:grid-cols-[0.74fr_1.26fr]">
-          <article className="border border-[color:var(--line)] bg-[var(--surface-strong)] p-5 sm:p-6">
-            <p className="font-mono text-[10px] tracking-[0.22em] text-[var(--accent)] uppercase">
-              Главное
-            </p>
-            <h2 className="mt-3 text-[1.7rem] leading-tight font-semibold tracking-[-0.04em] text-[var(--foreground)]">
-              {brand.name}
-            </h2>
-            <div className="mt-5 flex flex-wrap gap-2">
+      <section className="px-4 py-6 sm:px-6 lg:px-8">
+        <div className="mx-auto grid max-w-[1540px] gap-4 lg:grid-cols-4">
+          {[
+            ["Позиции", brand.productCount > 0 ? `${brand.productCount}` : "Скоро"],
+            ["Направление", brand.sectionName],
+            ["Статус", brand.statusLabel],
+            ["Сценарий", brand.catalogHref ? "Каталог" : "Консультация"],
+          ].map(([label, value]) => (
+            <article
+              key={label}
+              className="rounded-[26px] border border-[#151411]/10 bg-white/78 p-5"
+            >
+              <p className="font-mono text-[10px] tracking-[0.18em] text-[#8a837b] uppercase">
+                {label}
+              </p>
+              <p className="mt-3 text-2xl leading-none font-semibold tracking-[-0.04em] text-[#151411]">
+                {value}
+              </p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="px-4 py-8 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-[1540px]">
+          <div className="grid gap-5 lg:grid-cols-[0.72fr_1.28fr] lg:items-start">
+            <div className="lg:sticky lg:top-24">
+              <h2 className="text-[2.1rem] leading-[0.95] font-semibold tracking-[-0.06em] text-[#151411] sm:text-[3.4rem]">
+                Что важно в {brand.name}.
+              </h2>
+              <p className="mt-4 max-w-[32rem] text-sm leading-7 text-[#6c665f]">
+                Коротко о том, почему бренд стоит держать в подборке проекта и
+                как его удобнее использовать в заказе.
+              </p>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-3">
               {brand.strengths.map((strength) => (
-                <span
+                <article
                   key={strength}
-                  className="inline-flex min-h-8 items-center border border-[#151411]/12 px-3 font-mono text-[10px] tracking-[0.14em] text-[#6f6962] uppercase"
+                  className="rounded-[28px] border border-[#151411]/10 bg-white/84 p-5 shadow-[0_18px_50px_rgba(21,20,17,0.04)]"
                 >
-                  {strength}
-                </span>
+                  <span className="flex size-9 items-center justify-center rounded-full bg-[#151411] text-white">
+                    <Check className="size-4" strokeWidth={2} />
+                  </span>
+                  <p className="mt-7 text-lg leading-tight font-semibold tracking-[-0.035em] text-[#151411]">
+                    {strength}
+                  </p>
+                </article>
               ))}
             </div>
-          </article>
-
-          <article className="border border-[color:var(--line)] bg-[var(--surface-strong)] p-5 sm:p-6">
-            <p className="font-mono text-[10px] tracking-[0.22em] text-[var(--accent)] uppercase">
-              {previewProducts.length > 0
-                ? "Материалы"
-                : "Раздел"}
-            </p>
-            <h2 className="mt-3 text-[1.7rem] leading-tight font-semibold tracking-[-0.04em] text-[var(--foreground)]">
-              {previewProducts.length > 0
-                ? "Подборка бренда."
-                : "Раздел готовится."}
-            </h2>
-
-            {previewProducts.length > 0 ? (
-              <div className="mt-6 grid gap-x-5 gap-y-8 sm:grid-cols-2 xl:grid-cols-4">
-                {previewProducts.map((product) => (
-                  <ProductCard
-                    key={product.slug}
-                    href={`/product/${product.slug}`}
-                    brand={product.brand}
-                    name={product.name}
-                    summary={product.summary}
-                    format={product.format}
-                    action={product.action}
-                    image={product.image}
-                    price={product.price}
-                    oldPrice={product.oldPrice}
-                    inStock={product.inStock}
-                    categoryName={product.categoryName}
-                    compact
-                  />
-                ))}
-              </div>
-            ) : (
-              <PreviewTiles labels={brand.previewLabels} />
-            )}
-          </article>
+          </div>
         </div>
       </section>
 
-      <section className="border-y border-[color:var(--line)] bg-[var(--surface-strong)] px-5 py-10 sm:px-8 lg:px-10">
-        <div className="mx-auto grid max-w-[1500px] gap-8 lg:grid-cols-[0.72fr_1.28fr]">
-          <div>
-            <p className="font-mono text-[10px] tracking-[0.22em] text-[var(--accent)] uppercase">
-              Применение
-            </p>
-            <h2 className="mt-3 text-[1.85rem] leading-tight font-semibold tracking-[-0.04em] text-[var(--foreground)]">
-              Где используют {brand.name}.
-            </h2>
+      <section className="px-4 py-10 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-[1540px]">
+          <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 className="text-[2.2rem] leading-none font-semibold tracking-[-0.06em] text-[#151411] sm:text-[3.5rem]">
+                Подборка бренда.
+              </h2>
+              <p className="mt-3 max-w-[34rem] text-sm leading-7 text-[#6c665f]">
+                Самые заметные позиции бренда для быстрого перехода в карточку
+                и запроса цены.
+              </p>
+            </div>
+            {brand.catalogHref ? (
+              <Link
+                href={brand.catalogHref}
+                className="inline-flex items-center gap-2 font-mono text-[10px] tracking-[0.16em] text-[#151411] uppercase transition hover:text-[var(--accent)]"
+              >
+                Весь каталог
+                <ChevronRight className="size-4" strokeWidth={1.8} />
+              </Link>
+            ) : null}
           </div>
 
-          <div className="grid gap-0 border border-[color:var(--line)]">
-            {brand.scenarios.map((scenario, index) => (
-              <div
-                key={scenario}
-                className="grid gap-4 border-b border-[color:var(--line)] bg-[#f1eee8] p-5 last:border-b-0 sm:grid-cols-[72px_minmax(0,1fr)]"
-              >
-                <p className="font-mono text-[10px] tracking-[0.18em] text-[var(--accent)] uppercase">
-                  0{index + 1}
-                </p>
-                <p className="text-sm leading-7 text-[var(--foreground)]">
-                  {scenario}
-                </p>
-              </div>
-            ))}
+          {previewProducts.length > 0 ? (
+            <div className="grid grid-cols-2 gap-x-3 gap-y-8 sm:grid-cols-3 sm:gap-x-4 lg:grid-cols-4 xl:gap-x-5">
+              {previewProducts.map((product) => (
+                <ProductEditorialCard key={product.slug} product={product} />
+              ))}
+            </div>
+          ) : (
+            <PreviewTiles labels={brand.previewLabels} />
+          )}
+        </div>
+      </section>
+
+      <section className="px-4 py-10 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-[1540px] overflow-hidden rounded-[34px] bg-[#151411] text-white">
+          <div className="grid gap-8 p-5 sm:p-8 lg:grid-cols-[0.72fr_1.28fr] lg:p-10 xl:p-12">
+            <div>
+              <h2 className="text-[2.2rem] leading-[0.94] font-semibold tracking-[-0.06em] text-white sm:text-[3.7rem]">
+                Где используют {brand.name}.
+              </h2>
+              <p className="mt-4 max-w-[34rem] text-sm leading-7 text-white/58">
+                Сценарии помогают менеджеру быстрее понять задачу клиента и
+                предложить правильный формат заказа.
+              </p>
+            </div>
+
+            <div className="grid gap-3">
+              {brand.scenarios.map((scenario, index) => (
+                <article
+                  key={scenario}
+                  className="grid gap-4 rounded-[24px] border border-white/10 bg-white/[0.055] p-4 sm:grid-cols-[64px_minmax(0,1fr)] sm:p-5"
+                >
+                  <span className="font-mono text-[10px] tracking-[0.18em] text-white/38 uppercase">
+                    0{index + 1}
+                  </span>
+                  <p className="text-base leading-7 text-white/86">
+                    {scenario}
+                  </p>
+                </article>
+              ))}
+            </div>
           </div>
         </div>
       </section>
 
       {relatedBrands.length > 0 ? (
-        <section className="px-5 py-10 sm:px-8 lg:px-10">
-          <div className="mx-auto max-w-[1500px]">
-            <div className="mb-7 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <section className="px-4 pt-6 pb-14 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-[1540px]">
+            <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <p className="font-mono text-[10px] tracking-[0.22em] text-[var(--accent)] uppercase">
-                  Рядом
-                </p>
-                <h2 className="mt-2 text-[1.65rem] leading-tight font-semibold tracking-[-0.04em] text-[var(--foreground)]">
-                  Бренды этого направления.
+                <h2 className="text-[2rem] leading-none font-semibold tracking-[-0.055em] text-[#151411] sm:text-[3rem]">
+                  Бренды рядом.
                 </h2>
+                <p className="mt-3 max-w-[34rem] text-sm leading-7 text-[#6c665f]">
+                  Другие направления Artisan, которые часто смотрят вместе с
+                  этим брендом.
+                </p>
               </div>
               <Link
                 href="/brands"
-                className="font-mono text-[10px] tracking-[0.16em] text-[var(--muted)] uppercase transition hover:text-[var(--foreground)]"
+                className="font-mono text-[10px] tracking-[0.16em] text-[#6c665f] uppercase transition hover:text-[#151411]"
               >
                 Все бренды
               </Link>
@@ -339,24 +529,10 @@ export default async function BrandDetailPage({ params }: BrandPageProps) {
 
             <div className="grid gap-4 md:grid-cols-3">
               {relatedBrands.map((relatedBrand) => (
-                <Link
+                <RelatedBrandCard
                   key={relatedBrand.slug}
-                  href={relatedBrand.brandPageHref}
-                  className="group border border-[color:var(--line)] bg-[var(--surface-strong)] p-5 transition hover:border-[color:var(--foreground)]"
-                >
-                  <p className="font-mono text-[10px] tracking-[0.16em] text-[var(--accent)] uppercase">
-                    {relatedBrand.sectionName}
-                  </p>
-                  <h3 className="mt-3 text-lg font-semibold text-[var(--foreground)]">
-                    {relatedBrand.name}
-                  </h3>
-                  <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
-                    {relatedBrand.headline}
-                  </p>
-                  <p className="mt-5 font-mono text-[10px] tracking-[0.14em] text-[var(--muted)] uppercase transition group-hover:text-[var(--foreground)]">
-                    {relatedBrand.statusLabel}
-                  </p>
-                </Link>
+                  brand={relatedBrand}
+                />
               ))}
             </div>
           </div>
