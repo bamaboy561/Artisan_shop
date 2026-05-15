@@ -164,7 +164,7 @@ function buildBrandProfilesFrom(
   brands: Brand[],
   products: FeaturedProduct[],
 ): BrandProfile[] {
-  return brandCatalogAssignments
+  const assignedProfiles = brandCatalogAssignments
     .reduce<BrandProfile[]>((result, assignment) => {
       const activeBrand = brands.find(
         (brand) => brand.slug === assignment.slug,
@@ -217,8 +217,53 @@ function buildBrandProfilesFrom(
       });
 
       return result;
-    }, [])
-    .sort(
+    }, []);
+  const assignedSlugs = new Set(assignedProfiles.map((profile) => profile.slug));
+  const dynamicProfiles = brands
+    .filter((brand) => !assignedSlugs.has(brand.slug))
+    .map<BrandProfile>((brand) => {
+      const brandProducts = products.filter(
+        (product) => product.brandSlug === brand.slug,
+      );
+      const categoryNames = uniqueStrings(
+        brandProducts.map((product) => product.categoryName),
+      );
+      const contentStatus = brandProducts.length > 0 ? "active" : "planned";
+      const fallbackSectionName = categoryNames[0] ?? "Бренды";
+
+      return {
+        slug: brand.slug,
+        name: brand.name,
+        sectionSlug: brand.categorySlug || "brands",
+        sectionName: fallbackSectionName,
+        contentStatus,
+        statusLabel: statusLabelMap[contentStatus],
+        description:
+          brand.description ||
+          `Бренд ${brand.name} добавлен в каталог Artisan и готовится к наполнению товарами.`,
+        headline: `Материалы и товары ${brand.name}.`,
+        overview:
+          brand.description ||
+          `Раздел ${brand.name} появится на сайте по мере наполнения каталога.`,
+        strengths: categoryNames.length > 0 ? categoryNames : ["Каталог"],
+        scenarios: ["Подбор товара", "Запрос цены", "Консультация менеджера"],
+        subcategories: categoryNames.length > 0 ? categoryNames : ["Каталог"],
+        previewLabels:
+          categoryNames.length > 0 ? categoryNames.slice(0, 5) : ["В подготовке"],
+        products: brandProducts,
+        productCount: brandProducts.length,
+        country: brand.country,
+        logoUrl: brand.logoUrl,
+        categorySlug: brand.categorySlug,
+        catalogHref: brand.categorySlug
+          ? `/catalog/${brand.categorySlug}?brand=${brand.slug}`
+          : undefined,
+        brandPageHref: `/brands/${brand.slug}`,
+        updatedAt: brand.updatedAt,
+      };
+    });
+
+  return [...assignedProfiles, ...dynamicProfiles].sort(
       (profileA, profileB) =>
         getBrandDisplayIndex(profileA.slug) -
         getBrandDisplayIndex(profileB.slug),

@@ -182,8 +182,6 @@ export default async function HomePage() {
       tags: profile.subcategories,
       logoUrl: profile.logoUrl,
     }));
-  const activeItems = galleryItems.filter((item) => item.tone !== "planned");
-  const plannedItems = galleryItems.filter((item) => item.tone === "planned");
 
   return (
     <div className="bg-background">
@@ -229,54 +227,17 @@ export default async function HomePage() {
                 Бренды
               </p>
               <h2 className="mt-2 text-[1.18rem] leading-tight font-semibold tracking-[-0.04em] text-foreground sm:text-[1.6rem] lg:text-[1.85rem]">
-                Ключевые бренды.
+                Все бренды Artisan.
               </h2>
             </div>
             <Link
               href="/brands"
               className="font-mono text-[11px] tracking-[0.16em] text-foreground/68 uppercase transition hover:text-foreground"
             >
-              Все бренды
+              Каталог брендов
             </Link>
           </div>
-          <BrandGallery items={activeItems} compact />
-
-          {plannedItems.length > 0 ? (
-            <div className="mt-9 border-t border-line pt-5 sm:mt-12 sm:pt-7">
-              <div className="mb-4 flex items-end justify-between gap-4">
-                <div>
-                  <p className="font-mono text-[10px] tracking-[0.18em] text-muted uppercase">
-                    Скоро в каталоге
-                  </p>
-                  <h3 className="mt-1.5 text-[1.05rem] font-semibold tracking-[-0.03em] text-foreground sm:text-[1.25rem]">
-                    Бренды в наполнении.
-                  </h3>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-                {plannedItems.map((item) => (
-                  <Link
-                    key={item.slug}
-                    href={item.href ?? "/brands"}
-                    className="group flex min-h-[7rem] flex-col justify-between border border-line bg-white/62 p-3 transition hover:border-foreground hover:bg-white sm:min-h-[8rem] sm:p-4"
-                  >
-                    <p className="font-mono text-[9px] tracking-[0.16em] text-muted uppercase">
-                      {item.label}
-                    </p>
-                    <div>
-                      <h4 className="text-[1.05rem] leading-none font-semibold tracking-[-0.04em] text-foreground sm:text-[1.25rem]">
-                        {item.name}
-                      </h4>
-                      <p className="mt-2 text-xs leading-4 text-muted">
-                        Направление готовится к публикации.
-                      </p>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            </div>
-          ) : null}
+          <BrandGallery items={galleryItems} compact />
         </div>
       </section>
     </div>
