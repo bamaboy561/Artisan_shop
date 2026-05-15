@@ -20,7 +20,7 @@ import type {
 export const brandDisplayOrder = [
   "agt",
   "swiss-krono",
-  "emmax",
+  "emaks",
   "samet",
   "slotex",
   "extravert",
@@ -28,6 +28,26 @@ export const brandDisplayOrder = [
   "nuomi",
   "italiana-ferramenta",
 ];
+
+export const brandSlugAliases: Record<string, string> = {
+  emmax: "emaks",
+  "italiana ferramenta": "italiana-ferramenta",
+};
+
+export function normalizeBrandSlug(slug: string) {
+  const normalized = slug.trim().toLocaleLowerCase("ru-RU").replace(/\s+/g, "-");
+
+  return brandSlugAliases[slug] ?? brandSlugAliases[normalized] ?? normalized;
+}
+
+export function getBrandAliasSlugs(slug: string) {
+  const canonicalSlug = normalizeBrandSlug(slug);
+  const aliases = Object.entries(brandSlugAliases)
+    .filter(([, canonical]) => canonical === canonicalSlug)
+    .map(([alias]) => alias);
+
+  return Array.from(new Set([canonicalSlug, ...aliases]));
+}
 
 export const catalogSections: CatalogSection[] = [
   {
@@ -82,7 +102,7 @@ export const brandCatalogAssignments: BrandCatalogAssignment[] = [
     contentStatus: "active",
   },
   {
-    slug: "emmax",
+    slug: "emaks",
     name: "Emaks",
     sectionSlug: "furniture-fittings",
     sectionName: "Фурнитура",
@@ -141,7 +161,7 @@ export const brandCatalogAssignments: BrandCatalogAssignment[] = [
 
 export const partnerBrands: PartnerBrand[] = [
   {
-    slug: "emmax",
+    slug: "emaks",
     name: "Emaks",
     label: "Мебельная фурнитура",
     description:
@@ -197,10 +217,14 @@ export const brandNames = [...brandCatalogAssignments]
   .map((brand) => brand.name);
 
 export function getBrandDisplayIndex(slug: string) {
-  const index = brandDisplayOrder.indexOf(slug);
+  const index = brandDisplayOrder.indexOf(normalizeBrandSlug(slug));
   return index === -1 ? brandDisplayOrder.length : index;
 }
 
 export function getBrandCatalogAssignment(slug: string) {
-  return brandCatalogAssignments.find((brand) => brand.slug === slug);
+  const normalizedSlug = normalizeBrandSlug(slug);
+
+  return brandCatalogAssignments.find(
+    (brand) => normalizeBrandSlug(brand.slug) === normalizedSlug,
+  );
 }

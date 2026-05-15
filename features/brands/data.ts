@@ -1,6 +1,8 @@
 import {
   brandCatalogAssignments,
+  getBrandAliasSlugs,
   getBrandDisplayIndex,
+  normalizeBrandSlug,
   partnerBrands,
   type FeaturedProduct,
 } from "@/features/catalog/data";
@@ -88,7 +90,7 @@ const brandProfileSeeds: Record<string, BrandProfileSeed> = {
       "Запрос цены и консультация",
     ],
   },
-  emmax: {
+  emaks: {
     headline: "Базовая и серийная фурнитура для комплектации мебели.",
     overview:
       "Бренд Emaks готовим как практичный слой для петель, опор и повседневных комплектующих, которые часто нужны в проектной сборке.",
@@ -166,15 +168,16 @@ function buildBrandProfilesFrom(
 ): BrandProfile[] {
   const assignedProfiles = brandCatalogAssignments
     .reduce<BrandProfile[]>((result, assignment) => {
+      const aliasSlugs = getBrandAliasSlugs(assignment.slug);
       const activeBrand = brands.find(
-        (brand) => brand.slug === assignment.slug,
+        (brand) => aliasSlugs.includes(normalizeBrandSlug(brand.slug)),
       );
       const partnerBrand = partnerBrands.find(
-        (brand) => brand.slug === assignment.slug,
+        (brand) => aliasSlugs.includes(normalizeBrandSlug(brand.slug)),
       );
       const seed = brandProfileSeeds[assignment.slug];
       const brandProducts = products.filter(
-        (product) => product.brandSlug === assignment.slug,
+        (product) => aliasSlugs.includes(normalizeBrandSlug(product.brandSlug)),
       );
 
       if (!seed) {
@@ -218,12 +221,15 @@ function buildBrandProfilesFrom(
 
       return result;
     }, []);
-  const assignedSlugs = new Set(assignedProfiles.map((profile) => profile.slug));
+  const assignedSlugs = new Set(
+    assignedProfiles.flatMap((profile) => getBrandAliasSlugs(profile.slug)),
+  );
   const dynamicProfiles = brands
-    .filter((brand) => !assignedSlugs.has(brand.slug))
+    .filter((brand) => !assignedSlugs.has(normalizeBrandSlug(brand.slug)))
     .map<BrandProfile>((brand) => {
+      const canonicalSlug = normalizeBrandSlug(brand.slug);
       const brandProducts = products.filter(
-        (product) => product.brandSlug === brand.slug,
+        (product) => normalizeBrandSlug(product.brandSlug) === canonicalSlug,
       );
       const categoryNames = uniqueStrings(
         brandProducts.map((product) => product.categoryName),
@@ -232,7 +238,7 @@ function buildBrandProfilesFrom(
       const fallbackSectionName = categoryNames[0] ?? "Бренды";
 
       return {
-        slug: brand.slug,
+        slug: canonicalSlug,
         name: brand.name,
         sectionSlug: brand.categorySlug || "brands",
         sectionName: fallbackSectionName,
@@ -258,7 +264,7 @@ function buildBrandProfilesFrom(
         catalogHref: brand.categorySlug
           ? `/catalog/${brand.categorySlug}?brand=${brand.slug}`
           : undefined,
-        brandPageHref: `/brands/${brand.slug}`,
+        brandPageHref: `/brands/${canonicalSlug}`,
         updatedAt: brand.updatedAt,
       };
     });
@@ -282,7 +288,11 @@ export async function getBrandProfileBySlug(
   slug: string,
 ): Promise<BrandProfile | undefined> {
   const profiles = await getBrandProfiles();
-  return profiles.find((profile) => profile.slug === slug);
+  const normalizedSlug = normalizeBrandSlug(slug);
+
+  return profiles.find(
+    (profile) => normalizeBrandSlug(profile.slug) === normalizedSlug,
+  );
 }
 
 export async function getBrandProfilesBySection(
