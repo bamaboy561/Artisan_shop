@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 
 import { formatPrice } from "@/lib/commerce";
+import { shouldBypassNextImageOptimization } from "@/lib/image-optimization";
 import { cn } from "@/lib/utils";
 
 type ProductCardProps = {
@@ -75,6 +76,7 @@ export function ProductCard({
                 ? "(max-width: 639px) 112px, (max-width: 1024px) 50vw, 25vw"
                 : "(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
             }
+            unoptimized={shouldBypassNextImageOptimization(image)}
           />
         ) : (
           <div className="flex h-full items-center justify-center text-[var(--muted)]">

@@ -14,6 +14,7 @@ import {
 } from "@/features/brands/data";
 import type { FeaturedProduct } from "@/features/catalog/data";
 import { formatPrice } from "@/lib/commerce";
+import { shouldBypassNextImageOptimization } from "@/lib/image-optimization";
 import { companyName } from "@/lib/site-config";
 import {
   breadcrumbJsonLd,
@@ -125,6 +126,7 @@ function ProductVisual({
         priority={priority}
         className="object-cover transition duration-700 group-hover:scale-[1.035]"
         sizes="(max-width: 1024px) 100vw, 50vw"
+        unoptimized={shouldBypassNextImageOptimization(product.image)}
       />
     </div>
   );
@@ -223,6 +225,7 @@ function ProductEditorialCard({ product }: { product: FeaturedProduct }) {
             fill
             className="object-cover transition duration-700 group-hover:scale-[1.04]"
             sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+            unoptimized={shouldBypassNextImageOptimization(product.image)}
           />
         ) : (
           <div className="flex h-full items-center justify-center text-[var(--muted)]">

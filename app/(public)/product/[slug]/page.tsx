@@ -14,6 +14,7 @@ import {
   getPublicProductsByCategory,
 } from "@/lib/server/catalog-public";
 import { formatPrice } from "@/lib/commerce";
+import { shouldBypassNextImageOptimization } from "@/lib/image-optimization";
 import {
   breadcrumbJsonLd,
   createSeoMetadata,
@@ -119,6 +120,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                 priority
                 className="object-cover"
                 sizes="(max-width: 1024px) 100vw, 58vw"
+                unoptimized={shouldBypassNextImageOptimization(product.image)}
               />
             </div>
 
@@ -136,6 +138,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                         fill
                         className="object-cover"
                         sizes="(max-width: 1024px) 40vw, 28vw"
+                        unoptimized={shouldBypassNextImageOptimization(image)}
                       />
                     </div>
                   ))}

@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 import type { FeaturedProduct } from "@/features/catalog/data";
+import { shouldBypassNextImageOptimization } from "@/lib/image-optimization";
 import { cn } from "@/lib/utils";
 
 export type BrandGalleryItem = {
@@ -145,6 +146,7 @@ function BrandHero({
         fill
         className="object-cover transition duration-700 group-hover:scale-[1.025]"
         sizes="100vw"
+        unoptimized={shouldBypassNextImageOptimization(heroProduct.image)}
       />
       <BrandLogoBadge item={item} />
       <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.02)_0%,rgba(0,0,0,0.16)_54%,rgba(0,0,0,0.72)_100%)]" />
@@ -221,6 +223,7 @@ function ProductRail({
                 fill
                 className="object-cover transition duration-500 group-hover:scale-[1.04]"
                 sizes={compact ? "(max-width: 1024px) 50vw, 25vw" : "20vw"}
+                unoptimized={shouldBypassNextImageOptimization(product.image)}
               />
             </div>
             <p

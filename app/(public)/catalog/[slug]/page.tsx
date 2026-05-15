@@ -21,6 +21,7 @@ import {
   sanitizeCatalogFilterState,
   sortCatalogProducts,
 } from "@/features/catalog/filters";
+import { shouldBypassNextImageOptimization } from "@/lib/image-optimization";
 import {
   getPublicCategoryBySlug,
   getPublicProductsByCategory,
@@ -160,6 +161,7 @@ export default async function CategoryPage({
           className="object-cover opacity-28"
           sizes="100vw"
           priority
+          unoptimized={shouldBypassNextImageOptimization(category.coverImage)}
         />
         <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.2)_0%,rgba(0,0,0,0.48)_54%,rgba(0,0,0,0.78)_100%)]" />
         <div className="relative mx-auto flex min-h-[48svh] max-w-[1500px] flex-col justify-end px-8 pt-20 pb-8 lg:px-10">
@@ -198,6 +200,7 @@ export default async function CategoryPage({
                       fill
                       className="object-cover transition duration-700 group-hover:scale-[1.04]"
                       sizes="112px"
+                      unoptimized={shouldBypassNextImageOptimization(product.image)}
                     />
                   </div>
                   <p className="mt-2 line-clamp-1 font-mono text-[9px] tracking-[0.12em] text-white/64 uppercase">
