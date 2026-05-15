@@ -14,6 +14,7 @@ import {
   getPublicProductsByBrand,
   getPublicProductsByCategory,
 } from "@/lib/server/catalog-public";
+import { shouldBypassNextImageOptimization } from "@/lib/image-optimization";
 import { createSeoMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = createSeoMetadata({
@@ -203,6 +204,7 @@ export default async function HomePage() {
                   fill
                   className="object-cover opacity-78 transition duration-700 group-hover:scale-[1.045] group-hover:opacity-92"
                   sizes="(max-width: 1024px) 50vw, 25vw"
+                  unoptimized={shouldBypassNextImageOptimization(tile.image)}
                 />
               ) : null}
               <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.04)_0%,rgba(0,0,0,0.2)_45%,rgba(0,0,0,0.72)_100%)]" />

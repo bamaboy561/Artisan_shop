@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
+import { shouldBypassNextImageOptimization } from "@/lib/image-optimization";
 import { cn } from "@/lib/utils";
 
 export type HomeHeroSlide = {
@@ -106,6 +107,7 @@ export function HomeHeroCarousel({ slides }: { slides: HomeHeroSlide[] }) {
                   priority={slideIndex === 0}
                   className="object-cover object-center transition duration-700"
                   sizes="(max-width: 640px) 70vw, 28vw"
+                  unoptimized={shouldBypassNextImageOptimization(image.src)}
                 />
               </div>
             ))}
