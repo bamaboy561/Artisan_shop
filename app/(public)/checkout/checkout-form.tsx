@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -57,13 +57,17 @@ export function CheckoutForm({
     () => deliveryMethods[0]?.id ?? "",
   );
   const [redeemPointsInput, setRedeemPointsInput] = useState("");
+  const handledSuccessRef = useRef(false);
 
   useEffect(() => {
-    if (state.success && state.redirectTo) {
-      clearCart();
-      router.push(state.redirectTo);
-      router.refresh();
+    if (!state.success || !state.redirectTo || handledSuccessRef.current) {
+      return;
     }
+
+    handledSuccessRef.current = true;
+    clearCart();
+    router.push(state.redirectTo);
+    router.refresh();
   }, [clearCart, router, state.redirectTo, state.success]);
 
   const selectedDeliveryPrice =

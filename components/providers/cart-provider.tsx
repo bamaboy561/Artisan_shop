@@ -118,7 +118,7 @@ export function CartProvider({
             .filter((item) => item.quantity > 0),
         );
       },
-      clearCart: () => setItems([]),
+      clearCart: () => setItems((prev) => (prev.length > 0 ? [] : prev)),
     };
   }, [items, products]);
 
