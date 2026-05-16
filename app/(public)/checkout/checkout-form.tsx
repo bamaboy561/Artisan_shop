@@ -4,10 +4,8 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-import {
-  submitCheckoutAction,
-  type CheckoutFormState,
-} from "@/app/(public)/checkout/actions";
+import { submitCheckoutAction } from "@/app/(public)/checkout/actions";
+import type { CheckoutFormState } from "@/app/(public)/checkout/types";
 import { useCart } from "@/components/providers/cart-provider";
 import { Button } from "@/components/ui/button";
 import { Container } from "@/components/ui/container";

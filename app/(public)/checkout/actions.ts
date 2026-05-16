@@ -13,6 +13,7 @@ import { formatPrice } from "@/lib/commerce";
 import { getDb, hasDatabaseUrl } from "@/lib/db";
 import { handleOrderCreated } from "@/lib/server/commercial-integrations";
 import { logOperationEvent } from "@/lib/server/operation-events";
+import type { CheckoutFormState } from "@/app/(public)/checkout/types";
 import {
   applyPromotion,
   estimateLoyaltyPoints,
@@ -50,12 +51,6 @@ const cartItemSchema = z.object({
   productSlug: z.string().trim().min(1),
   quantity: z.number().int().positive().max(999),
 });
-
-type CheckoutFormState = {
-  message?: string;
-  success?: boolean;
-  redirectTo?: string;
-};
 
 class CheckoutActionError extends Error {}
 
@@ -536,4 +531,3 @@ export async function submitCheckoutAction(
   };
 }
 
-export type { CheckoutFormState };
