@@ -69,6 +69,11 @@ function normalizePromoCode(value: string) {
   return value.trim().toUpperCase();
 }
 
+function getFormString(formData: FormData, key: string) {
+  const value = formData.get(key);
+  return typeof value === "string" ? value : "";
+}
+
 export async function submitCheckoutAction(
   _prevState: CheckoutFormState,
   formData: FormData,
@@ -81,16 +86,16 @@ export async function submitCheckoutAction(
   }
 
   const parsed = checkoutSchema.safeParse({
-    name: formData.get("name"),
-    phone: formData.get("phone"),
-    email: formData.get("email"),
-    companyName: formData.get("companyName"),
-    city: formData.get("city"),
-    deliveryMethodId: formData.get("deliveryMethodId"),
-    promoCode: formData.get("promoCode"),
-    redeemPoints: formData.get("redeemPoints"),
-    comment: formData.get("comment"),
-    cartSnapshot: formData.get("cartSnapshot"),
+    name: getFormString(formData, "name"),
+    phone: getFormString(formData, "phone"),
+    email: getFormString(formData, "email"),
+    companyName: getFormString(formData, "companyName"),
+    city: getFormString(formData, "city"),
+    deliveryMethodId: getFormString(formData, "deliveryMethodId"),
+    promoCode: getFormString(formData, "promoCode"),
+    redeemPoints: getFormString(formData, "redeemPoints"),
+    comment: getFormString(formData, "comment"),
+    cartSnapshot: getFormString(formData, "cartSnapshot"),
   });
 
   if (!parsed.success) {
