@@ -7,7 +7,6 @@ import {
 } from "@/components/catalog/catalog-filters";
 import { ProductCard } from "@/components/ui/cards";
 import { Pagination } from "@/components/ui/pagination";
-import { StructuredData } from "@/components/seo/structured-data";
 import {
   buildCatalogHref,
   filterCatalogProducts,
@@ -23,14 +22,12 @@ import {
   getPublicCategories,
   getPublicProducts,
 } from "@/lib/server/catalog-public";
-import { collectionJsonLd, createSeoMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = createSeoMetadata({
-  title: "Каталог ЛДСП, МДФ, панелей и мебельной фурнитуры",
+export const metadata: Metadata = {
+  title: "Каталог",
   description:
-    "Каталог Artisan в Бишкеке: ЛДСП, МДФ панели, мебельные декоры, кромка и фурнитура. EXTRAVERT, SWISS KRONO, AGT, фильтры и запрос цены.",
-  path: "/catalog",
-});
+    "Каталог мебельных панелей ЛДСП, МДФ и декоров от EXTRAVERT, SWISS KRONO и AGT. Фильтры, сортировка и быстрый запрос цены.",
+};
 
 type CatalogPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -52,19 +49,9 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
   const sortedProducts = sortCatalogProducts(filteredProducts, state.sort);
   const pagination = paginateCatalogProducts(sortedProducts, state.page);
   const resolvedState = { ...state, page: pagination.currentPage };
-  const catalogDescription =
-    "Каталог мебельных панелей, МДФ, ЛДСП, декоров и материалов для распила Artisan.";
 
   return (
     <div className="bg-[#f1eee8]">
-      <StructuredData
-        data={collectionJsonLd({
-          name: "Каталог Artisan",
-          description: catalogDescription,
-          path: "/catalog",
-          products: sortedProducts,
-        })}
-      />
       <section className="relative overflow-hidden border-b border-[color:var(--line)] bg-gradient-to-b from-[#f6f1e7] via-[#efeadf] to-[#f1eee8]">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[var(--foreground)]/12 to-transparent" />
         <div className="pointer-events-none absolute inset-0 opacity-[0.035] [background-image:radial-gradient(circle_at_1px_1px,#151411_1px,transparent_0)] [background-size:18px_18px]" />
@@ -153,6 +140,7 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
                   {pagination.items.map((product) => (
                     <ProductCard
                       key={product.slug}
+                      slug={product.slug}
                       href={`/product/${product.slug}`}
                       brand={product.brand}
                       name={product.name}
@@ -164,6 +152,7 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
                       oldPrice={product.oldPrice}
                       inStock={product.inStock}
                       categoryName={product.categoryName}
+                      purchaseMode={product.purchaseMode}
                       denseMobile
                       mobileList
                     />

@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { CheckoutForm } from "@/app/(public)/checkout/checkout-form";
 import { getOptionalSession } from "@/lib/auth/dal";
 import { getDb, hasDatabaseUrl } from "@/lib/db";
+import { getLoyaltyProgramConfig } from "@/lib/server/loyalty-settings";
 import {
   getEffectiveDiscountPercent,
   getLoyaltyTierBenefits,
@@ -32,7 +33,7 @@ export default async function CheckoutPage() {
   const db = getDb();
   const session = await getOptionalSession();
 
-  const [deliveryMethods, customer] = await Promise.all([
+  const [deliveryMethods, customer, loyaltyConfig] = await Promise.all([
     db.deliveryMethod.findMany({
       where: { isActive: true },
       orderBy: [{ price: "asc" }, { createdAt: "asc" }],
@@ -57,6 +58,7 @@ export default async function CheckoutPage() {
           },
         })
       : Promise.resolve(null),
+    getLoyaltyProgramConfig(),
   ]);
 
   return (
@@ -73,11 +75,19 @@ export default async function CheckoutPage() {
                   .join(" ") || "",
               phone: customer.phone ?? "",
               companyName: customer.companyName ?? "",
-              loyaltyTierLabel: getLoyaltyTierLabel(customer.loyaltyTier),
+              loyaltyTierLabel: getLoyaltyTierLabel(
+                customer.loyaltyTier,
+                loyaltyConfig,
+              ),
               pointsBalance: customer.loyaltyPointsBalance,
-              discountPercent: getEffectiveDiscountPercent(customer),
-              accrualPercent: getLoyaltyTierBenefits(customer.loyaltyTier)
-                .accrualPercent,
+              discountPercent: getEffectiveDiscountPercent(
+                customer,
+                loyaltyConfig,
+              ),
+              accrualPercent: getLoyaltyTierBenefits(
+                customer.loyaltyTier,
+                loyaltyConfig,
+              ).accrualPercent,
             }
           : null
       }

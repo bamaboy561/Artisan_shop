@@ -1,0 +1,182 @@
+{
+  "generatedAt": "2026-05-15T08:02:14.930Z",
+  "totalExportedProducts": 4,
+  "collections": [
+    {
+      "slug": "trendy-panel",
+      "name": "Trendy Panel",
+      "title": "элегантные цвета и текстуры",
+      "sourceUrl": "https://www.agtwood.ru/products/panel/panel/trendy-panel",
+      "previewImageUrl": "https://www.agtwood.ru/medium/ProductCategory/Image/7ea28f06-c833-4a12-8945-d0dbf594c719",
+      "totalDiscoveredProducts": 9,
+      "totalExportedProducts": 4
+    },
+    {
+      "slug": "supramat-panel",
+      "name": "Supramat Panel",
+      "title": "SUPRAMAT МАТОВАЯ ЛАКИРОВАННАЯ ПОВЕРХНОСТЬ",
+      "sourceUrl": "https://www.agtwood.ru/products/panel/panel/supramat-panel",
+      "previewImageUrl": "https://www.agtwood.ru/medium/ProductCategory/Image/693a2f76-1d5b-4f36-8bd6-56501e21872a",
+      "totalDiscoveredProducts": 9,
+      "totalExportedProducts": 0
+    }
+  ],
+  "products": [
+    {
+      "slug": "agt-trendy-panel-matt-studio-grey",
+      "sourceUrl": "https://www.agtwood.ru/products/panel/panel/trendy-panel/matt-studio-grey",
+      "sourceCollectionUrl": "https://www.agtwood.ru/products/panel/panel/trendy-panel",
+      "brandName": "AGT",
+      "categoryName": "Декоративные мебельные панели",
+      "collectionSlug": "trendy-panel",
+      "collectionName": "Trendy Panel",
+      "collectionTitle": "элегантные цвета и текстуры",
+      "title": "Trendy Panel Матовый Студийный Серый",
+      "name": "Матовый Студийный Серый",
+      "sku": "399",
+      "description": "Матовый студийный серый из коллекции AGT Тренди Панель – это идеальный выбор для тех, кто ищет безупречную эстетику и вневременную элегантность. Эта уникальная панель создает изысканную атмосферу, добавляя вашим интерьерам современный и минималистичный штрих. Матовый студийный серый придает глубину и характер вашим помещениям, сочетая в себе элегантность и функциональность.",
+      "tags": [
+        "Превосходное качество поверхности",
+        "трендовый дизайн",
+        "богатая цветовая палитра",
+        "различные варианты по"
+      ],
+      "previewImageUrl": "https://www.agtwood.ru/medium/Product/Image/0071ab58-0864-437c-b26a-74a32c6e2eec",
+      "images": [
+        {
+          "sourceUrl": "https://www.agtwood.ru/medium/Product/Image/0071ab58-0864-437c-b26a-74a32c6e2eec",
+          "localPath": null
+        },
+        {
+          "sourceUrl": "https://www.agtwood.ru/medium/Product/Image/26070421-7806-4835-8422-5715286406bf",
+          "localPath": null
+        },
+        {
+          "sourceUrl": "https://www.agtwood.ru/medium/Product/Image/f75bd691-b6a7-4f5f-bebd-3fd460ec5a74",
+          "localPath": null
+        },
+        {
+          "sourceUrl": "https://www.agtwood.ru/medium/Product/Image/6044f1a1-5695-4272-aa2a-b9f7e9221ac3",
+          "localPath": null
+        }
+      ]
+    },
+    {
+      "slug": "agt-trendy-panel-super-matt-galaxy-grey",
+      "sourceUrl": "https://www.agtwood.ru/products/panel/panel/trendy-panel/super-matt-galaxy-grey",
+      "sourceCollectionUrl": "https://www.agtwood.ru/products/panel/panel/trendy-panel",
+      "brandName": "AGT",
+      "categoryName": "Декоративные мебельные панели",
+      "collectionSlug": "trendy-panel",
+      "collectionName": "Trendy Panel",
+      "collectionTitle": "элегантные цвета и текстуры",
+      "title": "Trendy Panel Супер Матовый Галактический Серый",
+      "name": "Супер Матовый Галактический Серый",
+      "sku": "3033",
+      "description": "Панель Супер Матовый галактический серый — отличный выбор для тех, кто хочет придать интерьеру современный акцент. Она прочная, устойчивая к царапинам и выцветанию, с мягкой матовой поверхностью и высокой стойкостью к нагрузкам. Благодаря защите от УФ-лучей панель надолго сохраняет свой насыщенный оттенок и стильный вид.",
+      "tags": [
+        "Превосходное качество поверхности",
+        "трендовый дизайн",
+        "богатая цветовая палитра",
+        "различные варианты по"
+      ],
+      "previewImageUrl": "https://www.agtwood.ru/medium/Product/Image/e4dad7b0-52b4-468c-b8c2-d9a196b57bbb",
+      "images": [
+        {
+          "sourceUrl": "https://www.agtwood.ru/medium/Product/Image/e4dad7b0-52b4-468c-b8c2-d9a196b57bbb",
+          "localPath": null
+        },
+        {
+          "sourceUrl": "https://www.agtwood.ru/medium/Product/Image/3c1897ec-a5e3-498d-98fe-63cbdecc53e5",
+          "localPath": null
+        },
+        {
+          "sourceUrl": "https://www.agtwood.ru/medium/Product/Image/17dbd126-70c6-4bae-a59b-5dfb83c360d5",
+          "localPath": null
+        },
+        {
+          "sourceUrl": "https://www.agtwood.ru/medium/Product/Image/82f65236-30b1-4c23-b573-2d0df170961b",
+          "localPath": null
+        }
+      ]
+    },
+    {
+      "slug": "agt-trendy-panel-soft-touch-ocean-blue",
+      "sourceUrl": "https://www.agtwood.ru/products/panel/panel/trendy-panel/soft-touch-ocean-blue",
+      "sourceCollectionUrl": "https://www.agtwood.ru/products/panel/panel/trendy-panel",
+      "brandName": "AGT",
+      "categoryName": "Декоративные мебельные панели",
+      "collectionSlug": "trendy-panel",
+      "collectionName": "Trendy Panel",
+      "collectionTitle": "элегантные цвета и текстуры",
+      "title": "Trendy Panel Софт Тач Синий Океан",
+      "name": "Софт Тач Синий Океан",
+      "sku": "736",
+      "description": "Панель Софт Тач Синий океан наполняет интерьер свежестью океана и дарит легкость современному пространству. Глубокий синий оттенок создает гармонию и умиротворение, а мягкая на ощупь поверхность с защитой от УФ-лучей сохраняет безупречный вид на долгие годы. Устойчивость к влаге и царапинам делает эту панель стильным и надежным решением.",
+      "tags": [
+        "Превосходное качество поверхности",
+        "трендовый дизайн",
+        "богатая цветовая палитра",
+        "различные варианты по"
+      ],
+      "previewImageUrl": "https://www.agtwood.ru/medium/Product/Image/68a0c84b-8282-4df6-944b-7a7c97bc786a",
+      "images": [
+        {
+          "sourceUrl": "https://www.agtwood.ru/medium/Product/Image/68a0c84b-8282-4df6-944b-7a7c97bc786a",
+          "localPath": null
+        },
+        {
+          "sourceUrl": "https://www.agtwood.ru/medium/Product/Image/ab504937-05e7-4033-a21e-5feeb0007da5",
+          "localPath": null
+        },
+        {
+          "sourceUrl": "https://www.agtwood.ru/medium/Product/Image/0e1eb23b-8511-4ec0-952f-868cadfc777d",
+          "localPath": null
+        },
+        {
+          "sourceUrl": "https://www.agtwood.ru/medium/Product/Image/6e1955a5-f653-41ca-9a53-7d1e5853446a",
+          "localPath": null
+        }
+      ]
+    },
+    {
+      "slug": "agt-trendy-panel-matt-cashmere-cream",
+      "sourceUrl": "https://www.agtwood.ru/products/panel/panel/trendy-panel/matt-cashmere-cream",
+      "sourceCollectionUrl": "https://www.agtwood.ru/products/panel/panel/trendy-panel",
+      "brandName": "AGT",
+      "categoryName": "Декоративные мебельные панели",
+      "collectionSlug": "trendy-panel",
+      "collectionName": "Trendy Panel",
+      "collectionTitle": "элегантные цвета и текстуры",
+      "title": "Trendy Panel Матовый Кремовый Кашемир",
+      "name": "Матовый Кремовый Кашемир",
+      "sku": "385",
+      "description": "Панель Матовый кремовый кашемир — идеальный выбор для тех, кто хочет привнести в интерьер стиль и элегантность. Она устойчива к царапинам, не выгорает на солнце, а ее матовая поверхность подходит для современного интерьера. Теплый оттенок кашемирового крема делает атмосферу мягкой и уютной.",
+      "tags": [
+        "Превосходное качество поверхности",
+        "трендовый дизайн",
+        "богатая цветовая палитра",
+        "различные варианты по"
+      ],
+      "previewImageUrl": "https://www.agtwood.ru/medium/Product/Image/434251d8-ff42-47ec-8d7c-5e1dab9571c0",
+      "images": [
+        {
+          "sourceUrl": "https://www.agtwood.ru/medium/Product/Image/434251d8-ff42-47ec-8d7c-5e1dab9571c0",
+          "localPath": null
+        },
+        {
+          "sourceUrl": "https://www.agtwood.ru/medium/Product/Image/1951d4c9-09cb-40c4-9716-e2e06c6d4b9c",
+          "localPath": null
+        },
+        {
+          "sourceUrl": "https://www.agtwood.ru/medium/Product/Image/58de1519-3321-4e33-b66a-7c432ef80eb1",
+          "localPath": null
+        },
+        {
+          "sourceUrl": "https://www.agtwood.ru/medium/Product/Image/ae81c42a-0ac9-4db4-89a6-46033f9c58b3",
+          "localPath": null
+        }
+      ]
+    }
+  ]
+}

@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { Textarea } from "@/components/ui/textarea";
-import { requireAdminSession } from "@/lib/auth/dal";
+import { requireAdminPermission } from "@/lib/auth/dal";
 import { getOrdersForRequest } from "@/lib/server/order-inbox";
 import { getOperationEvents } from "@/lib/server/operation-events";
 import { getAdminManagers } from "@/lib/server/operations-admin";
@@ -125,7 +125,7 @@ function RequestWorkflowTrail({ status }: { status: RequestStatus }) {
 export default async function AdminRequestDetailPage({
   params,
 }: AdminRequestDetailPageProps) {
-  await requireAdminSession("/login?next=/admin/requests");
+  await requireAdminPermission("/admin/requests", "/login?next=/admin/requests");
 
   const { id } = await params;
   const [request, managers, linkedOrders, events] = await Promise.all([

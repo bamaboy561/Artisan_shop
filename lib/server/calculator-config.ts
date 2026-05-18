@@ -95,6 +95,34 @@ export async function getCalculatorMaterials(): Promise<CalculatorMaterialDto[]>
   }));
 }
 
+/**
+ * Same as getCalculatorMaterials, but returns an empty array (not the
+ * default placeholders) when nothing has been configured yet. Use on
+ * public pages that should communicate "prices not set" instead of
+ * showing fallback numbers.
+ */
+export async function getPublicCalculatorMaterials(): Promise<
+  CalculatorMaterialDto[]
+> {
+  if (!hasDatabaseUrl()) return [];
+
+  const db = getDb();
+  const rows = await db.calculatorMaterial.findMany({
+    where: { isActive: true },
+    orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
+  });
+
+  return rows.map((row) => ({
+    id: row.slug,
+    label: row.label,
+    pricePerSqM: row.pricePerSqM,
+    cutRatePerMeter: row.cutRatePerMeter,
+    edgeRatePerMeter: row.edgeRatePerMeter,
+    setupFee: row.setupFee,
+    thicknessMm: row.thicknessMm,
+  }));
+}
+
 export async function getCalculatorSheetFormats(): Promise<
   CalculatorSheetFormatDto[]
 > {

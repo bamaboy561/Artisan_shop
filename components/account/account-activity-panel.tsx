@@ -10,17 +10,24 @@ import {
 } from "lucide-react";
 
 import {
+  LoyaltyTransactionStatus,
   LoyaltyTransactionType,
   OrderStatus,
   RequestStatus,
   RequestType,
 } from "@/generated/prisma";
 import { StatusBadge } from "@/components/admin/status-badge";
+import {
+  orderStatusLabels,
+  requestStatusLabels,
+  requestTypeLabels,
+} from "@/features/admin/operations-filters";
 import { formatPrice } from "@/lib/commerce";
 
 type LoyaltyTransactionItem = {
   id: string;
   type: LoyaltyTransactionType;
+  status: LoyaltyTransactionStatus;
   points: number;
   balanceAfter: number;
   title: string;
@@ -208,11 +215,21 @@ export function AccountActivityPanel({
                           <StatusBadge tone={meta.tone}>
                             {meta.label}
                           </StatusBadge>
+                          {transaction.status ===
+                          LoyaltyTransactionStatus.PENDING ? (
+                            <StatusBadge tone="warning">
+                              Ожидает подтверждения
+                            </StatusBadge>
+                          ) : null}
+                          {transaction.status ===
+                          LoyaltyTransactionStatus.CANCELED ? (
+                            <StatusBadge tone="neutral">Отменено</StatusBadge>
+                          ) : null}
                         </div>
                         <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
                           {formatDate(transaction.createdAt)}
                           {transaction.order?.number
-                            ? ` · заказ ${transaction.order.number}`
+                            ? ` · продажа ${transaction.order.number}`
                             : ""}
                           {transaction.description
                             ? ` · ${transaction.description}`
@@ -249,7 +266,7 @@ export function AccountActivityPanel({
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="font-mono text-[10px] tracking-[0.2em] text-[var(--muted)] uppercase">
-                Заказы
+                Покупки
               </p>
               <h3 className="mt-1 text-xl font-semibold tracking-[-0.03em] text-[var(--foreground)]">
                 Последние
@@ -268,14 +285,14 @@ export function AccountActivityPanel({
                   <div className="flex min-w-0 items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="truncate font-semibold text-[var(--foreground)]">
-                        {order.number ?? order.id.slice(0, 8)}
+                        Продажа {order.number ?? order.id.slice(0, 8)}
                       </p>
                       <p className="mt-1 text-xs text-[var(--muted)]">
                         {formatDate(order.createdAt)}
                       </p>
                     </div>
                     <StatusBadge tone={getOrderTone(order.status)}>
-                      {order.status}
+                      {orderStatusLabels[order.status]}
                     </StatusBadge>
                   </div>
                   <p className="mt-2 text-base font-semibold text-[var(--foreground)]">
@@ -285,7 +302,7 @@ export function AccountActivityPanel({
               ))
             ) : (
               <div className="rounded-[20px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-4 text-sm leading-6 text-[var(--muted)]">
-                Заказы появятся после оформления корзины.
+                Покупки появятся после оформления заказа или продажи в салоне.
               </div>
             )}
           </div>
@@ -317,11 +334,12 @@ export function AccountActivityPanel({
                         {request.number ?? request.id.slice(0, 8)}
                       </p>
                       <p className="mt-1 text-xs text-[var(--muted)]">
-                        {request.type} · {formatDate(request.createdAt)}
+                        {requestTypeLabels[request.type]} ·{" "}
+                        {formatDate(request.createdAt)}
                       </p>
                     </div>
                     <StatusBadge tone={getRequestTone(request.status)}>
-                      {request.status}
+                      {requestStatusLabels[request.status]}
                     </StatusBadge>
                   </div>
                 </div>

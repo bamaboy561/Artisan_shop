@@ -23,7 +23,7 @@ type LoyaltyProfile = {
   loyaltyPointsLifetime?: number | null;
 };
 
-export const loyaltyTierBenefits: Record<
+export type LoyaltyTierBenefits = Record<
   LoyaltyTier,
   {
     label: string;
@@ -31,7 +31,15 @@ export const loyaltyTierBenefits: Record<
     accrualPercent: number;
     threshold: number;
   }
-> = {
+>;
+
+export type LoyaltyProgramConfig = {
+  tiers: LoyaltyTierBenefits;
+  maxTotalDiscountPercent: number;
+  maxRedeemPercent: number;
+};
+
+export const loyaltyTierBenefits: LoyaltyTierBenefits = {
   BRONZE: {
     label: "Бронза",
     baseDiscountPercent: 0,
@@ -58,6 +66,12 @@ export const loyaltyTierBenefits: Record<
   },
 };
 
+export const defaultLoyaltyProgramConfig: LoyaltyProgramConfig = {
+  tiers: loyaltyTierBenefits,
+  maxTotalDiscountPercent: 25,
+  maxRedeemPercent: 100,
+};
+
 export const loyaltyTierOrder: LoyaltyTier[] = [
   LoyaltyTier.BRONZE,
   LoyaltyTier.SILVER,
@@ -65,37 +79,61 @@ export const loyaltyTierOrder: LoyaltyTier[] = [
   LoyaltyTier.PLATINUM,
 ];
 
-export function getLoyaltyTierLabel(tier: LoyaltyTier) {
-  return loyaltyTierBenefits[tier].label;
+function getConfig(config?: LoyaltyProgramConfig) {
+  return config ?? defaultLoyaltyProgramConfig;
 }
 
-export function getLoyaltyTierBenefits(tier: LoyaltyTier) {
-  return loyaltyTierBenefits[tier];
+export function getLoyaltyTierLabel(
+  tier: LoyaltyTier,
+  config?: LoyaltyProgramConfig,
+) {
+  return getConfig(config).tiers[tier].label;
 }
 
-export function getLoyaltyTierForLifetimePoints(lifetimePoints: number) {
+export function getLoyaltyTierBenefits(
+  tier: LoyaltyTier,
+  config?: LoyaltyProgramConfig,
+) {
+  return getConfig(config).tiers[tier];
+}
+
+export function getLoyaltyTierForLifetimePoints(
+  lifetimePoints: number,
+  config?: LoyaltyProgramConfig,
+) {
   const safeLifetimePoints = Math.max(0, lifetimePoints);
+  const tiers = getConfig(config).tiers;
 
   return (
     [...loyaltyTierOrder]
       .reverse()
-      .find(
-        (tier) => safeLifetimePoints >= loyaltyTierBenefits[tier].threshold,
-      ) ?? LoyaltyTier.BRONZE
+      .find((tier) => safeLifetimePoints >= tiers[tier].threshold) ??
+    LoyaltyTier.BRONZE
   );
 }
 
-export function getEffectiveDiscountPercent(profile: LoyaltyProfile) {
+export function getEffectiveDiscountPercent(
+  profile: LoyaltyProfile,
+  config?: LoyaltyProgramConfig,
+) {
+  const loyaltyConfig = getConfig(config);
   const tierDiscount =
-    loyaltyTierBenefits[profile.loyaltyTier].baseDiscountPercent;
+    loyaltyConfig.tiers[profile.loyaltyTier].baseDiscountPercent;
   const personalDiscount = Math.max(0, profile.personalDiscountPercent ?? 0);
 
-  return Math.min(25, tierDiscount + personalDiscount);
+  return Math.min(
+    loyaltyConfig.maxTotalDiscountPercent,
+    tierDiscount + personalDiscount,
+  );
 }
 
-export function estimateLoyaltyPoints(total: number, tier: LoyaltyTier) {
+export function estimateLoyaltyPoints(
+  total: number,
+  tier: LoyaltyTier,
+  config?: LoyaltyProgramConfig,
+) {
   const safeTotal = Math.max(0, Math.round(total));
-  const accrualPercent = loyaltyTierBenefits[tier].accrualPercent;
+  const accrualPercent = getConfig(config).tiers[tier].accrualPercent;
 
   return Math.floor((safeTotal * accrualPercent) / 100);
 }
@@ -104,18 +142,31 @@ export function getRedeemableLoyaltyPoints(
   requestedPoints: number,
   balancePoints: number,
   eligibleTotal: number,
+  config?: LoyaltyProgramConfig,
 ) {
   const safeRequestedPoints = Math.max(0, Math.floor(requestedPoints));
   const safeBalancePoints = Math.max(0, Math.floor(balancePoints));
   const safeEligibleTotal = Math.max(0, Math.floor(eligibleTotal));
+  const maxRedeemableByOrder = Math.floor(
+    (safeEligibleTotal * getConfig(config).maxRedeemPercent) / 100,
+  );
 
-  return Math.min(safeRequestedPoints, safeBalancePoints, safeEligibleTotal);
+  return Math.min(
+    safeRequestedPoints,
+    safeBalancePoints,
+    maxRedeemableByOrder,
+  );
 }
 
-export function getLoyaltyProgress(lifetimePoints: number, tier: LoyaltyTier) {
+export function getLoyaltyProgress(
+  lifetimePoints: number,
+  tier: LoyaltyTier,
+  config?: LoyaltyProgramConfig,
+) {
   const safeLifetimePoints = Math.max(0, lifetimePoints);
+  const tiers = getConfig(config).tiers;
   const currentTierIndex = loyaltyTierOrder.indexOf(tier);
-  const currentTier = loyaltyTierBenefits[tier];
+  const currentTier = tiers[tier];
   const nextTier = loyaltyTierOrder[currentTierIndex + 1];
 
   if (!nextTier) {
@@ -128,7 +179,7 @@ export function getLoyaltyProgress(lifetimePoints: number, tier: LoyaltyTier) {
     };
   }
 
-  const nextThreshold = loyaltyTierBenefits[nextTier].threshold;
+  const nextThreshold = tiers[nextTier].threshold;
   const coveredPoints = Math.max(0, safeLifetimePoints - currentTier.threshold);
   const requiredPoints = Math.max(1, nextThreshold - currentTier.threshold);
 

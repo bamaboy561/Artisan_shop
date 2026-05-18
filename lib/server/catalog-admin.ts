@@ -90,6 +90,7 @@ export async function getAdminProductFormOptions() {
         select: {
           id: true,
           name: true,
+          slug: true,
           kind: true,
         },
       }),

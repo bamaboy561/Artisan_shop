@@ -1,4 +1,9 @@
-import { OrderStatus, RequestFileKind, RequestStatus } from "@/generated/prisma";
+import {
+  LoyaltyTransactionStatus,
+  OrderStatus,
+  RequestFileKind,
+  RequestStatus,
+} from "@/generated/prisma";
 
 import { verifySession } from "@/lib/auth/dal";
 import { getDb } from "@/lib/db";
@@ -37,6 +42,9 @@ export async function getAccountUser() {
       loyaltyPointsBalance: true,
       loyaltyPointsLifetime: true,
       personalDiscountPercent: true,
+      telegramChatId: true,
+      telegramUsername: true,
+      telegramLinkedAt: true,
       role: {
         select: {
           code: true,
@@ -59,6 +67,7 @@ export async function getAccountSummary(userId: string) {
     recentOrders,
     recentRequests,
     recentTransactions,
+    pendingLoyaltyAggregate,
   ] = await Promise.all([
     db.order.count({ where: { userId } }),
     db.order.count({
@@ -110,6 +119,7 @@ export async function getAccountSummary(userId: string) {
       select: {
         id: true,
         type: true,
+        status: true,
         points: true,
         balanceAfter: true,
         title: true,
@@ -120,6 +130,18 @@ export async function getAccountSummary(userId: string) {
             number: true,
           },
         },
+      },
+    }),
+    db.loyaltyTransaction.aggregate({
+      where: {
+        userId,
+        status: LoyaltyTransactionStatus.PENDING,
+        points: {
+          gt: 0,
+        },
+      },
+      _sum: {
+        points: true,
       },
     }),
   ]);
@@ -133,6 +155,7 @@ export async function getAccountSummary(userId: string) {
     recentOrders,
     recentRequests,
     recentTransactions,
+    pendingLoyaltyPoints: pendingLoyaltyAggregate._sum.points ?? 0,
   };
 }
 

@@ -10,7 +10,7 @@ import { SectionHeading } from "@/components/ui/section-heading";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { CategoryKind } from "@/generated/prisma";
-import { requireAdminSession } from "@/lib/auth/dal";
+import { requireAdminPermission } from "@/lib/auth/dal";
 import { getDb, hasDatabaseUrl } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -36,7 +36,10 @@ export default async function EditCategoryPage({
 }: EditCategoryPageProps) {
   if (!hasDatabaseUrl()) notFound();
 
-  await requireAdminSession("/login?next=/admin/categories");
+  await requireAdminPermission(
+    "/admin/categories",
+    "/login?next=/admin/categories",
+  );
 
   const { id } = await params;
   const category = await getDb().category.findUnique({

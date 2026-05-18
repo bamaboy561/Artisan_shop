@@ -44,7 +44,106 @@ const inventoryLabels: Record<InventoryStatus, string> = {
 
 const THICKNESS_OPTIONS = [8, 10, 12, 16, 18, 22, 25];
 
-type CategoryOption = { id: string; name: string; kind: CategoryKind };
+type ProductTemplateId =
+  | "plate"
+  | "fittings"
+  | "wardrobe"
+  | "kitchen"
+  | "other";
+
+type ProductTemplateConfig = {
+  label: string;
+  shortLabel: string;
+  panelTitle: string;
+  formatLabel: string;
+  formatPlaceholder: string;
+  helper: string;
+  recommendedOrderMode: ProductOrderMode;
+  recommendedInventoryStatus: InventoryStatus;
+  attributeTemplate: string;
+};
+
+const productTemplateConfigs: Record<ProductTemplateId, ProductTemplateConfig> = {
+  plate: {
+    label: "Плитный материал",
+    shortLabel: "Плиты",
+    panelTitle: "Плитный материал",
+    formatLabel: "Формат листа",
+    formatPlaceholder: "2800 x 2070 мм",
+    helper:
+      "Для ЛДСП, МДФ и панелей включаются толщина, материал расчета и формат калькулятора.",
+    recommendedOrderMode: ProductOrderMode.REQUEST_PRICE,
+    recommendedInventoryStatus: InventoryStatus.ON_REQUEST,
+    attributeTemplate:
+      "Декор:\nПоверхность:\nТолщина:\nФормат листа:\nГруппа декора:\nПрименение:",
+  },
+  fittings: {
+    label: "Фурнитура",
+    shortLabel: "Фурнитура",
+    panelTitle: "Фурнитура",
+    formatLabel: "Единица / комплектность",
+    formatPlaceholder: "шт / комплект / пара",
+    helper:
+      "Для Hettich, Samet, Emaks и Italiana Ferramenta лист, толщина и калькулятор не нужны.",
+    recommendedOrderMode: ProductOrderMode.CART,
+    recommendedInventoryStatus: InventoryStatus.IN_STOCK,
+    attributeTemplate:
+      "Тип:\nСерия:\nЦвет / покрытие:\nРазмер:\nМатериал:\nНагрузка:\nУгол открывания:\nКомплектация:",
+  },
+  wardrobe: {
+    label: "Гардеробное наполнение",
+    shortLabel: "Гардероб",
+    panelTitle: "Гардеробное наполнение",
+    formatLabel: "Модуль / формат продажи",
+    formatPlaceholder: "секция 450 мм / комплект",
+    helper:
+      "Для корзин, лифтов, выдвижных систем и систем хранения важны размеры секции и комплектация.",
+    recommendedOrderMode: ProductOrderMode.CART,
+    recommendedInventoryStatus: InventoryStatus.IN_STOCK,
+    attributeTemplate:
+      "Тип системы:\nШирина секции:\nВысота:\nГлубина:\nЦвет:\nМатериал:\nНагрузка:\nКомплектация:",
+  },
+  kitchen: {
+    label: "Кухонные системы",
+    shortLabel: "Кухня",
+    panelTitle: "Кухонные системы",
+    formatLabel: "Модуль кухни",
+    formatPlaceholder: "корпус 600 мм / левый",
+    helper:
+      "Для сушки, карго, бутылочниц и угловых механизмов фиксируем модуль, сторону и комплектацию.",
+    recommendedOrderMode: ProductOrderMode.CART,
+    recommendedInventoryStatus: InventoryStatus.IN_STOCK,
+    attributeTemplate:
+      "Тип:\nШирина корпуса:\nВысота:\nГлубина:\nСторона открывания:\nЦвет:\nМатериал:\nКомплектация:",
+  },
+  other: {
+    label: "Другое",
+    shortLabel: "Другое",
+    panelTitle: "Параметры товара",
+    formatLabel: "Формат продажи",
+    formatPlaceholder: "шт / комплект / под заказ",
+    helper:
+      "Универсальная карточка для позиций, которые не относятся к плитам или фурнитуре.",
+    recommendedOrderMode: ProductOrderMode.REQUEST_PRICE,
+    recommendedInventoryStatus: InventoryStatus.ON_REQUEST,
+    attributeTemplate: "Тип:\nРазмер:\nЦвет:\nМатериал:\nКомплектация:",
+  },
+};
+
+const productTemplateOptions: ProductTemplateId[] = [
+  "plate",
+  "fittings",
+  "wardrobe",
+  "kitchen",
+  "other",
+];
+
+type CategoryOption = {
+  id: string;
+  name: string;
+  slug: string;
+  kind: CategoryKind;
+};
 type BrandOption = { id: string; name: string };
 type SlugLabelOption = { slug: string; label: string };
 
@@ -163,6 +262,51 @@ function FieldLabel({
   );
 }
 
+function normalizeTemplateLookup(value: string) {
+  return value
+    .trim()
+    .toLocaleLowerCase("ru-RU")
+    .replaceAll("ё", "е")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function inferProductTemplate(category?: CategoryOption): ProductTemplateId {
+  if (!category) {
+    return "other";
+  }
+
+  const lookup = normalizeTemplateLookup(`${category.name} ${category.slug}`);
+
+  if (
+    lookup.includes("гардероб") ||
+    lookup.includes("шкаф") ||
+    lookup.includes("хранен")
+  ) {
+    return "wardrobe";
+  }
+
+  if (
+    lookup.includes("кух") ||
+    lookup.includes("карго") ||
+    lookup.includes("бутылоч") ||
+    lookup.includes("сушк")
+  ) {
+    return "kitchen";
+  }
+
+  if (category.kind === CategoryKind.PLATE) {
+    return "plate";
+  }
+
+  if (category.kind === CategoryKind.FITTINGS) {
+    return "fittings";
+  }
+
+  return "other";
+}
+
 export function NewProductForm({
   categories,
   brands,
@@ -178,21 +322,67 @@ export function NewProductForm({
   const [brandId, setBrandId] = useState(defaults?.brandId ?? "");
   const selectedCategory = categories.find((item) => item.id === categoryId);
   const selectedBrand = brands.find((item) => item.id === brandId);
+  const [productTemplate, setProductTemplate] = useState<ProductTemplateId>(
+    inferProductTemplate(selectedCategory),
+  );
+  const [orderMode, setOrderMode] = useState<ProductOrderMode>(
+    defaults?.orderMode ?? ProductOrderMode.REQUEST_PRICE,
+  );
+  const [inventoryStatus, setInventoryStatus] = useState<InventoryStatus>(
+    defaults?.inventoryStatus ?? InventoryStatus.ON_REQUEST,
+  );
+  const [attributesText, setAttributesText] = useState(
+    defaults?.attributesText ?? "",
+  );
+  const selectedTemplate = productTemplateConfigs[productTemplate];
   const productIdentity = [selectedBrand?.name, selectedCategory?.name, name]
     .filter(Boolean)
     .join(" ");
-  const isFittings = selectedCategory?.kind === CategoryKind.FITTINGS;
-  const showPlateFields = !isFittings;
+  const showPlateFields = productTemplate === "plate";
   const inputClassName = compact ? "h-9 px-3 text-[13px] sm:h-9" : "h-10";
   const quickGridClassName = compact
     ? "grid gap-2.5 md:grid-cols-2 xl:grid-cols-12"
-    : "grid gap-3 lg:grid-cols-12";
+    : "grid gap-3 md:grid-cols-2 xl:grid-cols-12";
   const plateGridClassName = compact
     ? "grid gap-2.5 md:grid-cols-2 xl:grid-cols-4"
     : "grid gap-3 md:grid-cols-2 xl:grid-cols-4";
   const detailsGridClassName = compact
     ? "grid gap-2.5 sm:grid-cols-2"
     : "grid gap-3 lg:grid-cols-2";
+
+  function applyProductTemplate(nextTemplate: ProductTemplateId) {
+    const config = productTemplateConfigs[nextTemplate];
+
+    setProductTemplate(nextTemplate);
+    setOrderMode(config.recommendedOrderMode);
+    setInventoryStatus(config.recommendedInventoryStatus);
+  }
+
+  function handleCategoryChange(nextCategoryId: string) {
+    setCategoryId(nextCategoryId);
+
+    const nextCategory = categories.find((item) => item.id === nextCategoryId);
+    const nextTemplate = inferProductTemplate(nextCategory);
+    setProductTemplate(nextTemplate);
+
+    if (!isEdit) {
+      const config = productTemplateConfigs[nextTemplate];
+      setOrderMode(config.recommendedOrderMode);
+      setInventoryStatus(config.recommendedInventoryStatus);
+    }
+  }
+
+  function insertAttributeTemplate() {
+    setAttributesText((current) => {
+      const template = selectedTemplate.attributeTemplate;
+
+      if (!current.trim()) {
+        return template;
+      }
+
+      return `${current.trim()}\n${template}`;
+    });
+  }
 
   return (
     <form
@@ -204,11 +394,7 @@ export function NewProductForm({
 
       <CompactPanel title="Быстрое заполнение">
         <div className={quickGridClassName}>
-          <FieldLabel
-            className={
-              compact ? "md:col-span-2 xl:col-span-4" : "lg:col-span-4"
-            }
-          >
+          <FieldLabel className="md:col-span-2 xl:col-span-4">
             Название
             <Input
               name="name"
@@ -220,13 +406,13 @@ export function NewProductForm({
             />
           </FieldLabel>
 
-          <FieldLabel className={compact ? "xl:col-span-3" : "lg:col-span-3"}>
+          <FieldLabel className="xl:col-span-4">
             Категория
             <Select
               name="categoryId"
               required
               value={categoryId}
-              onChange={(event) => setCategoryId(event.target.value)}
+              onChange={(event) => handleCategoryChange(event.target.value)}
               className={inputClassName}
             >
               <option value="" disabled>
@@ -240,7 +426,25 @@ export function NewProductForm({
             </Select>
           </FieldLabel>
 
-          <FieldLabel className={compact ? "xl:col-span-3" : "lg:col-span-3"}>
+          <FieldLabel className="xl:col-span-4">
+            Тип карточки
+            <Select
+              name="productTemplate"
+              value={productTemplate}
+              onChange={(event) =>
+                applyProductTemplate(event.target.value as ProductTemplateId)
+              }
+              className={inputClassName}
+            >
+              {productTemplateOptions.map((templateId) => (
+                <option key={templateId} value={templateId}>
+                  {productTemplateConfigs[templateId].label}
+                </option>
+              ))}
+            </Select>
+          </FieldLabel>
+
+          <FieldLabel className="xl:col-span-3">
             Бренд
             <Select
               name="brandId"
@@ -259,18 +463,19 @@ export function NewProductForm({
 
           <div
             className={
-              compact ? "md:col-span-2 xl:col-span-2" : "lg:col-span-2"
+              compact ? "md:col-span-2 xl:col-span-3" : "xl:col-span-3"
             }
           >
             <GeneratedSkuInput
               defaultValue={defaults?.sku}
               compact={compact}
-              hideHelp={compact}
+              hideHelp
+              inputClassName={inputClassName}
               sourceValue={productIdentity || name}
             />
           </div>
 
-          <FieldLabel className={compact ? "xl:col-span-2" : "lg:col-span-2"}>
+          <FieldLabel className="xl:col-span-2">
             Цена, сом
             <Input
               name="price"
@@ -282,7 +487,7 @@ export function NewProductForm({
             />
           </FieldLabel>
 
-          <FieldLabel className={compact ? "xl:col-span-2" : "lg:col-span-2"}>
+          <FieldLabel className="xl:col-span-2">
             Остаток
             <Input
               name="stockQuantity"
@@ -294,7 +499,7 @@ export function NewProductForm({
             />
           </FieldLabel>
 
-          <FieldLabel className={compact ? "xl:col-span-2" : "lg:col-span-2"}>
+          <FieldLabel className="xl:col-span-2">
             Статус
             <Select
               name="status"
@@ -309,12 +514,13 @@ export function NewProductForm({
             </Select>
           </FieldLabel>
 
-          <FieldLabel className={compact ? "xl:col-span-3" : "lg:col-span-3"}>
-            Сценарий
+          <FieldLabel className="xl:col-span-3">
+            Как продавать
             <Select
               name="orderMode"
-              defaultValue={
-                defaults?.orderMode ?? ProductOrderMode.REQUEST_PRICE
+              value={orderMode}
+              onChange={(event) =>
+                setOrderMode(event.target.value as ProductOrderMode)
               }
               className={inputClassName}
             >
@@ -326,12 +532,13 @@ export function NewProductForm({
             </Select>
           </FieldLabel>
 
-          <FieldLabel className={compact ? "xl:col-span-3" : "lg:col-span-3"}>
+          <FieldLabel className="xl:col-span-3">
             Наличие
             <Select
               name="inventoryStatus"
-              defaultValue={
-                defaults?.inventoryStatus ?? InventoryStatus.ON_REQUEST
+              value={inventoryStatus}
+              onChange={(event) =>
+                setInventoryStatus(event.target.value as InventoryStatus)
               }
               className={inputClassName}
             >
@@ -345,19 +552,19 @@ export function NewProductForm({
         </div>
       </CompactPanel>
 
-      {showPlateFields ? (
-        <CompactPanel title="Плитный материал">
-          <div className={plateGridClassName}>
-            <FieldLabel>
-              Формат листа
-              <Input
-                name="format"
-                placeholder="2800 x 2070 мм"
-                defaultValue={defaults?.format ?? ""}
-                className={inputClassName}
-              />
-            </FieldLabel>
+      <CompactPanel title={selectedTemplate.panelTitle}>
+        <div className={plateGridClassName}>
+          <FieldLabel>
+            {selectedTemplate.formatLabel}
+            <Input
+              name="format"
+              placeholder={selectedTemplate.formatPlaceholder}
+              defaultValue={defaults?.format ?? ""}
+              className={inputClassName}
+            />
+          </FieldLabel>
 
+          {showPlateFields ? (
             <FieldLabel>
               Толщина
               <Select
@@ -373,7 +580,9 @@ export function NewProductForm({
                 ))}
               </Select>
             </FieldLabel>
+          ) : null}
 
+          {showPlateFields ? (
             <FieldLabel>
               Материал расчета
               <Select
@@ -389,7 +598,9 @@ export function NewProductForm({
                 ))}
               </Select>
             </FieldLabel>
+          ) : null}
 
+          {showPlateFields ? (
             <FieldLabel>
               Формат калькулятора
               <Select
@@ -405,9 +616,16 @@ export function NewProductForm({
                 ))}
               </Select>
             </FieldLabel>
+          ) : null}
+
+          <div className="rounded-2xl border border-[color:var(--line)] bg-[#faf8f4] p-3 text-xs leading-5 text-[var(--muted)] xl:col-span-4">
+            <span className="font-semibold text-[var(--foreground)]">
+              {selectedTemplate.shortLabel}:
+            </span>{" "}
+            {selectedTemplate.helper}
           </div>
-        </CompactPanel>
-      ) : null}
+        </div>
+      </CompactPanel>
 
       <CompactDetails
         title="Дополнительно"
@@ -496,15 +714,29 @@ export function NewProductForm({
           </FieldLabel>
         </div>
 
-        <FieldLabel>
-          Характеристики
+        <div className="grid gap-1.5 text-xs font-medium text-[var(--foreground)]">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <span>Характеристики</span>
+            <button
+              type="button"
+              onClick={insertAttributeTemplate}
+              className="inline-flex h-8 items-center justify-center rounded-full border border-[color:var(--line)] px-3 font-mono text-[10px] tracking-[0.14em] text-[var(--muted)] uppercase transition hover:border-[color:var(--foreground)] hover:text-[var(--foreground)]"
+            >
+              Шаблон: {selectedTemplate.shortLabel}
+            </button>
+          </div>
           <Textarea
             name="attributes"
-            rows={4}
-            placeholder={"Цвет: Кашемир\nПоверхность: Матовая\nТолщина: 16 мм"}
-            defaultValue={defaults?.attributesText ?? ""}
+            rows={5}
+            placeholder={selectedTemplate.attributeTemplate}
+            value={attributesText}
+            onChange={(event) => setAttributesText(event.target.value)}
           />
-        </FieldLabel>
+          <FieldHint>
+            Одна строка = одна характеристика. Формат: “Название:
+            значение”. Это удобно и для карточки товара, и для будущего Excel.
+          </FieldHint>
+        </div>
       </CompactDetails>
 
       <CompactDetails title="SEO" summary="обычно можно не заполнять">

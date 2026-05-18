@@ -15,7 +15,7 @@ import {
   getManagerDisplayName,
   requestStatusLabels,
 } from "@/features/admin/operations-filters";
-import { requireAdminSession } from "@/lib/auth/dal";
+import { requireAdminPermission } from "@/lib/auth/dal";
 import { hasDatabaseUrl, isDemoModeEnabled } from "@/lib/db";
 import { getRequestInbox } from "@/lib/server/request-inbox";
 
@@ -88,7 +88,7 @@ export default async function AdminCuttingPage({
     );
   }
 
-  await requireAdminSession("/login?next=/admin/cutting");
+  await requireAdminPermission("/admin/cutting", "/login?next=/admin/cutting");
 
   const [requests, resolvedSearchParams] = await Promise.all([
     getRequestInbox(),

@@ -1,9 +1,12 @@
 import { SetupState } from "@/components/admin/setup-state";
 import { AccountActivityPanel } from "@/components/account/account-activity-panel";
+import { CustomerQrCard } from "@/components/account/customer-qr-card";
 import { LoyaltyOverview } from "@/components/account/loyalty-overview";
+import { TelegramConnectCard } from "@/components/account/telegram-connect-card";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { hasDatabaseUrl } from "@/lib/db";
 import { getAccountSummary, getAccountUser } from "@/lib/server/account-data";
+import { getLoyaltyProgramConfig } from "@/lib/server/loyalty-settings";
 import {
   getEffectiveDiscountPercent,
   getLoyaltyProgress,
@@ -41,15 +44,23 @@ export default async function AccountPage() {
     );
   }
 
-  const summary = await getAccountSummary(user.id);
-  const effectiveDiscount = getEffectiveDiscountPercent(user);
+  const [summary, loyaltyConfig] = await Promise.all([
+    getAccountSummary(user.id),
+    getLoyaltyProgramConfig(),
+  ]);
+  const effectiveDiscount = getEffectiveDiscountPercent(user, loyaltyConfig);
+  const displayName =
+    [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email;
   const progress = getLoyaltyProgress(
     user.loyaltyPointsLifetime,
     user.loyaltyTier,
+    loyaltyConfig,
   );
 
   return (
     <div className="space-y-3 sm:space-y-4">
+      <CustomerQrCard userId={user.id} displayName={displayName} />
+
       <LoyaltyOverview
         user={{
           firstName: user.firstName,
@@ -70,8 +81,15 @@ export default async function AccountPage() {
           requestsCount: summary.requestsCount,
           activeRequestsCount: summary.activeRequestsCount,
           favoritesCount: summary.favoritesCount,
+          pendingLoyaltyPoints: summary.pendingLoyaltyPoints,
         }}
         progress={progress}
+        loyaltyConfig={loyaltyConfig}
+      />
+
+      <TelegramConnectCard
+        telegramUsername={user.telegramUsername}
+        telegramLinkedAt={user.telegramLinkedAt}
       />
 
       <AccountActivityPanel

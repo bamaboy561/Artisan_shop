@@ -1,0 +1,287 @@
+import {
+  createStaffUserAction,
+  updateStaffPasswordAction,
+  updateStaffUserAction,
+} from "@/app/admin/actions";
+import { SetupState } from "@/components/admin/setup-state";
+import { StatusBadge } from "@/components/admin/status-badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { SectionHeading } from "@/components/ui/section-heading";
+import { Select } from "@/components/ui/select";
+import { RoleCode } from "@/generated/prisma";
+import { requireAdminPermission } from "@/lib/auth/dal";
+import { getDb, hasDatabaseUrl } from "@/lib/db";
+
+export const dynamic = "force-dynamic";
+
+const staffRoleLabels: Record<RoleCode, string> = {
+  [RoleCode.CUSTOMER]: "Клиент",
+  [RoleCode.DEALER]: "Дилер",
+  [RoleCode.MANAGER]: "Менеджер",
+  [RoleCode.ADMIN]: "Администратор",
+  [RoleCode.SUPER_ADMIN]: "Супер-админ",
+};
+
+const staffRoleOptions = [
+  RoleCode.MANAGER,
+  RoleCode.ADMIN,
+  RoleCode.SUPER_ADMIN,
+] as const;
+
+function formatDate(date: Date) {
+  return new Intl.DateTimeFormat("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(date);
+}
+
+function getRoleTone(roleCode: RoleCode) {
+  if (roleCode === RoleCode.SUPER_ADMIN) return "warning" as const;
+  if (roleCode === RoleCode.ADMIN) return "accent" as const;
+  return "neutral" as const;
+}
+
+export default async function AdminStaffPage() {
+  if (!hasDatabaseUrl()) {
+    return (
+      <SetupState
+        title="Сотрудники появятся после подключения базы"
+        description="Раздел создает менеджеров и администраторов, но ему нужен PostgreSQL и production bootstrap."
+        steps={[
+          "Подключите DATABASE_URL.",
+          "Выполните prisma:bootstrap.",
+          "Войдите под супер-админом и создайте менеджеров для планшетов.",
+        ]}
+      />
+    );
+  }
+
+  const session = await requireAdminPermission(
+    "/admin/staff",
+    "/login?next=/admin/staff",
+  );
+  const staff = await getDb().user.findMany({
+    where: {
+      role: {
+        code: {
+          in: [RoleCode.MANAGER, RoleCode.ADMIN, RoleCode.SUPER_ADMIN],
+        },
+      },
+    },
+    orderBy: [{ role: { code: "desc" } }, { createdAt: "asc" }],
+    select: {
+      id: true,
+      email: true,
+      firstName: true,
+      lastName: true,
+      phone: true,
+      isActive: true,
+      createdAt: true,
+      role: {
+        select: {
+          code: true,
+          name: true,
+        },
+      },
+      _count: {
+        select: {
+          managedOrders: true,
+          managedRequests: true,
+        },
+      },
+    },
+  });
+
+  return (
+    <div className="space-y-4">
+      <section className="surface-glow rounded-[24px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-5 sm:p-7">
+        <SectionHeading
+          title="Сотрудники и доступы"
+          description="Создавайте менеджеров для планшетов, выдавайте роли и отключайте доступ без удаления истории заказов."
+          titleClassName="text-2xl sm:text-3xl"
+          descriptionClassName="max-w-3xl text-sm leading-7"
+        />
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-[minmax(320px,0.9fr)_minmax(0,1.1fr)]">
+        <form
+          action={createStaffUserAction}
+          className="rounded-[26px] border border-[color:var(--line)] bg-white/92 p-5 shadow-[0_18px_44px_rgba(17,17,17,0.04)]"
+        >
+          <p className="font-mono text-[10px] tracking-[0.22em] text-[var(--accent)] uppercase">
+            Новый сотрудник
+          </p>
+          <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-[var(--foreground)]">
+            Доступ для команды
+          </h2>
+
+          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+            <label className="grid gap-1.5 text-sm text-[var(--foreground)]">
+              Имя
+              <Input name="firstName" placeholder="Имя" />
+            </label>
+            <label className="grid gap-1.5 text-sm text-[var(--foreground)]">
+              Фамилия
+              <Input name="lastName" placeholder="Фамилия" />
+            </label>
+            <label className="grid gap-1.5 text-sm text-[var(--foreground)]">
+              Email
+              <Input name="email" type="email" placeholder="manager@artisan.shop.kg" required />
+            </label>
+            <label className="grid gap-1.5 text-sm text-[var(--foreground)]">
+              Телефон
+              <Input name="phone" placeholder="+996..." />
+            </label>
+            <label className="grid gap-1.5 text-sm text-[var(--foreground)]">
+              Роль
+              <Select name="roleCode" defaultValue={RoleCode.MANAGER}>
+                {staffRoleOptions.map((roleCode) => (
+                  <option key={roleCode} value={roleCode}>
+                    {staffRoleLabels[roleCode]}
+                  </option>
+                ))}
+              </Select>
+            </label>
+            <label className="grid gap-1.5 text-sm text-[var(--foreground)]">
+              Временный пароль
+              <Input
+                name="password"
+                type="password"
+                minLength={8}
+                placeholder="Минимум 8 символов"
+                required
+              />
+            </label>
+          </div>
+
+          <Button type="submit" variant="accent" className="mt-4 w-full">
+            Создать сотрудника
+          </Button>
+        </form>
+
+        <article className="rounded-[26px] border border-[color:var(--line)] bg-[#111111] p-5 text-white shadow-[0_22px_58px_rgba(17,17,17,0.16)]">
+          <p className="font-mono text-[10px] tracking-[0.22em] text-white/42 uppercase">
+            Матрица доступа
+          </p>
+          <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em]">
+            Менеджер видит только рабочие разделы
+          </h2>
+          <div className="mt-5 grid gap-2 text-sm text-white/68">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.06] p-3">
+              <strong className="text-white">Менеджер:</strong> мой кабинет,
+              продажа в зале, заказы, заявки, распил, карточка клиента и
+              подтверждение бонусов.
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/[0.06] p-3">
+              <strong className="text-white">Администратор:</strong> каталог,
+              товары, бренды, клиенты, акции и настройки калькулятора.
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/[0.06] p-3">
+              <strong className="text-white">Супер-админ:</strong> сотрудники,
+              запуск, Telegram webhook и все системные разделы.
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <section className="grid gap-3">
+        {staff.map((user) => {
+          const displayName =
+            [user.firstName, user.lastName].filter(Boolean).join(" ") ||
+            user.email;
+          const isSelf = user.id === session.userId;
+
+          return (
+            <article
+              key={user.id}
+              className="rounded-[24px] border border-[color:var(--line)] bg-white/92 p-4 shadow-[0_16px_40px_rgba(17,17,17,0.035)]"
+            >
+              <div className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)_320px] xl:items-start">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <StatusBadge tone={getRoleTone(user.role.code)}>
+                      {staffRoleLabels[user.role.code]}
+                    </StatusBadge>
+                    <StatusBadge tone={user.isActive ? "success" : "neutral"}>
+                      {user.isActive ? "Активен" : "Отключен"}
+                    </StatusBadge>
+                    {isSelf ? <StatusBadge tone="warning">Это вы</StatusBadge> : null}
+                  </div>
+                  <h3 className="mt-3 truncate text-xl font-semibold text-[var(--foreground)]">
+                    {displayName}
+                  </h3>
+                  <p className="mt-1 truncate text-sm text-[var(--muted)]">
+                    {user.email}
+                  </p>
+                  <p className="mt-3 text-xs leading-5 text-[var(--muted)]">
+                    Создан: {formatDate(user.createdAt)} · Заказы:{" "}
+                    {user._count.managedOrders} · Заявки:{" "}
+                    {user._count.managedRequests}
+                  </p>
+                </div>
+
+                <form
+                  action={updateStaffUserAction}
+                  className="grid gap-3 rounded-[20px] border border-[color:var(--line)] bg-[var(--surface)] p-3 sm:grid-cols-2"
+                >
+                  <input type="hidden" name="id" value={user.id} />
+                  <Input name="firstName" defaultValue={user.firstName ?? ""} placeholder="Имя" />
+                  <Input name="lastName" defaultValue={user.lastName ?? ""} placeholder="Фамилия" />
+                  <Input name="phone" defaultValue={user.phone ?? ""} placeholder="Телефон" />
+                  <Select
+                    name="roleCode"
+                    defaultValue={user.role.code}
+                    disabled={isSelf}
+                  >
+                    {staffRoleOptions.map((roleCode) => (
+                      <option key={roleCode} value={roleCode}>
+                        {staffRoleLabels[roleCode]}
+                      </option>
+                    ))}
+                  </Select>
+                  {isSelf ? (
+                    <input type="hidden" name="roleCode" value={RoleCode.SUPER_ADMIN} />
+                  ) : null}
+                  <label className="flex items-center gap-2 rounded-xl border border-[color:var(--line)] bg-white px-3 py-2 text-sm text-[var(--foreground)]">
+                    <input
+                      type="checkbox"
+                      name="isActive"
+                      defaultChecked={user.isActive}
+                      disabled={isSelf}
+                    />
+                    Активен
+                  </label>
+                  {isSelf ? <input type="hidden" name="isActive" value="on" /> : null}
+                  <Button type="submit" variant="secondary" className="w-full">
+                    Сохранить
+                  </Button>
+                </form>
+
+                <form
+                  action={updateStaffPasswordAction}
+                  className="grid gap-3 rounded-[20px] border border-[color:var(--line)] bg-[var(--surface)] p-3"
+                >
+                  <input type="hidden" name="id" value={user.id} />
+                  <label className="grid gap-1.5 text-sm text-[var(--foreground)]">
+                    Новый пароль
+                    <Input
+                      name="password"
+                      type="password"
+                      minLength={8}
+                      placeholder="Минимум 8 символов"
+                    />
+                  </label>
+                  <Button type="submit" variant="accent" className="w-full">
+                    Сбросить пароль
+                  </Button>
+                </form>
+              </div>
+            </article>
+          );
+        })}
+      </section>
+    </div>
+  );
+}

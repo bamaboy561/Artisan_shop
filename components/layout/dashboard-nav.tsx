@@ -13,6 +13,9 @@ import {
   ReceiptText,
   Rocket,
   Scissors,
+  ShoppingBag,
+  ShieldCheck,
+  UserRound,
   Users2,
 } from "lucide-react";
 
@@ -23,16 +26,20 @@ type DashboardNavProps = {
   items: NavItem[];
   variant?: "admin" | "account";
   mode?: "sidebar" | "mobile";
+  onItemClick?: () => void;
 };
 
 const iconMap = {
   "/admin": LayoutDashboard,
   "/admin/launch": Rocket,
+  "/admin/my": UserRound,
   "/admin/categories": FolderTree,
   "/admin/brands": Layers3,
   "/admin/products": Package2,
   "/admin/users": Users2,
+  "/admin/staff": ShieldCheck,
   "/admin/orders": ReceiptText,
+  "/admin/sales": ShoppingBag,
   "/admin/requests": FileStack,
   "/admin/cutting": Scissors,
   "/admin/promotions": BadgePercent,
@@ -52,9 +59,11 @@ function isItemActive(pathname: string, href: string) {
 function AdminNavItem({
   item,
   pathname,
+  onClick,
 }: {
   item: NavItem;
   pathname: string;
+  onClick?: () => void;
 }) {
   const Icon = iconMap[item.href as keyof typeof iconMap] ?? LayoutDashboard;
   const active = isItemActive(pathname, item.href);
@@ -63,8 +72,9 @@ function AdminNavItem({
     <Link
       href={item.href}
       title={item.description ?? item.label}
+      onClick={onClick}
       className={cn(
-        "group flex h-10 shrink-0 items-center justify-between gap-3 rounded-lg px-3 text-[13px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 lg:w-full",
+        "group flex h-10 shrink-0 items-center justify-between gap-3 rounded-lg px-3 text-[13px] font-medium transition focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:outline-none lg:w-full",
         active
           ? "bg-[#a8492b] text-white shadow-[0_12px_26px_rgba(168,73,43,0.28)]"
           : "text-white/76 hover:bg-white/[0.075] hover:text-white",
@@ -112,7 +122,7 @@ function AccountNav({
               href={item.href}
               title={item.description ?? item.label}
               className={cn(
-                "group flex min-w-0 items-center gap-3 rounded-[18px] px-3 py-3 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#111111]",
+                "group flex min-w-0 items-center gap-3 rounded-[18px] px-3 py-3 transition focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#111111] focus-visible:outline-none",
                 active
                   ? "bg-white text-[#111111]"
                   : "text-white/76 hover:bg-white/[0.06] hover:text-white",
@@ -178,7 +188,7 @@ function AccountMobileNav({
             title={item.description ?? item.label}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "flex h-[58px] min-w-0 flex-col items-center justify-center gap-1 rounded-[16px] border px-1.5 text-center text-[9px] font-bold uppercase tracking-[0.08em] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70",
+              "flex h-[58px] min-w-0 flex-col items-center justify-center gap-1 rounded-[16px] border px-1.5 text-center text-[9px] font-bold tracking-[0.08em] uppercase transition focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:outline-none",
               active
                 ? "border-white bg-white text-[#111111] shadow-[0_8px_24px_rgba(255,255,255,0.08)]"
                 : "border-white/10 bg-white/[0.055] text-white/62 hover:border-white/25 hover:bg-white/[0.1] hover:text-white",
@@ -197,6 +207,7 @@ export function DashboardNav({
   items,
   variant = "account",
   mode = "sidebar",
+  onItemClick,
 }: DashboardNavProps) {
   const pathname = usePathname();
 
@@ -211,7 +222,12 @@ export function DashboardNav({
   return (
     <nav className="flex gap-2 overflow-x-auto pb-1 lg:grid lg:gap-1 lg:overflow-visible lg:pb-0">
       {items.map((item) => (
-        <AdminNavItem key={item.href} item={item} pathname={pathname} />
+        <AdminNavItem
+          key={item.href}
+          item={item}
+          pathname={pathname}
+          onClick={onItemClick}
+        />
       ))}
     </nav>
   );

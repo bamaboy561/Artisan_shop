@@ -4,7 +4,6 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { AddToCartButton } from "@/components/ecommerce/add-to-cart-button";
-import { StructuredData } from "@/components/seo/structured-data";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { ButtonLink } from "@/components/ui/button-link";
 import { ProductCard } from "@/components/ui/cards";
@@ -16,9 +15,7 @@ import {
 import { formatPrice } from "@/lib/commerce";
 import { shouldBypassNextImageOptimization } from "@/lib/image-optimization";
 import {
-  breadcrumbJsonLd,
   createSeoMetadata,
-  productJsonLd,
   productSeoDescription,
   productSeoTitle,
 } from "@/lib/seo";
@@ -34,19 +31,41 @@ export async function generateMetadata({
   const product = await getPublicProductBySlug(slug);
 
   if (!product) {
-    return createSeoMetadata({
-      title: "Товар не найден",
-      description: "Карточка товара Artisan не найдена.",
-      path: "/catalog",
-    });
+    return {
+      title: "Товар не найден | Artisan",
+    };
   }
 
   return createSeoMetadata({
     title: productSeoTitle(product),
     description: productSeoDescription(product),
     path: `/product/${product.slug}`,
-    images: product.gallery.length > 0 ? product.gallery : [product.image],
+    ...(product.image ? { images: [product.image] } : {}),
   });
+}
+
+function getProductFormatLabel(categoryName: string) {
+  const normalized = categoryName
+    .toLocaleLowerCase("ru-RU")
+    .replaceAll("ё", "е");
+
+  if (normalized.includes("кух")) {
+    return "Модуль кухни";
+  }
+
+  if (
+    normalized.includes("гардероб") ||
+    normalized.includes("шкаф") ||
+    normalized.includes("хранен")
+  ) {
+    return "Модуль / секция";
+  }
+
+  if (normalized.includes("фурнит")) {
+    return "Комплектность";
+  }
+
+  return "Формат";
 }
 
 export default async function ProductPage({ params }: ProductPageProps) {
@@ -68,34 +87,30 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const gallery =
     product.gallery.length > 0 ? product.gallery : [product.image];
   const availabilityLabel = product.inStock ? "В наличии" : "По запросу";
-  const duplicatedSpecKeys = new Set(["артикул", "бренд", "раздел", "формат"]);
+  const formatLabel = getProductFormatLabel(product.categoryName);
+  const duplicatedSpecKeys = new Set([
+    "артикул",
+    "бренд",
+    "раздел",
+    "формат",
+    "комплектность",
+    "модуль кухни",
+    "модуль / секция",
+  ]);
   const specificationRows = [
     { key: "Артикул", value: product.sku },
     { key: "Бренд", value: product.brand },
     { key: "Раздел", value: product.categoryName },
-    { key: "Формат", value: product.format },
+    product.format ? { key: formatLabel, value: product.format } : null,
     ...product.specifications.filter(
       (specification) =>
         !duplicatedSpecKeys.has(specification.key.trim().toLowerCase()),
     ),
     { key: "Сценарий заказа", value: product.action },
-  ];
+  ].filter(Boolean) as Array<{ key: string; value: string }>;
 
   return (
     <div className="bg-[#f1eee8]">
-      <StructuredData
-        data={[
-          breadcrumbJsonLd([
-            { name: "Главная", href: "/" },
-            { name: "Каталог", href: "/catalog" },
-            ...(category
-              ? [{ name: category.name, href: categoryHref }]
-              : []),
-            { name: product.name, href: `/product/${product.slug}` },
-          ]),
-          productJsonLd(product),
-        ]}
-      />
       <div className="border-b border-[color:var(--line)] px-4 py-3 sm:px-8 sm:py-4 lg:px-10">
         <div className="mx-auto max-w-[1500px]">
           <Breadcrumbs
@@ -193,12 +208,14 @@ export default async function ProductPage({ params }: ProductPageProps) {
                     {product.sku}
                   </dd>
                 </div>
-                <div className="grid grid-cols-[minmax(0,0.42fr)_minmax(0,0.58fr)] items-start gap-4 border-b border-[color:var(--line)] pb-3">
-                  <dt className="text-[var(--muted)]">Формат</dt>
-                  <dd className="min-w-0 break-words text-right font-medium text-[var(--foreground)]">
-                    {product.format}
-                  </dd>
-                </div>
+                {product.format ? (
+                  <div className="grid grid-cols-[minmax(0,0.42fr)_minmax(0,0.58fr)] items-start gap-4 border-b border-[color:var(--line)] pb-3">
+                    <dt className="text-[var(--muted)]">{formatLabel}</dt>
+                    <dd className="min-w-0 break-words text-right font-medium text-[var(--foreground)]">
+                      {product.format}
+                    </dd>
+                  </div>
+                ) : null}
                 <div className="grid grid-cols-[minmax(0,0.42fr)_minmax(0,0.58fr)] items-start gap-4 border-b border-[color:var(--line)] pb-3">
                   <dt className="text-[var(--muted)]">Наличие</dt>
                   <dd className="min-w-0 break-words text-right font-medium text-[var(--foreground)]">
@@ -309,6 +326,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
               {relatedProducts.map((item) => (
                 <ProductCard
                   key={item.slug}
+                  slug={item.slug}
                   href={`/product/${item.slug}`}
                   brand={item.brand}
                   name={item.name}
@@ -320,6 +338,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                   oldPrice={item.oldPrice}
                   inStock={item.inStock}
                   categoryName={item.categoryName}
+                  purchaseMode={item.purchaseMode}
                 />
               ))}
             </div>

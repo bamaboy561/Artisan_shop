@@ -23,7 +23,7 @@ import { SectionHeading } from "@/components/ui/section-heading";
 import { Select } from "@/components/ui/select";
 import { DataTable } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
-import { requireAdminSession } from "@/lib/auth/dal";
+import { requireAdminPermission } from "@/lib/auth/dal";
 import { hasDatabaseUrl } from "@/lib/db";
 import {
   getAdminPromotions,
@@ -152,7 +152,10 @@ export default async function AdminPromotionsPage({
     );
   }
 
-  await requireAdminSession("/login?next=/admin/promotions");
+  await requireAdminPermission(
+    "/admin/promotions",
+    "/login?next=/admin/promotions",
+  );
 
   const [promotions, options, resolvedSearchParams] = await Promise.all([
     getAdminPromotions(),

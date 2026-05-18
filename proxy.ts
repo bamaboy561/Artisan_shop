@@ -1,7 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { getSafeRedirectPath } from "@/lib/auth/redirects";
-import { canAccessAdmin } from "@/lib/auth/roles";
+import {
+  canAccessAdmin,
+  canAccessAdminRoute,
+  getAdminFallbackPath,
+} from "@/lib/auth/roles";
 import { decryptSession, sessionCookieName } from "@/lib/auth/session";
 
 export async function proxy(request: NextRequest) {
@@ -23,6 +27,16 @@ export async function proxy(request: NextRequest) {
 
   if (isAdminRoute && session?.roleCode && !canAccessAdmin(session.roleCode)) {
     return NextResponse.redirect(new URL("/account", request.url));
+  }
+
+  if (
+    isAdminRoute &&
+    session?.roleCode &&
+    !canAccessAdminRoute(session.roleCode, pathname)
+  ) {
+    return NextResponse.redirect(
+      new URL(getAdminFallbackPath(session.roleCode), request.url),
+    );
   }
 
   if ((isLoginRoute || isRegisterRoute) && session?.userId) {

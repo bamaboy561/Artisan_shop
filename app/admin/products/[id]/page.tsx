@@ -10,7 +10,7 @@ import { StatusBadge } from "@/components/admin/status-badge";
 import { Button } from "@/components/ui/button";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { ProductOrderMode, ProductStatus } from "@/generated/prisma";
-import { requireAdminSession } from "@/lib/auth/dal";
+import { requireAdminPermission } from "@/lib/auth/dal";
 import { getDb, hasDatabaseUrl } from "@/lib/db";
 import { getAdminProductFormOptions } from "@/lib/server/catalog-admin";
 
@@ -55,7 +55,7 @@ function formatPrice(value: number | null) {
 export default async function EditProductPage({ params }: EditProductPageProps) {
   if (!hasDatabaseUrl()) notFound();
 
-  await requireAdminSession("/login?next=/admin/products");
+  await requireAdminPermission("/admin/products", "/login?next=/admin/products");
 
   const { id } = await params;
   const db = getDb();

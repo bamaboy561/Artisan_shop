@@ -16,7 +16,11 @@ import {
   destroySession,
   isSessionConfigured,
 } from "@/lib/auth/session";
-import { canAccessAdmin } from "@/lib/auth/roles";
+import {
+  canAccessAdmin,
+  canAccessAdminRoute,
+  getAdminFallbackPath,
+} from "@/lib/auth/roles";
 import { getDb, hasDatabaseUrl } from "@/lib/db";
 import {
   clearRegistrationChallenge,
@@ -155,12 +159,13 @@ export async function signInAction(
   revalidatePath("/admin");
 
   const defaultRedirectTo = canAccessAdmin(credentials.roleCode)
-    ? "/admin"
+    ? getAdminFallbackPath(credentials.roleCode)
     : "/account";
   const requestedRedirectTo = getSafeRedirectPath(next, defaultRedirectTo);
   const redirectTo =
     canAccessAdmin(credentials.roleCode) &&
-    !requestedRedirectTo.startsWith("/admin")
+    (!requestedRedirectTo.startsWith("/admin") ||
+      !canAccessAdminRoute(credentials.roleCode, requestedRedirectTo))
       ? defaultRedirectTo
       : requestedRedirectTo;
 

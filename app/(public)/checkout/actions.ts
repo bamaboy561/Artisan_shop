@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import {
+  LoyaltyTransactionStatus,
   LoyaltyTransactionType,
   OrderStatus,
   PromotionTargetType,
@@ -12,12 +13,14 @@ import { getOptionalSession } from "@/lib/auth/dal";
 import { formatPrice } from "@/lib/commerce";
 import { getDb, hasDatabaseUrl } from "@/lib/db";
 import { handleOrderCreated } from "@/lib/server/commercial-integrations";
+import { getLoyaltyProgramConfig } from "@/lib/server/loyalty-settings";
 import { logOperationEvent } from "@/lib/server/operation-events";
+import { notifyTelegramClientOrderCreated } from "@/lib/server/telegram-client";
+import type { CheckoutFormState } from "@/app/(public)/checkout/types";
 import {
   applyPromotion,
   estimateLoyaltyPoints,
   getEffectiveDiscountPercent,
-  getLoyaltyTierForLifetimePoints,
   getRedeemableLoyaltyPoints,
   isPromotionActive,
 } from "@/lib/server/pricing";
@@ -51,12 +54,6 @@ const cartItemSchema = z.object({
   quantity: z.number().int().positive().max(999),
 });
 
-type CheckoutFormState = {
-  message?: string;
-  success?: boolean;
-  redirectTo?: string;
-};
-
 class CheckoutActionError extends Error {}
 
 function buildOrderNumber() {
@@ -74,6 +71,11 @@ function normalizePromoCode(value: string) {
   return value.trim().toUpperCase();
 }
 
+function getFormString(formData: FormData, key: string) {
+  const value = formData.get(key);
+  return typeof value === "string" ? value : "";
+}
+
 export async function submitCheckoutAction(
   _prevState: CheckoutFormState,
   formData: FormData,
@@ -86,16 +88,16 @@ export async function submitCheckoutAction(
   }
 
   const parsed = checkoutSchema.safeParse({
-    name: formData.get("name"),
-    phone: formData.get("phone"),
-    email: formData.get("email"),
-    companyName: formData.get("companyName"),
-    city: formData.get("city"),
-    deliveryMethodId: formData.get("deliveryMethodId"),
-    promoCode: formData.get("promoCode"),
-    redeemPoints: formData.get("redeemPoints"),
-    comment: formData.get("comment"),
-    cartSnapshot: formData.get("cartSnapshot"),
+    name: getFormString(formData, "name"),
+    phone: getFormString(formData, "phone"),
+    email: getFormString(formData, "email"),
+    companyName: getFormString(formData, "companyName"),
+    city: getFormString(formData, "city"),
+    deliveryMethodId: getFormString(formData, "deliveryMethodId"),
+    promoCode: getFormString(formData, "promoCode"),
+    redeemPoints: getFormString(formData, "redeemPoints"),
+    comment: getFormString(formData, "comment"),
+    cartSnapshot: getFormString(formData, "cartSnapshot"),
   });
 
   if (!parsed.success) {
@@ -129,6 +131,7 @@ export async function submitCheckoutAction(
 
   const db = getDb();
   const session = await getOptionalSession();
+  const loyaltyConfig = await getLoyaltyProgramConfig();
   const normalizedPromoCode = normalizePromoCode(parsed.data.promoCode);
   const requestedRedeemPoints = parsed.data.redeemPoints
     ? Number.parseInt(parsed.data.redeemPoints, 10)
@@ -269,7 +272,9 @@ export async function submitCheckoutAction(
   }
 
   const subtotal = orderItems.reduce((sum, item) => sum + item.lineSubtotal, 0);
-  const discountPercent = user ? getEffectiveDiscountPercent(user) : 0;
+  const discountPercent = user
+    ? getEffectiveDiscountPercent(user, loyaltyConfig)
+    : 0;
   const personalDiscountTotal = Math.round((subtotal * discountPercent) / 100);
   const subtotalAfterPersonalDiscount = Math.max(
     0,
@@ -319,6 +324,7 @@ export async function submitCheckoutAction(
         requestedRedeemPoints,
         user.loyaltyPointsBalance,
         subtotalAfterPromotion,
+        loyaltyConfig,
       )
     : 0;
   const discountTotal = personalDiscountTotal + promotionDiscountTotal;
@@ -331,6 +337,7 @@ export async function submitCheckoutAction(
     ? estimateLoyaltyPoints(
         Math.max(0, subtotalAfterPromotion - loyaltyRedemptionTotal),
         user.loyaltyTier,
+        loyaltyConfig,
       )
     : 0;
 
@@ -421,17 +428,14 @@ export async function submitCheckoutAction(
           0,
           user.loyaltyPointsBalance - loyaltyRedemptionTotal,
         );
-        const nextBalance = balanceAfterRedemption + awardedPoints;
-        const nextLifetime = user.loyaltyPointsLifetime + awardedPoints;
-
-        await tx.user.update({
-          where: { id: user.id },
-          data: {
-            loyaltyPointsBalance: nextBalance,
-            loyaltyPointsLifetime: nextLifetime,
-            loyaltyTier: getLoyaltyTierForLifetimePoints(nextLifetime),
-          },
-        });
+        if (loyaltyRedemptionTotal > 0) {
+          await tx.user.update({
+            where: { id: user.id },
+            data: {
+              loyaltyPointsBalance: balanceAfterRedemption,
+            },
+          });
+        }
 
         if (loyaltyRedemptionTotal > 0) {
           await tx.loyaltyTransaction.create({
@@ -439,6 +443,8 @@ export async function submitCheckoutAction(
               userId: user.id,
               orderId: order.id,
               type: LoyaltyTransactionType.REDEMPTION,
+              status: LoyaltyTransactionStatus.APPROVED,
+              approvedAt: new Date(),
               points: -loyaltyRedemptionTotal,
               balanceAfter: balanceAfterRedemption,
               title: "Списание баллов",
@@ -453,10 +459,11 @@ export async function submitCheckoutAction(
               userId: user.id,
               orderId: order.id,
               type: LoyaltyTransactionType.ORDER_ACCRUAL,
+              status: LoyaltyTransactionStatus.PENDING,
               points: awardedPoints,
-              balanceAfter: nextBalance,
-              title: "Баллы за заказ",
-              description: `Начисление после оформления заказа ${order.number ?? order.id}.`,
+              balanceAfter: balanceAfterRedemption,
+              title: "Баллы ожидают подтверждения",
+              description: `Начисление за заказ ${order.number ?? order.id} будет добавлено после подтверждения менеджером.`,
             },
           });
         }
@@ -513,6 +520,8 @@ export async function submitCheckoutAction(
         total: item.total,
       })),
     });
+
+    await notifyTelegramClientOrderCreated(createdOrderForSync.id);
   }
 
   revalidatePath("/cart");
@@ -536,4 +545,3 @@ export async function submitCheckoutAction(
   };
 }
 
-export type { CheckoutFormState };

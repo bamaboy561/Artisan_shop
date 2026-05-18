@@ -6,7 +6,7 @@ import { Container } from "@/components/ui/container";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { isDemoAdminEnabled } from "@/lib/auth/demo-access";
 import { getOptionalSession, getSafeRedirectPath } from "@/lib/auth/dal";
-import { canAccessAdmin } from "@/lib/auth/roles";
+import { canAccessAdmin, getAdminFallbackPath } from "@/lib/auth/roles";
 import { hasDatabaseUrl } from "@/lib/db";
 import { noIndexRobots } from "@/lib/seo";
 
@@ -31,7 +31,11 @@ export default async function RegisterPage({
   ]);
 
   if (session?.userId) {
-    redirect(canAccessAdmin(session.roleCode) ? "/admin" : "/account");
+    redirect(
+      canAccessAdmin(session.roleCode)
+        ? getAdminFallbackPath(session.roleCode)
+        : "/account",
+    );
   }
 
   const next = getSafeRedirectPath(resolvedSearchParams.next, "/account");

@@ -6,14 +6,19 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-import { sendTelegramTestAction } from "@/app/admin/actions";
+import {
+  sendTelegramTestAction,
+  setupTelegramWebhookAction,
+} from "@/app/admin/actions";
 import { AdminSubmitButton } from "@/components/admin/admin-submit-button";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { SectionHeading } from "@/components/ui/section-heading";
+import { requireAdminPermission } from "@/lib/auth/dal";
 import {
   getLaunchReadiness,
   type LaunchCheckStatus,
 } from "@/lib/server/launch-readiness";
+import { getTelegramWebhookStatus } from "@/lib/server/telegram-client";
 
 export const dynamic = "force-dynamic";
 
@@ -61,7 +66,10 @@ function getSearchValue(
 export default async function AdminLaunchPage({
   searchParams,
 }: AdminLaunchPageProps) {
+  await requireAdminPermission("/admin/launch", "/login?next=/admin/launch");
+
   const readiness = await getLaunchReadiness();
+  const telegramWebhookStatus = await getTelegramWebhookStatus();
   const resolvedSearchParams = await searchParams;
   const telegramTest = getSearchValue(resolvedSearchParams, "telegramTest");
   const telegramMessage = getSearchValue(
@@ -69,6 +77,18 @@ export default async function AdminLaunchPage({
     "telegramMessage",
   );
   const telegramThread = getSearchValue(resolvedSearchParams, "telegramThread");
+  const telegramWebhook = getSearchValue(
+    resolvedSearchParams,
+    "telegramWebhook",
+  );
+  const telegramWebhookMessage = getSearchValue(
+    resolvedSearchParams,
+    "telegramWebhookMessage",
+  );
+  const telegramWebhookUrl = getSearchValue(
+    resolvedSearchParams,
+    "telegramWebhookUrl",
+  );
 
   return (
     <div className="space-y-5">
@@ -163,6 +183,72 @@ export default async function AdminLaunchPage({
             {telegramMessage ? <p className="mt-1">{telegramMessage}</p> : null}
           </div>
         ) : null}
+
+        {telegramWebhook ? (
+          <div
+            className={`mt-4 rounded-2xl border p-3 text-sm ${
+              telegramWebhook === "ok"
+                ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+                : "border-red-200 bg-red-50 text-red-900"
+            }`}
+          >
+            <strong>
+              {telegramWebhook === "ok"
+                ? "Webhook настроен"
+                : "Webhook не настроен"}
+            </strong>
+            {telegramWebhookMessage ? (
+              <p className="mt-1">{telegramWebhookMessage}</p>
+            ) : null}
+            {telegramWebhookUrl ? (
+              <p className="mt-1 break-all font-mono text-xs">
+                {telegramWebhookUrl}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+
+        <div className="mt-4 rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] p-4 text-sm leading-6 text-[var(--muted)]">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="font-semibold text-[var(--foreground)]">
+                Webhook клиента:{" "}
+                {telegramWebhookStatus.isConfigured
+                  ? "подключен"
+                  : "нужно настроить"}
+              </p>
+              <p className="mt-1 break-all">
+                Ожидаемый адрес: {telegramWebhookStatus.expectedUrl}
+              </p>
+              {telegramWebhookStatus.currentUrl ? (
+                <p className="mt-1 break-all">
+                  Сейчас в Telegram: {telegramWebhookStatus.currentUrl}
+                </p>
+              ) : null}
+              <p className="mt-1">
+                Очередь Telegram: {telegramWebhookStatus.pendingUpdateCount}
+                {telegramWebhookStatus.hasSecret
+                  ? " · секрет webhook включен"
+                  : " · секрет webhook не задан"}
+              </p>
+              {telegramWebhookStatus.lastErrorMessage ? (
+                <p className="mt-1 text-red-700">
+                  Последняя ошибка: {telegramWebhookStatus.lastErrorMessage}
+                </p>
+              ) : null}
+            </div>
+
+            <form action={setupTelegramWebhookAction} className="shrink-0">
+              <AdminSubmitButton
+                type="submit"
+                variant="accent"
+                className="h-10 w-full lg:w-auto"
+                idleLabel="Настроить webhook"
+                pendingLabel="Настраиваем..."
+              />
+            </form>
+          </div>
+        </div>
 
         <div className="mt-4 grid gap-2 sm:grid-cols-3">
           {[

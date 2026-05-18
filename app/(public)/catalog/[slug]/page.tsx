@@ -7,7 +7,6 @@ import {
   CatalogSidebar,
   CatalogToolbar,
 } from "@/components/catalog/catalog-filters";
-import { StructuredData } from "@/components/seo/structured-data";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { ProductCard } from "@/components/ui/cards";
 import { Pagination } from "@/components/ui/pagination";
@@ -23,21 +22,39 @@ import {
 } from "@/features/catalog/filters";
 import { shouldBypassNextImageOptimization } from "@/lib/image-optimization";
 import {
+  categorySeoDescription,
+  categorySeoTitle,
+  createSeoMetadata,
+} from "@/lib/seo";
+import {
   getPublicCategoryBySlug,
   getPublicProductsByCategory,
 } from "@/lib/server/catalog-public";
-import {
-  breadcrumbJsonLd,
-  categorySeoDescription,
-  categorySeoTitle,
-  collectionJsonLd,
-  createSeoMetadata,
-} from "@/lib/seo";
 
 type CategoryPageProps = {
   params: Promise<{ slug: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
+
+export async function generateMetadata({
+  params,
+}: CategoryPageProps): Promise<Metadata> {
+  const { slug } = await params;
+  const category = await getPublicCategoryBySlug(slug);
+
+  if (!category) {
+    return {
+      title: "Раздел не найден | Artisan",
+    };
+  }
+
+  return createSeoMetadata({
+    title: categorySeoTitle(category),
+    description: categorySeoDescription(category),
+    path: `/catalog/${category.slug}`,
+    ...(category.coverImage ? { images: [category.coverImage] } : {}),
+  });
+}
 
 const categoryCopy = {
   ldsp: {
@@ -51,28 +68,6 @@ const categoryCopy = {
     description: "Фасадные панели AGT.",
   },
 } as const;
-
-export async function generateMetadata({
-  params,
-}: CategoryPageProps): Promise<Metadata> {
-  const { slug } = await params;
-  const category = await getPublicCategoryBySlug(slug);
-
-  if (!category) {
-    return createSeoMetadata({
-      title: "Раздел каталога",
-      description: "Каталог материалов Artisan.",
-      path: "/catalog",
-    });
-  }
-
-  return createSeoMetadata({
-    title: categorySeoTitle(category),
-    description: categorySeoDescription(category),
-    path: `/catalog/${category.slug}`,
-    images: category.coverImage ? [category.coverImage] : undefined,
-  });
-}
 
 export default async function CategoryPage({
   params,
@@ -104,21 +99,6 @@ export default async function CategoryPage({
 
   return (
     <div className="bg-[#f1eee8]">
-      <StructuredData
-        data={[
-          breadcrumbJsonLd([
-            { name: "Главная", href: "/" },
-            { name: "Каталог", href: "/catalog" },
-            { name: category.name, href: basePath },
-          ]),
-          collectionJsonLd({
-            name: category.name,
-            description: categorySeoDescription(category),
-            path: basePath,
-            products: sortedProducts,
-          }),
-        ]}
-      />
       <section className="border-b border-[color:var(--line)] bg-[#f1eee8] px-4 pt-3 pb-2.5 lg:hidden">
         <div className="mx-auto max-w-[1500px] space-y-2">
           <Link
@@ -231,6 +211,7 @@ export default async function CategoryPage({
                   {pagination.items.map((product) => (
                     <ProductCard
                       key={product.slug}
+                      slug={product.slug}
                       href={`/product/${product.slug}`}
                       brand={product.brand}
                       name={product.name}
@@ -242,6 +223,7 @@ export default async function CategoryPage({
                       oldPrice={product.oldPrice}
                       inStock={product.inStock}
                       categoryName={product.categoryName}
+                      purchaseMode={product.purchaseMode}
                       denseMobile
                       mobileList
                     />

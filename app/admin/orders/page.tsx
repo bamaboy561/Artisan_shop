@@ -15,7 +15,7 @@ import { Select } from "@/components/ui/select";
 import { DataTable } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { SectionHeading } from "@/components/ui/section-heading";
-import { requireAdminSession } from "@/lib/auth/dal";
+import { requireAdminPermission } from "@/lib/auth/dal";
 import { hasDatabaseUrl, isDemoModeEnabled } from "@/lib/db";
 import {
   getAdminManagers,
@@ -111,7 +111,7 @@ export default async function AdminOrdersPage({
     );
   }
 
-  await requireAdminSession("/login?next=/admin/orders");
+  await requireAdminPermission("/admin/orders", "/login?next=/admin/orders");
 
   const [orders, managers, resolvedSearchParams] = await Promise.all([
     getAdminOrders(),

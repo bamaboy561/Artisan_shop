@@ -6,7 +6,11 @@ import { redirect } from "next/navigation";
 import { RoleCode } from "@/generated/prisma";
 import { getSafeRedirectPath } from "@/lib/auth/redirects";
 import { readSession } from "@/lib/auth/session";
-import { canAccessAdmin } from "@/lib/auth/roles";
+import {
+  canAccessAdmin,
+  canAccessAdminRoute,
+  getAdminFallbackPath,
+} from "@/lib/auth/roles";
 import { getDb, hasDatabaseUrl } from "@/lib/db";
 
 export const getOptionalSession = cache(async () => {
@@ -28,6 +32,19 @@ export async function requireAdminSession(redirectTo = "/login") {
 
   if (!canAccessAdmin(session.roleCode)) {
     redirect("/account");
+  }
+
+  return session;
+}
+
+export async function requireAdminPermission(
+  pathname: string,
+  redirectTo = "/login",
+) {
+  const session = await requireAdminSession(redirectTo);
+
+  if (!canAccessAdminRoute(session.roleCode, pathname)) {
+    redirect(getAdminFallbackPath(session.roleCode));
   }
 
   return session;

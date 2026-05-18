@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Mono, Manrope, Unbounded } from "next/font/google";
 
-import { StructuredData } from "@/components/seo/structured-data";
-import { getSiteUrl, indexRobots, organizationJsonLd } from "@/lib/seo";
 import { companyName, siteDescription } from "@/lib/site-config";
 
 import "./globals.css";
@@ -23,37 +21,19 @@ const ibmPlexMono = IBM_Plex_Mono({
   weight: ["400", "500"],
 });
 
+const googleVerification = process.env.GOOGLE_SITE_VERIFICATION;
+const yandexVerification = process.env.YANDEX_VERIFICATION;
+
 export const metadata: Metadata = {
-  metadataBase: new URL(getSiteUrl()),
   title: {
     default: `${companyName} | Материалы и сервис для мебельных проектов`,
     template: `%s | ${companyName}`,
   },
   description: siteDescription,
   applicationName: companyName,
-  creator: companyName,
-  publisher: companyName,
-  alternates: {
-    canonical: "/",
-  },
-  robots: indexRobots,
-  formatDetection: {
-    email: false,
-    address: false,
-    telephone: false,
-  },
-  openGraph: {
-    title: `${companyName} | Материалы и сервис для мебельных проектов`,
-    description: siteDescription,
-    url: "/",
-    siteName: companyName,
-    locale: "ru_KG",
-    type: "website",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: `${companyName} | Материалы и сервис для мебельных проектов`,
-    description: siteDescription,
+  verification: {
+    ...(googleVerification ? { google: googleVerification } : {}),
+    ...(yandexVerification ? { yandex: yandexVerification } : {}),
   },
 };
 
@@ -71,7 +51,6 @@ export default function RootLayout({
         <a href="#main-content" className="skip-link">
           Перейти к основному контенту
         </a>
-        <StructuredData data={organizationJsonLd()} />
         {children}
       </body>
     </html>

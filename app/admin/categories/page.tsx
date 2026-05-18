@@ -7,7 +7,7 @@ import { StatusBadge } from "@/components/admin/status-badge";
 import { Button } from "@/components/ui/button";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { CategoryKind } from "@/generated/prisma";
-import { requireAdminSession } from "@/lib/auth/dal";
+import { requireAdminPermission } from "@/lib/auth/dal";
 import { hasDatabaseUrl } from "@/lib/db";
 import { getAdminCategories } from "@/lib/server/catalog-admin";
 
@@ -34,7 +34,10 @@ export default async function AdminCategoriesPage() {
     );
   }
 
-  await requireAdminSession("/login?next=/admin/categories");
+  await requireAdminPermission(
+    "/admin/categories",
+    "/login?next=/admin/categories",
+  );
 
   const categories = await getAdminCategories();
 

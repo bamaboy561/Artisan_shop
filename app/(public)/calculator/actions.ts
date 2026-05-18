@@ -8,6 +8,7 @@ import {
   createCuttingRequest,
   type CuttingRequestSubmission,
 } from "@/lib/server/request-inbox";
+import { notifyTelegramClientRequestCreated } from "@/lib/server/telegram-client";
 
 export type SubmitCuttingRequestInput = CuttingRequestSubmission;
 
@@ -94,6 +95,8 @@ export async function submitCuttingRequestAction(
         message,
         createdAt: new Date().toISOString(),
       });
+
+      await notifyTelegramClientRequestCreated(createdRequest.id);
     }
 
     revalidatePath("/admin");

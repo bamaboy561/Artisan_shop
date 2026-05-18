@@ -22,7 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { Select } from "@/components/ui/select";
-import { requireAdminSession } from "@/lib/auth/dal";
+import { requireAdminPermission } from "@/lib/auth/dal";
 import { hasDatabaseUrl } from "@/lib/db";
 import {
   getAdminProductFormOptions,
@@ -200,7 +200,7 @@ export default async function AdminProductsPage({
     );
   }
 
-  await requireAdminSession("/login?next=/admin/products");
+  await requireAdminPermission("/admin/products", "/login?next=/admin/products");
 
   const [
     { categories, brands, calculatorMaterials, calculatorSheetFormats },

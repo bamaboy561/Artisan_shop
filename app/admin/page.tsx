@@ -23,6 +23,7 @@ import {
 } from "@/features/admin/operations-filters";
 import { OrderStatus, RequestStatus } from "@/generated/prisma";
 import { hasDatabaseUrl, isDemoModeEnabled } from "@/lib/db";
+import { requireAdminPermission } from "@/lib/auth/dal";
 import {
   getAdminDashboardMetrics,
   getAdminOperationalQueues,
@@ -166,6 +167,8 @@ function Panel({
 }
 
 export default async function AdminPage() {
+  await requireAdminPermission("/admin", "/login?next=/admin");
+
   if (!hasDatabaseUrl() && !isDemoModeEnabled()) {
     return (
       <SetupState

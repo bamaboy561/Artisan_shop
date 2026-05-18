@@ -4,9 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { Textarea } from "@/components/ui/textarea";
+import { DataTable } from "@/components/ui/table";
 import { SetupState } from "@/components/admin/setup-state";
 import { StatusBadge } from "@/components/admin/status-badge";
-import { requireAdminSession } from "@/lib/auth/dal";
+import { requireAdminPermission } from "@/lib/auth/dal";
 import { hasDatabaseUrl } from "@/lib/db";
 import { getAdminBrands } from "@/lib/server/catalog-admin";
 import { createBrandAction, deleteBrandAction } from "@/app/admin/actions";
@@ -28,9 +29,60 @@ export default async function AdminBrandsPage() {
     );
   }
 
-  await requireAdminSession("/login?next=/admin/brands");
+  await requireAdminPermission("/admin/brands", "/login?next=/admin/brands");
 
   const brands = await getAdminBrands();
+
+  const rows = brands.map((brand) => ({
+    brand: (
+      <div className="space-y-1">
+        <Link
+          href={`/admin/brands/${brand.id}`}
+          className="font-semibold text-[var(--foreground)] transition hover:text-[#9d573d]"
+        >
+          {brand.name}
+        </Link>
+        <p className="text-[11px] text-[var(--muted)]">{brand.slug}</p>
+      </div>
+    ),
+    country: (
+      <span className="text-sm whitespace-nowrap text-[var(--foreground)]">
+        {brand.country ?? "Не указана"}
+      </span>
+    ),
+    description: (
+      <p className="line-clamp-2 max-w-[24rem] text-xs leading-5 text-[var(--muted)]">
+        {brand.description ?? "Описание бренда пока не добавлено."}
+      </p>
+    ),
+    linked: (
+      <StatusBadge tone="accent">
+        {String(brand._count.products)} товаров
+      </StatusBadge>
+    ),
+    actions: (
+      <div className="flex flex-col items-start gap-1.5">
+        <Link
+          href={`/admin/brands/${brand.id}`}
+          className="inline-flex h-9 items-center border border-[var(--line-strong)] px-4 font-mono text-[11px] tracking-[0.16em] text-[var(--foreground)] uppercase transition hover:border-[var(--foreground)] hover:bg-[var(--foreground)] hover:text-white"
+        >
+          Редактировать
+        </Link>
+        <form action={deleteBrandAction}>
+          <input type="hidden" name="id" value={brand.id} />
+          <Button
+            type="submit"
+            variant="ghost"
+            size="sm"
+            disabled={brand._count.products > 0}
+            className="h-8 px-2 text-[11px] text-red-600 hover:bg-red-50 disabled:text-[var(--muted)]"
+          >
+            Удалить
+          </Button>
+        </form>
+      </div>
+    ),
+  }));
 
   return (
     <div className="space-y-4">
@@ -43,13 +95,13 @@ export default async function AdminBrandsPage() {
         />
       </section>
 
-      <section className="grid items-start gap-4 2xl:grid-cols-[420px_minmax(0,1fr)]">
-        <article className="surface-glow rounded-[24px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-5 sm:p-6 2xl:sticky 2xl:top-24">
+      <section className="grid gap-4 2xl:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
+        <article className="surface-glow rounded-[24px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-6 2xl:self-start">
           <SectionHeading
             title="Новый бренд"
-            description="Добавьте производителя, сайт и логотип. Подробности можно доработать в карточке бренда."
+            description="Быстрое добавление бренда для работы каталога и карточек."
             titleClassName="text-xl sm:text-2xl"
-            descriptionClassName="text-sm leading-6"
+            descriptionClassName="text-sm leading-7"
           />
 
           <form action={createBrandAction} className="mt-6 grid gap-4">
@@ -77,21 +129,13 @@ export default async function AdminBrandsPage() {
                   placeholder="https://brand.com"
                 />
               </label>
-              <label className="grid gap-2 text-sm text-[var(--foreground)] sm:col-span-2">
-                Логотип
-                <Input
-                  name="logoUrl"
-                  type="url"
-                  placeholder="https://brand.com/logo.svg"
-                />
-              </label>
             </div>
 
             <label className="grid gap-2 text-sm text-[var(--foreground)]">
               Описание
               <Textarea
                 name="description"
-                rows={4}
+                rows={5}
                 placeholder="Короткое описание бренда для страницы и карточек."
               />
             </label>
@@ -102,122 +146,17 @@ export default async function AdminBrandsPage() {
           </form>
         </article>
 
-        <article className="surface-glow min-w-0 overflow-hidden rounded-[24px] border border-[color:var(--line)] bg-[var(--surface-strong)]">
-          <div className="flex flex-col gap-4 border-b border-[color:var(--line)] p-5 sm:p-6 lg:flex-row lg:items-start lg:justify-between">
-            <SectionHeading
-              title="Список брендов"
-              description="Логотип, описание, привязанные товары и быстрые действия без перегруженной таблицы."
-              titleClassName="text-xl sm:text-2xl"
-              descriptionClassName="max-w-2xl text-sm leading-6"
-            />
-
-            <StatusBadge tone="neutral" className="shrink-0">
-              {brands.length} брендов
-            </StatusBadge>
-          </div>
-
-          {brands.length > 0 ? (
-            <div className="grid gap-3 p-4 sm:p-5">
-              {brands.map((brand) => {
-                const canDelete = brand._count.products === 0;
-                const initial = brand.name.trim().slice(0, 1).toUpperCase();
-                const logoStyle = brand.logoUrl
-                  ? { backgroundImage: `url(${brand.logoUrl})` }
-                  : undefined;
-
-                return (
-                  <section
-                    key={brand.id}
-                    className="grid min-w-0 gap-4 rounded-[22px] border border-[color:var(--line)] bg-white/78 p-4 transition hover:border-[#d8cec2] hover:bg-white sm:p-5 xl:grid-cols-[minmax(0,1fr)_auto]"
-                  >
-                    <div className="flex min-w-0 flex-col gap-4 sm:flex-row">
-                      <div
-                        className="flex h-16 w-32 shrink-0 items-center justify-center rounded-2xl border border-[color:var(--line)] bg-[#171614] bg-contain bg-center bg-no-repeat text-lg font-semibold text-white shadow-[0_14px_34px_rgba(17,17,17,0.08)] sm:h-[4.5rem] sm:w-36"
-                        style={logoStyle}
-                        aria-label={`Логотип ${brand.name}`}
-                      >
-                        {brand.logoUrl ? null : initial || "A"}
-                      </div>
-
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Link
-                            href={`/admin/brands/${brand.id}`}
-                            className="text-xl font-semibold tracking-[-0.03em] text-[var(--foreground)] transition hover:text-[#9d573d]"
-                          >
-                            {brand.name}
-                          </Link>
-                          <span className="rounded-full border border-[color:var(--line)] bg-[#f7f4ef] px-3 py-1 font-mono text-[10px] tracking-[0.14em] text-[var(--muted)] uppercase">
-                            {brand.slug}
-                          </span>
-                        </div>
-
-                        <p className="mt-3 max-w-4xl text-sm leading-6 break-words text-[var(--muted)]">
-                          {brand.description ??
-                            "Описание бренда пока не добавлено."}
-                        </p>
-
-                        <div className="mt-4 flex flex-wrap gap-2 text-xs text-[var(--muted)]">
-                          <span className="rounded-full border border-[color:var(--line)] bg-white px-3 py-1">
-                            {brand.country ?? "Страна не указана"}
-                          </span>
-                          {brand.website ? (
-                            <a
-                              href={brand.website}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="rounded-full border border-[color:var(--line)] bg-white px-3 py-1 text-[var(--foreground)] transition hover:border-[color:var(--foreground)]"
-                            >
-                              Сайт бренда
-                            </a>
-                          ) : null}
-                          <span className="rounded-full border border-[color:var(--line)] bg-white px-3 py-1">
-                            {brand.logoUrl ? "Логотип добавлен" : "Без логотипа"}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-2 xl:min-w-[168px] xl:flex-col xl:items-stretch">
-                      <StatusBadge tone="accent" className="justify-center">
-                        {String(brand._count.products)} товаров
-                      </StatusBadge>
-
-                      <Link
-                        href={`/admin/brands/${brand.id}`}
-                        className="inline-flex h-10 items-center justify-center border border-[var(--line-strong)] px-4 font-mono text-[11px] tracking-[0.16em] text-[var(--foreground)] uppercase transition hover:border-[var(--foreground)] hover:bg-[var(--foreground)] hover:text-white"
-                      >
-                        Редактировать
-                      </Link>
-
-                      <form action={deleteBrandAction}>
-                        <input type="hidden" name="id" value={brand.id} />
-                        <Button
-                          type="submit"
-                          variant="ghost"
-                          size="sm"
-                          disabled={!canDelete}
-                          title={
-                            canDelete
-                              ? "Удалить бренд"
-                              : "Нельзя удалить бренд, пока к нему привязаны товары"
-                          }
-                          className="h-10 w-full text-red-600 hover:bg-red-50 disabled:text-[var(--muted)]"
-                        >
-                          Удалить
-                        </Button>
-                      </form>
-                    </div>
-                  </section>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="p-8 text-center text-sm text-[var(--muted)]">
-              После добавления первых брендов они появятся в этом списке.
-            </div>
-          )}
-        </article>
+        <DataTable
+          columns={[
+            { key: "brand", label: "Бренд" },
+            { key: "country", label: "Страна" },
+            { key: "linked", label: "Товары" },
+            { key: "actions", label: "Действия" },
+          ]}
+          rows={rows}
+          caption="Бренды"
+          emptyMessage="После добавления первых брендов они появятся в этом списке."
+        />
       </section>
     </div>
   );

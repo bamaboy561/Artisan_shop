@@ -1,4 +1,4 @@
-import { RoleCode } from "@/generated/prisma";
+import { LoyaltyTransactionStatus, RoleCode } from "@/generated/prisma";
 
 import { getDb } from "@/lib/db";
 
@@ -25,6 +25,22 @@ export async function getAdminUsers() {
       loyaltyPointsBalance: true,
       loyaltyPointsLifetime: true,
       personalDiscountPercent: true,
+      telegramChatId: true,
+      telegramUsername: true,
+      telegramLinkedAt: true,
+      loyaltyTransactions: {
+        where: {
+          status: LoyaltyTransactionStatus.PENDING,
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 20,
+        select: {
+          id: true,
+          points: true,
+        },
+      },
       role: {
         select: {
           code: true,

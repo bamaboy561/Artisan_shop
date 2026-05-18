@@ -19,6 +19,7 @@ import {
   getLoyaltyTierBenefits,
   getLoyaltyTierLabel,
   loyaltyTierOrder,
+  type LoyaltyProgramConfig,
 } from "@/lib/server/pricing";
 import { cn } from "@/lib/utils";
 
@@ -42,6 +43,7 @@ type LoyaltyOverviewProps = {
     requestsCount: number;
     activeRequestsCount: number;
     favoritesCount: number;
+    pendingLoyaltyPoints: number;
   };
   progress: {
     currentThreshold: number;
@@ -50,6 +52,7 @@ type LoyaltyOverviewProps = {
     progressPercent: number;
     nextTier: LoyaltyTier | null;
   };
+  loyaltyConfig?: LoyaltyProgramConfig;
 };
 
 function formatNumber(value: number) {
@@ -77,12 +80,16 @@ export function LoyaltyOverview({
   effectiveDiscount,
   summary,
   progress,
+  loyaltyConfig,
 }: LoyaltyOverviewProps) {
-  const currentBenefits = getLoyaltyTierBenefits(user.loyaltyTier);
+  const currentBenefits = getLoyaltyTierBenefits(
+    user.loyaltyTier,
+    loyaltyConfig,
+  );
   const displayName =
     [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email;
   const nextTierLabel = progress.nextTier
-    ? getLoyaltyTierLabel(progress.nextTier)
+    ? getLoyaltyTierLabel(progress.nextTier, loyaltyConfig)
     : "Максимальный статус";
 
   const stats = [
@@ -149,7 +156,7 @@ export function LoyaltyOverview({
                 tone={getTierTone(user.loyaltyTier)}
                 className="border-white/10 bg-white text-[#111111]"
               >
-                {getLoyaltyTierLabel(user.loyaltyTier)}
+                {getLoyaltyTierLabel(user.loyaltyTier, loyaltyConfig)}
               </StatusBadge>
               <span className="rounded-md border border-white/10 bg-white/[0.06] px-2 py-1 text-xs font-medium text-white/72">
                 Скидка {effectiveDiscount}%
@@ -186,6 +193,18 @@ export function LoyaltyOverview({
                   </div>
                   <p className="mt-2 text-xl font-semibold">
                     {formatNumber(user.loyaltyPointsLifetime)}
+                  </p>
+                </div>
+                <div className="col-span-2 rounded-[18px] border border-white/10 bg-white/[0.06] p-3 sm:col-span-1">
+                  <div className="flex items-center gap-2 text-white/52">
+                    <Sparkles className="size-4" />
+                    <span className="text-[11px]">Ожидают</span>
+                  </div>
+                  <p className="mt-2 text-xl font-semibold">
+                    {formatNumber(summary.pendingLoyaltyPoints)}
+                  </p>
+                  <p className="mt-1 text-[11px] leading-4 text-white/42">
+                    после подтверждения менеджером
                   </p>
                 </div>
               </div>
@@ -301,9 +320,31 @@ export function LoyaltyOverview({
         })}
       </div>
 
+      <article className="rounded-[24px] border border-[color:var(--line)] bg-white/92 p-4 shadow-[0_14px_34px_rgba(17,17,17,0.04)] sm:p-5">
+        <p className="font-mono text-[10px] tracking-[0.2em] text-[var(--accent)] uppercase">
+          Как работают бонусы
+        </p>
+        <div className="mt-3 grid gap-3 text-sm leading-6 text-[var(--muted)] md:grid-cols-3">
+          <p>
+            <strong className="text-[var(--foreground)]">Начисление:</strong>{" "}
+            баллы появляются после покупки или заказа и ждут подтверждения
+            менеджером.
+          </p>
+          <p>
+            <strong className="text-[var(--foreground)]">Списание:</strong>{" "}
+            подтвержденные баллы можно использовать в checkout. 1 балл = 1 сом.
+          </p>
+          <p>
+            <strong className="text-[var(--foreground)]">Уровень:</strong>{" "}
+            Bronze, Silver, Gold и Platinum считаются по накопленным баллам за
+            всю историю покупок.
+          </p>
+        </div>
+      </article>
+
       <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
         {loyaltyTierOrder.map((tier) => {
-          const benefits = getLoyaltyTierBenefits(tier);
+          const benefits = getLoyaltyTierBenefits(tier, loyaltyConfig);
           const isCurrent = tier === user.loyaltyTier;
           const isUnlocked = user.loyaltyPointsLifetime >= benefits.threshold;
           const isUpcoming = progress.nextTier === tier;
@@ -320,7 +361,7 @@ export function LoyaltyOverview({
             >
               <div className="flex items-center justify-between gap-3">
                 <StatusBadge tone={getTierTone(tier)}>
-                  {getLoyaltyTierLabel(tier)}
+                  {getLoyaltyTierLabel(tier, loyaltyConfig)}
                 </StatusBadge>
                 <span className="text-[10px] tracking-[0.14em] text-[var(--muted)] uppercase">
                   {benefits.threshold === 0

@@ -113,6 +113,12 @@ enum LoyaltyTransactionType {
   MANUAL_ADJUSTMENT
 }
 
+enum LoyaltyTransactionStatus {
+  PENDING
+  APPROVED
+  CANCELED
+}
+
 enum PageStatus {
   DRAFT
   PUBLISHED
@@ -149,32 +155,37 @@ model Role {
 }
 
 model User {
-  id                      String               @id @default(cuid())
-  email                   String               @unique
-  hashedPassword          String?
-  firstName               String?
-  lastName                String?
-  phone                   String?
-  companyName             String?
-  messengerType           MessengerType?
-  messengerHandle         String?
-  isActive                Boolean              @default(true)
-  loyaltyTier             LoyaltyTier          @default(BRONZE)
-  loyaltyPointsBalance    Int                  @default(0)
-  loyaltyPointsLifetime   Int                  @default(0)
-  personalDiscountPercent Int                  @default(0)
-  roleId                  String
-  role                    Role                 @relation(fields: [roleId], references: [id], onDelete: Restrict)
-  addresses               Address[]
-  orders                  Order[]              @relation("CustomerOrders")
-  managedOrders           Order[]              @relation("ManagerOrders")
-  requests                Request[]            @relation("CustomerRequests")
-  managedRequests         Request[]            @relation("ManagerRequests")
-  favorites               Favorite[]
-  loyaltyTransactions     LoyaltyTransaction[]
-  notifications           Notification[]
-  createdAt               DateTime             @default(now())
-  updatedAt               DateTime             @updatedAt
+  id                         String               @id @default(cuid())
+  email                      String               @unique
+  hashedPassword             String?
+  firstName                  String?
+  lastName                   String?
+  phone                      String?
+  companyName                String?
+  messengerType              MessengerType?
+  messengerHandle            String?
+  isActive                   Boolean              @default(true)
+  loyaltyTier                LoyaltyTier          @default(BRONZE)
+  loyaltyPointsBalance       Int                  @default(0)
+  loyaltyPointsLifetime      Int                  @default(0)
+  personalDiscountPercent    Int                  @default(0)
+  telegramChatId             String?              @unique
+  telegramUsername           String?
+  telegramLinkedAt           DateTime?
+  telegramLinkTokenHash      String?              @unique
+  telegramLinkTokenExpiresAt DateTime?
+  roleId                     String
+  role                       Role                 @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  addresses                  Address[]
+  orders                     Order[]              @relation("CustomerOrders")
+  managedOrders              Order[]              @relation("ManagerOrders")
+  requests                   Request[]            @relation("CustomerRequests")
+  managedRequests            Request[]            @relation("ManagerRequests")
+  favorites                  Favorite[]
+  loyaltyTransactions        LoyaltyTransaction[]
+  notifications              Notification[]
+  createdAt                  DateTime             @default(now())
+  updatedAt                  DateTime             @updatedAt
 
   @@index([roleId])
 }
@@ -460,20 +471,27 @@ model Favorite {
 }
 
 model LoyaltyTransaction {
-  id           String                 @id @default(cuid())
+  id           String                   @id @default(cuid())
   userId       String
-  user         User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
   orderId      String?
-  order        Order?                 @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  order        Order?                   @relation(fields: [orderId], references: [id], onDelete: SetNull)
   type         LoyaltyTransactionType
+  status       LoyaltyTransactionStatus @default(APPROVED)
   points       Int
   balanceAfter Int
   title        String
   description  String?
-  createdAt    DateTime               @default(now())
+  approvedAt   DateTime?
+  approvedById String?
+  canceledAt   DateTime?
+  canceledById String?
+  createdAt    DateTime                 @default(now())
 
   @@index([userId, createdAt])
+  @@index([userId, status, createdAt])
   @@index([orderId])
+  @@index([status, createdAt])
 }
 
 model Promotion {

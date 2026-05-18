@@ -8,6 +8,7 @@ import { getOptionalSession } from "@/lib/auth/dal";
 import { handleCuttingRequestCreated } from "@/lib/server/commercial-integrations";
 import { logOperationEvent } from "@/lib/server/operation-events";
 import { createCuttingRequest } from "@/lib/server/request-inbox";
+import { notifyTelegramClientRequestCreated } from "@/lib/server/telegram-client";
 
 const serviceRequestSchema = z.object({
   contactName: z.string().trim().min(2, "Укажите имя для заявки."),
@@ -220,6 +221,8 @@ export async function submitServiceRequestAction(
         message: requestMessage,
         createdAt: new Date().toISOString(),
       });
+
+      await notifyTelegramClientRequestCreated(createdRequest.id);
     }
 
     revalidatePath("/admin");

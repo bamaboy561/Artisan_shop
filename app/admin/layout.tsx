@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { signOutAction } from "@/app/auth/actions";
 import { DashboardFrame } from "@/components/layout/dashboard-frame";
 import { requireAdminSession } from "@/lib/auth/dal";
+import { getAdminNavigationForRole } from "@/lib/auth/roles";
 import { noIndexRobots } from "@/lib/seo";
 import { adminNavigation } from "@/lib/site-config";
 import { getAdminDashboardMetrics } from "@/lib/server/admin-data";
@@ -32,7 +33,10 @@ export default async function AdminLayout({
   const adminName =
     [session.firstName, session.lastName].filter(Boolean).join(" ") ||
     session.email;
-  const adminItems = adminNavigation.map((item) => {
+  const adminItems = getAdminNavigationForRole(
+    session.roleCode,
+    adminNavigation,
+  ).map((item) => {
     if (item.href === "/admin/orders" && metrics?.openOrders) {
       return { ...item, badge: String(metrics.openOrders) };
     }

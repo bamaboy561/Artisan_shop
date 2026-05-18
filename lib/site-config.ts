@@ -49,9 +49,19 @@ export const adminNavigation: NavItem[] = [
     description: "Готовность production-контура.",
   },
   {
+    href: "/admin/my",
+    label: "Мой кабинет",
+    description: "Личные заказы, заявки и продажи менеджера.",
+  },
+  {
     href: "/admin/orders",
     label: "Заказы",
     description: "Производство и выдача.",
+  },
+  {
+    href: "/admin/sales",
+    label: "Продажа в зале",
+    description: "Планшет менеджера, QR клиента и история покупок.",
   },
   {
     href: "/admin/requests",
@@ -82,6 +92,11 @@ export const adminNavigation: NavItem[] = [
     href: "/admin/users",
     label: "Клиенты",
     description: "Уровни, скидки и баллы.",
+  },
+  {
+    href: "/admin/staff",
+    label: "Сотрудники",
+    description: "Менеджеры, администраторы и доступы.",
   },
   {
     href: "/admin/promotions",

@@ -59,13 +59,35 @@ export function CartProvider({
 }) {
   const [items, setItems] = useState<CartItem[]>(readInitialCart);
 
+  const purchasableSlugs = useMemo(
+    () =>
+      new Set(
+        products
+          .filter(
+            (product) =>
+              product.purchaseMode === "cart" &&
+              typeof product.price === "number" &&
+              product.price > 0,
+          )
+          .map((product) => product.slug),
+      ),
+    [products],
+  );
+  const validItems = useMemo(
+    () =>
+      items.filter(
+        (item) => item.quantity > 0 && purchasableSlugs.has(item.productSlug),
+      ),
+    [items, purchasableSlugs],
+  );
+
   useEffect(() => {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
-  }, [items]);
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(validItems));
+  }, [validItems]);
 
   const value = useMemo<CartContextValue>(() => {
-    const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
-    const subtotal = items.reduce((sum, item) => {
+    const itemCount = validItems.reduce((sum, item) => sum + item.quantity, 0);
+    const subtotal = validItems.reduce((sum, item) => {
       const product = products.find((p) => p.slug === item.productSlug);
       return (
         sum +
@@ -74,7 +96,7 @@ export function CartProvider({
     }, 0);
 
     return {
-      items,
+      items: validItems,
       itemCount,
       subtotal,
       addItem: (productSlug, quantity = 1) => {
@@ -83,7 +105,12 @@ export function CartProvider({
             (item) => item.slug === productSlug,
           );
 
-          if (!found || typeof found.price !== "number") {
+          if (
+            !found ||
+            found.purchaseMode !== "cart" ||
+            typeof found.price !== "number" ||
+            found.price <= 0
+          ) {
             return prev;
           }
 
@@ -120,7 +147,7 @@ export function CartProvider({
       },
       clearCart: () => setItems((prev) => (prev.length > 0 ? [] : prev)),
     };
-  }, [items, products]);
+  }, [products, validItems]);
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }

@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { Textarea } from "@/components/ui/textarea";
-import { requireAdminSession } from "@/lib/auth/dal";
+import { requireAdminPermission } from "@/lib/auth/dal";
 import { getDb, hasDatabaseUrl } from "@/lib/db";
 import { ensureBrandLogoColumn } from "@/lib/server/brand-schema";
 
@@ -20,7 +20,7 @@ type EditBrandPageProps = {
 export default async function EditBrandPage({ params }: EditBrandPageProps) {
   if (!hasDatabaseUrl()) notFound();
 
-  await requireAdminSession("/login?next=/admin/brands");
+  await requireAdminPermission("/admin/brands", "/login?next=/admin/brands");
 
   const { id } = await params;
   const db = getDb();

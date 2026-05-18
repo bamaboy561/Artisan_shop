@@ -13,7 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { DataTable } from "@/components/ui/table";
-import { requireAdminSession } from "@/lib/auth/dal";
+import { requireAdminPermission } from "@/lib/auth/dal";
 import { getDb, hasDatabaseUrl } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -45,7 +45,10 @@ export default async function AdminCalculatorPage() {
     );
   }
 
-  await requireAdminSession("/login?next=/admin/calculator");
+  await requireAdminPermission(
+    "/admin/calculator",
+    "/login?next=/admin/calculator",
+  );
 
   const { materials, sheetFormats } = await getCalculatorAdminData();
 

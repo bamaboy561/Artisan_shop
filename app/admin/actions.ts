@@ -5,6 +5,7 @@ import {
   DiscountType,
   InventoryStatus,
   LoyaltyTier,
+  LoyaltyTransactionStatus,
   LoyaltyTransactionType,
   OrderStatus,
   ProductOrderMode,
@@ -12,6 +13,7 @@ import {
   PromotionStatus,
   PromotionTargetType,
   RequestStatus,
+  RoleCode,
   type Prisma,
 } from "@/generated/prisma";
 import {
@@ -26,11 +28,28 @@ import {
   type TelegramThreadKey,
 } from "@/lib/server/commercial-integrations";
 import {
+  getLoyaltyProgramConfig,
+  saveLoyaltyProgramConfig,
+} from "@/lib/server/loyalty-settings";
+import {
+  estimateLoyaltyPoints,
+  getEffectiveDiscountPercent,
+  getLoyaltyTierForLifetimePoints,
+} from "@/lib/server/pricing";
+import {
+  configureTelegramWebhook,
+  notifyTelegramClientLoyaltyTransaction,
+  notifyTelegramClientOrderCreated,
+  notifyTelegramClientOrderStatus,
+  notifyTelegramClientRequestStatus,
+} from "@/lib/server/telegram-client";
+import {
   getManagerDisplayName,
   orderStatusLabels,
   requestStatusLabels,
 } from "@/features/admin/operations-filters";
 import { requireAdminSession } from "@/lib/auth/dal";
+import { canAccessAdminRoute } from "@/lib/auth/roles";
 import { hasDatabaseUrl, getDb } from "@/lib/db";
 import { ensureBrandLogoColumn } from "@/lib/server/brand-schema";
 import { logOperationEvent } from "@/lib/server/operation-events";
@@ -60,6 +79,7 @@ import {
 } from "@/lib/server/request-production";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { hash } from "bcryptjs";
 
 type ManagerSnapshot = {
   firstName?: string | null;
@@ -394,7 +414,14 @@ function inferImportCategoryKind(name: string) {
   if (
     normalized.includes("фурнитур") ||
     normalized.includes("петл") ||
-    normalized.includes("направля")
+    normalized.includes("направля") ||
+    normalized.includes("гардероб") ||
+    normalized.includes("шкаф") ||
+    normalized.includes("хранен") ||
+    normalized.includes("кух") ||
+    normalized.includes("карго") ||
+    normalized.includes("бутылоч") ||
+    normalized.includes("сушк")
   ) {
     return CategoryKind.FITTINGS;
   }
@@ -425,7 +452,10 @@ function getProductImportRedirect(params: {
 
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== "") {
-      searchParams.set(`import${key[0].toUpperCase()}${key.slice(1)}`, String(value));
+      searchParams.set(
+        `import${key[0].toUpperCase()}${key.slice(1)}`,
+        String(value),
+      );
     }
   });
 
@@ -473,13 +503,21 @@ function revalidateAdminPromotions() {
   revalidatePath("/admin/promotions");
 }
 
-function revalidateAdminUsers() {
+function revalidateAdminUsers(userId?: string) {
   revalidatePath("/admin");
   revalidatePath("/admin/users");
+  if (userId) {
+    revalidatePath(`/admin/users/${userId}`);
+  }
   revalidatePath("/account");
   revalidatePath("/account/orders");
   revalidatePath("/account/requests");
   revalidatePath("/account/favorites");
+}
+
+function revalidateAdminStaff() {
+  revalidatePath("/admin");
+  revalidatePath("/admin/staff");
 }
 
 function revalidateCalculatorConfig() {
@@ -495,10 +533,14 @@ function getRequiredInt(formData: FormData, key: string) {
   return parsed;
 }
 
-async function syncOrderById(
-  orderId: string,
-  transition?: TransitionSnapshot,
-) {
+function buildInStoreOrderNumber() {
+  const datePart = new Date().toISOString().slice(2, 10).replaceAll("-", "");
+  const randomPart = Math.floor(1000 + Math.random() * 9000);
+
+  return `S-${datePart}-${randomPart}`;
+}
+
+async function syncOrderById(orderId: string, transition?: TransitionSnapshot) {
   const order = await getOrderInboxItemById(orderId);
 
   if (!order) {
@@ -532,6 +574,13 @@ async function syncOrderById(
       total: item.total,
     })),
   });
+
+  if (
+    transition?.previousStatus &&
+    transition.previousStatus !== order.status
+  ) {
+    await notifyTelegramClientOrderStatus(order.id);
+  }
 }
 
 async function syncRequestById(
@@ -566,14 +615,41 @@ async function syncRequestById(
     previousManager: transition?.previousManager,
     product: request.product,
   });
+
+  if (
+    transition?.previousStatus &&
+    transition.previousStatus !== request.status
+  ) {
+    await notifyTelegramClientRequestStatus(request.id);
+  }
 }
 
 async function ensureAdminAccess() {
   return requireAdminSession("/login?next=/admin");
 }
 
+async function ensureAdminPathAccess(pathname: string) {
+  const session = await ensureAdminAccess();
+
+  if (!canAccessAdminRoute(session.roleCode, pathname)) {
+    redirect("/admin/my");
+  }
+
+  return session;
+}
+
+async function ensureSuperAdminAccess() {
+  const session = await ensureAdminAccess();
+
+  if (session.roleCode !== RoleCode.SUPER_ADMIN) {
+    redirect("/admin/my");
+  }
+
+  return session;
+}
+
 export async function sendTelegramTestAction(formData: FormData) {
-  await ensureAdminAccess();
+  await ensureAdminPathAccess("/admin/launch");
 
   const threadKeyCandidate = getString(formData, "threadKey");
   const threadKey: TelegramThreadKey =
@@ -585,6 +661,20 @@ export async function sendTelegramTestAction(formData: FormData) {
     telegramTest: result.ok ? "ok" : "error",
     telegramMessage: result.message,
     telegramThread: threadKey,
+  });
+
+  revalidatePath("/admin/launch");
+  redirect(`/admin/launch?${searchParams.toString()}`);
+}
+
+export async function setupTelegramWebhookAction() {
+  await ensureAdminPathAccess("/admin/launch");
+
+  const result = await configureTelegramWebhook();
+  const searchParams = new URLSearchParams({
+    telegramWebhook: result.ok ? "ok" : "error",
+    telegramWebhookMessage: result.message,
+    telegramWebhookUrl: result.webhookUrl,
   });
 
   revalidatePath("/admin/launch");
@@ -706,7 +796,7 @@ export async function createCategoryAction(formData: FormData) {
     return;
   }
 
-  await ensureAdminAccess();
+  await ensureAdminPathAccess("/admin/categories");
 
   const name = getString(formData, "name");
 
@@ -719,7 +809,10 @@ export async function createCategoryAction(formData: FormData) {
     Object.values(CategoryKind).find((item) => item === kindRaw) ??
     CategoryKind.OTHER;
   const db = getDb();
-  const slug = await getUniqueCategorySlug(db, getString(formData, "slug") || name);
+  const slug = await getUniqueCategorySlug(
+    db,
+    getString(formData, "slug") || name,
+  );
   const defaults = categoryDefaults[kind];
 
   await db.category.create({
@@ -731,7 +824,8 @@ export async function createCategoryAction(formData: FormData) {
       indicator: getOptionalString(formData, "indicator") ?? defaults.indicator,
       scenario: getOptionalString(formData, "scenario") ?? defaults.scenario,
       sortOrder:
-        getOptionalInt(formData, "sortOrder") ?? (await getNextCategorySortOrder(db)),
+        getOptionalInt(formData, "sortOrder") ??
+        (await getNextCategorySortOrder(db)),
     },
   });
 
@@ -740,7 +834,7 @@ export async function createCategoryAction(formData: FormData) {
 
 export async function updateCategoryKindAction(formData: FormData) {
   if (!hasDatabaseUrl()) return;
-  await ensureAdminAccess();
+  await ensureAdminPathAccess("/admin/categories");
 
   const id = getString(formData, "id");
   const kindRaw = getString(formData, "kind");
@@ -762,7 +856,7 @@ export async function updateCategoryAction(formData: FormData) {
     return;
   }
 
-  await ensureAdminAccess();
+  await ensureAdminPathAccess("/admin/categories");
 
   const id = getString(formData, "id");
   const name = getString(formData, "name");
@@ -820,7 +914,7 @@ export async function deleteCategoryAction(formData: FormData) {
     return;
   }
 
-  await ensureAdminAccess();
+  await ensureAdminPathAccess("/admin/categories");
 
   const id = getString(formData, "id");
 
@@ -854,7 +948,7 @@ export async function createBrandAction(formData: FormData) {
     return;
   }
 
-  await ensureAdminAccess();
+  await ensureAdminPathAccess("/admin/brands");
 
   const name = getString(formData, "name");
   const slug = getString(formData, "slug");
@@ -886,7 +980,7 @@ export async function updateBrandAction(formData: FormData) {
     return;
   }
 
-  await ensureAdminAccess();
+  await ensureAdminPathAccess("/admin/brands");
 
   const id = getString(formData, "id");
   const name = getString(formData, "name");
@@ -928,7 +1022,7 @@ export async function deleteBrandAction(formData: FormData) {
     return;
   }
 
-  await ensureAdminAccess();
+  await ensureAdminPathAccess("/admin/brands");
 
   const id = getString(formData, "id");
 
@@ -957,7 +1051,7 @@ export async function createProductAction(formData: FormData) {
     return;
   }
 
-  await ensureAdminAccess();
+  await ensureAdminPathAccess("/admin/products");
 
   const name = getString(formData, "name");
   const categoryId = getString(formData, "categoryId");
@@ -973,7 +1067,10 @@ export async function createProductAction(formData: FormData) {
   const brandId = getOptionalString(formData, "brandId");
   const db = getDb();
   const [category, brand] = await Promise.all([
-    db.category.findUnique({ where: { id: categoryId }, select: { name: true } }),
+    db.category.findUnique({
+      where: { id: categoryId },
+      select: { name: true },
+    }),
     brandId
       ? db.brand.findUnique({ where: { id: brandId }, select: { name: true } })
       : null,
@@ -1054,7 +1151,7 @@ export async function deleteProductAction(formData: FormData) {
     return;
   }
 
-  await ensureAdminAccess();
+  await ensureAdminPathAccess("/admin/products");
 
   const id = getString(formData, "id");
 
@@ -1080,7 +1177,7 @@ export async function updateProductAction(formData: FormData) {
     return;
   }
 
-  await ensureAdminAccess();
+  await ensureAdminPathAccess("/admin/products");
 
   const id = getString(formData, "id");
   const status = getString(formData, "status");
@@ -1121,7 +1218,7 @@ export async function updateProductDetailsAction(formData: FormData) {
     return;
   }
 
-  await ensureAdminAccess();
+  await ensureAdminPathAccess("/admin/products");
 
   const id = getString(formData, "id");
   const name = getString(formData, "name");
@@ -1143,7 +1240,10 @@ export async function updateProductDetailsAction(formData: FormData) {
       where: { id },
       select: { slug: true, sku: true },
     }),
-    db.category.findUnique({ where: { id: categoryId }, select: { name: true } }),
+    db.category.findUnique({
+      where: { id: categoryId },
+      select: { name: true },
+    }),
     brandId
       ? db.brand.findUnique({ where: { id: brandId }, select: { name: true } })
       : null,
@@ -1249,7 +1349,7 @@ export async function importProductsFromExcelAction(formData: FormData) {
     return;
   }
 
-  await ensureAdminAccess();
+  await ensureAdminPathAccess("/admin/products");
 
   const file = getFileList(formData, "productsFile")[0];
 
@@ -1346,7 +1446,9 @@ export async function importProductsFromExcelAction(formData: FormData) {
       [normalizeImportLookup(item.slug), item],
     ]),
   );
-  const productBySku = new Map(existingProducts.map((item) => [item.sku, item]));
+  const productBySku = new Map(
+    existingProducts.map((item) => [item.sku, item]),
+  );
   const usedProductSlugs = new Set(existingProducts.map((item) => item.slug));
   const usedCategorySlugs = new Set(categories.map((item) => item.slug));
   const usedBrandSlugs = new Set(brands.map((item) => item.slug));
@@ -1558,7 +1660,7 @@ export async function updateProductStockFromExcelAction(formData: FormData) {
     return;
   }
 
-  await ensureAdminAccess();
+  await ensureAdminPathAccess("/admin/products");
 
   const file = getFileList(formData, "stockFile")[0];
 
@@ -1698,7 +1800,7 @@ export async function bulkUpdateProductsAction(formData: FormData) {
     return;
   }
 
-  await ensureAdminAccess();
+  await ensureAdminPathAccess("/admin/products");
 
   const productIds = Array.from(new Set(getStringList(formData, "productIds")));
   const bulkAction = getString(formData, "bulkAction");
@@ -2074,7 +2176,8 @@ export async function createOrderFromRequestAction(formData: FormData) {
       entityId: createdOrder.id,
       eventType: "created",
       title: `Заказ создан из заявки ${request.number ?? request.id}`,
-      description: "Контакты, материал, комментарии и файлы перенесены из заявки.",
+      description:
+        "Контакты, материал, комментарии и файлы перенесены из заявки.",
       toStatus: OrderStatus.NEW,
       isVisibleToClient: true,
       actor,
@@ -2090,7 +2193,9 @@ export async function createOrderFromRequestAction(formData: FormData) {
     contactEmail: request.contactEmail,
     companyName: null,
     comment: request.message,
-    deliveryMethod: request.deliveryNeeded ? "Требует уточнения" : "Самовывоз / уточнить",
+    deliveryMethod: request.deliveryNeeded
+      ? "Требует уточнения"
+      : "Самовывоз / уточнить",
     total: request.estimatedBudget ?? 0,
     subtotal: request.estimatedBudget ?? 0,
     discountTotal: 0,
@@ -2109,6 +2214,7 @@ export async function createOrderFromRequestAction(formData: FormData) {
     ],
   });
 
+  await notifyTelegramClientOrderCreated(createdOrder.id);
   await syncRequestById(requestId, {
     previousStatus: request.status,
     previousManager: request.manager,
@@ -2421,7 +2527,7 @@ export async function createPromotionAction(formData: FormData) {
     return;
   }
 
-  await ensureAdminAccess();
+  await ensureAdminPathAccess("/admin/promotions");
 
   const name = getString(formData, "name");
   const slug = getString(formData, "slug");
@@ -2486,7 +2592,7 @@ export async function updatePromotionAction(formData: FormData) {
     return;
   }
 
-  await ensureAdminAccess();
+  await ensureAdminPathAccess("/admin/promotions");
 
   const id = getString(formData, "id");
   const status = getString(formData, "status");
@@ -2501,7 +2607,8 @@ export async function updatePromotionAction(formData: FormData) {
       status:
         Object.values(PromotionStatus).find((item) => item === status) ??
         PromotionStatus.DRAFT,
-      promoCode: getOptionalString(formData, "promoCode")?.toUpperCase() ?? null,
+      promoCode:
+        getOptionalString(formData, "promoCode")?.toUpperCase() ?? null,
       badgeText: getOptionalString(formData, "badgeText"),
       isHighlighted: getString(formData, "isHighlighted") === "on",
     },
@@ -2515,7 +2622,7 @@ export async function bulkUpdatePromotionsAction(formData: FormData) {
     return;
   }
 
-  await ensureAdminAccess();
+  await ensureAdminPathAccess("/admin/promotions");
 
   const promotionIds = Array.from(
     new Set(getStringList(formData, "promotionIds")),
@@ -2590,7 +2697,7 @@ export async function deletePromotionAction(formData: FormData) {
     return;
   }
 
-  await ensureAdminAccess();
+  await ensureAdminPathAccess("/admin/promotions");
 
   const id = getString(formData, "id");
 
@@ -2609,12 +2716,65 @@ export async function deletePromotionAction(formData: FormData) {
   revalidateAdminPromotions();
 }
 
+export async function updateLoyaltyProgramSettingsAction(formData: FormData) {
+  if (!hasDatabaseUrl()) {
+    return;
+  }
+
+  await ensureAdminPathAccess("/admin/users");
+
+  const currentConfig = await getLoyaltyProgramConfig();
+  const maxTotalDiscountPercent =
+    getOptionalInt(formData, "maxTotalDiscountPercent") ??
+    currentConfig.maxTotalDiscountPercent;
+  const maxRedeemPercent =
+    getOptionalInt(formData, "maxRedeemPercent") ??
+    currentConfig.maxRedeemPercent;
+
+  await saveLoyaltyProgramConfig({
+    maxTotalDiscountPercent,
+    maxRedeemPercent,
+    tiers: Object.fromEntries(
+      Object.values(LoyaltyTier).map((tier) => {
+        const currentTier = currentConfig.tiers[tier];
+
+        return [
+          tier,
+          {
+            label:
+              getOptionalString(formData, `${tier}.label`) ?? currentTier.label,
+            threshold:
+              getOptionalInt(formData, `${tier}.threshold`) ??
+              currentTier.threshold,
+            baseDiscountPercent:
+              getOptionalInt(formData, `${tier}.baseDiscountPercent`) ??
+              currentTier.baseDiscountPercent,
+            accrualPercent:
+              getOptionalInt(formData, `${tier}.accrualPercent`) ??
+              currentTier.accrualPercent,
+          },
+        ];
+      }),
+    ) as Record<
+      LoyaltyTier,
+      {
+        label: string;
+        threshold: number;
+        baseDiscountPercent: number;
+        accrualPercent: number;
+      }
+    >,
+  });
+
+  revalidateAdminUsers();
+}
+
 export async function updateUserLoyaltyAction(formData: FormData) {
   if (!hasDatabaseUrl()) {
     return;
   }
 
-  await ensureAdminAccess();
+  await ensureAdminPathAccess("/admin/users");
 
   const id = getString(formData, "id");
   const loyaltyTier = getString(formData, "loyaltyTier");
@@ -2627,13 +2787,18 @@ export async function updateUserLoyaltyAction(formData: FormData) {
     return;
   }
 
+  const loyaltyConfig = await getLoyaltyProgramConfig();
+
   await getDb().user.update({
     where: { id },
     data: {
       loyaltyTier:
         Object.values(LoyaltyTier).find((item) => item === loyaltyTier) ??
         LoyaltyTier.BRONZE,
-      personalDiscountPercent: Math.min(25, personalDiscountPercent),
+      personalDiscountPercent: Math.min(
+        loyaltyConfig.maxTotalDiscountPercent,
+        personalDiscountPercent,
+      ),
     },
   });
 
@@ -2645,7 +2810,7 @@ export async function adjustUserLoyaltyPointsAction(formData: FormData) {
     return;
   }
 
-  await ensureAdminAccess();
+  const session = await ensureAdminPathAccess("/admin/users");
 
   const id = getString(formData, "id");
   const pointsDelta = getOptionalInt(formData, "pointsDelta");
@@ -2672,6 +2837,8 @@ export async function adjustUserLoyaltyPointsAction(formData: FormData) {
 
   const nextBalance = Math.max(0, user.loyaltyPointsBalance + pointsDelta);
   const appliedDelta = nextBalance - user.loyaltyPointsBalance;
+  const loyaltyConfig = await getLoyaltyProgramConfig();
+  const nextLifetime = user.loyaltyPointsLifetime + Math.max(0, appliedDelta);
 
   if (appliedDelta === 0) {
     return;
@@ -2682,14 +2849,20 @@ export async function adjustUserLoyaltyPointsAction(formData: FormData) {
       where: { id },
       data: {
         loyaltyPointsBalance: nextBalance,
-        loyaltyPointsLifetime:
-          user.loyaltyPointsLifetime + Math.max(0, appliedDelta),
+        loyaltyPointsLifetime: nextLifetime,
+        loyaltyTier: getLoyaltyTierForLifetimePoints(
+          nextLifetime,
+          loyaltyConfig,
+        ),
       },
     }),
     db.loyaltyTransaction.create({
       data: {
         userId: id,
         type: LoyaltyTransactionType.MANUAL_ADJUSTMENT,
+        status: LoyaltyTransactionStatus.APPROVED,
+        approvedAt: new Date(),
+        approvedById: session.userId,
         points: appliedDelta,
         balanceAfter: nextBalance,
         title,
@@ -2698,12 +2871,768 @@ export async function adjustUserLoyaltyPointsAction(formData: FormData) {
     }),
   ]);
 
-  revalidateAdminUsers();
+  revalidateAdminUsers(id);
+}
+
+export type InStoreSaleFormState = {
+  success?: boolean;
+  message?: string;
+  orderNumber?: string;
+};
+
+type InStoreSaleItemInput = {
+  productId: string;
+  quantity: number;
+  unitPrice: number;
+};
+
+function parseInStoreSaleItems(value: string): InStoreSaleItemInput[] {
+  try {
+    const rawItems = JSON.parse(value) as unknown;
+
+    if (!Array.isArray(rawItems)) {
+      return [];
+    }
+
+    return rawItems
+      .flatMap((item) => {
+        if (!item || typeof item !== "object") {
+          return [];
+        }
+
+        const candidate = item as Record<string, unknown>;
+        const productId =
+          typeof candidate.productId === "string"
+            ? candidate.productId.trim()
+            : "";
+        const quantity =
+          typeof candidate.quantity === "number"
+            ? candidate.quantity
+            : Number(candidate.quantity);
+        const unitPrice =
+          typeof candidate.unitPrice === "number"
+            ? candidate.unitPrice
+            : Number(candidate.unitPrice);
+
+        if (
+          !productId ||
+          !Number.isFinite(quantity) ||
+          !Number.isFinite(unitPrice)
+        ) {
+          return [];
+        }
+
+        return [
+          {
+            productId,
+            quantity: Math.max(1, Math.floor(quantity)),
+            unitPrice: Math.max(0, Math.round(unitPrice)),
+          },
+        ];
+      })
+      .filter((item) => item.quantity > 0 && item.unitPrice >= 0);
+  } catch {
+    return [];
+  }
+}
+
+export async function createInStoreSaleAction(
+  _prevState: InStoreSaleFormState,
+  formData: FormData,
+): Promise<InStoreSaleFormState> {
+  if (!hasDatabaseUrl()) {
+    return {
+      message: "База данных не подключена.",
+    };
+  }
+
+  const session = await ensureAdminAccess();
+  const userId = getString(formData, "userId");
+  const items = parseInStoreSaleItems(getString(formData, "itemsJson"));
+
+  if (!userId) {
+    return {
+      message: "Выберите клиента или отсканируйте его QR.",
+    };
+  }
+
+  if (items.length === 0) {
+    return {
+      message: "Добавьте хотя бы один товар в продажу.",
+    };
+  }
+
+  const db = getDb();
+  const productIds = [...new Set(items.map((item) => item.productId))];
+  const [user, products, loyaltyConfig] = await Promise.all([
+    db.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        companyName: true,
+        loyaltyTier: true,
+        loyaltyPointsBalance: true,
+        loyaltyPointsLifetime: true,
+        personalDiscountPercent: true,
+      },
+    }),
+    db.product.findMany({
+      where: {
+        id: {
+          in: productIds,
+        },
+      },
+      select: {
+        id: true,
+        name: true,
+        sku: true,
+        price: true,
+        brand: {
+          select: {
+            name: true,
+          },
+        },
+      },
+    }),
+    getLoyaltyProgramConfig(),
+  ]);
+
+  if (!user) {
+    return {
+      message: "Клиент не найден.",
+    };
+  }
+
+  const productById = new Map(products.map((product) => [product.id, product]));
+  const missingProduct = items.find((item) => !productById.has(item.productId));
+
+  if (missingProduct) {
+    return {
+      message: "Один из товаров не найден. Обновите страницу.",
+    };
+  }
+
+  const orderItems = items.map((item) => {
+    const product = productById.get(item.productId);
+    const unitPrice = item.unitPrice || product?.price || 0;
+    const total = unitPrice * item.quantity;
+
+    return {
+      productId: product?.id ?? null,
+      quantity: item.quantity,
+      unitPrice,
+      discountAmount: 0,
+      total,
+      snapshotName: product?.name ?? "Товар",
+      snapshotSku: product?.sku ?? null,
+      snapshotBrand: product?.brand?.name ?? null,
+    };
+  });
+  const subtotal = orderItems.reduce((sum, item) => sum + item.total, 0);
+
+  if (subtotal <= 0) {
+    return {
+      message: "Сумма продажи должна быть больше 0.",
+    };
+  }
+
+  const applyClientDiscount =
+    getString(formData, "applyClientDiscount") === "on";
+  const discountPercent = applyClientDiscount
+    ? getEffectiveDiscountPercent(user, loyaltyConfig)
+    : 0;
+  const discountTotal = Math.round((subtotal * discountPercent) / 100);
+  const total = Math.max(0, subtotal - discountTotal);
+  const awardedPoints = estimateLoyaltyPoints(
+    total,
+    user.loyaltyTier,
+    loyaltyConfig,
+  );
+  const approveNow = getString(formData, "approveNow") === "on";
+  const receiptNumber = getOptionalString(formData, "receiptNumber");
+  const commentParts = [
+    "Продажа в зале.",
+    receiptNumber ? `Кассовый чек: ${receiptNumber}.` : "",
+    getOptionalString(formData, "comment") ?? "",
+  ].filter(Boolean);
+  const contactName =
+    [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email;
+  const orderNumber = buildInStoreOrderNumber();
+
+  const saleResult = await db.$transaction(async (tx) => {
+    const createdOrder = await tx.order.create({
+      data: {
+        number: orderNumber,
+        userId: user.id,
+        managerId: session.userId,
+        status: OrderStatus.COMPLETED,
+        contactName,
+        contactPhone: user.phone ?? "Не указан",
+        contactEmail: user.email,
+        companyName: user.companyName,
+        comment: commentParts.join("\n"),
+        subtotal,
+        discountTotal,
+        promotionDiscountTotal: 0,
+        loyaltyRedemptionTotal: 0,
+        deliveryTotal: 0,
+        total,
+        completedAt: new Date(),
+        items: {
+          create: orderItems,
+        },
+      },
+      select: {
+        id: true,
+        number: true,
+      },
+    });
+
+    let loyaltyTransactionId: string | null = null;
+
+    if (awardedPoints > 0) {
+      if (approveNow) {
+        const nextBalance = user.loyaltyPointsBalance + awardedPoints;
+        const nextLifetime = user.loyaltyPointsLifetime + awardedPoints;
+
+        await tx.user.update({
+          where: { id: user.id },
+          data: {
+            loyaltyPointsBalance: nextBalance,
+            loyaltyPointsLifetime: nextLifetime,
+            loyaltyTier: getLoyaltyTierForLifetimePoints(
+              nextLifetime,
+              loyaltyConfig,
+            ),
+          },
+        });
+
+        const loyaltyTransaction = await tx.loyaltyTransaction.create({
+          data: {
+            userId: user.id,
+            orderId: createdOrder.id,
+            type: LoyaltyTransactionType.ORDER_ACCRUAL,
+            status: LoyaltyTransactionStatus.APPROVED,
+            approvedAt: new Date(),
+            approvedById: session.userId,
+            points: awardedPoints,
+            balanceAfter: nextBalance,
+            title: "Продажа в салоне",
+            description: `Начисление за покупку ${createdOrder.number ?? createdOrder.id}.`,
+          },
+          select: {
+            id: true,
+          },
+        });
+        loyaltyTransactionId = loyaltyTransaction.id;
+      } else {
+        const loyaltyTransaction = await tx.loyaltyTransaction.create({
+          data: {
+            userId: user.id,
+            orderId: createdOrder.id,
+            type: LoyaltyTransactionType.ORDER_ACCRUAL,
+            status: LoyaltyTransactionStatus.PENDING,
+            points: awardedPoints,
+            balanceAfter: user.loyaltyPointsBalance,
+            title: "Продажа в салоне ожидает подтверждения",
+            description: `Начисление за покупку ${createdOrder.number ?? createdOrder.id}.`,
+          },
+          select: {
+            id: true,
+          },
+        });
+        loyaltyTransactionId = loyaltyTransaction.id;
+      }
+    }
+
+    return {
+      order: createdOrder,
+      loyaltyTransactionId,
+    };
+  });
+
+  await logOperationEvent({
+    entityType: "order",
+    entityId: saleResult.order.id,
+    eventType: "created",
+    title: `Продажа в зале ${saleResult.order.number ?? saleResult.order.id}`,
+    description: `Менеджер привязал покупку к клиенту ${contactName}.`,
+    toStatus: OrderStatus.COMPLETED,
+    isVisibleToClient: true,
+    actorName: session.email,
+  });
+
+  await handleOrderCreated({
+    id: saleResult.order.id,
+    number: saleResult.order.number ?? orderNumber,
+    status: OrderStatus.COMPLETED,
+    contactName,
+    contactPhone: user.phone ?? "Не указан",
+    contactEmail: user.email,
+    companyName: user.companyName,
+    comment: commentParts.join("\n"),
+    deliveryMethod: "Продажа в зале",
+    total,
+    subtotal,
+    discountTotal,
+    deliveryTotal: 0,
+    manager: {
+      firstName: session.firstName ?? null,
+      lastName: session.lastName ?? null,
+      email: session.email,
+    },
+    createdAt: new Date().toISOString(),
+    items: orderItems.map((item) => ({
+      name: item.snapshotName,
+      sku: item.snapshotSku,
+      brand: item.snapshotBrand,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      total: item.total,
+    })),
+  });
+
+  await Promise.all([
+    notifyTelegramClientOrderCreated(saleResult.order.id),
+    saleResult.loyaltyTransactionId
+      ? notifyTelegramClientLoyaltyTransaction(saleResult.loyaltyTransactionId)
+      : Promise.resolve(),
+  ]);
+
+  revalidatePath("/admin/sales");
+  revalidatePath("/admin/orders");
+  revalidatePath("/account");
+  revalidatePath("/account/orders");
+  revalidateAdminUsers(user.id);
+
+  return {
+    success: true,
+    message: `Продажа ${saleResult.order.number ?? orderNumber} сохранена в истории клиента.`,
+    orderNumber: saleResult.order.number ?? orderNumber,
+  };
+}
+
+export async function createOfflineLoyaltyPurchaseAction(formData: FormData) {
+  if (!hasDatabaseUrl()) {
+    return;
+  }
+
+  const session = await ensureAdminAccess();
+  const userId = getString(formData, "userId");
+  const purchaseTotal = getRequiredInt(formData, "purchaseTotal");
+
+  if (!userId || purchaseTotal === null || purchaseTotal <= 0) {
+    return;
+  }
+
+  const db = getDb();
+  const [user, loyaltyConfig] = await Promise.all([
+    db.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        loyaltyTier: true,
+        loyaltyPointsBalance: true,
+        loyaltyPointsLifetime: true,
+      },
+    }),
+    getLoyaltyProgramConfig(),
+  ]);
+
+  if (!user) {
+    return;
+  }
+
+  const points = estimateLoyaltyPoints(
+    purchaseTotal,
+    user.loyaltyTier,
+    loyaltyConfig,
+  );
+
+  if (points <= 0) {
+    return;
+  }
+
+  const approveNow = getString(formData, "approveNow") === "on";
+  const receiptNumber = getOptionalString(formData, "receiptNumber");
+  const title =
+    getOptionalString(formData, "title") ??
+    (approveNow
+      ? "Офлайн-покупка подтверждена"
+      : "Офлайн-покупка ожидает подтверждения");
+  const description = [
+    `Покупка в салоне на сумму ${purchaseTotal} сом.`,
+    receiptNumber ? `Кассовый чек: ${receiptNumber}.` : "",
+    getOptionalString(formData, "description") ?? "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  const loyaltyTransactionId = await db.$transaction(async (tx) => {
+    if (!approveNow) {
+      const transaction = await tx.loyaltyTransaction.create({
+        data: {
+          userId,
+          type: LoyaltyTransactionType.BONUS_ACCRUAL,
+          status: LoyaltyTransactionStatus.PENDING,
+          points,
+          balanceAfter: user.loyaltyPointsBalance,
+          title,
+          description,
+        },
+        select: {
+          id: true,
+        },
+      });
+      return transaction.id;
+    }
+
+    const nextBalance = user.loyaltyPointsBalance + points;
+    const nextLifetime = user.loyaltyPointsLifetime + points;
+
+    await tx.user.update({
+      where: { id: userId },
+      data: {
+        loyaltyPointsBalance: nextBalance,
+        loyaltyPointsLifetime: nextLifetime,
+        loyaltyTier: getLoyaltyTierForLifetimePoints(
+          nextLifetime,
+          loyaltyConfig,
+        ),
+      },
+    });
+
+    const transaction = await tx.loyaltyTransaction.create({
+      data: {
+        userId,
+        type: LoyaltyTransactionType.BONUS_ACCRUAL,
+        status: LoyaltyTransactionStatus.APPROVED,
+        approvedAt: new Date(),
+        approvedById: session.userId,
+        points,
+        balanceAfter: nextBalance,
+        title,
+        description,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    return transaction.id;
+  });
+
+  await notifyTelegramClientLoyaltyTransaction(loyaltyTransactionId);
+  revalidateAdminUsers(userId);
+}
+
+export async function approveLoyaltyTransactionAction(formData: FormData) {
+  if (!hasDatabaseUrl()) {
+    return;
+  }
+
+  const session = await ensureAdminAccess();
+  const transactionId = getString(formData, "transactionId");
+
+  if (!transactionId) {
+    return;
+  }
+
+  const db = getDb();
+  const loyaltyConfig = await getLoyaltyProgramConfig();
+  const userId = await db.$transaction(async (tx) => {
+    const transaction = await tx.loyaltyTransaction.findUnique({
+      where: { id: transactionId },
+      select: {
+        id: true,
+        userId: true,
+        status: true,
+        points: true,
+        user: {
+          select: {
+            loyaltyPointsBalance: true,
+            loyaltyPointsLifetime: true,
+          },
+        },
+      },
+    });
+
+    if (
+      !transaction ||
+      transaction.status !== LoyaltyTransactionStatus.PENDING ||
+      transaction.points <= 0
+    ) {
+      return null;
+    }
+
+    const nextBalance =
+      transaction.user.loyaltyPointsBalance + transaction.points;
+    const nextLifetime =
+      transaction.user.loyaltyPointsLifetime + transaction.points;
+
+    await tx.user.update({
+      where: { id: transaction.userId },
+      data: {
+        loyaltyPointsBalance: nextBalance,
+        loyaltyPointsLifetime: nextLifetime,
+        loyaltyTier: getLoyaltyTierForLifetimePoints(
+          nextLifetime,
+          loyaltyConfig,
+        ),
+      },
+    });
+
+    await tx.loyaltyTransaction.update({
+      where: { id: transaction.id },
+      data: {
+        status: LoyaltyTransactionStatus.APPROVED,
+        balanceAfter: nextBalance,
+        approvedAt: new Date(),
+        approvedById: session.userId,
+      },
+    });
+
+    return transaction.userId;
+  });
+
+  if (userId) {
+    await notifyTelegramClientLoyaltyTransaction(transactionId);
+    revalidateAdminUsers(userId);
+  }
+}
+
+export async function cancelLoyaltyTransactionAction(formData: FormData) {
+  if (!hasDatabaseUrl()) {
+    return;
+  }
+
+  const session = await ensureAdminAccess();
+  const transactionId = getString(formData, "transactionId");
+
+  if (!transactionId) {
+    return;
+  }
+
+  const db = getDb();
+  const transaction = await db.loyaltyTransaction.findUnique({
+    where: { id: transactionId },
+    select: {
+      userId: true,
+      status: true,
+    },
+  });
+
+  if (!transaction || transaction.status !== LoyaltyTransactionStatus.PENDING) {
+    return;
+  }
+
+  await db.loyaltyTransaction.update({
+    where: { id: transactionId },
+    data: {
+      status: LoyaltyTransactionStatus.CANCELED,
+      canceledAt: new Date(),
+      canceledById: session.userId,
+    },
+  });
+
+  await notifyTelegramClientLoyaltyTransaction(transactionId);
+  revalidateAdminUsers(transaction.userId);
+}
+
+const staffRoleCodes = [
+  RoleCode.MANAGER,
+  RoleCode.ADMIN,
+  RoleCode.SUPER_ADMIN,
+] as const;
+
+function getStaffRoleCode(value: string) {
+  return staffRoleCodes.find((roleCode) => roleCode === value);
+}
+
+function isStaffRoleCode(value: RoleCode) {
+  return (staffRoleCodes as readonly RoleCode[]).includes(value);
+}
+
+function normalizeEmail(value: string) {
+  return value.trim().toLowerCase();
+}
+
+export async function createStaffUserAction(formData: FormData) {
+  if (!hasDatabaseUrl()) {
+    return;
+  }
+
+  await ensureSuperAdminAccess();
+
+  const email = normalizeEmail(getString(formData, "email"));
+  const password = getString(formData, "password");
+  const roleCode = getStaffRoleCode(getString(formData, "roleCode"));
+
+  if (!email || password.length < 8 || !roleCode) {
+    return;
+  }
+
+  const db = getDb();
+  const existingUser = await db.user.findUnique({
+    where: { email },
+    select: { id: true },
+  });
+
+  if (existingUser) {
+    return;
+  }
+
+  const role = await db.role.upsert({
+    where: { code: roleCode },
+    update: {},
+    create: {
+      code: roleCode,
+      name:
+        roleCode === RoleCode.MANAGER
+          ? "Менеджер"
+          : roleCode === RoleCode.ADMIN
+            ? "Администратор"
+            : "Супер-админ",
+      description: "Рабочий доступ команды Artisan.",
+    },
+    select: { id: true },
+  });
+
+  await db.user.create({
+    data: {
+      email,
+      hashedPassword: await hash(password, 10),
+      firstName: getOptionalString(formData, "firstName"),
+      lastName: getOptionalString(formData, "lastName"),
+      phone: getOptionalString(formData, "phone"),
+      isActive: true,
+      roleId: role.id,
+    },
+  });
+
+  revalidateAdminStaff();
+}
+
+export async function updateStaffUserAction(formData: FormData) {
+  if (!hasDatabaseUrl()) {
+    return;
+  }
+
+  const session = await ensureSuperAdminAccess();
+  const id = getString(formData, "id");
+  const requestedRoleCode = getStaffRoleCode(getString(formData, "roleCode"));
+
+  if (!id || !requestedRoleCode) {
+    return;
+  }
+
+  const db = getDb();
+  const staffUser = await db.user.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      role: { select: { code: true } },
+    },
+  });
+
+  if (!staffUser || !isStaffRoleCode(staffUser.role.code)) {
+    return;
+  }
+
+  const requestedIsActive = getString(formData, "isActive") === "on";
+  const isSelf = staffUser.id === session.userId;
+  let roleCode = requestedRoleCode;
+  let isActive = requestedIsActive;
+
+  if (isSelf) {
+    roleCode = RoleCode.SUPER_ADMIN;
+    isActive = true;
+  }
+
+  if (
+    staffUser.role.code === RoleCode.SUPER_ADMIN &&
+    (roleCode !== RoleCode.SUPER_ADMIN || !isActive)
+  ) {
+    const activeSuperAdmins = await db.user.count({
+      where: {
+        isActive: true,
+        role: { code: RoleCode.SUPER_ADMIN },
+      },
+    });
+
+    if (activeSuperAdmins <= 1) {
+      return;
+    }
+  }
+
+  const role = await db.role.findUnique({
+    where: { code: roleCode },
+    select: { id: true },
+  });
+
+  if (!role) {
+    return;
+  }
+
+  await db.user.update({
+    where: { id },
+    data: {
+      firstName: getOptionalString(formData, "firstName"),
+      lastName: getOptionalString(formData, "lastName"),
+      phone: getOptionalString(formData, "phone"),
+      isActive,
+      roleId: role.id,
+    },
+  });
+
+  revalidateAdminStaff();
+}
+
+export async function updateStaffPasswordAction(formData: FormData) {
+  if (!hasDatabaseUrl()) {
+    return;
+  }
+
+  await ensureSuperAdminAccess();
+
+  const id = getString(formData, "id");
+  const password = getString(formData, "password");
+
+  if (!id || password.length < 8) {
+    return;
+  }
+
+  const db = getDb();
+  const staffUser = await db.user.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      role: { select: { code: true } },
+    },
+  });
+
+  if (!staffUser || !isStaffRoleCode(staffUser.role.code)) {
+    return;
+  }
+
+  await db.user.update({
+    where: { id },
+    data: {
+      hashedPassword: await hash(password, 10),
+      isActive: true,
+    },
+  });
+
+  revalidateAdminStaff();
 }
 
 export async function createCalculatorMaterialAction(formData: FormData) {
   if (!hasDatabaseUrl()) return;
-  await ensureAdminAccess();
+  await ensureAdminPathAccess("/admin/calculator");
 
   const slug = getString(formData, "slug");
   const label = getString(formData, "label");
@@ -2732,7 +3661,7 @@ export async function createCalculatorMaterialAction(formData: FormData) {
 
 export async function updateCalculatorMaterialAction(formData: FormData) {
   if (!hasDatabaseUrl()) return;
-  await ensureAdminAccess();
+  await ensureAdminPathAccess("/admin/calculator");
 
   const id = getString(formData, "id");
   if (!id) return;
@@ -2760,7 +3689,7 @@ export async function updateCalculatorMaterialAction(formData: FormData) {
 
 export async function deleteCalculatorMaterialAction(formData: FormData) {
   if (!hasDatabaseUrl()) return;
-  await ensureAdminAccess();
+  await ensureAdminPathAccess("/admin/calculator");
 
   const id = getString(formData, "id");
   if (!id) return;
@@ -2771,7 +3700,7 @@ export async function deleteCalculatorMaterialAction(formData: FormData) {
 
 export async function createCalculatorSheetFormatAction(formData: FormData) {
   if (!hasDatabaseUrl()) return;
-  await ensureAdminAccess();
+  await ensureAdminPathAccess("/admin/calculator");
 
   const slug = getString(formData, "slug");
   const label = getString(formData, "label");
@@ -2797,7 +3726,7 @@ export async function createCalculatorSheetFormatAction(formData: FormData) {
 
 export async function updateCalculatorSheetFormatAction(formData: FormData) {
   if (!hasDatabaseUrl()) return;
-  await ensureAdminAccess();
+  await ensureAdminPathAccess("/admin/calculator");
 
   const id = getString(formData, "id");
   if (!id) return;
@@ -2819,7 +3748,7 @@ export async function updateCalculatorSheetFormatAction(formData: FormData) {
 
 export async function deleteCalculatorSheetFormatAction(formData: FormData) {
   if (!hasDatabaseUrl()) return;
-  await ensureAdminAccess();
+  await ensureAdminPathAccess("/admin/calculator");
 
   const id = getString(formData, "id");
   if (!id) return;

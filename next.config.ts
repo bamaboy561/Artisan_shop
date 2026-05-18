@@ -2,16 +2,10 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "standalone",
-  experimental: {
-    serverActions: {
-      bodySizeLimit: "20mb",
-    },
-  },
   images: {
+    // Admin manages product images via URL input — allow any HTTPS host.
     remotePatterns: [
-      { protocol: "https", hostname: "extravert.ru" },
-      { protocol: "https", hostname: "swisskrono.ru" },
-      { protocol: "https", hostname: "www.agtwood.ru" },
+      { protocol: "https", hostname: "**" },
     ],
   },
 };

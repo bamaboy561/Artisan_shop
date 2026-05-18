@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { Textarea } from "@/components/ui/textarea";
-import { requireAdminSession } from "@/lib/auth/dal";
+import { requireAdminPermission } from "@/lib/auth/dal";
 import { getOrderInboxItemById } from "@/lib/server/order-inbox";
 import { getOperationEvents } from "@/lib/server/operation-events";
 import { getAdminManagers } from "@/lib/server/operations-admin";
@@ -135,7 +135,7 @@ function OrderWorkflowTrail({ status }: { status: OrderStatus }) {
 export default async function AdminOrderDetailPage({
   params,
 }: AdminOrderDetailPageProps) {
-  await requireAdminSession("/login?next=/admin/orders");
+  await requireAdminPermission("/admin/orders", "/login?next=/admin/orders");
 
   const { id } = await params;
   const [order, managers, events] = await Promise.all([

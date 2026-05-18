@@ -2,12 +2,14 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 
+import { ProductCardCartChip } from "@/components/ecommerce/product-card-cart-chip";
 import { formatPrice } from "@/lib/commerce";
 import { shouldBypassNextImageOptimization } from "@/lib/image-optimization";
 import { cn } from "@/lib/utils";
 
 type ProductCardProps = {
   href: string;
+  slug?: string;
   brand: string;
   name: string;
   summary: string;
@@ -18,6 +20,7 @@ type ProductCardProps = {
   oldPrice?: number;
   inStock?: boolean;
   categoryName?: string;
+  purchaseMode?: "cart" | "request";
   compact?: boolean;
   denseMobile?: boolean;
   mobileList?: boolean;
@@ -26,6 +29,7 @@ type ProductCardProps = {
 
 export function ProductCard({
   href,
+  slug,
   brand,
   name,
   format,
@@ -34,11 +38,15 @@ export function ProductCard({
   price,
   oldPrice,
   inStock = true,
+  purchaseMode = "request",
   compact = false,
   denseMobile = false,
   mobileList = false,
   className,
 }: ProductCardProps) {
+  const cartSlug = slug ?? href.replace(/^\/+product\/?/, "");
+  const canBuy =
+    purchaseMode === "cart" && typeof price === "number" && price > 0;
   const aspect = compact
     ? "aspect-[1.04]"
     : denseMobile
@@ -129,7 +137,7 @@ export function ProductCard({
 
         <div
           className={cn(
-            "mt-auto grid min-w-0 gap-1.5",
+            "mt-auto flex items-end justify-between gap-3",
             mobileList ? "pt-2.5 sm:pt-3.5" : "pt-3 sm:pt-4",
           )}
         >
@@ -162,16 +170,22 @@ export function ProductCard({
                 {action}
               </p>
             )}
+            <span
+              className={cn(
+                "mt-1 block truncate font-mono tracking-[0.12em] text-[var(--muted)] uppercase",
+                compact ? "text-[9px]" : "text-[9px] sm:text-[10px]",
+              )}
+            >
+              {format}
+            </span>
           </div>
 
-          <span
-            className={cn(
-              "block max-w-full font-mono leading-4 tracking-[0.12em] break-words text-[var(--muted)] uppercase",
-              compact ? "text-[9px]" : "text-[9px] sm:text-[10px]",
-            )}
-          >
-            {format}
-          </span>
+          {canBuy ? (
+            <ProductCardCartChip
+              productSlug={cartSlug}
+              disabled={!inStock}
+            />
+          ) : null}
         </div>
       </div>
     </Link>
