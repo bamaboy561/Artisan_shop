@@ -3,6 +3,7 @@
 import { useActionState, useDeferredValue, useState } from "react";
 import {
   BadgePercent,
+  Camera,
   CheckCircle2,
   Minus,
   Plus,
@@ -16,6 +17,7 @@ import {
   createInStoreSaleAction,
   type InStoreSaleFormState,
 } from "@/app/admin/actions";
+import { QrClientScanner } from "@/components/admin/qr-client-scanner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatPrice } from "@/lib/commerce";
@@ -69,6 +71,39 @@ function getClientMeta(client: SaleClient) {
   )} баллов`;
 }
 
+function getClientIdCandidatesFromQr(value: string) {
+  const trimmedValue = value.trim();
+  const candidates = new Set<string>();
+
+  if (!trimmedValue) {
+    return [];
+  }
+
+  candidates.add(trimmedValue);
+
+  try {
+    const url = new URL(trimmedValue, "https://artisan.shop.kg");
+    const clientId = url.searchParams.get("client");
+    const pathMatch = url.pathname.match(/\/client-qr\/([^/?#]+)/);
+
+    if (clientId) {
+      candidates.add(clientId);
+    }
+
+    if (pathMatch?.[1]) {
+      candidates.add(decodeURIComponent(pathMatch[1]));
+    }
+  } catch {
+    const pathMatch = trimmedValue.match(/\/?client-qr\/([^/?#\s]+)/);
+
+    if (pathMatch?.[1]) {
+      candidates.add(decodeURIComponent(pathMatch[1]));
+    }
+  }
+
+  return Array.from(candidates).map((candidate) => candidate.trim());
+}
+
 export function InStoreSaleWorkspace({
   clients,
   products,
@@ -80,6 +115,8 @@ export function InStoreSaleWorkspace({
   );
   const [clientQuery, setClientQuery] = useState("");
   const [productQuery, setProductQuery] = useState("");
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [scannerMessage, setScannerMessage] = useState<string | null>(null);
   const [selectedClientId, setSelectedClientId] = useState(
     initialClientId && clients.some((client) => client.id === initialClientId)
       ? initialClientId
@@ -181,8 +218,34 @@ export function InStoreSaleWorkspace({
     );
   }
 
+  function handleClientQrScan(value: string) {
+    const candidates = getClientIdCandidatesFromQr(value);
+    const scannedClient = clients.find((client) =>
+      candidates.includes(client.id),
+    );
+
+    if (!scannedClient) {
+      setScannerMessage(
+        "QR считан, но клиент не найден в списке. Проверьте, что клиент зарегистрирован.",
+      );
+      return false;
+    }
+
+    setSelectedClientId(scannedClient.id);
+    setClientQuery("");
+    setScannerMessage(`Клиент выбран: ${scannedClient.name}`);
+    setScannerOpen(false);
+    return true;
+  }
+
   return (
     <div className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_430px] 2xl:items-start">
+      <QrClientScanner
+        open={scannerOpen}
+        onClose={() => setScannerOpen(false)}
+        onScan={handleClientQrScan}
+      />
+
       <div className="grid min-w-0 gap-4">
         <section className="rounded-[24px] border border-[color:var(--line)] bg-white/92 p-4 shadow-[0_18px_44px_rgba(17,17,17,0.04)] sm:p-5">
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start">
@@ -201,10 +264,31 @@ export function InStoreSaleWorkspace({
                     </h2>
                   </div>
                 </div>
-                <span className="rounded-full bg-[var(--surface)] px-3 py-1.5 text-xs text-[var(--muted)]">
-                  {clients.length} клиентов
-                </span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="primary"
+                    size="sm"
+                    onClick={() => {
+                      setScannerMessage(null);
+                      setScannerOpen(true);
+                    }}
+                    className="rounded-full"
+                  >
+                    <Camera className="size-4" />
+                    Сканировать QR
+                  </Button>
+                  <span className="rounded-full bg-[var(--surface)] px-3 py-1.5 text-xs text-[var(--muted)]">
+                    {clients.length} клиентов
+                  </span>
+                </div>
               </div>
+
+              {scannerMessage ? (
+                <div className="mt-3 rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--muted)]">
+                  {scannerMessage}
+                </div>
+              ) : null}
 
               <label className="mt-4 block">
                 <span className="relative block">
