@@ -521,7 +521,15 @@ function revalidateAdminStaff() {
 }
 
 function redirectAdminStaff(
-  status: "created" | "updated" | "password" | "exists" | "invalid" | "database" | "error",
+  status:
+    | "created"
+    | "converted"
+    | "updated"
+    | "password"
+    | "exists"
+    | "invalid"
+    | "database"
+    | "error",
   email?: string,
 ): never {
   const searchParams = new URLSearchParams({ staff: status });
@@ -3490,15 +3498,6 @@ export async function createStaffUserAction(formData: FormData) {
   }
 
   const db = getDb();
-  const existingUser = await db.user.findUnique({
-    where: { email },
-    select: { id: true },
-  });
-
-  if (existingUser) {
-    redirectAdminStaff("exists", email);
-  }
-
   const role = await db.role.upsert({
     where: { code: roleCode },
     update: {},
@@ -3514,6 +3513,39 @@ export async function createStaffUserAction(formData: FormData) {
     },
     select: { id: true },
   });
+  const existingUser = await db.user.findUnique({
+    where: { email },
+    select: {
+      id: true,
+      role: {
+        select: {
+          code: true,
+        },
+      },
+    },
+  });
+
+  if (existingUser) {
+    if (isStaffRoleCode(existingUser.role.code)) {
+      redirectAdminStaff("exists", email);
+    }
+
+    await db.user.update({
+      where: { id: existingUser.id },
+      data: {
+        hashedPassword: await hash(password, 10),
+        firstName: getOptionalString(formData, "firstName"),
+        lastName: getOptionalString(formData, "lastName"),
+        phone: getOptionalString(formData, "phone"),
+        isActive: true,
+        roleId: role.id,
+      },
+    });
+
+    revalidateAdminStaff();
+    revalidateAdminUsers(existingUser.id);
+    redirectAdminStaff("converted", email);
+  }
 
   try {
     await db.user.create({
@@ -3543,6 +3575,63 @@ export async function createStaffUserAction(formData: FormData) {
 
   revalidateAdminStaff();
   redirectAdminStaff("created", email);
+}
+
+export async function promoteUserToStaffAction(formData: FormData) {
+  if (!hasDatabaseUrl()) {
+    redirectAdminStaff("database");
+  }
+
+  await ensureSuperAdminAccess();
+
+  const id = getString(formData, "id");
+  const roleCode = getStaffRoleCode(getString(formData, "roleCode"));
+  const password = getString(formData, "password");
+
+  if (!id || !roleCode || (password && password.length < 8)) {
+    redirectAdminStaff("invalid");
+  }
+
+  const db = getDb();
+  const [user, role] = await Promise.all([
+    db.user.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        email: true,
+        role: {
+          select: {
+            code: true,
+          },
+        },
+      },
+    }),
+    db.role.findUnique({
+      where: { code: roleCode },
+      select: { id: true },
+    }),
+  ]);
+
+  if (!user || !role) {
+    redirectAdminStaff("invalid");
+  }
+
+  if (isStaffRoleCode(user.role.code)) {
+    redirectAdminStaff("exists", user.email);
+  }
+
+  await db.user.update({
+    where: { id: user.id },
+    data: {
+      roleId: role.id,
+      isActive: true,
+      ...(password ? { hashedPassword: await hash(password, 10) } : {}),
+    },
+  });
+
+  revalidateAdminStaff();
+  revalidateAdminUsers(user.id);
+  redirectAdminStaff("converted", user.email);
 }
 
 export async function updateStaffUserAction(formData: FormData) {

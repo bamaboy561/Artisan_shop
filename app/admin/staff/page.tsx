@@ -1,5 +1,6 @@
 import {
   createStaffUserAction,
+  promoteUserToStaffAction,
   updateStaffPasswordAction,
   updateStaffUserAction,
 } from "@/app/admin/actions";
@@ -42,6 +43,11 @@ const noticeCopy: Record<
     title: "Сотрудник создан",
     text: "Теперь он может войти по email и временному паролю.",
   },
+  converted: {
+    tone: "success",
+    title: "Пользователь переведен в сотрудники",
+    text: "Аккаунт уже существовал, поэтому мы сменили ему роль и включили доступ в админку.",
+  },
   updated: {
     tone: "success",
     title: "Доступ обновлен",
@@ -54,18 +60,13 @@ const noticeCopy: Record<
   },
   exists: {
     tone: "warning",
-    title: "Такой email уже есть",
-    text: "Проверьте список сотрудников или используйте другой email.",
+    title: "Этот пользователь уже сотрудник",
+    text: "Проверьте список сотрудников ниже или задайте ему новый пароль.",
   },
   invalid: {
     tone: "warning",
     title: "Заполните обязательные поля",
     text: "Нужны корректный email, роль и пароль минимум 8 символов.",
-  },
-  denied: {
-    tone: "warning",
-    title: "Недостаточно прав",
-    text: "Создавать и менять сотрудников может только супер-админ.",
   },
   database: {
     tone: "warning",
@@ -101,6 +102,14 @@ function getRoleTone(roleCode: RoleCode) {
   return "neutral" as const;
 }
 
+function getDisplayName(user: {
+  firstName: string | null;
+  lastName: string | null;
+  email: string;
+}) {
+  return [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email;
+}
+
 export default async function AdminStaffPage({
   searchParams,
 }: AdminStaffPageProps) {
@@ -126,47 +135,76 @@ export default async function AdminStaffPage({
   const noticeKey = getSearchValue(resolvedSearchParams, "staff");
   const notice = noticeKey ? noticeCopy[noticeKey] : null;
   const noticeEmail = getSearchValue(resolvedSearchParams, "email");
+  const db = getDb();
 
-  const staff = await getDb().user.findMany({
-    where: {
-      role: {
-        code: {
-          in: [RoleCode.MANAGER, RoleCode.ADMIN, RoleCode.SUPER_ADMIN],
+  const [staff, candidateUsers] = await Promise.all([
+    db.user.findMany({
+      where: {
+        role: {
+          code: {
+            in: [RoleCode.MANAGER, RoleCode.ADMIN, RoleCode.SUPER_ADMIN],
+          },
         },
       },
-    },
-    orderBy: [{ role: { code: "desc" } }, { createdAt: "asc" }],
-    select: {
-      id: true,
-      email: true,
-      firstName: true,
-      lastName: true,
-      phone: true,
-      isActive: true,
-      createdAt: true,
-      role: {
-        select: {
-          code: true,
-          name: true,
+      orderBy: [{ role: { code: "desc" } }, { createdAt: "asc" }],
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        isActive: true,
+        createdAt: true,
+        role: {
+          select: {
+            code: true,
+            name: true,
+          },
+        },
+        _count: {
+          select: {
+            managedOrders: true,
+            managedRequests: true,
+          },
         },
       },
-      _count: {
-        select: {
-          managedOrders: true,
-          managedRequests: true,
+    }),
+    db.user.findMany({
+      where: {
+        role: {
+          code: {
+            in: [RoleCode.CUSTOMER, RoleCode.DEALER],
+          },
         },
       },
-    },
-  });
+      orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
+      take: 12,
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        isActive: true,
+        createdAt: true,
+        role: {
+          select: {
+            code: true,
+            name: true,
+          },
+        },
+      },
+    }),
+  ]);
 
   return (
     <div className="space-y-4">
       <section className="surface-glow rounded-[24px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-5 sm:p-7">
         <SectionHeading
           title="Сотрудники и доступы"
-          description="Создавайте менеджеров для планшетов, выдавайте роли и отключайте доступ без удаления истории заказов."
+          description="Создавайте менеджеров для планшетов, переводите существующих пользователей в сотрудников и отключайте доступ без удаления истории заказов."
           titleClassName="text-2xl sm:text-3xl"
-          descriptionClassName="max-w-3xl text-sm leading-7"
+          descriptionClassName="max-w-4xl text-sm leading-7"
         />
       </section>
 
@@ -201,6 +239,10 @@ export default async function AdminStaffPage({
           <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-[var(--foreground)]">
             Доступ для команды
           </h2>
+          <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
+            Если email уже есть среди клиентов, аккаунт не потеряется: мы просто
+            переведем его в выбранную роль.
+          </p>
 
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
             <label className="grid gap-1.5 text-sm text-[var(--foreground)]">
@@ -247,7 +289,7 @@ export default async function AdminStaffPage({
           </div>
 
           <Button type="submit" variant="accent" className="mt-4 w-full">
-            Создать сотрудника
+            Создать или перевести в сотрудники
           </Button>
         </form>
 
@@ -277,10 +319,20 @@ export default async function AdminStaffPage({
       </section>
 
       <section className="grid gap-3">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <SectionHeading
+            title="Текущие сотрудники"
+            description="Пользователи, которые имеют доступ к админке."
+            titleClassName="text-xl sm:text-2xl"
+            descriptionClassName="text-sm"
+          />
+          <span className="rounded-full border border-[color:var(--line)] bg-white px-3 py-1.5 text-xs text-[var(--muted)]">
+            {staff.length} сотрудников
+          </span>
+        </div>
+
         {staff.map((user) => {
-          const displayName =
-            [user.firstName, user.lastName].filter(Boolean).join(" ") ||
-            user.email;
+          const displayName = getDisplayName(user);
           const isSelf = user.id === session.userId;
 
           return (
@@ -392,6 +444,67 @@ export default async function AdminStaffPage({
           );
         })}
       </section>
+
+      {candidateUsers.length > 0 ? (
+        <section className="rounded-[26px] border border-[color:var(--line)] bg-white/92 p-5 shadow-[0_18px_44px_rgba(17,17,17,0.04)]">
+          <SectionHeading
+            title="Пользователи без доступа в админку"
+            description="Если сотрудник был создан как клиент или уже регистрировался на сайте, переведите его в нужную роль здесь."
+            titleClassName="text-xl sm:text-2xl"
+            descriptionClassName="max-w-3xl text-sm leading-6"
+          />
+
+          <div className="mt-4 grid gap-3">
+            {candidateUsers.map((user) => (
+              <article
+                key={user.id}
+                className="grid gap-3 rounded-[20px] border border-[color:var(--line)] bg-[var(--surface)] p-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,520px)] lg:items-center"
+              >
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <StatusBadge tone="neutral">
+                      {staffRoleLabels[user.role.code]}
+                    </StatusBadge>
+                    <StatusBadge tone={user.isActive ? "success" : "neutral"}>
+                      {user.isActive ? "Активен" : "Отключен"}
+                    </StatusBadge>
+                  </div>
+                  <h3 className="mt-2 truncate text-base font-semibold text-[var(--foreground)]">
+                    {getDisplayName(user)}
+                  </h3>
+                  <p className="mt-1 truncate text-xs text-[var(--muted)]">
+                    {user.email}
+                    {user.phone ? ` · ${user.phone}` : ""}
+                  </p>
+                </div>
+
+                <form
+                  action={promoteUserToStaffAction}
+                  className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]"
+                >
+                  <input type="hidden" name="id" value={user.id} />
+                  <Select name="roleCode" defaultValue={RoleCode.MANAGER}>
+                    {staffRoleOptions.map((roleCode) => (
+                      <option key={roleCode} value={roleCode}>
+                        {staffRoleLabels[roleCode]}
+                      </option>
+                    ))}
+                  </Select>
+                  <Input
+                    name="password"
+                    type="password"
+                    minLength={8}
+                    placeholder="Новый пароль, если нужен"
+                  />
+                  <Button type="submit" variant="accent" className="px-4">
+                    Дать доступ
+                  </Button>
+                </form>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
     </div>
   );
 }
