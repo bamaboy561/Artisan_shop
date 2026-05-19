@@ -43,6 +43,7 @@ import {
   notifyTelegramClientOrderStatus,
   notifyTelegramClientRequestStatus,
 } from "@/lib/server/telegram-client";
+import { sendRegistrationEmailTest } from "@/lib/server/registration-verification";
 import {
   getManagerDisplayName,
   orderStatusLabels,
@@ -697,6 +698,31 @@ export async function setupTelegramWebhookAction() {
     telegramWebhookMessage: result.message,
     telegramWebhookUrl: result.webhookUrl,
   });
+
+  revalidatePath("/admin/launch");
+  redirect(`/admin/launch?${searchParams.toString()}`);
+}
+
+export async function sendEmailTestAction(formData: FormData) {
+  const session = await ensureAdminPathAccess("/admin/launch");
+  const email = normalizeEmail(getString(formData, "email") || session.email);
+  const searchParams = new URLSearchParams();
+
+  if (!email || !email.includes("@")) {
+    searchParams.set("emailTest", "error");
+    searchParams.set("emailMessage", "Укажите корректный email для теста.");
+    redirect(`/admin/launch?${searchParams.toString()}`);
+  }
+
+  const result = await sendRegistrationEmailTest(email);
+
+  searchParams.set("emailTest", result.ok ? "ok" : "error");
+  searchParams.set("emailMessage", result.message.slice(0, 420));
+  searchParams.set("emailTo", email);
+
+  if (!result.ok && result.providerMessage) {
+    searchParams.set("emailProviderMessage", result.providerMessage.slice(0, 420));
+  }
 
   revalidatePath("/admin/launch");
   redirect(`/admin/launch?${searchParams.toString()}`);

@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 
 import {
+  sendEmailTestAction,
   sendTelegramTestAction,
   setupTelegramWebhookAction,
 } from "@/app/admin/actions";
@@ -18,6 +19,7 @@ import {
   getLaunchReadiness,
   type LaunchCheckStatus,
 } from "@/lib/server/launch-readiness";
+import { getRegistrationEmailStatus } from "@/lib/server/registration-verification";
 import { getTelegramWebhookStatus } from "@/lib/server/telegram-client";
 
 export const dynamic = "force-dynamic";
@@ -66,11 +68,22 @@ function getSearchValue(
 export default async function AdminLaunchPage({
   searchParams,
 }: AdminLaunchPageProps) {
-  await requireAdminPermission("/admin/launch", "/login?next=/admin/launch");
+  const session = await requireAdminPermission(
+    "/admin/launch",
+    "/login?next=/admin/launch",
+  );
 
   const readiness = await getLaunchReadiness();
+  const emailStatus = getRegistrationEmailStatus();
   const telegramWebhookStatus = await getTelegramWebhookStatus();
   const resolvedSearchParams = await searchParams;
+  const emailTest = getSearchValue(resolvedSearchParams, "emailTest");
+  const emailMessage = getSearchValue(resolvedSearchParams, "emailMessage");
+  const emailTo = getSearchValue(resolvedSearchParams, "emailTo");
+  const emailProviderMessage = getSearchValue(
+    resolvedSearchParams,
+    "emailProviderMessage",
+  );
   const telegramTest = getSearchValue(resolvedSearchParams, "telegramTest");
   const telegramMessage = getSearchValue(
     resolvedSearchParams,
@@ -158,6 +171,93 @@ export default async function AdminLaunchPage({
             </article>
           );
         })}
+      </section>
+
+      <section className="surface-glow rounded-[24px] border border-[color:var(--line)] bg-white p-5 shadow-[0_18px_48px_rgba(17,17,17,0.04)]">
+        <SectionHeading
+          title="Проверка Email / Resend"
+          description="Здесь видно, готова ли отправка кодов регистрации. Ключ не показывается, проверяется только наличие переменных и реальная тестовая отправка."
+          titleClassName="text-xl sm:text-2xl"
+          descriptionClassName="max-w-3xl text-sm leading-6"
+        />
+
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
+          <div className="rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] p-4">
+            <p className="font-mono text-[10px] tracking-[0.22em] text-[var(--muted)] uppercase">
+              RESEND_API_KEY
+            </p>
+            <p className="mt-2 text-sm font-semibold text-[var(--foreground)]">
+              {emailStatus.apiKeyConfigured ? "Задан" : "Не задан"}
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] p-4">
+            <p className="font-mono text-[10px] tracking-[0.22em] text-[var(--muted)] uppercase">
+              AUTH_EMAIL_FROM
+            </p>
+            <p className="mt-2 break-words text-sm font-semibold text-[var(--foreground)]">
+              {emailStatus.fromConfigured ? emailStatus.from : "Не задан"}
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] p-4">
+            <p className="font-mono text-[10px] tracking-[0.22em] text-[var(--muted)] uppercase">
+              Статус
+            </p>
+            <p className="mt-2 text-sm font-semibold text-[var(--foreground)]">
+              {emailStatus.ready ? "Готово к отправке" : "Нужна настройка"}
+            </p>
+          </div>
+        </div>
+
+        {!emailStatus.ready ? (
+          <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm leading-6 text-red-900">
+            <strong>Не хватает переменных:</strong>{" "}
+            {emailStatus.missingEnv.join(", ")}. Добавьте их в Vercel для
+            Production и сделайте новый deploy. Если отправитель
+            `no-reply@artisan.shop.kg`, домен `artisan.shop.kg` должен быть
+            подтвержден в Resend.
+          </div>
+        ) : null}
+
+        {emailTest ? (
+          <div
+            className={`mt-4 rounded-2xl border p-3 text-sm ${
+              emailTest === "ok"
+                ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+                : "border-red-200 bg-red-50 text-red-900"
+            }`}
+          >
+            <strong>
+              {emailTest === "ok" ? "Письмо отправлено" : "Письмо не отправлено"}
+              {emailTo ? ` · ${emailTo}` : ""}
+            </strong>
+            {emailMessage ? <p className="mt-1">{emailMessage}</p> : null}
+            {emailProviderMessage ? (
+              <p className="mt-1">Ответ Resend: {emailProviderMessage}</p>
+            ) : null}
+          </div>
+        ) : null}
+
+        <form
+          action={sendEmailTestAction}
+          className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_180px]"
+        >
+          <input
+            name="email"
+            type="email"
+            defaultValue={session.email}
+            placeholder="email для теста"
+            className="h-11 rounded-xl border border-[color:var(--line)] bg-white px-4 text-sm outline-none transition focus:border-[color:var(--foreground)]"
+          />
+          <AdminSubmitButton
+            type="submit"
+            variant="accent"
+            className="h-11 w-full"
+            idleLabel="Отправить тест"
+            pendingLabel="Отправляем..."
+          />
+        </form>
       </section>
 
       <section className="surface-glow rounded-[24px] border border-[color:var(--line)] bg-white p-5 shadow-[0_18px_48px_rgba(17,17,17,0.04)]">

@@ -3,6 +3,7 @@ import "server-only";
 import { ProductStatus, RoleCode } from "@/generated/prisma";
 import { hasDatabaseUrl, isDemoModeEnabled, getDb } from "@/lib/db";
 import { getTelegramConfigurationStatus } from "@/lib/server/commercial-integrations";
+import { getRegistrationEmailStatus } from "@/lib/server/registration-verification";
 
 export type LaunchCheckStatus = "ready" | "warning" | "blocked";
 
@@ -104,6 +105,7 @@ export async function getLaunchReadiness(): Promise<LaunchReadiness> {
     db.deliveryMethod.count({ where: { isActive: true } }),
   ]);
   const telegramStatus = getTelegramConfigurationStatus();
+  const emailStatus = getRegistrationEmailStatus();
   const configuredTelegramThreads = Object.values(
     telegramStatus.threadsConfigured,
   ).filter(Boolean).length;
@@ -167,6 +169,17 @@ export async function getLaunchReadiness(): Promise<LaunchReadiness> {
           : "Добавьте хотя бы один вариант выдачи заказа.",
       status: deliveryMethods > 0 ? "ready" : "warning",
       value: `${deliveryMethods}`,
+    },
+    {
+      key: "email",
+      title: "Email / Resend",
+      description: emailStatus.ready
+        ? "Регистрация клиентов может отправлять коды подтверждения через Resend."
+        : `Добавьте ${emailStatus.missingEnv.join(", ")} в Vercel Environment Variables и сделайте redeploy. Для адреса no-reply@artisan.shop.kg домен должен быть подтвержден в Resend.`,
+      status: emailStatus.ready ? "ready" : "blocked",
+      value: emailStatus.ready
+        ? emailStatus.from ?? "Настроено"
+        : "Не настроено",
     },
     {
       key: "telegram",
