@@ -1,14 +1,14 @@
-import { RoleCode, ProductStatus } from "@/generated/prisma";
 import { InStoreSaleWorkspace } from "@/components/admin/in-store-sale-workspace";
 import { SetupState } from "@/components/admin/setup-state";
 import { SectionHeading } from "@/components/ui/section-heading";
+import { ProductStatus, RoleCode } from "@/generated/prisma";
 import { requireAdminPermission } from "@/lib/auth/dal";
+import { getDb, hasDatabaseUrl } from "@/lib/db";
+import { getLoyaltyProgramConfig } from "@/lib/server/loyalty-settings";
 import {
   getEffectiveDiscountPercent,
   getLoyaltyTierLabel,
 } from "@/lib/server/pricing";
-import { getDb, hasDatabaseUrl } from "@/lib/db";
-import { getLoyaltyProgramConfig } from "@/lib/server/loyalty-settings";
 
 export const dynamic = "force-dynamic";
 
@@ -103,25 +103,26 @@ export default async function AdminSalesPage({
   return (
     <div className="space-y-4">
       <section className="surface-glow rounded-[24px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-5 sm:p-7">
-        <SectionHeading
-          title="Продажа в зале"
-          description="Менеджер сканирует QR клиента, собирает выбранные товары, сохраняет продажу в историю кабинета и подтверждает начисление бонусов."
-          titleClassName="text-2xl sm:text-3xl"
-          descriptionClassName="max-w-3xl text-sm leading-7"
-        />
-        <div className="mt-5 grid gap-2 text-sm text-[var(--muted)] sm:grid-cols-3">
-          {[
-            "1. Выбрать клиента",
-            "2. Добавить товары",
-            "3. Сохранить продажу",
-          ].map((step) => (
-            <div
-              key={step}
-              className="rounded-2xl border border-[color:var(--line)] bg-white/70 px-4 py-3"
-            >
-              {step}
-            </div>
-          ))}
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+          <SectionHeading
+            title="Продажа в зале"
+            description="Рабочий экран для планшета менеджера: выберите клиента, добавьте товары, сохраните продажу и начислите бонусы."
+            titleClassName="text-2xl sm:text-3xl"
+            descriptionClassName="max-w-4xl text-sm leading-7"
+          />
+          <div className="grid gap-2 sm:grid-cols-3 lg:min-w-[32rem]">
+            {["Клиент", "Товары", "Сохранение"].map((step, index) => (
+              <div
+                key={step}
+                className="rounded-2xl border border-[color:var(--line)] bg-white/74 px-4 py-3 text-sm text-[var(--foreground)]"
+              >
+                <span className="font-mono text-[10px] tracking-[0.18em] text-[var(--muted)] uppercase">
+                  0{index + 1}
+                </span>
+                <span className="mt-1 block font-medium">{step}</span>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
