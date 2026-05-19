@@ -3,8 +3,11 @@ import { StatusBadge } from "@/components/admin/status-badge";
 import { ClientOperationTimeline } from "@/components/account/client-operation-timeline";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { DataTable } from "@/components/ui/table";
-import { OrderStatus } from "@/generated/prisma";
-import { orderStatusLabels } from "@/features/admin/operations-filters";
+import { OrderStatus, PaymentStatus } from "@/generated/prisma";
+import {
+  orderStatusLabels,
+  paymentStatusLabels,
+} from "@/features/admin/operations-filters";
 import { hasDatabaseUrl } from "@/lib/db";
 import { getAccountOrders, getAccountUser } from "@/lib/server/account-data";
 
@@ -42,6 +45,21 @@ function getStatusTone(status: OrderStatus) {
     case OrderStatus.COMPLETED:
       return "success" as const;
     case OrderStatus.CANCELED:
+    default:
+      return "neutral" as const;
+  }
+}
+
+function getPaymentTone(status: PaymentStatus) {
+  switch (status) {
+    case PaymentStatus.PAID:
+      return "success" as const;
+    case PaymentStatus.PARTIAL:
+      return "accent" as const;
+    case PaymentStatus.WAITING_PAYMENT:
+      return "warning" as const;
+    case PaymentStatus.REFUNDED:
+    case PaymentStatus.CANCELED:
     default:
       return "neutral" as const;
   }
@@ -103,6 +121,9 @@ export default async function AccountOrdersPage() {
       <div className="space-y-2">
         <StatusBadge tone={getStatusTone(order.status)}>
           {orderStatusLabels[order.status]}
+        </StatusBadge>
+        <StatusBadge tone={getPaymentTone(order.paymentStatus)}>
+          {paymentStatusLabels[order.paymentStatus]}
         </StatusBadge>
         <p className="text-xs text-[var(--muted)]">
           План: {formatOptionalDate(order.productionDueAt)}

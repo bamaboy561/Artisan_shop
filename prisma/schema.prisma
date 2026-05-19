@@ -51,6 +51,14 @@ enum OrderStatus {
   CANCELED
 }
 
+enum PaymentStatus {
+  WAITING_PAYMENT
+  PAID
+  PARTIAL
+  REFUNDED
+  CANCELED
+}
+
 enum RequestType {
   PRICE_REQUEST
   CONSULTATION
@@ -335,6 +343,7 @@ model Order {
   appliedPromotion       Promotion?           @relation("AppliedPromotion", fields: [appliedPromotionId], references: [id], onDelete: SetNull)
   appliedPromoCode       String?
   status                 OrderStatus          @default(NEW)
+  paymentStatus          PaymentStatus        @default(WAITING_PAYMENT)
   contactName            String
   contactPhone           String
   contactEmail           String?
@@ -353,6 +362,8 @@ model Order {
   productionDueAt        DateTime?
   readyAt                DateTime?
   completedAt            DateTime?
+  paidAt                 DateTime?
+  paymentComment         String?              @db.Text
   fulfillmentComment     String?              @db.Text
   items                  OrderItem[]
   loyaltyTransactions    LoyaltyTransaction[]
@@ -364,6 +375,7 @@ model Order {
   @@index([sourceRequestId])
   @@index([userId, status, createdAt])
   @@index([managerId, status])
+  @@index([paymentStatus])
 }
 
 model OrderItem {

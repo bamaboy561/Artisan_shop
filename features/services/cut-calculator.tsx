@@ -18,7 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  submitCuttingRequestAction,
+  submitCuttingRequestFormAction,
   type SubmitCuttingRequestInput,
 } from "@/app/(public)/calculator/actions";
 import type { CalculatorProductContext } from "@/features/catalog/data";
@@ -46,10 +46,7 @@ type DetailRow = {
   orientationMode: OrientationMode;
 };
 
-type CalculatedDetailRow = Omit<
-  DetailRow,
-  "width" | "height" | "quantity"
-> & {
+type CalculatedDetailRow = Omit<DetailRow, "width" | "height" | "quantity"> & {
   width: number;
   height: number;
   quantity: number;
@@ -194,7 +191,8 @@ const orientationModeMeta: Record<
   },
   fixed: {
     label: "Как введено",
-    description: "Сохраняет ориентацию размеров. Удобно для текстуры и фасадов.",
+    description:
+      "Сохраняет ориентацию размеров. Удобно для текстуры и фасадов.",
   },
   rotated: {
     label: "Повернуть 90°",
@@ -331,7 +329,8 @@ function buildGibLabProjectXml({
   const partEntries = validRows.map((row, index) => {
     const partId = index + 2;
     const geometry = getGibLabPartGeometry(row);
-    const hasEdging = material.edgeRatePerMeter > 0 && geometry.edgedSides.length > 0;
+    const hasEdging =
+      material.edgeRatePerMeter > 0 && geometry.edgedSides.length > 0;
     const edgeAttributes = hasEdging
       ? geometry.edgedSides
           .map(
@@ -673,15 +672,13 @@ function buildCutMap(
     };
 
     const findBestPlacement = (piece: CutMapPiece) => {
-      let bestPlacement:
-        | {
-            rectIndex: number;
-            width: number;
-            height: number;
-            rotated: boolean;
-            score: number;
-          }
-        | null = null;
+      let bestPlacement: {
+        rectIndex: number;
+        width: number;
+        height: number;
+        rotated: boolean;
+        score: number;
+      } | null = null;
 
       for (const [rectIndex, rect] of freeRects.entries()) {
         for (const orientation of getOrientations(piece)) {
@@ -930,7 +927,8 @@ function buildCutMap(
       (sum, sheetState) => sum + sheetState.usedArea,
       0,
     );
-    const totalUsableArea = sheets.length * workingArea.width * workingArea.height;
+    const totalUsableArea =
+      sheets.length * workingArea.width * workingArea.height;
     const totalCutLength = sheets.reduce(
       (sum, sheetState) => sum + sheetState.cutLength,
       0,
@@ -947,7 +945,8 @@ function buildCutMap(
       sheets
         .map((sheetState) => sheetState.largestOffcut)
         .filter(
-          (item): item is NonNullable<CutMapSheet["largestOffcut"]> => item !== null,
+          (item): item is NonNullable<CutMapSheet["largestOffcut"]> =>
+            item !== null,
         )
         .sort((left, right) => right.area - left.area)[0] ?? null;
 
@@ -995,7 +994,9 @@ function buildCutMap(
     }
 
     if (Math.abs(candidate.cutLength - bestResult.cutLength) > 0.5) {
-      return candidate.cutLength < bestResult.cutLength ? candidate : bestResult;
+      return candidate.cutLength < bestResult.cutLength
+        ? candidate
+        : bestResult;
     }
 
     if (candidate.rotatedPieces !== bestResult.rotatedPieces) {
@@ -1036,7 +1037,7 @@ function MetricTile({
       </p>
       <p
         className={cn(
-          "mt-1 break-words text-[13px] leading-5 font-semibold",
+          "mt-1 text-[13px] leading-5 font-semibold break-words",
           muted ? "text-[var(--foreground)]" : "text-white",
         )}
       >
@@ -1223,13 +1224,13 @@ export function CutCalculator({
   const fallbackSheet = sheets[0];
   const defaultPresetId = presets[0]?.id ?? null;
 
-  const [manualPresetId, setManualPresetId] = useState<CalculatorPresetId | null>(
-    defaultPresetId,
-  );
+  const [manualPresetId, setManualPresetId] =
+    useState<CalculatorPresetId | null>(defaultPresetId);
   const [details, setDetails] = useState<DetailRow[]>(createInitialRows);
   const [requestDraft, setRequestDraft] = useState<CuttingRequestDraft>(
     initialCuttingRequestDraft,
   );
+  const [requestFiles, setRequestFiles] = useState<File[]>([]);
   const [requestFeedback, setRequestFeedback] = useState<{
     tone: "success" | "error";
     message: string;
@@ -1302,7 +1303,8 @@ export function CutCalculator({
   const estimate = useMemo(() => {
     const sheetCount = cutMap.sheets.length;
     const cutMeters = cutMap.cutLength / 1000;
-    const materialCost = sheetCount * calculation.sheetAreaSqM * material.pricePerSqM;
+    const materialCost =
+      sheetCount * calculation.sheetAreaSqM * material.pricePerSqM;
     const cuttingCost = cutMeters * material.cutRatePerMeter;
     const edgeCost = calculation.totalEdgeMeters * material.edgeRatePerMeter;
     const setupFee = calculation.totalPieces > 0 ? material.setupFee : 0;
@@ -1316,7 +1318,17 @@ export function CutCalculator({
       setupFee,
       totalEstimate: materialCost + cuttingCost + edgeCost + setupFee,
     };
-  }, [calculation.sheetAreaSqM, calculation.totalEdgeMeters, calculation.totalPieces, cutMap.cutLength, cutMap.sheets.length, material.cutRatePerMeter, material.edgeRatePerMeter, material.pricePerSqM, material.setupFee]);
+  }, [
+    calculation.sheetAreaSqM,
+    calculation.totalEdgeMeters,
+    calculation.totalPieces,
+    cutMap.cutLength,
+    cutMap.sheets.length,
+    material.cutRatePerMeter,
+    material.edgeRatePerMeter,
+    material.pricePerSqM,
+    material.setupFee,
+  ]);
 
   const workshopRows = useMemo<WorkshopRow[]>(() => {
     const placedEntries = cutMap.sheets.flatMap((cutSheet) =>
@@ -1343,7 +1355,8 @@ export function CutCalculator({
       );
       const sheetCountByIndex = rowPlacements.reduce<Record<number, number>>(
         (accumulator, entry) => {
-          accumulator[entry.sheetIndex] = (accumulator[entry.sheetIndex] ?? 0) + 1;
+          accumulator[entry.sheetIndex] =
+            (accumulator[entry.sheetIndex] ?? 0) + 1;
 
           return accumulator;
         },
@@ -1360,7 +1373,10 @@ export function CutCalculator({
       const sheetsLabel =
         sheetIndexes.length > 0
           ? sheetIndexes
-              .map((sheetIndex) => `Л${sheetIndex} ×${sheetCountByIndex[sheetIndex]}`)
+              .map(
+                (sheetIndex) =>
+                  `Л${sheetIndex} ×${sheetCountByIndex[sheetIndex]}`,
+              )
               .join(", ")
           : "Не разложено";
       const orientationLabel =
@@ -1565,7 +1581,8 @@ export function CutCalculator({
     if (exportableRows.length === 0) {
       setRequestFeedback({
         tone: "error",
-        message: "Добавьте хотя бы одну деталь с размерами, чтобы отправить заявку.",
+        message:
+          "Добавьте хотя бы одну деталь с размерами, чтобы отправить заявку.",
       });
 
       return;
@@ -1580,10 +1597,7 @@ export function CutCalculator({
       return;
     }
 
-    if (
-      requestDraft.messengerType &&
-      !requestDraft.messengerHandle.trim()
-    ) {
+    if (requestDraft.messengerType && !requestDraft.messengerHandle.trim()) {
       setRequestFeedback({
         tone: "error",
         message: "Добавьте контакт для выбранного мессенджера.",
@@ -1596,7 +1610,11 @@ export function CutCalculator({
 
     startSubmittingRequest(() => {
       void (async () => {
-        const result = await submitCuttingRequestAction(requestPayload);
+        const formData = new FormData();
+        formData.append("payload", JSON.stringify(requestPayload));
+        requestFiles.forEach((file) => formData.append("files", file));
+
+        const result = await submitCuttingRequestFormAction(formData);
 
         if (!result.ok) {
           setRequestFeedback({
@@ -1616,6 +1634,7 @@ export function CutCalculator({
           ...current,
           comment: "",
         }));
+        setRequestFiles([]);
       })();
     });
   };
@@ -1697,7 +1716,9 @@ export function CutCalculator({
                     }
                   >
                     {presets.length === 0 ? (
-                      <option value="">Подбор появится после публикации товаров</option>
+                      <option value="">
+                        Подбор появится после публикации товаров
+                      </option>
                     ) : (
                       presets.map((preset) => (
                         <option key={preset.id} value={preset.id}>
@@ -1723,7 +1744,7 @@ export function CutCalculator({
                   <p className="truncate text-[9px] tracking-[0.12em] text-[var(--muted)] uppercase">
                     {card.label}
                   </p>
-                  <p className="mt-1 break-words text-[12px] font-semibold leading-4.5 text-[var(--foreground)]">
+                  <p className="mt-1 text-[12px] leading-4.5 font-semibold break-words text-[var(--foreground)]">
                     {card.value}
                   </p>
                 </div>
@@ -1785,7 +1806,8 @@ export function CutCalculator({
                         onClick={() => removeRow(detail.id)}
                         className={cn(
                           "inline-flex min-w-0 items-center justify-center gap-1.5 border border-[color:var(--line)] px-2 py-1.5 text-[11px] font-medium text-[var(--muted)] transition hover:border-[color:var(--line-strong)] hover:text-[var(--foreground)]",
-                          details.length === 1 && "cursor-not-allowed opacity-45",
+                          details.length === 1 &&
+                            "cursor-not-allowed opacity-45",
                         )}
                       >
                         <Trash2 className="size-3.5" />
@@ -1797,44 +1819,50 @@ export function CutCalculator({
                   <div className="mt-2.5 grid gap-2.5 xl:grid-cols-[minmax(0,1.32fr)_minmax(260px,0.68fr)] xl:items-start">
                     <div className="space-y-2.5">
                       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.2fr)_110px_110px_96px] xl:gap-2">
-                        <label className="min-w-0 grid gap-1.5 text-[11px] leading-[1.2] text-[var(--foreground)] sm:col-span-2 sm:text-sm xl:col-span-1">
+                        <label className="grid min-w-0 gap-1.5 text-[11px] leading-[1.2] text-[var(--foreground)] sm:col-span-2 sm:text-sm xl:col-span-1">
                           Название
                           <Input
                             className="h-9 text-[13px] sm:h-11 sm:text-sm"
                             value={detail.title}
                             onChange={(event) =>
-                              updateRow(detail.id, { title: event.target.value })
+                              updateRow(detail.id, {
+                                title: event.target.value,
+                              })
                             }
                             placeholder="Деталь"
                           />
                         </label>
-                        <label className="min-w-0 grid gap-1.5 text-[11px] leading-[1.2] text-[var(--foreground)] sm:text-sm">
+                        <label className="grid min-w-0 gap-1.5 text-[11px] leading-[1.2] text-[var(--foreground)] sm:text-sm">
                           Ширина, мм
                           <Input
                             className="h-9 text-[13px] sm:h-11 sm:text-sm"
                             value={detail.width}
                             onChange={(event) =>
-                              updateRow(detail.id, { width: event.target.value })
+                              updateRow(detail.id, {
+                                width: event.target.value,
+                              })
                             }
                             type="number"
                             min="0"
                             placeholder="560"
                           />
                         </label>
-                        <label className="min-w-0 grid gap-1.5 text-[11px] leading-[1.2] text-[var(--foreground)] sm:text-sm">
+                        <label className="grid min-w-0 gap-1.5 text-[11px] leading-[1.2] text-[var(--foreground)] sm:text-sm">
                           Высота, мм
                           <Input
                             className="h-9 text-[13px] sm:h-11 sm:text-sm"
                             value={detail.height}
                             onChange={(event) =>
-                              updateRow(detail.id, { height: event.target.value })
+                              updateRow(detail.id, {
+                                height: event.target.value,
+                              })
                             }
                             type="number"
                             min="0"
                             placeholder="420"
                           />
                         </label>
-                        <label className="min-w-0 grid gap-1.5 text-[11px] leading-[1.2] text-[var(--foreground)] sm:text-sm">
+                        <label className="grid min-w-0 gap-1.5 text-[11px] leading-[1.2] text-[var(--foreground)] sm:text-sm">
                           Кол-во
                           <Input
                             className="h-9 text-[13px] sm:h-11 sm:text-sm"
@@ -1856,13 +1884,15 @@ export function CutCalculator({
                             value={detail.orientationMode}
                             onChange={(event) =>
                               updateRow(detail.id, {
-                                orientationMode:
-                                  event.target.value as OrientationMode,
+                                orientationMode: event.target
+                                  .value as OrientationMode,
                               })
                             }
                           >
                             {(
-                              Object.keys(orientationModeMeta) as OrientationMode[]
+                              Object.keys(
+                                orientationModeMeta,
+                              ) as OrientationMode[]
                             ).map((mode) => (
                               <option key={mode} value={mode}>
                                 {orientationModeMeta[mode].label}
@@ -1882,15 +1912,20 @@ export function CutCalculator({
                               Кромка: {selectedEdgeLabel}
                             </span>
                             <span className="inline-flex min-h-7 items-center border border-[color:var(--line)] px-2 text-[11px] text-[var(--foreground)]">
-                              Режим: {getOrientationModeLabel(detail.orientationMode)}
+                              Режим:{" "}
+                              {getOrientationModeLabel(detail.orientationMode)}
                             </span>
                           </div>
                           <p className="mt-2 text-[11px] leading-4 text-[var(--muted)]">
-                            {orientationModeMeta[detail.orientationMode].description}
+                            {
+                              orientationModeMeta[detail.orientationMode]
+                                .description
+                            }
                           </p>
                           {!edgingAvailable ? (
                             <p className="mt-2 text-[11px] leading-4 text-[var(--muted)]">
-                              Для этого материала кромка 1 мм в расчёте не учитывается.
+                              Для этого материала кромка 1 мм в расчёте не
+                              учитывается.
                             </p>
                           ) : null}
                         </div>
@@ -1913,7 +1948,9 @@ export function CutCalculator({
                           />
                           <MetricTile
                             label="Ориентир по детали"
-                            value={formatPrice(Math.round(lineCalculation.lineTotal))}
+                            value={formatPrice(
+                              Math.round(lineCalculation.lineTotal),
+                            )}
                             muted
                           />
                         </div>
@@ -1950,7 +1987,8 @@ export function CutCalculator({
                         <div className="row-start-2 flex min-h-[96px] min-w-0 items-center justify-center overflow-hidden rounded-[14px] border-[3px] border-[var(--accent)]/85 bg-[#fbf8f1] px-2 text-center sm:min-h-[124px] sm:rounded-[20px] sm:px-3">
                           <div className="min-w-0">
                             <p className="truncate font-mono text-[9px] tracking-[0.12em] text-[var(--muted)] uppercase sm:text-[10px]">
-                              {lineCalculation.width || 0} × {lineCalculation.height || 0} мм
+                              {lineCalculation.width || 0} ×{" "}
+                              {lineCalculation.height || 0} мм
                             </p>
                             <p className="mt-1 truncate text-[0.95rem] font-semibold text-[var(--foreground)] sm:mt-1.5 sm:text-[1.35rem]">
                               {detail.title}
@@ -1983,7 +2021,7 @@ export function CutCalculator({
                         </div>
                       </div>
 
-                      <div className="mt-2 border-t border-[color:var(--line)] pt-2 space-y-1">
+                      <div className="mt-2 space-y-1 border-t border-[color:var(--line)] pt-2">
                         <div>
                           <p className="font-mono text-[10px] tracking-[0.14em] text-[var(--muted)] uppercase">
                             Выбрано
@@ -1992,14 +2030,16 @@ export function CutCalculator({
                             {selectedEdgeLabel}
                           </p>
                           <p className="mt-1 text-[11px] leading-4.5 text-[var(--muted)]">
-                            Ориентация: {getOrientationModeLabel(detail.orientationMode)}
+                            Ориентация:{" "}
+                            {getOrientationModeLabel(detail.orientationMode)}
                           </p>
                         </div>
 
                         {!edgingAvailable ? (
                           <p className="text-[11px] leading-4 text-[var(--muted)]">
-                            Для выбранного материала кромка 1 мм в этом расчете не
-                            учитывается, но разметку можно сохранить для заявки.
+                            Для выбранного материала кромка 1 мм в этом расчете
+                            не учитывается, но разметку можно сохранить для
+                            заявки.
                           </p>
                         ) : null}
                       </div>
@@ -2076,7 +2116,8 @@ export function CutCalculator({
               <div className="text-[11px] leading-4.5 text-[var(--muted)] sm:max-w-[14rem] sm:text-right">
                 <p>{requestPayload.material}</p>
                 <p className="mt-1">
-                  {exportableRows.length} поз. · {formatPrice(Math.round(estimate.totalEstimate))}
+                  {exportableRows.length} поз. ·{" "}
+                  {formatPrice(Math.round(estimate.totalEstimate))}
                 </p>
               </div>
             </div>
@@ -2155,11 +2196,34 @@ export function CutCalculator({
                   placeholder="Если нужно, оставьте комментарий для менеджера."
                 />
               </label>
+              <label className="grid gap-1.5 text-[11px] text-[var(--foreground)] sm:text-sm md:col-span-2 xl:col-span-4">
+                Файл с размерами
+                <input
+                  type="file"
+                  multiple
+                  accept=".pdf,.xls,.xlsx,.csv,.txt,.doc,.docx,.zip,.rar,.jpg,.jpeg,.png,.webp,.dwg,.dxf"
+                  onChange={(event) =>
+                    setRequestFiles(Array.from(event.target.files ?? []))
+                  }
+                  className="h-10 border border-[color:var(--line)] bg-white px-3 py-2 text-[12px] text-[var(--foreground)] file:mr-3 file:border-0 file:bg-[var(--foreground)] file:px-3 file:py-1.5 file:text-[10px] file:font-semibold file:tracking-[0.14em] file:text-white file:uppercase"
+                />
+                <span className="text-[11px] leading-4 text-[var(--muted)]">
+                  Можно приложить Excel, PDF, DXF, DWG, архив или фото. Если
+                  детали уже внесены выше, файл будет дополнительным
+                  подтверждением для менеджера.
+                </span>
+                {requestFiles.length > 0 ? (
+                  <span className="text-[11px] leading-4 text-[var(--muted)]">
+                    Выбрано файлов: {requestFiles.length}
+                  </span>
+                ) : null}
+              </label>
             </div>
 
             <div className="mt-3 flex flex-col gap-2.5 border-t border-[color:var(--line)] pt-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="text-[11px] leading-4.5 text-[var(--muted)]">
-                В заявку уйдут карта, ведомость, кромка 1 мм и ориентир по стоимости.
+                В заявку уйдут карта, ведомость, кромка 1 мм и ориентир по
+                стоимости.
               </div>
               <Button
                 variant="accent"
@@ -2203,11 +2267,12 @@ export function CutCalculator({
                 <p className="mt-2 hidden text-[13px] leading-5 text-[var(--muted)] sm:block">
                   Карта строится по полосному гильотинному алгоритму: сначала
                   формируется полезное поле листа после торцовки, затем
-                  раскладываются полосы и поперечные резы с учетом ширины пропила.
+                  раскладываются полосы и поперечные резы с учетом ширины
+                  пропила.
                 </p>
               </div>
 
-              <div className="grid w-full min-w-0 grid-cols-1 gap-2 min-[380px]:grid-cols-2 sm:min-w-[250px] sm:w-auto sm:grid-cols-2 xl:grid-cols-3">
+              <div className="grid w-full min-w-0 grid-cols-1 gap-2 min-[380px]:grid-cols-2 sm:w-auto sm:min-w-[250px] sm:grid-cols-2 xl:grid-cols-3">
                 <MetricTile label="Формат листа" value={sheet.label} muted />
                 <MetricTile
                   label="Полезное поле"
@@ -2289,7 +2354,8 @@ export function CutCalculator({
                             </p>
                           </div>
                           <span className="inline-flex min-h-7 items-center border border-[color:var(--line)] px-2 font-mono text-[9px] tracking-[0.12em] text-[var(--foreground)] uppercase">
-                            {cutSheet.pieces.length} деталей · {fillRate.toFixed(0)}%
+                            {cutSheet.pieces.length} деталей ·{" "}
+                            {fillRate.toFixed(0)}%
                           </span>
                         </div>
 
@@ -2360,7 +2426,9 @@ export function CutCalculator({
                                           {piece.width} × {piece.height} мм
                                         </p>
                                         <p className="text-[8px] opacity-75 sm:text-[9px]">
-                                          {getOrientationModeLabel(piece.orientationMode)}
+                                          {getOrientationModeLabel(
+                                            piece.orientationMode,
+                                          )}
                                         </p>
                                         {piece.rotated ? (
                                           <p className="font-mono text-[8px] tracking-[0.1em] uppercase opacity-70 sm:text-[9px]">
@@ -2410,7 +2478,8 @@ export function CutCalculator({
                                 Полезные остатки листа
                               </p>
                               <span className="text-[11px] text-[var(--muted)]">
-                                {(cutSheet.offcutArea / 1_000_000).toFixed(2)} м² свободно
+                                {(cutSheet.offcutArea / 1_000_000).toFixed(2)}{" "}
+                                м² свободно
                               </span>
                             </div>
                             <div className="mt-2 flex flex-wrap gap-1.5 sm:gap-2">
@@ -2466,11 +2535,13 @@ export function CutCalculator({
                   Таблица деталей по фактической карте раскроя
                 </h3>
                 <p className="mt-2 hidden text-[13px] leading-5 text-[var(--muted)] sm:block">
-                  Здесь собраны размеры, кромка, ориентация и распределение по листам. Эту часть уже удобно сверять перед распилом и кромлением.
+                  Здесь собраны размеры, кромка, ориентация и распределение по
+                  листам. Эту часть уже удобно сверять перед распилом и
+                  кромлением.
                 </p>
               </div>
 
-              <div className="grid w-full min-w-0 grid-cols-1 gap-2 min-[380px]:grid-cols-2 sm:min-w-[220px] sm:w-auto sm:grid-cols-2">
+              <div className="grid w-full min-w-0 grid-cols-1 gap-2 min-[380px]:grid-cols-2 sm:w-auto sm:min-w-[220px] sm:grid-cols-2">
                 <MetricTile
                   label="Позиций"
                   value={`${workshopRows.length} шт.`}
@@ -2508,7 +2579,9 @@ export function CutCalculator({
                       <p className="font-mono text-[10px] tracking-[0.12em] uppercase">
                         Кромка
                       </p>
-                      <p className="mt-0.5 text-[var(--foreground)]">{row.edgeLabel}</p>
+                      <p className="mt-0.5 text-[var(--foreground)]">
+                        {row.edgeLabel}
+                      </p>
                     </div>
                     <div>
                       <p className="font-mono text-[10px] tracking-[0.12em] uppercase">
@@ -2522,7 +2595,9 @@ export function CutCalculator({
                       <p className="font-mono text-[10px] tracking-[0.12em] uppercase">
                         Листы
                       </p>
-                      <p className="mt-0.5 text-[var(--foreground)]">{row.sheetsLabel}</p>
+                      <p className="mt-0.5 text-[var(--foreground)]">
+                        {row.sheetsLabel}
+                      </p>
                     </div>
                   </div>
                 </article>
@@ -2605,7 +2680,8 @@ export function CutCalculator({
             Рабочая сводка по карте раскроя
           </h3>
           <p className="mt-2 text-[13px] leading-5 text-[#5f554c] sm:text-sm sm:leading-6">
-            Здесь собран только рабочий минимум: площадь, рез, листы, остатки и ориентир по стоимости.
+            Здесь собран только рабочий минимум: площадь, рез, листы, остатки и
+            ориентир по стоимости.
           </p>
 
           <div className="mt-4 grid gap-2 sm:mt-5 sm:grid-cols-2 sm:gap-2.5 xl:grid-cols-1">
@@ -2656,7 +2732,6 @@ export function CutCalculator({
               <span>{formatPrice(Math.round(estimate.totalEstimate))}</span>
             </div>
           </div>
-
         </aside>
       </div>
     </section>

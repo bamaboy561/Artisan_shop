@@ -7,6 +7,7 @@ import {
   LoyaltyTransactionStatus,
   LoyaltyTransactionType,
   OrderStatus,
+  PaymentStatus,
   PromotionTargetType,
 } from "@/generated/prisma";
 import { getOptionalSession } from "@/lib/auth/dal";
@@ -116,8 +117,7 @@ export async function submitCheckoutAction(
 
     if (!parsedCartItems.success || parsedCartItems.data.length === 0) {
       return {
-        message:
-          "Корзина пуста. Добавьте товары перед оформлением заказа.",
+        message: "Корзина пуста. Добавьте товары перед оформлением заказа.",
       };
     }
 
@@ -266,8 +266,7 @@ export async function submitCheckoutAction(
 
   if (orderItems.length === 0) {
     return {
-      message:
-        "Корзина пуста. Добавьте товары перед оформлением заказа.",
+      message: "Корзина пуста. Добавьте товары перед оформлением заказа.",
     };
   }
 
@@ -291,8 +290,7 @@ export async function submitCheckoutAction(
 
     if (!isPromotionActive(promotion)) {
       return {
-        message:
-          "Промокод сейчас недоступен или срок его действия уже истек.",
+        message: "Промокод сейчас недоступен или срок его действия уже истек.",
       };
     }
 
@@ -500,9 +498,11 @@ export async function submitCheckoutAction(
       id: createdOrderForSync.id,
       number: createdOrderForSync.number ?? orderNumber,
       status: OrderStatus.NEW,
+      paymentStatus: PaymentStatus.WAITING_PAYMENT,
       contactName: parsed.data.name,
       contactPhone: parsed.data.phone,
-      contactEmail: normalizeOptionalText(parsed.data.email) ?? user?.email ?? null,
+      contactEmail:
+        normalizeOptionalText(parsed.data.email) ?? user?.email ?? null,
       companyName: normalizeOptionalText(parsed.data.companyName),
       comment: commentParts.length > 0 ? commentParts.join("\n") : null,
       deliveryMethod: deliveryMethod?.name ?? null,
@@ -544,4 +544,3 @@ export async function submitCheckoutAction(
     redirectTo: `/checkout/success?${redirectTo.toString()}`,
   };
 }
-

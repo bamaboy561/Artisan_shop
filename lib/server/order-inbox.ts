@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { OrderStatus } from "@/generated/prisma";
+import { OrderStatus, PaymentStatus } from "@/generated/prisma";
 import type { AdminOrderItem } from "@/features/admin/operations-filters";
 import { getDemoAdminSession } from "@/lib/auth/demo-access";
 import { getDb, hasDatabaseUrl, isDemoModeEnabled } from "@/lib/db";
@@ -23,7 +23,10 @@ type DemoManager = {
   email: string;
 } | null;
 
-type DemoOrderRecord = Omit<AdminOrderItem, "createdAt" | "updatedAt"> & {
+type DemoOrderRecord = Omit<
+  AdminOrderItem,
+  "createdAt" | "updatedAt" | "paidAt"
+> & {
   createdAt: string;
   updatedAt: string;
   subtotal: number;
@@ -32,6 +35,9 @@ type DemoOrderRecord = Omit<AdminOrderItem, "createdAt" | "updatedAt"> & {
   productionDueAt: string | null;
   readyAt: string | null;
   completedAt: string | null;
+  paidAt: string | null;
+  paymentStatus: PaymentStatus;
+  paymentComment: string | null;
   fulfillmentComment: string | null;
   comment: string | null;
   sourceRequestId: string | null;
@@ -49,13 +55,16 @@ export type OrderManagerNoteRecord = {
   createdAt: string;
 };
 
-export type OrderDetailItem = AdminOrderItem & {
+export type OrderDetailItem = Omit<AdminOrderItem, "paidAt"> & {
   subtotal: number;
   discountTotal: number;
   deliveryTotal: number;
   productionDueAt: Date | string | null;
   readyAt: Date | string | null;
   completedAt: Date | string | null;
+  paidAt: Date | string | null;
+  paymentStatus: PaymentStatus;
+  paymentComment: string | null;
   fulfillmentComment: string | null;
   comment: string | null;
   sourceRequestId: string | null;
@@ -124,6 +133,9 @@ function createDemoOrderRecord(
     productionDueAt: record.productionDueAt ?? null,
     readyAt: record.readyAt ?? null,
     completedAt: record.completedAt ?? null,
+    paidAt: record.paidAt ?? null,
+    paymentStatus: record.paymentStatus ?? PaymentStatus.WAITING_PAYMENT,
+    paymentComment: record.paymentComment ?? null,
     fulfillmentComment: record.fulfillmentComment ?? null,
     createdAt: record.createdAt ?? timestamp,
     updatedAt: record.updatedAt ?? timestamp,
@@ -164,6 +176,7 @@ function toAdminOrderItem(record: DemoOrderRecord): AdminOrderItem {
     ...record,
     createdAt: new Date(record.createdAt),
     updatedAt: new Date(record.updatedAt),
+    paidAt: record.paidAt ? new Date(record.paidAt) : null,
   };
 }
 
@@ -176,6 +189,9 @@ function toOrderDetailItem(record: DemoOrderRecord): OrderDetailItem {
     productionDueAt: record.productionDueAt,
     readyAt: record.readyAt,
     completedAt: record.completedAt,
+    paidAt: record.paidAt,
+    paymentStatus: record.paymentStatus,
+    paymentComment: record.paymentComment,
     fulfillmentComment: record.fulfillmentComment,
     comment: record.comment,
     sourceRequestId: record.sourceRequestId,
@@ -256,10 +272,14 @@ export async function getOrderInbox() {
 
   return (await readDemoOrders())
     .map(toAdminOrderItem)
-    .sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime());
+    .sort(
+      (left, right) => right.updatedAt.getTime() - left.updatedAt.getTime(),
+    );
 }
 
-export async function getOrderInboxItemById(id: string): Promise<OrderDetailItem | null> {
+export async function getOrderInboxItemById(
+  id: string,
+): Promise<OrderDetailItem | null> {
   if (hasDatabaseUrl()) {
     const order = await getDb().order.findUnique({
       where: { id },
@@ -280,6 +300,9 @@ export async function getOrderInboxItemById(id: string): Promise<OrderDetailItem
         productionDueAt: true,
         readyAt: true,
         completedAt: true,
+        paidAt: true,
+        paymentStatus: true,
+        paymentComment: true,
         fulfillmentComment: true,
         createdAt: true,
         updatedAt: true,
@@ -404,6 +427,7 @@ export async function createOrderFromRequest(request: RequestDetailItem) {
         userId: request.userId ?? null,
         managerId: request.managerId ?? null,
         status: OrderStatus.NEW,
+        paymentStatus: PaymentStatus.WAITING_PAYMENT,
         contactName: request.contactName,
         contactPhone: request.contactPhone,
         contactEmail: request.contactEmail,
@@ -438,6 +462,9 @@ export async function createOrderFromRequest(request: RequestDetailItem) {
     id: `demo-order-${Date.now()}`,
     number: orderNumber,
     status: OrderStatus.NEW,
+    paymentStatus: PaymentStatus.WAITING_PAYMENT,
+    paidAt: null,
+    paymentComment: null,
     sourceRequestId: request.id,
     contactName: request.contactName,
     contactPhone: request.contactPhone,
@@ -468,6 +495,8 @@ export async function createOrderFromRequest(request: RequestDetailItem) {
 export async function updateOrderInboxItem(input: {
   id: string;
   status: OrderStatus;
+  paymentStatus?: PaymentStatus | null;
+  paymentComment?: string | null;
   managerId?: string | null;
 }) {
   const timestampFields =
@@ -482,6 +511,18 @@ export async function updateOrderInboxItem(input: {
       where: { id: input.id },
       data: {
         status: input.status,
+        ...(input.paymentStatus
+          ? {
+              paymentStatus: input.paymentStatus,
+              paidAt:
+                input.paymentStatus === PaymentStatus.PAID
+                  ? new Date()
+                  : input.paymentStatus === PaymentStatus.WAITING_PAYMENT
+                    ? null
+                    : undefined,
+              paymentComment: input.paymentComment ?? null,
+            }
+          : {}),
         managerId: input.managerId ?? null,
         ...timestampFields,
       },
@@ -500,6 +541,17 @@ export async function updateOrderInboxItem(input: {
       ? {
           ...order,
           status: input.status,
+          paymentStatus: input.paymentStatus ?? order.paymentStatus,
+          paidAt:
+            input.paymentStatus === PaymentStatus.PAID
+              ? new Date().toISOString()
+              : input.paymentStatus === PaymentStatus.WAITING_PAYMENT
+                ? null
+                : order.paidAt,
+          paymentComment:
+            input.paymentStatus !== undefined
+              ? (input.paymentComment ?? null)
+              : order.paymentComment,
           readyAt:
             input.status === OrderStatus.READY_FOR_PICKUP
               ? new Date().toISOString()
@@ -521,6 +573,7 @@ export async function updateOrderInboxItem(input: {
 export async function bulkUpdateOrderInboxItems(input: {
   orderIds: string[];
   status?: OrderStatus;
+  paymentStatus?: PaymentStatus;
   managerId?: string | null;
   clearManager?: boolean;
 }) {
@@ -540,6 +593,13 @@ export async function bulkUpdateOrderInboxItems(input: {
       where: { id: { in: input.orderIds } },
       data: {
         ...(input.status ? { status: input.status } : {}),
+        ...(input.paymentStatus
+          ? {
+              paymentStatus: input.paymentStatus,
+              paidAt:
+                input.paymentStatus === PaymentStatus.PAID ? new Date() : null,
+            }
+          : {}),
         ...timestampFields,
         ...(input.clearManager
           ? { managerId: null }
@@ -565,6 +625,13 @@ export async function bulkUpdateOrderInboxItems(input: {
     return {
       ...order,
       status: input.status ?? order.status,
+      paymentStatus: input.paymentStatus ?? order.paymentStatus,
+      paidAt:
+        input.paymentStatus === PaymentStatus.PAID
+          ? new Date().toISOString()
+          : input.paymentStatus === PaymentStatus.WAITING_PAYMENT
+            ? null
+            : order.paidAt,
       readyAt:
         input.status === OrderStatus.READY_FOR_PICKUP
           ? new Date().toISOString()

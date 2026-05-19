@@ -165,7 +165,10 @@ export function InStoreSaleWorkspace({
     ? Math.round((subtotal * selectedClient.discountPercent) / 100)
     : 0;
   const total = Math.max(0, subtotal - discountTotal);
-  const selectedItemsCount = lines.reduce((sum, line) => sum + line.quantity, 0);
+  const selectedItemsCount = lines.reduce(
+    (sum, line) => sum + line.quantity,
+    0,
+  );
 
   function addProduct(product: SaleProduct) {
     setLines((current) => {
@@ -412,7 +415,7 @@ export function InStoreSaleWorkspace({
                 <span className="font-mono text-[9px] tracking-[0.16em] text-[var(--muted)] uppercase">
                   {product.brandName ?? "Без бренда"}
                 </span>
-                <span className="mt-2 line-clamp-2 min-h-[2.5rem] text-base font-semibold leading-5 text-[var(--foreground)]">
+                <span className="mt-2 line-clamp-2 min-h-[2.5rem] text-base leading-5 font-semibold text-[var(--foreground)]">
                   {product.name}
                 </span>
                 <span className="mt-2 line-clamp-1 text-xs text-[var(--muted)]">
@@ -486,7 +489,7 @@ export function InStoreSaleWorkspace({
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="line-clamp-2 text-sm font-semibold leading-5">
+                      <p className="line-clamp-2 text-sm leading-5 font-semibold">
                         {product.name}
                       </p>
                       <p className="mt-1 text-xs text-white/42">
@@ -567,6 +570,24 @@ export function InStoreSaleWorkspace({
             />
           </label>
           <label className="grid gap-1.5">
+            Оплата
+            <select
+              name="paymentStatus"
+              defaultValue="WAITING_PAYMENT"
+              className="h-10 rounded-xl border border-white/10 bg-white/8 px-3 text-white outline-none"
+            >
+              <option className="text-[#111111]" value="WAITING_PAYMENT">
+                Ждет оплату
+              </option>
+              <option className="text-[#111111]" value="PAID">
+                Оплачен
+              </option>
+              <option className="text-[#111111]" value="PARTIAL">
+                Частично оплачен
+              </option>
+            </select>
+          </label>
+          <label className="grid gap-1.5">
             Комментарий
             <input
               name="comment"
@@ -590,15 +611,10 @@ export function InStoreSaleWorkspace({
               <BadgePercent className="size-4 shrink-0" />
             </label>
             <label className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.06] p-3 text-sm text-white/72">
-              <input
-                type="checkbox"
-                name="approveNow"
-                defaultChecked
-                className="mt-1"
-              />
+              <input type="checkbox" name="approveNow" className="mt-1" />
               <span>
-                Оплата подтверждена: начислить баллы сразу. Если снять галочку,
-                баллы уйдут в ожидание.
+                Начислить бонусы сразу после подтвержденной оплаты. Если не
+                отмечать, бонусы уйдут в ожидание менеджера.
               </span>
             </label>
           </div>

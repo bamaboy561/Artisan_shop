@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import jsQR from "jsqr";
-import { Camera, Keyboard, ScanLine } from "lucide-react";
+import { Camera, Keyboard, ScanLine, SlidersHorizontal } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +16,24 @@ type QrClientScannerProps = {
 };
 
 type ScannerStatus = "idle" | "starting" | "scanning" | "found" | "error";
+
+type CameraCapabilities = MediaTrackCapabilities & {
+  focusMode?: string[];
+  zoom?: {
+    min?: number;
+    max?: number;
+    step?: number;
+  };
+};
+
+type CameraSettings = MediaTrackSettings & {
+  zoom?: number;
+};
+
+type CameraConstraintSet = MediaTrackConstraintSet & {
+  focusMode?: string;
+  zoom?: number;
+};
 
 export function QrClientScanner({
   open,
@@ -31,10 +49,49 @@ export function QrClientScanner({
   const [status, setStatus] = useState<ScannerStatus>("idle");
   const [message, setMessage] = useState("");
   const [manualValue, setManualValue] = useState("");
+  const [focusSupported, setFocusSupported] = useState(false);
+  const [zoomControl, setZoomControl] = useState<{
+    min: number;
+    max: number;
+    step: number;
+    value: number;
+  } | null>(null);
 
   useEffect(() => {
     onScanRef.current = onScan;
   }, [onScan]);
+
+  async function applyCameraConstraints(constraints: CameraConstraintSet) {
+    const track = streamRef.current?.getVideoTracks()[0];
+
+    if (!track) {
+      return false;
+    }
+
+    try {
+      await track.applyConstraints({
+        advanced: [constraints],
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async function refocusCamera() {
+    const ok = await applyCameraConstraints({ focusMode: "continuous" });
+
+    setMessage(
+      ok
+        ? "Автофокус обновлен. Наведите камеру на QR клиента."
+        : "Камера этого устройства не дала ручную настройку фокуса.",
+    );
+  }
+
+  async function updateZoom(value: number) {
+    setZoomControl((current) => (current ? { ...current, value } : current));
+    await applyCameraConstraints({ zoom: value });
+  }
 
   useEffect(() => {
     if (!open) {
@@ -51,6 +108,8 @@ export function QrClientScanner({
 
       streamRef.current?.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
+      setFocusSupported(false);
+      setZoomControl(null);
     }
 
     function scanFrame() {
@@ -74,7 +133,12 @@ export function QrClientScanner({
         canvas.height = video.videoHeight;
         context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-        const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+        const imageData = context.getImageData(
+          0,
+          0,
+          canvas.width,
+          canvas.height,
+        );
         const code = jsQR(imageData.data, imageData.width, imageData.height, {
           inversionAttempts: "attemptBoth",
         });
@@ -131,6 +195,40 @@ export function QrClientScanner({
         }
 
         streamRef.current = stream;
+
+        const videoTrack = stream.getVideoTracks()[0];
+        const capabilities = videoTrack?.getCapabilities?.() as
+          | CameraCapabilities
+          | undefined;
+        const settings = videoTrack?.getSettings?.() as
+          | CameraSettings
+          | undefined;
+
+        if (capabilities?.focusMode?.includes("continuous")) {
+          setFocusSupported(true);
+          try {
+            await videoTrack.applyConstraints({
+              advanced: [{ focusMode: "continuous" } as CameraConstraintSet],
+            });
+          } catch {
+            // Some tablet browsers report focus support but reject the constraint.
+          }
+        }
+
+        if (capabilities?.zoom) {
+          const min = capabilities.zoom.min ?? 1;
+          const max = capabilities.zoom.max ?? min;
+          const step = capabilities.zoom.step ?? 0.1;
+
+          if (max > min) {
+            setZoomControl({
+              min,
+              max,
+              step,
+              value: settings?.zoom ?? min,
+            });
+          }
+        }
 
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
@@ -229,6 +327,41 @@ export function QrClientScanner({
             </div>
           </div>
         </div>
+
+        {focusSupported || zoomControl ? (
+          <div className="rounded-[20px] border border-[color:var(--line)] bg-[var(--surface)] p-3">
+            <div className="flex items-center gap-2 text-xs font-medium text-[var(--muted)]">
+              <SlidersHorizontal className="size-4" />
+              Настройка камеры для планшета
+            </div>
+            <div className="mt-3 grid gap-3 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center">
+              {focusSupported ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={refocusCamera}
+                >
+                  Обновить фокус
+                </Button>
+              ) : null}
+              {zoomControl ? (
+                <label className="grid gap-1 text-xs text-[var(--muted)]">
+                  Приближение камеры
+                  <input
+                    type="range"
+                    min={zoomControl.min}
+                    max={zoomControl.max}
+                    step={zoomControl.step}
+                    value={zoomControl.value}
+                    onChange={(event) => updateZoom(Number(event.target.value))}
+                    className="w-full accent-[var(--accent)]"
+                  />
+                </label>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
 
         <div className="rounded-[20px] border border-[color:var(--line)] bg-[var(--surface)] p-3">
           <div className="flex items-center gap-2 text-xs font-medium text-[var(--muted)]">

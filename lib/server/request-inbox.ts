@@ -11,10 +11,7 @@ import { getDemoAdminSession } from "@/lib/auth/demo-access";
 import { getDb, hasDatabaseUrl, isDemoModeEnabled } from "@/lib/db";
 import type { AdminRequestItem } from "@/features/admin/operations-filters";
 
-type DemoRequestRecord = Omit<
-  AdminRequestItem,
-  "createdAt" | "updatedAt"
-> & {
+type DemoRequestRecord = Omit<AdminRequestItem, "createdAt" | "updatedAt"> & {
   createdAt: string;
   updatedAt: string;
   addressText?: string | null;
@@ -140,6 +137,33 @@ export function isAllowedRequestFile(fileName: string) {
   ]).has(extension);
 }
 
+async function uploadRequestFileToBlob(
+  requestId: string,
+  storedFileName: string,
+  file: File,
+  directorySlug?: string,
+) {
+  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+    return null;
+  }
+
+  try {
+    const { put } = await import("@vercel/blob");
+    const folder = directorySlug
+      ? `requests/${requestId}/${directorySlug}`
+      : `requests/${requestId}`;
+    const blob = await put(`${folder}/${storedFileName}`, file, {
+      access: "public",
+      addRandomSuffix: true,
+    });
+
+    return blob.url;
+  } catch (error) {
+    console.error("Failed to upload request file to Blob", error);
+    return null;
+  }
+}
+
 export async function persistRequestFiles(
   requestId: string,
   files: File[],
@@ -156,20 +180,36 @@ export async function persistRequestFiles(
     return [] as RequestFileRecord[];
   }
 
-  const directory = await ensureRequestUploadsDirectory(
-    requestId,
-    options.directorySlug,
-  );
+  let directory: string | null = null;
   const savedFiles: RequestFileRecord[] = [];
 
   for (const file of files) {
     const sanitizedBaseName = sanitizeFileName(file.name || "attachment");
     const safeName = sanitizedBaseName || `file-${Date.now()}`;
     const storedFileName = `${Date.now()}-${safeName}`;
-    const targetPath = path.join(directory, storedFileName);
-    const bytes = Buffer.from(await file.arrayBuffer());
+    const blobUrl = await uploadRequestFileToBlob(
+      requestId,
+      storedFileName,
+      file,
+      options.directorySlug,
+    );
+    let fileUrl = blobUrl;
 
-    await writeFile(targetPath, bytes);
+    if (!fileUrl) {
+      directory ??= await ensureRequestUploadsDirectory(
+        requestId,
+        options.directorySlug,
+      );
+
+      const targetPath = path.join(directory, storedFileName);
+      const bytes = Buffer.from(await file.arrayBuffer());
+
+      await writeFile(targetPath, bytes);
+
+      fileUrl = options.directorySlug
+        ? `/uploads/requests/${requestId}/${options.directorySlug}/${storedFileName}`
+        : `/uploads/requests/${requestId}/${storedFileName}`;
+    }
 
     savedFiles.push({
       id: `file-${Date.now()}-${savedFiles.length + 1}`,
@@ -179,9 +219,7 @@ export async function persistRequestFiles(
       uploadedByName: options.uploadedByName ?? null,
       note: options.note ?? null,
       fileName: file.name,
-      fileUrl: options.directorySlug
-        ? `/uploads/requests/${requestId}/${options.directorySlug}/${storedFileName}`
-        : `/uploads/requests/${requestId}/${storedFileName}`,
+      fileUrl,
       mimeType: file.type || null,
       size: file.size,
       createdAt: new Date().toISOString(),
@@ -261,11 +299,7 @@ async function readDemoRequests() {
 
 async function writeDemoRequests(requests: DemoRequestRecord[]) {
   await ensureRuntimeDirectory();
-  await writeFile(
-    demoRequestsPath,
-    JSON.stringify(requests, null, 2),
-    "utf8",
-  );
+  await writeFile(demoRequestsPath, JSON.stringify(requests, null, 2), "utf8");
 }
 
 function toAdminRequestItem(record: DemoRequestRecord): AdminRequestItem {
@@ -346,7 +380,8 @@ function isSameCuttingRequest(
   input: CuttingRequestSubmission,
 ) {
   return (
-    (request.type ?? RequestType.CUTTING_SERVICE) === RequestType.CUTTING_SERVICE &&
+    (request.type ?? RequestType.CUTTING_SERVICE) ===
+      RequestType.CUTTING_SERVICE &&
     request.contactPhone.trim() === input.contactPhone.trim() &&
     request.subject.trim() === input.subject.trim() &&
     (request.material ?? "").trim() === input.material.trim() &&
@@ -405,7 +440,9 @@ export async function getRequestInbox() {
   const requests = await readDemoRequests();
   return requests
     .map(toAdminRequestItem)
-    .sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime());
+    .sort(
+      (left, right) => right.updatedAt.getTime() - left.updatedAt.getTime(),
+    );
 }
 
 export async function getRequestInboxItemById(id: string) {
@@ -454,7 +491,9 @@ export async function getRequestInboxItemById(id: string) {
   return request ? toAdminRequestItem(request) : null;
 }
 
-export async function getRequestDetailById(id: string): Promise<RequestDetailItem | null> {
+export async function getRequestDetailById(
+  id: string,
+): Promise<RequestDetailItem | null> {
   if (hasDatabaseUrl()) {
     const request = await getDb().request.findUnique({
       where: { id },
@@ -720,13 +759,11 @@ export async function createCuttingRequest(
   };
 }
 
-export async function updateRequestInboxItem(
-  input: {
-    id: string;
-    status: RequestStatus;
-    managerId?: string | null;
-  },
-) {
+export async function updateRequestInboxItem(input: {
+  id: string;
+  status: RequestStatus;
+  managerId?: string | null;
+}) {
   if (hasDatabaseUrl()) {
     await getDb().request.update({
       where: { id: input.id },
@@ -759,14 +796,12 @@ export async function updateRequestInboxItem(
   await writeDemoRequests(updated);
 }
 
-export async function bulkUpdateRequestInboxItems(
-  input: {
-    requestIds: string[];
-    status?: RequestStatus;
-    managerId?: string | null;
-    clearManager?: boolean;
-  },
-) {
+export async function bulkUpdateRequestInboxItems(input: {
+  requestIds: string[];
+  status?: RequestStatus;
+  managerId?: string | null;
+  clearManager?: boolean;
+}) {
   if (input.requestIds.length === 0) {
     return;
   }

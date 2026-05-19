@@ -8,6 +8,7 @@ import {
   LoyaltyTransactionStatus,
   LoyaltyTransactionType,
   OrderStatus,
+  PaymentStatus,
   ProductOrderMode,
   ProductStatus,
   PromotionStatus,
@@ -47,6 +48,7 @@ import { sendRegistrationEmailTest } from "@/lib/server/registration-verificatio
 import {
   getManagerDisplayName,
   orderStatusLabels,
+  paymentStatusLabels,
   requestStatusLabels,
 } from "@/features/admin/operations-filters";
 import { requireAdminSession } from "@/lib/auth/dal";
@@ -562,6 +564,161 @@ function buildInStoreOrderNumber() {
   return `S-${datePart}-${randomPart}`;
 }
 
+/**
+ * Reacts to an order status transition by settling pending loyalty:
+ *   - COMPLETED → all pending ORDER_ACCRUAL bonuses for this order are
+ *     approved, balance/tier updated, client gets a Telegram message
+ *     and a visible event in their cabinet.
+ *   - CANCELED → all pending ORDER_ACCRUAL bonuses are canceled (no
+ *     balance change since they were never credited), client notified.
+ *
+ * Idempotent: only acts on transactions that are still PENDING, so
+ * replaying the same transition is a no-op.
+ */
+async function processOrderLoyaltyOnTransition(params: {
+  orderId: string;
+  previousStatus?: OrderStatus | null;
+  currentStatus: OrderStatus;
+  actor: Awaited<ReturnType<typeof ensureAdminAccess>>;
+}) {
+  const { orderId, previousStatus, currentStatus, actor } = params;
+
+  if (!hasDatabaseUrl()) return;
+  if (previousStatus && previousStatus === currentStatus) return;
+  if (
+    currentStatus !== OrderStatus.COMPLETED &&
+    currentStatus !== OrderStatus.CANCELED
+  ) {
+    return;
+  }
+
+  const db = getDb();
+  const pending = await db.loyaltyTransaction.findMany({
+    where: {
+      orderId,
+      type: LoyaltyTransactionType.ORDER_ACCRUAL,
+      status: LoyaltyTransactionStatus.PENDING,
+    },
+    select: { id: true, userId: true, points: true },
+  });
+
+  if (pending.length === 0) return;
+
+  const loyaltyConfig = await getLoyaltyProgramConfig();
+  const touchedTransactionIds: string[] = [];
+  const touchedUserIds = new Set<string>();
+  let totalApprovedPoints = 0;
+
+  for (const transaction of pending) {
+    await db.$transaction(async (tx) => {
+      // Re-read inside transaction to avoid double-credit on concurrent
+      // status flips.
+      const fresh = await tx.loyaltyTransaction.findUnique({
+        where: { id: transaction.id },
+        select: {
+          status: true,
+          points: true,
+          userId: true,
+          user: {
+            select: {
+              loyaltyPointsBalance: true,
+              loyaltyPointsLifetime: true,
+            },
+          },
+        },
+      });
+
+      if (!fresh || fresh.status !== LoyaltyTransactionStatus.PENDING) {
+        return;
+      }
+
+      if (currentStatus === OrderStatus.COMPLETED) {
+        const nextBalance = fresh.user.loyaltyPointsBalance + fresh.points;
+        const nextLifetime =
+          fresh.user.loyaltyPointsLifetime + Math.max(0, fresh.points);
+
+        await tx.user.update({
+          where: { id: fresh.userId },
+          data: {
+            loyaltyPointsBalance: nextBalance,
+            loyaltyPointsLifetime: nextLifetime,
+            loyaltyTier: getLoyaltyTierForLifetimePoints(
+              nextLifetime,
+              loyaltyConfig,
+            ),
+          },
+        });
+
+        await tx.loyaltyTransaction.update({
+          where: { id: transaction.id },
+          data: {
+            status: LoyaltyTransactionStatus.APPROVED,
+            balanceAfter: nextBalance,
+            approvedAt: new Date(),
+            approvedById: actor.userId,
+          },
+        });
+
+        totalApprovedPoints += fresh.points;
+      } else {
+        await tx.loyaltyTransaction.update({
+          where: { id: transaction.id },
+          data: {
+            status: LoyaltyTransactionStatus.CANCELED,
+            canceledAt: new Date(),
+            canceledById: actor.userId,
+          },
+        });
+      }
+    });
+
+    touchedTransactionIds.push(transaction.id);
+    touchedUserIds.add(transaction.userId);
+  }
+
+  // Notify client via Telegram (best-effort, won't block status change).
+  await Promise.all(
+    touchedTransactionIds.map((id) =>
+      notifyTelegramClientLoyaltyTransaction(id).catch((error) => {
+        console.warn(
+          "[loyalty] Telegram notification failed for transaction",
+          id,
+          error,
+        );
+      }),
+    ),
+  );
+
+  // Record a client-visible event in the order timeline.
+  if (currentStatus === OrderStatus.COMPLETED && totalApprovedPoints > 0) {
+    await logOperationEvent({
+      entityType: "order",
+      entityId: orderId,
+      eventType: "system",
+      title: `Бонусы начислены: +${totalApprovedPoints}`,
+      description:
+        "Заказ закрыт, баллы зачислены на ваш баланс в личном кабинете.",
+      isVisibleToClient: true,
+      actor,
+    });
+  } else if (currentStatus === OrderStatus.CANCELED) {
+    await logOperationEvent({
+      entityType: "order",
+      entityId: orderId,
+      eventType: "system",
+      title: "Бонусы отменены",
+      description: "Заказ отменён, ожидавшиеся бонусы аннулированы.",
+      isVisibleToClient: true,
+      actor,
+    });
+  }
+
+  // Make sure account UI re-renders with the new balance.
+  for (const userId of touchedUserIds) {
+    revalidateAdminUsers(userId);
+  }
+}
+
 async function syncOrderById(orderId: string, transition?: TransitionSnapshot) {
   const order = await getOrderInboxItemById(orderId);
 
@@ -573,6 +730,7 @@ async function syncOrderById(orderId: string, transition?: TransitionSnapshot) {
     id: order.id,
     number: order.number,
     status: order.status,
+    paymentStatus: order.paymentStatus,
     contactName: order.contactName,
     contactPhone: order.contactPhone,
     contactEmail: order.contactEmail,
@@ -721,7 +879,10 @@ export async function sendEmailTestAction(formData: FormData) {
   searchParams.set("emailTo", email);
 
   if (!result.ok && result.providerMessage) {
-    searchParams.set("emailProviderMessage", result.providerMessage.slice(0, 420));
+    searchParams.set(
+      "emailProviderMessage",
+      result.providerMessage.slice(0, 420),
+    );
   }
 
   revalidatePath("/admin/launch");
@@ -1919,6 +2080,7 @@ export async function updateOrderAction(formData: FormData) {
 
   const id = getString(formData, "id");
   const status = getString(formData, "status");
+  const paymentStatus = getString(formData, "paymentStatus");
 
   if (!id || !status) {
     return;
@@ -1931,6 +2093,10 @@ export async function updateOrderAction(formData: FormData) {
     status:
       Object.values(OrderStatus).find((item) => item === status) ??
       OrderStatus.NEW,
+    paymentStatus:
+      Object.values(PaymentStatus).find((item) => item === paymentStatus) ??
+      null,
+    paymentComment: getOptionalString(formData, "paymentComment"),
     managerId: getOptionalString(formData, "managerId"),
   });
 
@@ -1962,6 +2128,15 @@ export async function updateOrderAction(formData: FormData) {
         }
       : undefined,
   );
+
+  if (currentOrder) {
+    await processOrderLoyaltyOnTransition({
+      orderId: id,
+      previousStatus: previousOrder?.status ?? null,
+      currentStatus: currentOrder.status,
+      actor,
+    });
+  }
 
   revalidateAdminOperations();
 }
@@ -1997,6 +2172,44 @@ export async function addOrderManagerNoteAction(formData: FormData) {
   });
 
   revalidateAdminOperations();
+}
+
+async function deleteOrdersById(orderIds: string[]) {
+  if (!hasDatabaseUrl() || orderIds.length === 0) return;
+
+  const db = getDb();
+
+  // Strip orphaned children that don't cascade.
+  await db.$transaction([
+    db.operationEvent.deleteMany({
+      where: { entityType: "order", entityId: { in: orderIds } },
+    }),
+    // Detach loyalty transactions from the order without deleting them,
+    // so we keep the history of points changes for the client even after
+    // the order itself is gone.
+    db.loyaltyTransaction.updateMany({
+      where: { orderId: { in: orderIds } },
+      data: { orderId: null },
+    }),
+    db.order.deleteMany({
+      where: { id: { in: orderIds } },
+    }),
+  ]);
+}
+
+export async function deleteOrderAction(formData: FormData) {
+  await ensureAdminAccess();
+
+  const id = getString(formData, "id");
+  if (!id) return;
+
+  await deleteOrdersById([id]);
+
+  revalidateAdminOperations();
+  revalidatePath("/account");
+  revalidatePath("/account/orders");
+  revalidatePath(`/admin/orders/${id}`);
+  redirect("/admin/orders");
 }
 
 export async function updateOrderFulfillmentAction(formData: FormData) {
@@ -2064,6 +2277,15 @@ export async function updateOrderFulfillmentAction(formData: FormData) {
       : undefined,
   );
 
+  if (currentOrder) {
+    await processOrderLoyaltyOnTransition({
+      orderId,
+      previousStatus: previousOrder?.status ?? null,
+      currentStatus: currentOrder.status,
+      actor,
+    });
+  }
+
   revalidateAdminOperations();
 }
 
@@ -2122,6 +2344,18 @@ export async function bulkUpdateOrdersAction(formData: FormData) {
         status: OrderStatus.COMPLETED,
       });
       break;
+    case "mark-paid":
+      await bulkUpdateOrderInboxItems({
+        orderIds,
+        paymentStatus: PaymentStatus.PAID,
+      });
+      break;
+    case "waiting-payment":
+      await bulkUpdateOrderInboxItems({
+        orderIds,
+        paymentStatus: PaymentStatus.WAITING_PAYMENT,
+      });
+      break;
     case "cancel":
       await bulkUpdateOrderInboxItems({
         orderIds,
@@ -2144,6 +2378,10 @@ export async function bulkUpdateOrdersAction(formData: FormData) {
         clearManager: true,
       });
       break;
+    case "delete":
+      await deleteOrdersById(orderIds);
+      revalidateAdminOperations();
+      return;
     default:
       return;
   }
@@ -2171,6 +2409,15 @@ export async function bulkUpdateOrdersAction(formData: FormData) {
       });
 
       await syncOrderById(orderId, previous);
+
+      if (currentOrder) {
+        await processOrderLoyaltyOnTransition({
+          orderId,
+          previousStatus: previous?.previousStatus as OrderStatus | null,
+          currentStatus: currentOrder.status,
+          actor,
+        });
+      }
     }),
   );
 
@@ -2235,6 +2482,7 @@ export async function createOrderFromRequestAction(formData: FormData) {
     id: createdOrder.id,
     number: createdOrder.number ?? null,
     status: OrderStatus.NEW,
+    paymentStatus: PaymentStatus.WAITING_PAYMENT,
     contactName: request.contactName,
     contactPhone: request.contactPhone,
     contactEmail: request.contactEmail,
@@ -2320,6 +2568,38 @@ export async function updateRequestAction(formData: FormData) {
   );
 
   revalidateAdminOperations();
+}
+
+async function deleteRequestsById(requestIds: string[]) {
+  if (!hasDatabaseUrl() || requestIds.length === 0) return;
+
+  const db = getDb();
+
+  // FKs handle most children (RequestFile, ManagerNote — Cascade; Order — SetNull).
+  // operationEvent has no FK, so wipe its entries for this request first.
+  await db.$transaction([
+    db.operationEvent.deleteMany({
+      where: { entityType: "request", entityId: { in: requestIds } },
+    }),
+    db.request.deleteMany({
+      where: { id: { in: requestIds } },
+    }),
+  ]);
+}
+
+export async function deleteRequestAction(formData: FormData) {
+  await ensureAdminAccess();
+
+  const id = getString(formData, "id");
+  if (!id) return;
+
+  await deleteRequestsById([id]);
+
+  revalidateAdminOperations();
+  revalidatePath("/account");
+  revalidatePath("/account/requests");
+  revalidatePath(`/admin/requests/${id}`);
+  redirect("/admin/requests");
 }
 
 export async function addRequestManagerNoteAction(formData: FormData) {
@@ -2536,6 +2816,10 @@ export async function bulkUpdateRequestsAction(formData: FormData) {
         clearManager: true,
       });
       break;
+    case "delete":
+      await deleteRequestsById(requestIds);
+      revalidateAdminOperations();
+      return;
     default:
       return;
   }
@@ -2852,6 +3136,137 @@ export async function updateUserLoyaltyAction(formData: FormData) {
   revalidateAdminUsers();
 }
 
+function generateTemporaryPassword() {
+  const chars = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
+  let result = "";
+  for (let i = 0; i < 10; i += 1) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+
+function redirectAdminCustomer(
+  status: "created" | "invalid" | "exists" | "database" | "error",
+  email?: string,
+  password?: string,
+) {
+  const params = new URLSearchParams({ status: `customer-${status}` });
+  if (email) params.set("email", email);
+  if (password) params.set("password", password);
+  redirect(`/admin/users?${params.toString()}`);
+}
+
+export async function createCustomerAction(formData: FormData) {
+  if (!hasDatabaseUrl()) {
+    redirectAdminCustomer("database");
+  }
+
+  await ensureAdminPathAccess("/admin/users");
+
+  const email = normalizeEmail(getString(formData, "email"));
+  const firstName = getString(formData, "firstName");
+  const roleCodeRaw = getString(formData, "roleCode");
+  const roleCode =
+    roleCodeRaw === RoleCode.DEALER ? RoleCode.DEALER : RoleCode.CUSTOMER;
+
+  if (!email || !firstName) {
+    redirectAdminCustomer("invalid", email);
+  }
+
+  const providedPassword = getString(formData, "password");
+  const temporaryPassword =
+    providedPassword.length >= 6
+      ? providedPassword
+      : generateTemporaryPassword();
+  const showPassword = providedPassword.length === 0;
+
+  const db = getDb();
+
+  const existingUser = await db.user.findUnique({
+    where: { email },
+    select: { id: true },
+  });
+
+  if (existingUser) {
+    redirectAdminCustomer("exists", email);
+  }
+
+  const role = await db.role.upsert({
+    where: { code: roleCode },
+    update: {},
+    create: {
+      code: roleCode,
+      name: roleCode === RoleCode.DEALER ? "Дилер" : "Клиент",
+      description:
+        roleCode === RoleCode.DEALER
+          ? "Оптовый партнёр с особыми условиями."
+          : "Покупатель с доступом к личному кабинету и истории заказов.",
+    },
+    select: { id: true },
+  });
+
+  try {
+    await db.user.create({
+      data: {
+        email,
+        hashedPassword: await hash(temporaryPassword, 10),
+        firstName,
+        lastName: getOptionalString(formData, "lastName"),
+        phone: getOptionalString(formData, "phone"),
+        companyName: getOptionalString(formData, "companyName"),
+        isActive: true,
+        roleId: role.id,
+      },
+    });
+  } catch (error) {
+    const code =
+      typeof error === "object" && error !== null && "code" in error
+        ? String((error as { code?: unknown }).code)
+        : "";
+
+    if (code === "P2002") {
+      redirectAdminCustomer("exists", email);
+    }
+
+    console.error("[createCustomerAction]", error);
+    redirectAdminCustomer("error", email);
+  }
+
+  revalidateAdminUsers();
+  redirectAdminCustomer(
+    "created",
+    email,
+    showPassword ? temporaryPassword : undefined,
+  );
+}
+
+export async function deleteUserAction(formData: FormData) {
+  if (!hasDatabaseUrl()) return;
+  const session = await ensureAdminPathAccess("/admin/users");
+
+  const id = getString(formData, "id");
+  if (!id) return;
+  if (id === session.userId) return; // don't let an admin delete themselves
+
+  const db = getDb();
+  const user = await db.user.findUnique({
+    where: { id },
+    select: {
+      email: true,
+      _count: { select: { orders: true, requests: true } },
+    },
+  });
+  if (!user) return;
+
+  // Block deletion if the user has business records — historical
+  // orders/requests must keep their owner. Admin should re-assign or
+  // archive first.
+  if (user._count.orders > 0 || user._count.requests > 0) return;
+
+  await db.user.delete({ where: { id } });
+  revalidateAdminUsers(id);
+}
+
 export async function adjustUserLoyaltyPointsAction(formData: FormData) {
   if (!hasDatabaseUrl()) {
     return;
@@ -3099,10 +3514,17 @@ export async function createInStoreSaleAction(
     user.loyaltyTier,
     loyaltyConfig,
   );
-  const approveNow = getString(formData, "approveNow") === "on";
+  const paymentStatus =
+    Object.values(PaymentStatus).find(
+      (item) => item === getString(formData, "paymentStatus"),
+    ) ?? PaymentStatus.WAITING_PAYMENT;
+  const approveNow =
+    paymentStatus === PaymentStatus.PAID &&
+    getString(formData, "approveNow") === "on";
   const receiptNumber = getOptionalString(formData, "receiptNumber");
   const commentParts = [
     "Продажа в зале.",
+    `Оплата: ${paymentStatusLabels[paymentStatus]}.`,
     receiptNumber ? `Кассовый чек: ${receiptNumber}.` : "",
     getOptionalString(formData, "comment") ?? "",
   ].filter(Boolean);
@@ -3116,7 +3538,12 @@ export async function createInStoreSaleAction(
         number: orderNumber,
         userId: user.id,
         managerId: session.userId,
-        status: OrderStatus.COMPLETED,
+        status: OrderStatus.NEW,
+        paymentStatus,
+        paidAt: paymentStatus === PaymentStatus.PAID ? new Date() : null,
+        paymentComment: receiptNumber
+          ? `Кассовый чек: ${receiptNumber}`
+          : paymentStatusLabels[paymentStatus],
         contactName,
         contactPhone: user.phone ?? "Не указан",
         contactEmail: user.email,
@@ -3128,7 +3555,6 @@ export async function createInStoreSaleAction(
         loyaltyRedemptionTotal: 0,
         deliveryTotal: 0,
         total,
-        completedAt: new Date(),
         items: {
           create: orderItems,
         },
@@ -3207,8 +3633,8 @@ export async function createInStoreSaleAction(
     entityId: saleResult.order.id,
     eventType: "created",
     title: `Продажа в зале ${saleResult.order.number ?? saleResult.order.id}`,
-    description: `Менеджер привязал покупку к клиенту ${contactName}.`,
-    toStatus: OrderStatus.COMPLETED,
+    description: `Менеджер создал заказ для клиента ${contactName}. Оплата: ${paymentStatusLabels[paymentStatus]}.`,
+    toStatus: OrderStatus.NEW,
     isVisibleToClient: true,
     actorName: session.email,
   });
@@ -3216,7 +3642,8 @@ export async function createInStoreSaleAction(
   await handleOrderCreated({
     id: saleResult.order.id,
     number: saleResult.order.number ?? orderNumber,
-    status: OrderStatus.COMPLETED,
+    status: OrderStatus.NEW,
+    paymentStatus,
     contactName,
     contactPhone: user.phone ?? "Не указан",
     contactEmail: user.email,
@@ -3258,7 +3685,7 @@ export async function createInStoreSaleAction(
 
   return {
     success: true,
-    message: `Продажа ${saleResult.order.number ?? orderNumber} сохранена в истории клиента.`,
+    message: `Заказ ${saleResult.order.number ?? orderNumber} создан. Статус: новый, оплата: ${paymentStatusLabels[paymentStatus]}.`,
     orderNumber: saleResult.order.number ?? orderNumber,
   };
 }

@@ -1,5 +1,6 @@
 import {
   OrderStatus,
+  PaymentStatus,
   RequestStatus,
   RequestType,
 } from "@/generated/prisma";
@@ -15,6 +16,14 @@ export const orderStatusLabels: Record<OrderStatus, string> = {
   [OrderStatus.SHIPPED]: "Отгружен",
   [OrderStatus.COMPLETED]: "Завершен",
   [OrderStatus.CANCELED]: "Отменен",
+};
+
+export const paymentStatusLabels: Record<PaymentStatus, string> = {
+  [PaymentStatus.WAITING_PAYMENT]: "Ждет оплату",
+  [PaymentStatus.PAID]: "Оплачен",
+  [PaymentStatus.PARTIAL]: "Частично оплачен",
+  [PaymentStatus.REFUNDED]: "Возврат",
+  [PaymentStatus.CANCELED]: "Оплата отменена",
 };
 
 export const requestStatusLabels: Record<RequestStatus, string> = {
@@ -72,6 +81,9 @@ export type AdminOrderItem = {
   deliveryMethodId: string | null;
   appliedPromoCode: string | null;
   loyaltyRedemptionTotal: number;
+  paymentStatus: PaymentStatus;
+  paidAt: Date | null;
+  paymentComment: string | null;
   total: number;
   createdAt: Date;
   updatedAt: Date;

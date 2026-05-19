@@ -28,6 +28,7 @@ export function getButtonClassName(
 ) {
   return cn(
     "inline-flex items-center justify-center gap-2 font-mono text-[10px] font-semibold tracking-[0.14em] uppercase shadow-none transition duration-200 sm:text-[11px] focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] focus-visible:outline-none disabled:pointer-events-none disabled:opacity-45",
+    "[&>svg]:shrink-0",
     buttonVariants[variant],
     buttonSizes[size],
     className,

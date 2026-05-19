@@ -17,10 +17,16 @@ type TelegramMessagePayload = {
   threadKey?: "requests" | "orders" | "cutting";
 };
 
-export type TelegramThreadKey = NonNullable<TelegramMessagePayload["threadKey"]>;
+export type TelegramThreadKey = NonNullable<
+  TelegramMessagePayload["threadKey"]
+>;
 
 type OneCEventPayload = {
-  event: "request.created" | "request.updated" | "order.created" | "order.updated";
+  event:
+    | "request.created"
+    | "request.updated"
+    | "order.created"
+    | "order.updated";
   entityType: "request" | "order";
   entityId: string;
   payload: Record<string, unknown>;
@@ -73,6 +79,7 @@ type OrderIntegrationInput = {
   id: string;
   number: string | null;
   status: string;
+  paymentStatus?: string | null;
   contactName: string;
   contactPhone: string;
   contactEmail?: string | null;
@@ -98,7 +105,10 @@ type OrderIntegrationInput = {
 };
 
 const runtimeDirectory = path.join(process.cwd(), ".artisan-runtime");
-const integrationLogPath = path.join(runtimeDirectory, "integration-events.json");
+const integrationLogPath = path.join(
+  runtimeDirectory,
+  "integration-events.json",
+);
 
 const requestStatusLabels: Record<string, string> = {
   NEW: "Новая",
@@ -120,6 +130,14 @@ const orderStatusLabels: Record<string, string> = {
   CANCELED: "Отменен",
 };
 
+const paymentStatusLabels: Record<string, string> = {
+  WAITING_PAYMENT: "Ждет оплату",
+  PAID: "Оплачен",
+  PARTIAL: "Частично оплачен",
+  REFUNDED: "Возврат",
+  CANCELED: "Оплата отменена",
+};
+
 const messengerTypeLabels: Record<string, string> = {
   PHONE: "Телефон",
   WHATSAPP: "WhatsApp",
@@ -137,7 +155,10 @@ function isTelegramEnabled() {
 
 function getTelegramMissingEnv() {
   return [
-    ["TELEGRAM_NOTIFICATIONS_ENABLED", process.env.TELEGRAM_NOTIFICATIONS_ENABLED],
+    [
+      "TELEGRAM_NOTIFICATIONS_ENABLED",
+      process.env.TELEGRAM_NOTIFICATIONS_ENABLED,
+    ],
     ["TELEGRAM_BOT_TOKEN", process.env.TELEGRAM_BOT_TOKEN],
     ["TELEGRAM_CHAT_ID", process.env.TELEGRAM_CHAT_ID],
   ]
@@ -160,7 +181,9 @@ function getTelegramThreadId() {
   return parseTelegramThreadId(process.env.TELEGRAM_MESSAGE_THREAD_ID);
 }
 
-function getTypedTelegramThreadId(threadKey?: TelegramMessagePayload["threadKey"]) {
+function getTypedTelegramThreadId(
+  threadKey?: TelegramMessagePayload["threadKey"],
+) {
   const specificValue =
     threadKey === "cutting"
       ? process.env.TELEGRAM_CUTTING_THREAD_ID
@@ -303,7 +326,7 @@ function areManagersEqual(
 
 function buildMessengerLine(input: RequestIntegrationInput) {
   const channelLabel = input.messengerType
-    ? messengerTypeLabels[input.messengerType] ?? input.messengerType
+    ? (messengerTypeLabels[input.messengerType] ?? input.messengerType)
     : null;
 
   if (channelLabel && input.messengerHandle) {
@@ -322,7 +345,8 @@ function buildMessengerLine(input: RequestIntegrationInput) {
 }
 
 function isUrgentRequest(input: RequestIntegrationInput) {
-  const normalizedText = `${input.subject} ${input.message ?? ""}`.toLowerCase();
+  const normalizedText =
+    `${input.subject} ${input.message ?? ""}`.toLowerCase();
   return (
     normalizedText.includes("сроч") ||
     normalizedText.includes("urgent") ||
@@ -335,11 +359,15 @@ function isCuttingRequest(input: RequestIntegrationInput) {
     return true;
   }
 
-  const normalizedText = `${input.subject} ${input.message ?? ""}`.toLowerCase();
+  const normalizedText =
+    `${input.subject} ${input.message ?? ""}`.toLowerCase();
   return normalizedText.includes("распил");
 }
 
-function extractSummaryValue(message: string | null | undefined, label: string) {
+function extractSummaryValue(
+  message: string | null | undefined,
+  label: string,
+) {
   if (!message) {
     return null;
   }
@@ -389,6 +417,7 @@ function buildRequestTelegramMessage(
   const piecesLabel = extractSummaryValue(input.message, "Деталей");
   const sheetsLabel = extractSummaryValue(input.message, "Листов по карте");
   const kimLabel = extractSummaryValue(input.message, "КИМ");
+  const filesLabel = extractSummaryValue(input.message, "Файлов клиента");
   const clientComment = extractClientComment(input.message);
 
   return {
@@ -405,6 +434,7 @@ function buildRequestTelegramMessage(
       positionsLabel ? `Позиций: ${positionsLabel}` : "",
       piecesLabel ? `Деталей: ${piecesLabel}` : "",
       input.edgeOption ? `Кромка: ${input.edgeOption}` : "",
+      filesLabel ? `Файлы: ${filesLabel}` : "",
       sheetsLabel ? `Листов по карте: ${sheetsLabel}` : "",
       kimLabel ? `КИМ: ${kimLabel}` : "",
       input.estimatedBudget
@@ -422,31 +452,49 @@ function buildRequestTelegramMessage(
   };
 }
 
-function buildOrderTelegramMessage(input: OrderIntegrationInput): TelegramMessagePayload {
+function buildOrderTelegramMessage(
+  input: OrderIntegrationInput,
+): TelegramMessagePayload {
+  const itemLines = input.items.slice(0, 8).map((item, index) => {
+    const article = item.sku ? `, арт. ${item.sku}` : "";
+    const brand = item.brand ? `, ${item.brand}` : "";
+
+    return `${index + 1}. ${item.name}${article}${brand}\n   Кол-во: ${item.quantity} шт. · Сумма: ${formatPrice(Math.round(item.total))}`;
+  });
+
   return {
     title: `Новый заказ ${input.number ?? input.id}`,
     threadKey: "orders",
     lines: [
+      `Статус заказа: ${orderStatusLabels[input.status] ?? input.status}`,
+      input.paymentStatus
+        ? `Оплата: ${paymentStatusLabels[input.paymentStatus] ?? input.paymentStatus}`
+        : "Оплата: Ждет оплату",
+      "",
+      "Контакты",
       `Клиент: ${input.contactName}`,
       `Телефон: ${input.contactPhone}`,
       input.contactEmail ? `Email: ${input.contactEmail}` : "",
       input.companyName ? `Компания: ${input.companyName}` : "",
+      "",
+      "Суммы",
       `Сумма: ${formatPrice(Math.round(input.total))}`,
       input.discountTotal
         ? `Скидка: ${formatPrice(Math.round(input.discountTotal))}`
         : "",
       input.deliveryMethod ? `Доставка: ${input.deliveryMethod}` : "",
+      "",
+      "Состав заказа",
       `Позиций: ${input.items.length}`,
-      ...input.items
-        .slice(0, 5)
-        .map(
-          (item) =>
-            `• ${item.name} · ${item.quantity} шт. · ${formatPrice(Math.round(item.total))}`,
-        ),
+      ...itemLines,
+      input.items.length > itemLines.length
+        ? `Еще позиций: ${input.items.length - itemLines.length}`
+        : "",
       input.comment
         ? `Комментарий: ${input.comment.split("\n").slice(0, 3).join(" · ")}`
         : "",
-      "Раздел: /admin/orders",
+      "",
+      "Админка: /admin/orders",
     ].filter(Boolean),
   };
 }
@@ -460,15 +508,18 @@ function buildRequestStatusTelegramMessage(
   const managerChanged =
     input.previousManager !== undefined &&
     !areManagersEqual(input.previousManager, input.manager);
-  const managerAssigned = !hasManager(input.previousManager) && hasManager(input.manager);
+  const managerAssigned =
+    !hasManager(input.previousManager) && hasManager(input.manager);
   const managerReassigned =
     hasManager(input.previousManager) &&
     hasManager(input.manager) &&
     !areManagersEqual(input.previousManager, input.manager);
-  const managerRemoved = hasManager(input.previousManager) && !hasManager(input.manager);
+  const managerRemoved =
+    hasManager(input.previousManager) && !hasManager(input.manager);
 
   if (
-    (input.previousStatus !== undefined || input.previousManager !== undefined) &&
+    (input.previousStatus !== undefined ||
+      input.previousManager !== undefined) &&
     !statusChanged &&
     !managerChanged
   ) {
@@ -518,15 +569,18 @@ function buildOrderStatusTelegramMessage(
   const managerChanged =
     input.previousManager !== undefined &&
     !areManagersEqual(input.previousManager, input.manager);
-  const managerAssigned = !hasManager(input.previousManager) && hasManager(input.manager);
+  const managerAssigned =
+    !hasManager(input.previousManager) && hasManager(input.manager);
   const managerReassigned =
     hasManager(input.previousManager) &&
     hasManager(input.manager) &&
     !areManagersEqual(input.previousManager, input.manager);
-  const managerRemoved = hasManager(input.previousManager) && !hasManager(input.manager);
+  const managerRemoved =
+    hasManager(input.previousManager) && !hasManager(input.manager);
 
   if (
-    (input.previousStatus !== undefined || input.previousManager !== undefined) &&
+    (input.previousStatus !== undefined ||
+      input.previousManager !== undefined) &&
     !statusChanged &&
     !managerChanged
   ) {
@@ -556,6 +610,9 @@ function buildOrderStatusTelegramMessage(
     threadKey: "orders",
     lines: [
       `Статус: ${orderStatusLabels[input.status] ?? input.status}`,
+      input.paymentStatus
+        ? `Оплата: ${paymentStatusLabels[input.paymentStatus] ?? input.paymentStatus}`
+        : "",
       `Клиент: ${input.contactName}`,
       `Телефон: ${input.contactPhone}`,
       `Сумма: ${formatPrice(Math.round(input.total))}`,
@@ -623,7 +680,9 @@ async function sendTelegramMessage(payload: TelegramMessagePayload) {
   });
 }
 
-export async function sendTelegramTestNotification(threadKey: TelegramThreadKey) {
+export async function sendTelegramTestNotification(
+  threadKey: TelegramThreadKey,
+) {
   const config = getTelegramConfigurationStatus();
 
   if (!config.enabled) {
@@ -787,6 +846,7 @@ function buildOrderPayload(input: OrderIntegrationInput) {
     id: input.id,
     number: input.number,
     status: input.status,
+    paymentStatus: input.paymentStatus ?? null,
     contactName: input.contactName,
     contactPhone: input.contactPhone,
     contactEmail: input.contactEmail ?? null,
@@ -803,13 +863,18 @@ function buildOrderPayload(input: OrderIntegrationInput) {
   };
 }
 
-export async function handleCuttingRequestCreated(input: RequestIntegrationInput) {
+export async function handleCuttingRequestCreated(
+  input: RequestIntegrationInput,
+) {
   const requestPayload = buildRequestPayload(input);
   const telegramPayload = buildRequestTelegramMessage(input);
 
   await Promise.all([
-    safelyRunIntegration("telegram", telegramPayload.title, requestPayload, () =>
-      sendTelegramMessage(telegramPayload),
+    safelyRunIntegration(
+      "telegram",
+      telegramPayload.title,
+      requestPayload,
+      () => sendTelegramMessage(telegramPayload),
     ),
     safelyRunIntegration("1c", "request.created", requestPayload, () =>
       pushOneCEvent({

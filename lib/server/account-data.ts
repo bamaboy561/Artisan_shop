@@ -169,6 +169,7 @@ export async function getAccountOrders(userId: string) {
       id: true,
       number: true,
       status: true,
+      paymentStatus: true,
       total: true,
       discountTotal: true,
       promotionDiscountTotal: true,

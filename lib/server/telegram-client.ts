@@ -6,6 +6,7 @@ import {
   LoyaltyTransactionStatus,
   LoyaltyTransactionType,
   OrderStatus,
+  PaymentStatus,
   RequestStatus,
 } from "@/generated/prisma";
 import { formatPrice } from "@/lib/commerce";
@@ -79,6 +80,14 @@ const orderStatusLabels: Record<OrderStatus, string> = {
   CANCELED: "Отменен",
 };
 
+const paymentStatusLabels: Record<PaymentStatus, string> = {
+  WAITING_PAYMENT: "Ждет оплату",
+  PAID: "Оплачен",
+  PARTIAL: "Частично оплачен",
+  REFUNDED: "Возврат",
+  CANCELED: "Оплата отменена",
+};
+
 const requestStatusLabels: Record<RequestStatus, string> = {
   NEW: "Новая",
   IN_REVIEW: "На расчете",
@@ -128,7 +137,9 @@ function getDisplayName(user: {
   lastName?: string | null;
   email: string;
 }) {
-  return [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email;
+  return (
+    [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email
+  );
 }
 
 function getCommand(text: string) {
@@ -233,9 +244,9 @@ async function callTelegramApi<T>(
         body: JSON.stringify(payload ?? {}),
       },
     );
-    const data = (await response.json().catch(() => null)) as
-      | TelegramApiResponse<T>
-      | null;
+    const data = (await response
+      .json()
+      .catch(() => null)) as TelegramApiResponse<T> | null;
 
     if (!response.ok || !data?.ok) {
       return {
@@ -266,7 +277,8 @@ export async function getTelegramWebhookStatus() {
       currentUrl: "",
       isConfigured: false,
       pendingUpdateCount: 0,
-      lastErrorMessage: response.description ?? "Telegram webhook is unavailable.",
+      lastErrorMessage:
+        response.description ?? "Telegram webhook is unavailable.",
       hasSecret: Boolean(getTelegramWebhookSecret()),
     };
   }
@@ -592,6 +604,7 @@ export async function notifyTelegramClientOrderCreated(orderId: string) {
     select: {
       number: true,
       status: true,
+      paymentStatus: true,
       total: true,
       loyaltyTransactions: {
         where: {
@@ -627,6 +640,7 @@ export async function notifyTelegramClientOrderCreated(orderId: string) {
         ? `Покупка ${order.number ?? ""} сохранена в личном кабинете.`
         : `Заказ ${order.number ?? ""} принят.`,
       `Статус: ${orderStatusLabels[order.status]}`,
+      `Оплата: ${paymentStatusLabels[order.paymentStatus]}`,
       `Сумма: ${formatPrice(order.total)}`,
       order.loyaltyTransactions[0]
         ? `Бонусы: +${order.loyaltyTransactions[0].points} ${order.loyaltyTransactions[0].status === LoyaltyTransactionStatus.APPROVED ? "начислены" : "ожидают подтверждения"}`
@@ -646,6 +660,7 @@ export async function notifyTelegramClientOrderStatus(orderId: string) {
     select: {
       number: true,
       status: true,
+      paymentStatus: true,
       total: true,
       user: {
         select: {
@@ -664,6 +679,7 @@ export async function notifyTelegramClientOrderStatus(orderId: string) {
     [
       `Статус заказа ${order.number ?? ""} изменился.`,
       `Теперь: ${orderStatusLabels[order.status]}`,
+      `Оплата: ${paymentStatusLabels[order.paymentStatus]}`,
       `Сумма: ${formatPrice(order.total)}`,
       order.status === OrderStatus.READY_FOR_PICKUP
         ? "Заказ готов к выдаче. Менеджер подскажет детали получения."
@@ -739,13 +755,13 @@ export async function notifyTelegramClientRequestStatus(requestId: string) {
       `Статус заявки ${request.number ?? ""} изменился.`,
       `Тема: ${request.subject}`,
       `Теперь: ${requestStatusLabels[request.status]}`,
-      request.quotedTotal ? `Сумма расчета: ${formatPrice(request.quotedTotal)}` : "",
+      request.quotedTotal
+        ? `Сумма расчета: ${formatPrice(request.quotedTotal)}`
+        : "",
       request.status === RequestStatus.QUOTE_SENT
         ? "Коммерческое предложение подготовлено. Проверьте детали у менеджера."
         : "",
-      request.status === RequestStatus.COMPLETED
-        ? "Заявка завершена."
-        : "",
+      request.status === RequestStatus.COMPLETED ? "Заявка завершена." : "",
       "Нажмите «Мои заявки» в меню ниже, чтобы посмотреть последние обращения.",
     ]
       .filter(Boolean)

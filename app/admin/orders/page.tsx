@@ -1,13 +1,15 @@
 import Form from "next/form";
 import Link from "next/link";
 
-import { OrderStatus } from "@/generated/prisma";
+import { OrderStatus, PaymentStatus } from "@/generated/prisma";
 import {
   bulkUpdateOrdersAction,
+  deleteOrderAction,
   updateOrderAction,
 } from "@/app/admin/actions";
 import { AdminSubmitButton } from "@/components/admin/admin-submit-button";
 import { BulkSelectionTools } from "@/components/admin/bulk-selection-tools";
+import { ConfirmSubmit } from "@/components/admin/confirm-submit";
 import { MetricCard } from "@/components/admin/metric-card";
 import { SetupState } from "@/components/admin/setup-state";
 import { StatusBadge } from "@/components/admin/status-badge";
@@ -15,7 +17,7 @@ import { Select } from "@/components/ui/select";
 import { DataTable } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { SectionHeading } from "@/components/ui/section-heading";
-import { requireAdminPermission } from "@/lib/auth/dal";
+import { requireAdminSession } from "@/lib/auth/dal";
 import { hasDatabaseUrl, isDemoModeEnabled } from "@/lib/db";
 import {
   getAdminManagers,
@@ -28,6 +30,7 @@ import {
   filterAdminOrders,
   getManagerDisplayName,
   orderStatusLabels,
+  paymentStatusLabels,
   parseAdminOrderSearchParams,
   sanitizeAdminOrderFilterState,
   sortAdminOrders,
@@ -46,9 +49,12 @@ const bulkActionOptions = [
   { value: "ready-for-pickup", label: "Отметить готовыми к выдаче" },
   { value: "ship", label: "Отметить как отгруженные" },
   { value: "complete", label: "Завершить выбранные" },
+  { value: "mark-paid", label: "Оплата получена" },
+  { value: "waiting-payment", label: "Ждет оплату" },
   { value: "cancel", label: "Отменить выбранные" },
   { value: "assign-manager", label: "Назначить менеджера" },
   { value: "clear-manager", label: "Снять менеджера" },
+  { value: "delete", label: "Удалить выбранные" },
 ] as const;
 
 function formatCurrency(value: number) {
@@ -84,6 +90,21 @@ function getStatusTone(status: OrderStatus) {
   }
 }
 
+function getPaymentTone(status: PaymentStatus) {
+  switch (status) {
+    case PaymentStatus.PAID:
+      return "success" as const;
+    case PaymentStatus.PARTIAL:
+      return "accent" as const;
+    case PaymentStatus.WAITING_PAYMENT:
+      return "warning" as const;
+    case PaymentStatus.REFUNDED:
+    case PaymentStatus.CANCELED:
+    default:
+      return "neutral" as const;
+  }
+}
+
 function getStateHref(
   state: AdminOrderFilterState,
   overrides: Partial<AdminOrderFilterState>,
@@ -101,17 +122,17 @@ export default async function AdminOrdersPage({
     return (
       <SetupState
         title="Заказы станут рабочими после подключения базы данных"
-        description="Раздел готов к обновлению статусов, назначению менеджеров и формированию рабочей очереди, но для этого нужен подключенный PostgreSQL и реальные заказы."
+        description="Раздел готов к обновлению статусов, назначению менеджеров и формированию рабочей очереди, но для этого нужен подключенный PostgreSQL и стартовые данные."
         steps={[
           "Добавьте DATABASE_URL в .env.",
           "Примените Prisma-схему командой prisma db push.",
-          "Первые заказы появятся после оформления на сайте или перевода заявки в заказ.",
+          "Загрузите seed, чтобы увидеть стартовые заказы и очереди.",
         ]}
       />
     );
   }
 
-  await requireAdminPermission("/admin/orders", "/login?next=/admin/orders");
+  await requireAdminSession("/login?next=/admin/orders");
 
   const [orders, managers, resolvedSearchParams] = await Promise.all([
     getAdminOrders(),
@@ -121,12 +142,21 @@ export default async function AdminOrdersPage({
 
   const parsedState = parseAdminOrderSearchParams(resolvedSearchParams);
   const state = sanitizeAdminOrderFilterState(parsedState, managers);
-  const filteredOrders = sortAdminOrders(filterAdminOrders(orders, state), state.sort);
+  const filteredOrders = sortAdminOrders(
+    filterAdminOrders(orders, state),
+    state.sort,
+  );
 
-  const activeOrders = orders.filter((order) => activeOrderStatuses.has(order.status));
+  const activeOrders = orders.filter((order) =>
+    activeOrderStatuses.has(order.status),
+  );
   const unassignedOrders = activeOrders.filter((order) => !order.managerId);
-  const deliveryOrders = orders.filter((order) => Boolean(order.deliveryMethodId));
-  const shippedOrders = orders.filter((order) => order.status === OrderStatus.SHIPPED);
+  const deliveryOrders = orders.filter((order) =>
+    Boolean(order.deliveryMethodId),
+  );
+  const shippedOrders = orders.filter(
+    (order) => order.status === OrderStatus.SHIPPED,
+  );
 
   const activeFilters = [
     state.q
@@ -237,8 +267,13 @@ export default async function AdminOrdersPage({
           <StatusBadge tone={getStatusTone(order.status)}>
             {orderStatusLabels[order.status]}
           </StatusBadge>
+          <StatusBadge tone={getPaymentTone(order.paymentStatus)}>
+            {paymentStatusLabels[order.paymentStatus]}
+          </StatusBadge>
           <StatusBadge tone={order.managerId ? "neutral" : "warning"}>
-            {order.manager ? getManagerDisplayName(order.manager) : "Без менеджера"}
+            {order.manager
+              ? getManagerDisplayName(order.manager)
+              : "Без менеджера"}
           </StatusBadge>
         </div>
         <p className="text-xs text-[var(--muted)]">
@@ -247,35 +282,66 @@ export default async function AdminOrdersPage({
       </div>
     ),
     manage: (
-      <form action={updateOrderAction} className="grid gap-2">
-        <input type="hidden" name="id" value={order.id} />
-        <Select name="status" defaultValue={order.status} className="h-9 text-xs">
-          {Object.values(OrderStatus).map((status) => (
-            <option key={status} value={status}>
-              {orderStatusLabels[status]}
-            </option>
-          ))}
-        </Select>
-        <Select
-          name="managerId"
-          defaultValue={order.managerId ?? ""}
-          className="h-9 text-xs"
-        >
-          <option value="">Без менеджера</option>
-          {managers.map((manager) => (
-            <option key={manager.id} value={manager.id}>
-              {getManagerDisplayName(manager)}
-            </option>
-          ))}
-        </Select>
-        <AdminSubmitButton
-          type="submit"
-          variant="secondary"
-          size="sm"
-          idleLabel="Сохранить"
-          pendingLabel="Сохраняем..."
-        />
-      </form>
+      <div className="grid gap-2">
+        <form action={updateOrderAction} className="grid gap-2">
+          <input type="hidden" name="id" value={order.id} />
+          <Select
+            name="status"
+            defaultValue={order.status}
+            className="h-9 text-xs"
+          >
+            {Object.values(OrderStatus).map((status) => (
+              <option key={status} value={status}>
+                {orderStatusLabels[status]}
+              </option>
+            ))}
+          </Select>
+          <Select
+            name="paymentStatus"
+            defaultValue={order.paymentStatus}
+            className="h-9 text-xs"
+          >
+            {Object.values(PaymentStatus).map((status) => (
+              <option key={status} value={status}>
+                {paymentStatusLabels[status]}
+              </option>
+            ))}
+          </Select>
+          <input
+            type="hidden"
+            name="paymentComment"
+            value={order.paymentComment ?? ""}
+          />
+          <Select
+            name="managerId"
+            defaultValue={order.managerId ?? ""}
+            className="h-9 text-xs"
+          >
+            <option value="">Без менеджера</option>
+            {managers.map((manager) => (
+              <option key={manager.id} value={manager.id}>
+                {getManagerDisplayName(manager)}
+              </option>
+            ))}
+          </Select>
+          <AdminSubmitButton
+            type="submit"
+            variant="secondary"
+            size="sm"
+            idleLabel="Сохранить"
+            pendingLabel="Сохраняем..."
+          />
+        </form>
+        <form action={deleteOrderAction}>
+          <input type="hidden" name="id" value={order.id} />
+          <ConfirmSubmit
+            message={`Удалить заказ ${order.number ?? order.id.slice(0, 8)}? Действие необратимо.`}
+            className="h-8 w-full px-2 text-[11px]"
+          >
+            Удалить
+          </ConfirmSubmit>
+        </form>
+      </div>
     ),
   }));
 
@@ -356,7 +422,11 @@ export default async function AdminOrdersPage({
           </div>
         </div>
 
-        <Form action="/admin/orders" scroll={false} className="mt-6 grid gap-4 xl:grid-cols-5">
+        <Form
+          action="/admin/orders"
+          scroll={false}
+          className="mt-6 grid gap-4 xl:grid-cols-5"
+        >
           <label className="grid gap-2 xl:col-span-2">
             <span className="text-sm text-[var(--foreground)]">
               Поиск по номеру, клиенту, телефону или промокоду
