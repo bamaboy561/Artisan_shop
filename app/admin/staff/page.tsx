@@ -15,6 +15,10 @@ import { getDb, hasDatabaseUrl } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
+type AdminStaffPageProps = {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
+
 const staffRoleLabels: Record<RoleCode, string> = {
   [RoleCode.CUSTOMER]: "Клиент",
   [RoleCode.DEALER]: "Дилер",
@@ -28,6 +32,60 @@ const staffRoleOptions = [
   RoleCode.ADMIN,
   RoleCode.SUPER_ADMIN,
 ] as const;
+
+const noticeCopy: Record<
+  string,
+  { tone: "success" | "warning" | "neutral"; title: string; text: string }
+> = {
+  created: {
+    tone: "success",
+    title: "Сотрудник создан",
+    text: "Теперь он может войти по email и временному паролю.",
+  },
+  updated: {
+    tone: "success",
+    title: "Доступ обновлен",
+    text: "Изменения роли, телефона или активности сохранены.",
+  },
+  password: {
+    tone: "success",
+    title: "Пароль обновлен",
+    text: "Передайте сотруднику новый временный пароль.",
+  },
+  exists: {
+    tone: "warning",
+    title: "Такой email уже есть",
+    text: "Проверьте список сотрудников или используйте другой email.",
+  },
+  invalid: {
+    tone: "warning",
+    title: "Заполните обязательные поля",
+    text: "Нужны корректный email, роль и пароль минимум 8 символов.",
+  },
+  denied: {
+    tone: "warning",
+    title: "Недостаточно прав",
+    text: "Создавать и менять сотрудников может только супер-админ.",
+  },
+  database: {
+    tone: "warning",
+    title: "База не подключена",
+    text: "Проверьте DATABASE_URL и production bootstrap.",
+  },
+  error: {
+    tone: "warning",
+    title: "Не удалось сохранить",
+    text: "Попробуйте еще раз. Если повторится, проверьте логи Vercel.",
+  },
+};
+
+function getSearchValue(
+  searchParams: Record<string, string | string[] | undefined>,
+  key: string,
+) {
+  const value = searchParams[key];
+  return Array.isArray(value) ? value[0] : value;
+}
 
 function formatDate(date: Date) {
   return new Intl.DateTimeFormat("ru-RU", {
@@ -43,7 +101,9 @@ function getRoleTone(roleCode: RoleCode) {
   return "neutral" as const;
 }
 
-export default async function AdminStaffPage() {
+export default async function AdminStaffPage({
+  searchParams,
+}: AdminStaffPageProps) {
   if (!hasDatabaseUrl()) {
     return (
       <SetupState
@@ -62,6 +122,11 @@ export default async function AdminStaffPage() {
     "/admin/staff",
     "/login?next=/admin/staff",
   );
+  const resolvedSearchParams = await searchParams;
+  const noticeKey = getSearchValue(resolvedSearchParams, "staff");
+  const notice = noticeKey ? noticeCopy[noticeKey] : null;
+  const noticeEmail = getSearchValue(resolvedSearchParams, "email");
+
   const staff = await getDb().user.findMany({
     where: {
       role: {
@@ -105,6 +170,26 @@ export default async function AdminStaffPage() {
         />
       </section>
 
+      {notice ? (
+        <section className="rounded-[22px] border border-[color:var(--line)] bg-white/95 p-4 shadow-[0_16px_40px_rgba(17,17,17,0.035)]">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <StatusBadge tone={notice.tone}>{notice.title}</StatusBadge>
+              <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
+                {notice.text}
+                {noticeEmail ? ` Email: ${noticeEmail}.` : ""}
+              </p>
+            </div>
+            <a
+              href="/admin/staff"
+              className="font-mono text-[11px] font-semibold tracking-[0.14em] text-[var(--accent)] uppercase"
+            >
+              Очистить
+            </a>
+          </div>
+        </section>
+      ) : null}
+
       <section className="grid gap-4 xl:grid-cols-[minmax(320px,0.9fr)_minmax(0,1.1fr)]">
         <form
           action={createStaffUserAction}
@@ -128,7 +213,12 @@ export default async function AdminStaffPage() {
             </label>
             <label className="grid gap-1.5 text-sm text-[var(--foreground)]">
               Email
-              <Input name="email" type="email" placeholder="manager@artisan.shop.kg" required />
+              <Input
+                name="email"
+                type="email"
+                placeholder="manager@artisan.shop.kg"
+                required
+              />
             </label>
             <label className="grid gap-1.5 text-sm text-[var(--foreground)]">
               Телефон
@@ -207,7 +297,9 @@ export default async function AdminStaffPage() {
                     <StatusBadge tone={user.isActive ? "success" : "neutral"}>
                       {user.isActive ? "Активен" : "Отключен"}
                     </StatusBadge>
-                    {isSelf ? <StatusBadge tone="warning">Это вы</StatusBadge> : null}
+                    {isSelf ? (
+                      <StatusBadge tone="warning">Это вы</StatusBadge>
+                    ) : null}
                   </div>
                   <h3 className="mt-3 truncate text-xl font-semibold text-[var(--foreground)]">
                     {displayName}
@@ -227,9 +319,21 @@ export default async function AdminStaffPage() {
                   className="grid gap-3 rounded-[20px] border border-[color:var(--line)] bg-[var(--surface)] p-3 sm:grid-cols-2"
                 >
                   <input type="hidden" name="id" value={user.id} />
-                  <Input name="firstName" defaultValue={user.firstName ?? ""} placeholder="Имя" />
-                  <Input name="lastName" defaultValue={user.lastName ?? ""} placeholder="Фамилия" />
-                  <Input name="phone" defaultValue={user.phone ?? ""} placeholder="Телефон" />
+                  <Input
+                    name="firstName"
+                    defaultValue={user.firstName ?? ""}
+                    placeholder="Имя"
+                  />
+                  <Input
+                    name="lastName"
+                    defaultValue={user.lastName ?? ""}
+                    placeholder="Фамилия"
+                  />
+                  <Input
+                    name="phone"
+                    defaultValue={user.phone ?? ""}
+                    placeholder="Телефон"
+                  />
                   <Select
                     name="roleCode"
                     defaultValue={user.role.code}
@@ -242,7 +346,11 @@ export default async function AdminStaffPage() {
                     ))}
                   </Select>
                   {isSelf ? (
-                    <input type="hidden" name="roleCode" value={RoleCode.SUPER_ADMIN} />
+                    <input
+                      type="hidden"
+                      name="roleCode"
+                      value={RoleCode.SUPER_ADMIN}
+                    />
                   ) : null}
                   <label className="flex items-center gap-2 rounded-xl border border-[color:var(--line)] bg-white px-3 py-2 text-sm text-[var(--foreground)]">
                     <input
@@ -253,7 +361,9 @@ export default async function AdminStaffPage() {
                     />
                     Активен
                   </label>
-                  {isSelf ? <input type="hidden" name="isActive" value="on" /> : null}
+                  {isSelf ? (
+                    <input type="hidden" name="isActive" value="on" />
+                  ) : null}
                   <Button type="submit" variant="secondary" className="w-full">
                     Сохранить
                   </Button>

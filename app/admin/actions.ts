@@ -520,6 +520,19 @@ function revalidateAdminStaff() {
   revalidatePath("/admin/staff");
 }
 
+function redirectAdminStaff(
+  status: "created" | "updated" | "password" | "exists" | "invalid" | "database" | "error",
+  email?: string,
+): never {
+  const searchParams = new URLSearchParams({ staff: status });
+
+  if (email) {
+    searchParams.set("email", email);
+  }
+
+  redirect(`/admin/staff?${searchParams.toString()}`);
+}
+
 function revalidateCalculatorConfig() {
   revalidatePath("/admin/calculator");
   revalidatePath("/calculator");
@@ -3463,7 +3476,7 @@ function normalizeEmail(value: string) {
 
 export async function createStaffUserAction(formData: FormData) {
   if (!hasDatabaseUrl()) {
-    return;
+    redirectAdminStaff("database");
   }
 
   await ensureSuperAdminAccess();
@@ -3473,7 +3486,7 @@ export async function createStaffUserAction(formData: FormData) {
   const roleCode = getStaffRoleCode(getString(formData, "roleCode"));
 
   if (!email || password.length < 8 || !roleCode) {
-    return;
+    redirectAdminStaff("invalid", email);
   }
 
   const db = getDb();
@@ -3483,7 +3496,7 @@ export async function createStaffUserAction(formData: FormData) {
   });
 
   if (existingUser) {
-    return;
+    redirectAdminStaff("exists", email);
   }
 
   const role = await db.role.upsert({
@@ -3502,24 +3515,39 @@ export async function createStaffUserAction(formData: FormData) {
     select: { id: true },
   });
 
-  await db.user.create({
-    data: {
-      email,
-      hashedPassword: await hash(password, 10),
-      firstName: getOptionalString(formData, "firstName"),
-      lastName: getOptionalString(formData, "lastName"),
-      phone: getOptionalString(formData, "phone"),
-      isActive: true,
-      roleId: role.id,
-    },
-  });
+  try {
+    await db.user.create({
+      data: {
+        email,
+        hashedPassword: await hash(password, 10),
+        firstName: getOptionalString(formData, "firstName"),
+        lastName: getOptionalString(formData, "lastName"),
+        phone: getOptionalString(formData, "phone"),
+        isActive: true,
+        roleId: role.id,
+      },
+    });
+  } catch (error) {
+    const code =
+      typeof error === "object" && error !== null && "code" in error
+        ? String((error as { code?: unknown }).code)
+        : "";
+
+    if (code === "P2002") {
+      redirectAdminStaff("exists", email);
+    }
+
+    console.error("[createStaffUserAction]", error);
+    redirectAdminStaff("error", email);
+  }
 
   revalidateAdminStaff();
+  redirectAdminStaff("created", email);
 }
 
 export async function updateStaffUserAction(formData: FormData) {
   if (!hasDatabaseUrl()) {
-    return;
+    redirectAdminStaff("database");
   }
 
   const session = await ensureSuperAdminAccess();
@@ -3527,7 +3555,7 @@ export async function updateStaffUserAction(formData: FormData) {
   const requestedRoleCode = getStaffRoleCode(getString(formData, "roleCode"));
 
   if (!id || !requestedRoleCode) {
-    return;
+    redirectAdminStaff("invalid");
   }
 
   const db = getDb();
@@ -3540,7 +3568,7 @@ export async function updateStaffUserAction(formData: FormData) {
   });
 
   if (!staffUser || !isStaffRoleCode(staffUser.role.code)) {
-    return;
+    redirectAdminStaff("invalid");
   }
 
   const requestedIsActive = getString(formData, "isActive") === "on";
@@ -3565,7 +3593,7 @@ export async function updateStaffUserAction(formData: FormData) {
     });
 
     if (activeSuperAdmins <= 1) {
-      return;
+      redirectAdminStaff("invalid");
     }
   }
 
@@ -3575,7 +3603,7 @@ export async function updateStaffUserAction(formData: FormData) {
   });
 
   if (!role) {
-    return;
+    redirectAdminStaff("invalid");
   }
 
   await db.user.update({
@@ -3590,11 +3618,12 @@ export async function updateStaffUserAction(formData: FormData) {
   });
 
   revalidateAdminStaff();
+  redirectAdminStaff("updated");
 }
 
 export async function updateStaffPasswordAction(formData: FormData) {
   if (!hasDatabaseUrl()) {
-    return;
+    redirectAdminStaff("database");
   }
 
   await ensureSuperAdminAccess();
@@ -3603,7 +3632,7 @@ export async function updateStaffPasswordAction(formData: FormData) {
   const password = getString(formData, "password");
 
   if (!id || password.length < 8) {
-    return;
+    redirectAdminStaff("invalid");
   }
 
   const db = getDb();
@@ -3616,7 +3645,7 @@ export async function updateStaffPasswordAction(formData: FormData) {
   });
 
   if (!staffUser || !isStaffRoleCode(staffUser.role.code)) {
-    return;
+    redirectAdminStaff("invalid");
   }
 
   await db.user.update({
@@ -3628,6 +3657,7 @@ export async function updateStaffPasswordAction(formData: FormData) {
   });
 
   revalidateAdminStaff();
+  redirectAdminStaff("password");
 }
 
 export async function createCalculatorMaterialAction(formData: FormData) {
