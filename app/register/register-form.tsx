@@ -12,9 +12,10 @@ const initialState: RegisterFormState = {};
 
 type RegisterFormProps = {
   next: string;
+  emailReady: boolean;
 };
 
-export function RegisterForm({ next }: RegisterFormProps) {
+export function RegisterForm({ next, emailReady }: RegisterFormProps) {
   const router = useRouter();
   const [state, formAction, pending] = useActionState(
     registerAction,
@@ -200,9 +201,13 @@ export function RegisterForm({ next }: RegisterFormProps) {
           name="intent"
           value="request-code"
           variant="accent"
-          disabled={pending}
+          disabled={pending || !emailReady}
         >
-          {pending ? "Отправляем код..." : "Получить код и продолжить"}
+          {pending
+            ? "Отправляем код..."
+            : emailReady
+              ? "Получить код и продолжить"
+              : "Регистрация временно настраивается"}
         </Button>
       )}
 

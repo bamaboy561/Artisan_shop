@@ -33,7 +33,7 @@ export function DataTable({
       }
     >
       {rows.length > 0 ? (
-        <div className="grid gap-3 p-3 lg:hidden">
+        <div className="grid gap-3 p-3 xl:hidden">
           {rows.map((row, rowIndex) => (
             <article
               key={`card-row-${rowIndex}`}
@@ -56,12 +56,12 @@ export function DataTable({
           ))}
         </div>
       ) : (
-        <div className="px-5 py-10 text-center text-sm leading-6 text-[#77736c] lg:hidden">
+        <div className="px-5 py-10 text-center text-sm leading-6 text-[#77736c] xl:hidden">
           {emptyMessage}
         </div>
       )}
 
-      <div className="hidden max-w-full overflow-x-auto lg:block">
+      <div className="hidden max-w-full overflow-x-auto xl:block">
         <table className="min-w-full border-collapse text-left text-sm">
           {caption ? <caption className="sr-only">{caption}</caption> : null}
           <thead className="bg-white">

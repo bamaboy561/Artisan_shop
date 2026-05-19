@@ -56,14 +56,14 @@ export function AdminSidebarPanel({ items, actions }: AdminSidebarPanelProps) {
       <div
         role="presentation"
         onClick={() => setOpen(false)}
-        className={`fixed inset-0 z-40 bg-black/45 backdrop-blur-sm transition-opacity duration-200 lg:hidden ${
+        className={`fixed inset-0 z-40 bg-black/45 backdrop-blur-sm transition-opacity duration-200 xl:hidden ${
           open ? "opacity-100" : "pointer-events-none opacity-0"
         }`}
       />
 
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-[280px] max-w-[88vw] flex-col overflow-hidden bg-[#111210] text-white shadow-[0_30px_80px_rgba(0,0,0,0.45)] transition-transform duration-200 ease-out lg:sticky lg:top-0 lg:z-30 lg:h-screen lg:w-full lg:max-w-none lg:shadow-none ${
-          open ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+        className={`fixed inset-y-0 left-0 z-50 flex w-[280px] max-w-[88vw] flex-col overflow-hidden bg-[#111210] text-white shadow-[0_30px_80px_rgba(0,0,0,0.45)] transition-transform duration-200 ease-out xl:sticky xl:top-0 xl:z-30 xl:h-screen xl:w-full xl:max-w-none xl:shadow-none ${
+          open ? "translate-x-0" : "-translate-x-full xl:translate-x-0"
         }`}
       >
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_8%_8%,rgba(197,89,53,0.22),transparent_28%),linear-gradient(180deg,rgba(255,255,255,0.035),rgba(255,255,255,0))]" />
@@ -86,14 +86,14 @@ export function AdminSidebarPanel({ items, actions }: AdminSidebarPanelProps) {
             <button
               type="button"
               onClick={() => setOpen(false)}
-              className="flex size-9 items-center justify-center rounded-lg text-white/70 transition hover:bg-white/10 hover:text-white lg:hidden"
+              className="flex size-9 items-center justify-center rounded-lg text-white/70 transition hover:bg-white/10 hover:text-white xl:hidden"
               aria-label="Закрыть меню"
             >
               <X className="size-5" strokeWidth={1.75} />
             </button>
           </div>
 
-          <div className="mt-4 min-h-0 flex-1 overflow-y-auto pr-1 lg:mt-8">
+          <div className="mt-4 min-h-0 flex-1 overflow-y-auto pr-1 xl:mt-8">
             <DashboardNav
               items={items}
               variant="admin"
@@ -102,7 +102,7 @@ export function AdminSidebarPanel({ items, actions }: AdminSidebarPanelProps) {
           </div>
 
           {actions ? (
-            <div className="mt-4 border-t border-white/8 pt-4 lg:mt-6 lg:pt-5">
+            <div className="mt-4 border-t border-white/8 pt-4 xl:mt-6 xl:pt-5">
               {actions}
             </div>
           ) : null}
@@ -118,7 +118,7 @@ export function AdminSidebarTrigger() {
     <button
       type="button"
       onClick={() => setOpen(!open)}
-      className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-[#e6e2dc] bg-white text-[#2b2a28] shadow-sm transition hover:border-[#cfc9bf] lg:hidden"
+      className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-[#e6e2dc] bg-white text-[#2b2a28] shadow-sm transition hover:border-[#cfc9bf] xl:hidden"
       aria-label="Открыть меню навигации"
       aria-expanded={open}
     >

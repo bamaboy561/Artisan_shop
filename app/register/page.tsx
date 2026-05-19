@@ -9,6 +9,7 @@ import { getOptionalSession, getSafeRedirectPath } from "@/lib/auth/dal";
 import { canAccessAdmin, getAdminFallbackPath } from "@/lib/auth/roles";
 import { hasDatabaseUrl } from "@/lib/db";
 import { noIndexRobots } from "@/lib/seo";
+import { getRegistrationEmailStatus } from "@/lib/server/registration-verification";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -39,6 +40,7 @@ export default async function RegisterPage({
   }
 
   const next = getSafeRedirectPath(resolvedSearchParams.next, "/account");
+  const emailStatus = getRegistrationEmailStatus();
 
   return (
     <Container className="grid min-h-[calc(100vh-9rem)] place-items-center py-12">
@@ -55,7 +57,16 @@ export default async function RegisterPage({
           titleClassName="text-3xl sm:text-4xl"
           descriptionClassName="max-w-2xl text-sm leading-7"
         />
-        <RegisterForm next={next} />
+
+        {!emailStatus.ready ? (
+          <div className="mt-5 rounded-[22px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">
+            Регистрация по email сейчас настраивается. Пока менеджер может
+            создать или привязать кабинет вручную через QR и продажу в зале.
+            Если вы клиент, пожалуйста, свяжитесь с Artisan через контакты.
+          </div>
+        ) : null}
+
+        <RegisterForm next={next} emailReady={emailStatus.ready} />
       </section>
     </Container>
   );

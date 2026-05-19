@@ -274,6 +274,6 @@ export async function sendRegistrationVerificationCode(
   return {
     ok: false,
     message:
-      "Отправка кода подтверждения пока не настроена. Добавьте RESEND_API_KEY и AUTH_EMAIL_FROM в переменные окружения.",
+      "Регистрация по email временно настраивается. Пожалуйста, свяжитесь с менеджером Artisan, и мы создадим или привяжем личный кабинет вручную.",
   };
 }

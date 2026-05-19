@@ -74,7 +74,7 @@ function AdminNavItem({
       title={item.description ?? item.label}
       onClick={onClick}
       className={cn(
-        "group flex h-10 shrink-0 items-center justify-between gap-3 rounded-lg px-3 text-[13px] font-medium transition focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:outline-none lg:w-full",
+        "group flex h-10 w-full shrink-0 items-center justify-between gap-3 rounded-lg px-3 text-[13px] font-medium transition focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:outline-none",
         active
           ? "bg-[#a8492b] text-white shadow-[0_12px_26px_rgba(168,73,43,0.28)]"
           : "text-white/76 hover:bg-white/[0.075] hover:text-white",
@@ -220,7 +220,7 @@ export function DashboardNav({
   }
 
   return (
-    <nav className="flex gap-2 overflow-x-auto pb-1 lg:grid lg:gap-1 lg:overflow-visible lg:pb-0">
+    <nav className="grid gap-1">
       {items.map((item) => (
         <AdminNavItem
           key={item.href}

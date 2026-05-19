@@ -61,7 +61,7 @@ function AdminFrame({
 
   return (
     <AdminSidebarProvider>
-      <div className="min-h-screen bg-[#f7f7f5] text-[#22201e] lg:grid lg:grid-cols-[286px_minmax(0,1fr)]">
+      <div className="min-h-screen bg-[#f7f7f5] text-[#22201e] xl:grid xl:grid-cols-[286px_minmax(0,1fr)]">
         <AdminSidebarPanel items={items} actions={sidebarActions} />
         <div className="min-w-0 overflow-x-clip">
         <header className="sticky top-0 z-20 border-b border-[#e6e2dc] bg-white/88 backdrop-blur-xl">
@@ -85,7 +85,7 @@ function AdminFrame({
                 aria-label="Калькулятор"
               >
                 <Calculator className="size-4" strokeWidth={1.8} />
-                <span className="hidden lg:inline">Калькулятор</span>
+                <span className="hidden xl:inline">Калькулятор</span>
               </Link>
               <Link
                 href="/admin/requests"
@@ -93,7 +93,7 @@ function AdminFrame({
                 aria-label="Запросы"
               >
                 <FileStack className="size-4" strokeWidth={1.8} />
-                <span className="hidden lg:inline">Запросы</span>
+                <span className="hidden xl:inline">Запросы</span>
                 {requestBadge !== "0" ? (
                   <span className="rounded-full bg-[#c65b3a] px-1.5 py-0.5 text-[11px] font-semibold text-white">
                     {requestBadge}
@@ -106,7 +106,7 @@ function AdminFrame({
                 aria-label="Уведомления"
               >
                 <Bell className="size-4" strokeWidth={1.8} />
-                <span className="hidden lg:inline">Уведомления</span>
+                <span className="hidden xl:inline">Уведомления</span>
                 {notificationBadge !== "0" ? (
                   <span className="rounded-full bg-[#c65b3a] px-1.5 py-0.5 text-[11px] font-semibold text-white">
                     {notificationBadge}
