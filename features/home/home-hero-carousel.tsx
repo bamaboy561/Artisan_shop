@@ -92,7 +92,7 @@ export function HomeHeroCarousel({ slides }: { slides: HomeHeroSlide[] }) {
           >
             {slide.images.map((image, imageIndex) => (
               <div
-                key={`${slide.id}-${image.src}`}
+                key={`${slide.id}-${image.src || imageIndex}`}
                 className={cn(
                   "relative overflow-hidden bg-white/14 shadow-[0_26px_80px_rgba(0,0,0,0.18)] ring-1 ring-white/12",
                   imageIndex === 1
