@@ -88,7 +88,7 @@ export default async function HomePage() {
       title: "AGT Trendy и Supramat.",
       description: "Фасадные панели для кухни, шкафов и интерьера.",
       primaryAction: {
-        href: "/catalog/mdf-panels?brand=agt",
+        href: "/catalog/mdf",
         label: "Смотреть AGT",
       },
       secondaryAction: {
@@ -139,26 +139,26 @@ export default async function HomePage() {
 
   const categoryTiles: CategoryTile[] = [
     {
-      title: "Мебельные панели",
+      title: "Плиты ЛДСП",
       label: `${catalogMetrics.furniturePanelCount} позиций`,
       href: "/catalog/ldsp",
       image: pickImage([ldspProducts[0]?.image], fallbackImage),
     },
     {
-      title: "МДФ панели",
-      label: "AGT Trendy / Supramat",
-      href: "/catalog/mdf-panels?brand=agt",
+      title: "МДФ",
+      label: "Панели и фасады",
+      href: "/catalog/mdf",
       image: pickImage([mdfProducts[0]?.image], fallbackImage),
     },
     {
-      title: "SWISS KRONO",
-      label: "Однотонные, дизайн, древесные",
-      href: "/catalog?brand=swiss-krono",
+      title: "Фурнитура",
+      label: "Ручки, петли, направляющие",
+      href: "/catalog/fittings",
       image: pickImage([swissKronoProducts[0]?.image], fallbackImage),
     },
     {
       title: "Онлайн распил",
-      label: "Расчет и заявка",
+      label: "Расчёт и заявка",
       href: "/calculator",
       image: pickImage([swissKronoProducts[4]?.image], fallbackImage),
     },
