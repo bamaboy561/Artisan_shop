@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 
 import { StructuredData } from "@/components/seo/structured-data";
 import { AddToCartButton } from "@/components/ecommerce/add-to-cart-button";
+import { HoverImageSwap } from "@/components/ui/hover-image-swap";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { ButtonLink } from "@/components/ui/button-link";
 import { FavoriteButton } from "@/components/account/favorite-button";
@@ -133,15 +134,13 @@ export default async function ProductPage({ params }: ProductPageProps) {
       <section className="px-4 py-5 sm:px-8 sm:py-8 lg:px-10">
         <div className="mx-auto grid max-w-[1500px] min-w-0 gap-5 lg:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)] lg:gap-8">
           <div className="min-w-0 space-y-3 sm:space-y-4">
-            <div className="relative aspect-[0.95] overflow-hidden bg-[#dad7cf] sm:aspect-[0.86]">
-              <Image
+            <div className="relative aspect-[0.95] overflow-hidden bg-[#dad7cf] group sm:aspect-[0.86]">
+              <HoverImageSwap
                 src={product.image}
+                hoverSrc={gallery[1]}
                 alt={product.name}
-                fill
-                priority
-                className="object-cover"
+                className=""
                 sizes="(max-width: 1024px) 100vw, 58vw"
-                unoptimized={shouldBypassNextImageOptimization(product.image)}
               />
             </div>
 
