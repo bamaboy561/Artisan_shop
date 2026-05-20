@@ -5,6 +5,7 @@ import { ArrowRight } from "lucide-react";
 import { ProductCardCartChip } from "@/components/ecommerce/product-card-cart-chip";
 import { formatPrice } from "@/lib/commerce";
 import { shouldBypassNextImageOptimization } from "@/lib/image-optimization";
+import { HoverImageSwap } from "@/components/ui/hover-image-swap";
 import { cn } from "@/lib/utils";
 
 type ProductCardProps = {
@@ -16,6 +17,7 @@ type ProductCardProps = {
   format: string;
   action: string;
   image?: string;
+  hoverImage?: string;
   price?: number;
   oldPrice?: number;
   inStock?: boolean;
@@ -35,6 +37,7 @@ export function ProductCard({
   format,
   action,
   image,
+  hoverImage,
   price,
   oldPrice,
   inStock = true,
@@ -59,7 +62,7 @@ export function ProductCard({
     <Link
       href={href}
       className={cn(
-        "group relative flex h-full overflow-hidden bg-transparent",
+        "group relative flex h-full overflow-hidden bg-transparent transition-[transform,box-shadow] duration-[400ms] ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-[3px] hover:shadow-[0_16px_48px_rgba(23,22,19,0.09)]",
         mobileList
           ? "flex-row items-start gap-3.5 border-b border-[color:var(--line)] pb-4 sm:flex-col sm:gap-0 sm:border-b-0 sm:pb-0"
           : "flex-col",
@@ -74,17 +77,16 @@ export function ProductCard({
         )}
       >
         {image ? (
-          <Image
+          <HoverImageSwap
             src={image}
+            hoverSrc={hoverImage}
             alt={name}
-            fill
-            className="object-cover transition-transform duration-[900ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.06]"
+            className="group-hover:scale-[1.06]"
             sizes={
               mobileList
                 ? "(max-width: 639px) 112px, (max-width: 1024px) 50vw, 25vw"
                 : "(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
             }
-            unoptimized={shouldBypassNextImageOptimization(image)}
           />
         ) : (
           <div className="flex h-full items-center justify-center text-[var(--muted)]">
