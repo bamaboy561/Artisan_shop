@@ -31,6 +31,7 @@ const mobileDockNavigation: MobileNavItem[] = [
   { href: "/", label: "Главная", icon: Home },
   { href: "/catalog", label: "Каталог", icon: LayoutGrid },
   { href: "/calculator", label: "Раскрой", icon: Calculator },
+  { href: "/brands", label: "Бренды", icon: Shapes },
   { href: "/cart", label: "Корзина", icon: ShoppingCart },
   { href: "/account", label: "Кабинет", icon: UserRound },
 ];
@@ -54,7 +55,7 @@ function MobileBottomDock({
     <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[color:var(--line)]/70 bg-[color:color-mix(in_srgb,var(--surface-strong)_92%,white)]/95 backdrop-blur-xl lg:hidden">
       <nav
         aria-label="Мобильная навигация"
-        className="mx-auto flex w-full max-w-[26rem] items-end justify-between gap-1 px-2 pt-1.5 pb-[calc(0.45rem+env(safe-area-inset-bottom))]"
+        className="mx-auto flex w-full max-w-[28rem] items-end justify-between gap-0.5 px-1.5 pt-1 pb-[calc(0.45rem+env(safe-area-inset-bottom))]"
       >
         {mobileDockNavigation.map((item) => {
           const active = isActivePath(pathname, item.href);
@@ -65,7 +66,7 @@ function MobileBottomDock({
               key={item.href}
               href={item.href}
               className={cn(
-                "relative flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-[1rem] px-1.5 py-2 transition",
+                "relative flex min-w-0 flex-1 flex-col items-center justify-center gap-0 rounded-[1rem] px-0.5 py-1.5 transition",
                 active
                   ? "bg-[var(--foreground)] text-white"
                   : "text-[var(--muted)] hover:bg-[var(--surface)] hover:text-[var(--foreground)]",
