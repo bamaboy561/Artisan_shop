@@ -7,6 +7,7 @@ import { StructuredData } from "@/components/seo/structured-data";
 import { AddToCartButton } from "@/components/ecommerce/add-to-cart-button";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { ButtonLink } from "@/components/ui/button-link";
+import { FavoriteButton } from "@/components/account/favorite-button";
 import { ProductCard } from "@/components/ui/cards";
 import {
   getPublicCategoryBySlug,
@@ -229,6 +230,9 @@ export default async function ProductPage({ params }: ProductPageProps) {
                 </div>
               </dl>
 
+              <div className="mt-4 flex justify-center border-t border-[color:var(--line)] pt-4">
+                <FavoriteButton productSlug={product.slug} className="text-[11px]" />
+              </div>
               <div className="mt-5 grid gap-2.5 sm:mt-7 sm:gap-3">
                 {product.purchaseMode === "cart" &&
                 typeof product.price === "number" ? (
