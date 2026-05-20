@@ -34,8 +34,8 @@ export default function Image() {
             color: "#9d573d",
           }}
         >
-          <span>Artisan</span>
-          <span>Furniture materials</span>
+          <span>Artisan Pro</span>
+          <span>Мебель и интерьер</span>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
           <div
@@ -47,7 +47,7 @@ export default function Image() {
               maxWidth: 860,
             }}
           >
-            Materials, cutting and hardware.
+            Материалы, распил и фурнитура для мебели.
           </div>
           <div
             style={{
@@ -57,9 +57,9 @@ export default function Image() {
               color: "#5f5952",
             }}
           >
-            <span>LDSP</span>
+            <span>ЛДСП</span>
             <span>/</span>
-            <span>MDF</span>
+            <span>МДФ</span>
             <span>/</span>
             <span>AGT</span>
             <span>/</span>

@@ -110,14 +110,17 @@ function getMissingEmailEnv() {
 export function getRegistrationEmailStatus() {
   const from = getRegistrationEmailFrom();
   const missingEnv = getMissingEmailEnv();
+  const debugCodeEnabled = isDebugCodeEnabled();
 
   return {
-    ready: missingEnv.length === 0,
+    // Registration is "ready" if email is fully configured OR debug-code
+    // fallback is enabled — in both cases the user can complete signup.
+    ready: missingEnv.length === 0 || debugCodeEnabled,
     apiKeyConfigured: Boolean(getResendApiKey()),
     fromConfigured: Boolean(from),
     from: from || null,
     missingEnv,
-    debugCodeEnabled: isDebugCodeEnabled(),
+    debugCodeEnabled,
   };
 }
 

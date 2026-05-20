@@ -4,10 +4,12 @@ import Link from "next/link";
 import { RequestStatus, RequestType } from "@/generated/prisma";
 import {
   bulkUpdateRequestsAction,
+  deleteRequestAction,
   updateRequestAction,
 } from "@/app/admin/actions";
 import { AdminSubmitButton } from "@/components/admin/admin-submit-button";
 import { BulkSelectionTools } from "@/components/admin/bulk-selection-tools";
+import { ConfirmSubmit } from "@/components/admin/confirm-submit";
 import { MetricCard } from "@/components/admin/metric-card";
 import { SetupState } from "@/components/admin/setup-state";
 import { StatusBadge } from "@/components/admin/status-badge";
@@ -15,7 +17,7 @@ import { Select } from "@/components/ui/select";
 import { DataTable } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { SectionHeading } from "@/components/ui/section-heading";
-import { requireAdminPermission } from "@/lib/auth/dal";
+import { requireAdminSession } from "@/lib/auth/dal";
 import { hasDatabaseUrl, isDemoModeEnabled } from "@/lib/db";
 import {
   getAdminManagers,
@@ -50,6 +52,7 @@ const bulkActionOptions = [
   { value: "cancel", label: "Отменить выбранные" },
   { value: "assign-manager", label: "Назначить менеджера" },
   { value: "clear-manager", label: "Снять менеджера" },
+  { value: "delete", label: "Удалить выбранные" },
 ] as const;
 
 function formatDate(date: Date) {
@@ -110,13 +113,13 @@ export default async function AdminRequestsPage({
         steps={[
           "Настройте DATABASE_URL в .env.",
           "Примените схему БД через prisma db push.",
-          "Первая реальная заявка появится после отправки формы распила или обращения с сайта.",
+          "Запустите prisma db seed, чтобы получить тестовую заявку в очереди.",
         ]}
       />
     );
   }
 
-  await requireAdminPermission("/admin/requests", "/login?next=/admin/requests");
+  await requireAdminSession("/login?next=/admin/requests");
 
   const [requests, managers, resolvedSearchParams] = await Promise.all([
     getRequestInbox(),
@@ -274,39 +277,50 @@ export default async function AdminRequestsPage({
       </div>
     ),
     manage: (
-      <form action={updateRequestAction} className="grid gap-2">
-        <input type="hidden" name="id" value={request.id} />
-        <Select
-          name="status"
-          defaultValue={request.status}
-          className="h-9 text-xs"
-        >
-          {Object.values(RequestStatus).map((status) => (
-            <option key={status} value={status}>
-              {requestStatusLabels[status]}
-            </option>
-          ))}
-        </Select>
-        <Select
-          name="managerId"
-          defaultValue={request.managerId ?? ""}
-          className="h-9 text-xs"
-        >
-          <option value="">Без менеджера</option>
-          {managers.map((manager) => (
-            <option key={manager.id} value={manager.id}>
-              {getManagerDisplayName(manager)}
-            </option>
-          ))}
-        </Select>
-        <AdminSubmitButton
-          type="submit"
-          variant="secondary"
-          size="sm"
-          idleLabel="Сохранить"
-          pendingLabel="Сохраняем..."
-        />
-      </form>
+      <div className="grid gap-2">
+        <form action={updateRequestAction} className="grid gap-2">
+          <input type="hidden" name="id" value={request.id} />
+          <Select
+            name="status"
+            defaultValue={request.status}
+            className="h-9 text-xs"
+          >
+            {Object.values(RequestStatus).map((status) => (
+              <option key={status} value={status}>
+                {requestStatusLabels[status]}
+              </option>
+            ))}
+          </Select>
+          <Select
+            name="managerId"
+            defaultValue={request.managerId ?? ""}
+            className="h-9 text-xs"
+          >
+            <option value="">Без менеджера</option>
+            {managers.map((manager) => (
+              <option key={manager.id} value={manager.id}>
+                {getManagerDisplayName(manager)}
+              </option>
+            ))}
+          </Select>
+          <AdminSubmitButton
+            type="submit"
+            variant="secondary"
+            size="sm"
+            idleLabel="Сохранить"
+            pendingLabel="Сохраняем..."
+          />
+        </form>
+        <form action={deleteRequestAction}>
+          <input type="hidden" name="id" value={request.id} />
+          <ConfirmSubmit
+            message={`Удалить заявку ${request.number ?? request.id.slice(0, 8)}? Действие необратимо.`}
+            className="h-8 w-full px-2 text-[11px]"
+          >
+            Удалить
+          </ConfirmSubmit>
+        </form>
+      </div>
     ),
   }));
 

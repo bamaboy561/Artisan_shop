@@ -473,6 +473,7 @@ model ManagerNote {
 
 model Favorite {
   userId    String
+  label     String?
   productId String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)

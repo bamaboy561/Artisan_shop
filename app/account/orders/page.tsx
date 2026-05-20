@@ -8,6 +8,7 @@ import {
   orderStatusLabels,
   paymentStatusLabels,
 } from "@/features/admin/operations-filters";
+import { RepeatOrderButton } from "@/components/account/repeat-order-button";
 import { hasDatabaseUrl } from "@/lib/db";
 import { getAccountOrders, getAccountUser } from "@/lib/server/account-data";
 
@@ -30,7 +31,7 @@ function formatDate(date: Date) {
 }
 
 function formatOptionalDate(date: Date | null) {
-  return date ? formatDate(date) : "Не задано";
+  return date ? formatDate(date) : "РќРµ Р·Р°РґР°РЅРѕ";
 }
 
 function getStatusTone(status: OrderStatus) {
@@ -69,12 +70,12 @@ export default async function AccountOrdersPage() {
   if (!hasDatabaseUrl()) {
     return (
       <SetupState
-        title="История заказов откроется после подключения базы данных"
-        description="Здесь будут все ваши заказы, статусы, суммы и начисления баллов по завершённым сделкам."
+        title="РСЃС‚РѕСЂРёСЏ Р·Р°РєР°Р·РѕРІ РѕС‚РєСЂРѕРµС‚СЃСЏ РїРѕСЃР»Рµ РїРѕРґРєР»СЋС‡РµРЅРёСЏ Р±Р°Р·С‹ РґР°РЅРЅС‹С…"
+        description="Р—РґРµСЃСЊ Р±СѓРґСѓС‚ РІСЃРµ РІР°С€Рё Р·Р°РєР°Р·С‹, СЃС‚Р°С‚СѓСЃС‹, СЃСѓРјРјС‹ Рё РЅР°С‡РёСЃР»РµРЅРёСЏ Р±Р°Р»Р»РѕРІ РїРѕ Р·Р°РІРµСЂС€С‘РЅРЅС‹Рј СЃРґРµР»РєР°Рј."
         steps={[
-          "Добавьте DATABASE_URL в .env.",
-          "Примените Prisma-схему через prisma db push или prisma migrate dev.",
-          "После первого реального заказа история появится здесь автоматически.",
+          "Р”РѕР±Р°РІСЊС‚Рµ DATABASE_URL РІ .env.",
+          "РџСЂРёРјРµРЅРёС‚Рµ Prisma-СЃС…РµРјСѓ С‡РµСЂРµР· prisma db push РёР»Рё prisma migrate dev.",
+          "РџРѕСЃР»Рµ РїРµСЂРІРѕРіРѕ СЂРµР°Р»СЊРЅРѕРіРѕ Р·Р°РєР°Р·Р° РёСЃС‚РѕСЂРёСЏ РїРѕСЏРІРёС‚СЃСЏ Р·РґРµСЃСЊ Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё.",
         ]}
       />
     );
@@ -101,17 +102,17 @@ export default async function AccountOrdersPage() {
     ),
     delivery: (
       <div className="space-y-1">
-        <p>{order.deliveryMethod?.name ?? "Самовывоз"}</p>
+        <p>{order.deliveryMethod?.name ?? "РЎР°РјРѕРІС‹РІРѕР·"}</p>
         <p className="text-xs text-[var(--muted)]">
-          Скидка: {formatCurrency(order.discountTotal)}
+          РЎРєРёРґРєР°: {formatCurrency(order.discountTotal)}
         </p>
         {order.appliedPromoCode || order.loyaltyRedemptionTotal > 0 ? (
           <p className="text-xs text-[var(--muted)]">
             {order.appliedPromoCode
-              ? `Промокод: ${order.appliedPromoCode}`
-              : "Без промокода"}
+              ? `РџСЂРѕРјРѕРєРѕРґ: ${order.appliedPromoCode}`
+              : "Р‘РµР· РїСЂРѕРјРѕРєРѕРґР°"}
             {order.loyaltyRedemptionTotal > 0
-              ? ` · Списано баллов: ${formatCurrency(order.loyaltyRedemptionTotal)}`
+              ? ` В· РЎРїРёСЃР°РЅРѕ Р±Р°Р»Р»РѕРІ: ${formatCurrency(order.loyaltyRedemptionTotal)}`
               : ""}
           </p>
         ) : null}
@@ -126,11 +127,11 @@ export default async function AccountOrdersPage() {
           {paymentStatusLabels[order.paymentStatus]}
         </StatusBadge>
         <p className="text-xs text-[var(--muted)]">
-          План: {formatOptionalDate(order.productionDueAt)}
+          РџР»Р°РЅ: {formatOptionalDate(order.productionDueAt)}
         </p>
         {order.readyAt ? (
           <p className="text-xs text-[var(--muted)]">
-            Готов: {formatDate(order.readyAt)}
+            Р“РѕС‚РѕРІ: {formatDate(order.readyAt)}
           </p>
         ) : null}
       </div>
@@ -143,7 +144,7 @@ export default async function AccountOrdersPage() {
           </p>
         ) : (
           <p className="text-sm text-[var(--muted)]">
-            Комментарий появится после обработки заказа.
+            РљРѕРјРјРµРЅС‚Р°СЂРёР№ РїРѕСЏРІРёС‚СЃСЏ РїРѕСЃР»Рµ РѕР±СЂР°Р±РѕС‚РєРё Р·Р°РєР°Р·Р°.
           </p>
         )}
         {order.managerNotes.length > 0 ? (
@@ -156,14 +157,14 @@ export default async function AccountOrdersPage() {
     history: (
       <ClientOperationTimeline
         events={order.history}
-        emptyMessage="История появится после обработки заказа."
+        emptyMessage="РСЃС‚РѕСЂРёСЏ РїРѕСЏРІРёС‚СЃСЏ РїРѕСЃР»Рµ РѕР±СЂР°Р±РѕС‚РєРё Р·Р°РєР°Р·Р°."
       />
     ),
     total: (
       <div className="space-y-1">
         <p>{formatCurrency(order.total)}</p>
         <p className="text-xs text-[var(--muted)]">
-          Баллы: +
+          Р‘Р°Р»Р»С‹: +
           {order.loyaltyTransactions.reduce(
             (sum, transaction) => sum + Math.max(0, transaction.points),
             0,
@@ -172,14 +173,17 @@ export default async function AccountOrdersPage() {
       </div>
     ),
     updated: formatDate(order.updatedAt),
+    repeat: (
+      <RepeatOrderButton orderId={order.id} />
+    ),
   }));
 
   return (
     <div className="space-y-4">
       <section className="surface-glow rounded-[24px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-6 sm:p-8">
         <SectionHeading
-          title="История заказов"
-          description="Все оформленные заказы, суммы, доставка и начисленные баллы по программе лояльности."
+          title="РСЃС‚РѕСЂРёСЏ Р·Р°РєР°Р·РѕРІ"
+          description="Р’СЃРµ РѕС„РѕСЂРјР»РµРЅРЅС‹Рµ Р·Р°РєР°Р·С‹, СЃСѓРјРјС‹, РґРѕСЃС‚Р°РІРєР° Рё РЅР°С‡РёСЃР»РµРЅРЅС‹Рµ Р±Р°Р»Р»С‹ РїРѕ РїСЂРѕРіСЂР°РјРјРµ Р»РѕСЏР»СЊРЅРѕСЃС‚Рё."
           titleClassName="text-2xl sm:text-3xl"
           descriptionClassName="max-w-2xl text-sm leading-7"
         />
@@ -187,17 +191,17 @@ export default async function AccountOrdersPage() {
 
       <DataTable
         columns={[
-          { key: "order", label: "Заказ" },
-          { key: "delivery", label: "Доставка и скидка" },
-          { key: "status", label: "Статус" },
-          { key: "production", label: "Производство" },
-          { key: "history", label: "История" },
-          { key: "total", label: "Сумма и баллы" },
-          { key: "updated", label: "Обновлён" },
+          { key: "order", label: "Р—Р°РєР°Р·" },
+          { key: "delivery", label: "Р”РѕСЃС‚Р°РІРєР° Рё СЃРєРёРґРєР°" },
+          { key: "status", label: "РЎС‚Р°С‚СѓСЃ" },
+          { key: "production", label: "РџСЂРѕРёР·РІРѕРґСЃС‚РІРѕ" },
+          { key: "history", label: "РСЃС‚РѕСЂРёСЏ" },
+          { key: "total", label: "РЎСѓРјРјР° Рё Р±Р°Р»Р»С‹" },
+          { key: "updated", label: "РћР±РЅРѕРІР»С‘РЅ" },
         ]}
         rows={rows}
-        caption="Заказы"
-        emptyMessage="После первого оформления заказа история появится здесь."
+        caption="Р—Р°РєР°Р·С‹"
+        emptyMessage="РџРѕСЃР»Рµ РїРµСЂРІРѕРіРѕ РѕС„РѕСЂРјР»РµРЅРёСЏ Р·Р°РєР°Р·Р° РёСЃС‚РѕСЂРёСЏ РїРѕСЏРІРёС‚СЃСЏ Р·РґРµСЃСЊ."
       />
     </div>
   );

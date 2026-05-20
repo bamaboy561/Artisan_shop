@@ -2,7 +2,10 @@ import type { ReactNode } from "react";
 
 import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
+import { StructuredData } from "@/components/seo/structured-data";
+import { organizationJsonLd } from "@/lib/seo";
 import { CartProvider } from "@/components/providers/cart-provider";
+import { CompareBar } from "@/components/catalog/compare-bar";
 import { getPublicProducts } from "@/lib/server/catalog-public";
 
 export default async function PublicLayout({
@@ -14,6 +17,7 @@ export default async function PublicLayout({
 
   return (
     <CartProvider products={products}>
+      <StructuredData data={organizationJsonLd()} />
       <div className="min-h-screen overflow-x-clip bg-background">
         <SiteHeader />
         <main
@@ -24,6 +28,7 @@ export default async function PublicLayout({
         </main>
         <SiteFooter />
       </div>
+          <CompareBar />
     </CartProvider>
   );
 }

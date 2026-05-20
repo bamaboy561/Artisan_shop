@@ -297,6 +297,7 @@ export async function getAccountFavorites(userId: string) {
     where: { userId },
     orderBy: { createdAt: "desc" },
     select: {
+      label: true,
       createdAt: true,
       product: {
         select: {

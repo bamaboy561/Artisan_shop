@@ -49,6 +49,8 @@ export async function getAdminDashboardMetrics() {
         activeRequestStatuses.has(request.status),
       ).length,
       activePromotions: 0,
+      repeatUsers: 0,
+      popularProducts: [] as Array<{ name: string; slug: string; image: string; format: string | null }>,
     };
   }
 
@@ -98,6 +100,43 @@ export async function getAdminDashboardMetrics() {
     db.promotion.count({ where: { status: PromotionStatus.ACTIVE } }),
   ]);
 
+  // Count users with more than one order (repeat customers)
+  const orderCountsByUser = await db.order.groupBy({
+    by: ["userId"],
+    where: { userId: { not: null } },
+    _count: { id: true },
+  });
+  const repeatUsers = orderCountsByUser.filter((g) => g._count.id > 1).length;
+
+  // Most ordered products
+  const topProductGroups = await db.orderItem.groupBy({
+    by: ["productId"],
+    where: { productId: { not: null } },
+    _count: { productId: true },
+    orderBy: { _count: { productId: "desc" } },
+    take: 5,
+  });
+
+  let popularProducts: Array<{ name: string; slug: string; image: string; format: string | null }> = [];
+  if (topProductGroups.length > 0) {
+    const productIds = topProductGroups.map((g) => g.productId!);
+    const rawProducts = await db.product.findMany({
+      where: { id: { in: productIds } },
+      select: {
+        name: true,
+        slug: true,
+        images: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } },
+        format: true,
+      },
+    });
+    popularProducts = rawProducts.map((p) => ({
+      name: p.name,
+      slug: p.slug,
+      image: p.images[0]?.url ?? "",
+      format: p.format,
+    }));
+  }
+
   return {
     productsTotal,
     activeProducts,
@@ -107,6 +146,8 @@ export async function getAdminDashboardMetrics() {
     openOrders,
     openRequests,
     activePromotions,
+    repeatUsers,
+    popularProducts,
   };
 }
 

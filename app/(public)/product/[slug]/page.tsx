@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { AddToCartButton } from "@/components/ecommerce/add-to-cart-button";
+import { StructuredData } from "@/components/seo/structured-data";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { ButtonLink } from "@/components/ui/button-link";
 import { ProductCard } from "@/components/ui/cards";
@@ -15,6 +16,8 @@ import {
 import { formatPrice } from "@/lib/commerce";
 import { shouldBypassNextImageOptimization } from "@/lib/image-optimization";
 import {
+  breadcrumbJsonLd,
+  productJsonLd,
   createSeoMetadata,
   productSeoDescription,
   productSeoTitle,
@@ -123,6 +126,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
           />
         </div>
       </div>
+
+      <StructuredData data={[productJsonLd(product), breadcrumbJsonLd([{ name: "Главная", href: "/" },{ name: "Каталог", href: "/catalog" },...(category ? [{ name: category.name, href: categoryHref }] : []),{ name: product.name, href: `#` }])]} />
 
       <section className="px-4 py-5 sm:px-8 sm:py-8 lg:px-10">
         <div className="mx-auto grid max-w-[1500px] min-w-0 gap-5 lg:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)] lg:gap-8">

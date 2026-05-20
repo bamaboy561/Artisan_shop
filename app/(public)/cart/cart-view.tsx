@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 
 import { useCart } from "@/components/providers/cart-provider";
 import { Button } from "@/components/ui/button";
@@ -9,8 +10,67 @@ import { SectionHeading } from "@/components/ui/section-heading";
 import type { FeaturedProduct } from "@/features/catalog/types";
 import { formatPrice } from "@/lib/commerce";
 
+function NoteInput({
+  productSlug,
+  note,
+  onSave,
+}: {
+  productSlug: string;
+  note: string;
+  onSave: (value: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(note);
+
+  if (!editing) {
+    return (
+      <button
+        type="button"
+        onClick={() => setEditing(true)}
+        className="mt-1 font-mono text-[9px] tracking-[0.12em] text-[var(--muted)] uppercase transition hover:text-[var(--accent)]"
+      >
+        {note ? `📋 ${note}` : "+ заметка"}
+      </button>
+    );
+  }
+
+  return (
+    <div className="mt-1 flex items-center gap-1.5">
+      <input
+        type="text"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            onSave(draft);
+            setEditing(false);
+          }
+          if (e.key === "Escape") {
+            setDraft(note);
+            setEditing(false);
+          }
+        }}
+        placeholder="например: для левого шкафа"
+        className="h-7 min-w-0 flex-1 border-b border-[var(--line)] bg-transparent px-1 font-mono text-[10px] text-[var(--foreground)] placeholder:text-[var(--muted)]/50 focus:border-[var(--accent)] focus:outline-none"
+        autoFocus
+      />
+      <button
+        type="button"
+        onClick={() => {
+          onSave(draft);
+          setEditing(false);
+        }}
+        className="font-mono text-[9px] tracking-[0.1em] text-[var(--accent)] uppercase"
+      >
+        OK
+      </button>
+    </div>
+  );
+}
+
 export function CartView({ products }: { products: FeaturedProduct[] }) {
-  const { items, subtotal, updateQuantity, removeItem } = useCart();
+  const { items, subtotal, updateQuantity, removeItem, updateNote } =
+    useCart();
 
   const rows = items
     .map((item) => {
@@ -24,6 +84,7 @@ export function CartView({ products }: { products: FeaturedProduct[] }) {
       ): item is {
         productSlug: string;
         quantity: number;
+        note?: string;
         product: FeaturedProduct;
       } => item !== null,
     );
@@ -55,7 +116,7 @@ export function CartView({ products }: { products: FeaturedProduct[] }) {
                 key={row.productSlug}
                 className="surface-glow flex flex-col gap-4 rounded-[24px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-5 sm:flex-row sm:items-center sm:justify-between"
               >
-                <div>
+                <div className="min-w-0 flex-1">
                   <p className="text-xs text-[var(--muted)]">
                     {row.product.brand}
                   </p>
@@ -67,8 +128,15 @@ export function CartView({ products }: { products: FeaturedProduct[] }) {
                       ? formatPrice(row.product.price)
                       : row.product.action}
                   </p>
+                  <NoteInput
+                    productSlug={row.productSlug}
+                    note={row.note ?? ""}
+                    onSave={(value) =>
+                      updateNote(row.productSlug, value || undefined)
+                    }
+                  />
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 shrink-0">
                   <Button
                     variant="secondary"
                     size="sm"

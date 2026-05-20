@@ -53,3 +53,20 @@ yarn-error.log*
 next-env.d.ts
 
 .env*.local
+
+# External project bundled in repo
+/free-claude-code/
+
+# Generated Prisma client
+/generated/
+
+# Dev artifacts
+*.log
+.codex-*.png
+tmp-*.png
+integration-events.json
+requests.json
+.next/
+worktrees/
+.artisan-runtime/
+

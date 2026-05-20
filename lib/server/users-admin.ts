@@ -1,4 +1,4 @@
-import { LoyaltyTransactionStatus, RoleCode } from "@/generated/prisma";
+import { LoyaltyTransactionStatus } from "@/generated/prisma";
 
 import { getDb } from "@/lib/db";
 
@@ -6,13 +6,8 @@ export async function getAdminUsers() {
   const db = getDb();
 
   return db.user.findMany({
-    where: {
-      role: {
-        code: {
-          in: [RoleCode.CUSTOMER, RoleCode.DEALER],
-        },
-      },
-    },
+    // Return everyone (incl. staff) so admins can find duplicates and
+    // staff accounts when triaging "email already exists" issues.
     orderBy: [{ loyaltyPointsBalance: "desc" }, { createdAt: "asc" }],
     select: {
       id: true,

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -188,6 +189,7 @@ export default async function HomePage() {
     <div className="bg-background">
       <HomeHeroCarousel slides={heroSlides} />
 
+      <Suspense fallback={<div className="px-4 py-14 sm:px-8 lg:px-10"><div className="mx-auto grid max-w-[1500px] grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-4">{Array.from({length:4}).map((_,i)=><div key={i} className="min-h-[10.75rem] sm:min-h-[18rem] bg-[var(--hero)] animate-pulse"/>)}</div></div>}>
       <section className="bg-background px-4 py-3.5 sm:px-8 lg:px-10">
         <div className="mx-auto grid max-w-[1500px] grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-4">
           {categoryTiles.map((tile, index) => (
@@ -220,6 +222,8 @@ export default async function HomePage() {
           ))}
         </div>
       </section>
+
+      </Suspense>
 
       <section className="border-y border-line bg-background px-4 py-8 sm:px-8 lg:px-10 lg:py-14">
         <div className="mx-auto max-w-[1500px]">

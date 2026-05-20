@@ -194,7 +194,7 @@ export default async function AdminPage() {
     queues.recentOrders.length > 0
       ? Math.round(revenue / queues.recentOrders.length)
       : 0;
-  const repeatRate = metrics.usersTotal > 0 ? "68%" : "0%";
+  const repeatRate = metrics.repeatUsers > 0 ? Math.round((metrics.repeatUsers / Math.max(1, metrics.usersTotal)) * 100) + "%" : "—";
 
   const orderRows = queues.recentOrders.map((order) => ({
     order: (
@@ -283,7 +283,7 @@ export default async function AdminPage() {
         <KpiCard
           label="Выручка в заказах"
           value={formatCurrency(revenue)}
-          delta="+12.4%"
+          delta={revenue > 0 ? formatCurrency(revenue) : "—"}
           detail="по текущей очереди"
           icon={ReceiptText}
           chart
@@ -291,28 +291,28 @@ export default async function AdminPage() {
         <KpiCard
           label="Заказы в работе"
           value={metrics.openOrders}
-          delta="+6"
+          delta={metrics.openOrders > 0 ? `${metrics.openOrders} активных` : "—"}
           detail="к прошлой неделе"
           icon={PackagePlus}
         />
         <KpiCard
           label="Запросы на расчёт"
           value={metrics.openRequests}
-          delta="-3"
+          delta={metrics.openRequests > 0 ? `${metrics.openRequests} активных` : "—"}
           detail="к прошлой неделе"
           icon={Calculator}
         />
         <KpiCard
           label="Средний чек"
           value={formatCurrency(averageOrder)}
-          delta="+9.1%"
+          delta={averageOrder > 0 ? formatCurrency(averageOrder) : "—"}
           detail="по активным заказам"
           icon={TrendingUp}
         />
         <KpiCard
           label="Повторные клиенты"
           value={repeatRate}
-          delta="+5 п.п."
+          delta={metrics.usersTotal > 0 ? `${metrics.usersTotal} клиентов` : "—"}
           detail="по базе клиентов"
           icon={Users2}
         />

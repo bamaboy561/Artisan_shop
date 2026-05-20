@@ -1,24 +1,19 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { RequestFileKind, RequestStatus } from "@/generated/prisma";
+import { RequestStatus } from "@/generated/prisma";
 import {
-  addRequestManagerNoteAction,
   createOrderFromRequestAction,
+  deleteRequestAction,
   updateRequestAction,
-  updateRequestProductionResultAction,
-  uploadRequestResultFilesAction,
 } from "@/app/admin/actions";
 import { AdminSubmitButton } from "@/components/admin/admin-submit-button";
-import { OperationTimeline } from "@/components/admin/operation-timeline";
+import { ConfirmSubmit } from "@/components/admin/confirm-submit";
 import { StatusBadge } from "@/components/admin/status-badge";
-import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { SectionHeading } from "@/components/ui/section-heading";
-import { Textarea } from "@/components/ui/textarea";
-import { requireAdminPermission } from "@/lib/auth/dal";
+import { requireAdminSession } from "@/lib/auth/dal";
 import { getOrdersForRequest } from "@/lib/server/order-inbox";
-import { getOperationEvents } from "@/lib/server/operation-events";
 import { getAdminManagers } from "@/lib/server/operations-admin";
 import { getRequestDetailById } from "@/lib/server/request-inbox";
 import {
@@ -125,14 +120,13 @@ function RequestWorkflowTrail({ status }: { status: RequestStatus }) {
 export default async function AdminRequestDetailPage({
   params,
 }: AdminRequestDetailPageProps) {
-  await requireAdminPermission("/admin/requests", "/login?next=/admin/requests");
+  await requireAdminSession("/login?next=/admin/requests");
 
   const { id } = await params;
-  const [request, managers, linkedOrders, events] = await Promise.all([
+  const [request, managers, linkedOrders] = await Promise.all([
     getRequestDetailById(id),
     getAdminManagers().catch(() => []),
     getOrdersForRequest(id),
-    getOperationEvents("request", id),
   ]);
 
   if (!request) {
@@ -141,13 +135,6 @@ export default async function AdminRequestDetailPage({
 
   const canCreateOrder =
     request.status !== RequestStatus.CANCELED && linkedOrders.length === 0;
-  const clientFiles = request.files.filter(
-    (file) => (file.kind ?? RequestFileKind.CLIENT_UPLOAD) === RequestFileKind.CLIENT_UPLOAD,
-  );
-  const resultFiles = request.files.filter(
-    (file) => file.kind === RequestFileKind.MANAGER_RESULT,
-  );
-  const managerNotes = request.managerNotes ?? [];
 
   return (
     <div className="space-y-5">
@@ -177,13 +164,22 @@ export default async function AdminRequestDetailPage({
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Link
               href="/admin/requests"
               className="inline-flex h-11 items-center justify-center border border-[color:var(--line-strong)] px-5 font-mono text-[11px] font-semibold tracking-[0.14em] text-[var(--foreground)] uppercase transition hover:border-[color:var(--foreground)] hover:bg-[var(--foreground)] hover:text-white"
             >
               К очереди заявок
             </Link>
+            <form action={deleteRequestAction}>
+              <input type="hidden" name="id" value={request.id} />
+              <ConfirmSubmit
+                message={`Удалить заявку ${request.number ?? request.id.slice(0, 8)}? Действие необратимо.`}
+                className="h-11 px-4 font-mono text-[11px] tracking-[0.14em] uppercase"
+              >
+                Удалить заявку
+              </ConfirmSubmit>
+            </form>
           </div>
         </div>
       </section>
@@ -266,15 +262,15 @@ export default async function AdminRequestDetailPage({
                 Файлы заявки
               </h2>
               <p className="text-sm text-[var(--muted)]">
-                {clientFiles.length > 0
-                  ? `${clientFiles.length} от клиента`
+                {request.files.length > 0
+                  ? `${request.files.length} вложений`
                   : "Файлы пока не приложены"}
               </p>
             </div>
 
-            {clientFiles.length > 0 ? (
+            {request.files.length > 0 ? (
               <div className="mt-5 space-y-3">
-                {clientFiles.map((file) => (
+                {request.files.map((file) => (
                   <a
                     key={file.id}
                     href={file.fileUrl}
@@ -300,136 +296,6 @@ export default async function AdminRequestDetailPage({
                 или запросить вложение дополнительно.
               </p>
             )}
-          </section>
-
-          <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-6">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <h2 className="text-lg font-semibold text-[var(--foreground)]">
-                  Результат распила
-                </h2>
-                <p className="mt-1 text-sm text-[var(--muted)]">
-                  Карта раскроя, ведомость, PDF/Excel или файл Giblab для клиента.
-                </p>
-              </div>
-              {request.quotedTotal ? (
-                <StatusBadge tone="accent">{formatBudget(request.quotedTotal)}</StatusBadge>
-              ) : null}
-            </div>
-
-            <form
-              action={updateRequestProductionResultAction}
-              className="mt-5 grid gap-3 sm:grid-cols-[minmax(0,160px)_minmax(0,1fr)]"
-            >
-              <input type="hidden" name="requestId" value={request.id} />
-              <label className="grid gap-2 text-sm font-medium text-[var(--foreground)]">
-                Итог, KGS
-                <Input
-                  name="quotedTotal"
-                  type="number"
-                  min={0}
-                  defaultValue={request.quotedTotal ?? ""}
-                  placeholder="0"
-                />
-              </label>
-              <label className="grid gap-2 text-sm font-medium text-[var(--foreground)]">
-                Комментарий производства
-                <Textarea
-                  name="productionComment"
-                  defaultValue={request.productionComment ?? ""}
-                  rows={3}
-                  placeholder="Что входит в расчет, сроки, важные ограничения."
-                />
-              </label>
-              <label className="grid gap-2 text-sm font-medium text-[var(--foreground)] sm:col-span-2">
-                Статус после сохранения
-                <Select name="status" defaultValue="">
-                  <option value="">Не менять статус</option>
-                  <option value={RequestStatus.QUOTE_SENT}>КП отправлено</option>
-                  <option value={RequestStatus.IN_PROGRESS}>В работе</option>
-                  <option value={RequestStatus.COMPLETED}>Завершена</option>
-                </Select>
-              </label>
-              <AdminSubmitButton
-                type="submit"
-                variant="secondary"
-                size="sm"
-                className="sm:col-span-2"
-                idleLabel="Сохранить результат"
-                pendingLabel="Сохраняем..."
-              />
-            </form>
-
-            <form
-              action={uploadRequestResultFilesAction}
-              className="mt-5 grid gap-3 border-t border-[color:var(--line)] pt-5"
-            >
-              <input type="hidden" name="requestId" value={request.id} />
-              <label className="grid gap-2 text-sm font-medium text-[var(--foreground)]">
-                Файлы результата
-                <Input
-                  name="files"
-                  type="file"
-                  multiple
-                  accept=".pdf,.xls,.xlsx,.csv,.zip,.rar,.jpg,.jpeg,.png,.webp,.dwg,.dxf"
-                />
-              </label>
-              <label className="grid gap-2 text-sm font-medium text-[var(--foreground)]">
-                Примечание к файлам
-                <Input
-                  name="note"
-                  placeholder="Например: карта раскроя и ведомость для цеха"
-                />
-              </label>
-              <label className="flex items-center gap-2 text-sm text-[var(--muted)]">
-                <input
-                  type="checkbox"
-                  name="isVisibleToClient"
-                  defaultChecked
-                  className="size-4 rounded border-[color:var(--line-strong)] accent-[var(--accent)]"
-                />
-                Показать эти файлы клиенту в личном кабинете
-              </label>
-              <AdminSubmitButton
-                type="submit"
-                variant="accent"
-                size="sm"
-                idleLabel="Прикрепить файлы"
-                pendingLabel="Загружаем..."
-              />
-            </form>
-
-            {resultFiles.length > 0 ? (
-              <div className="mt-5 space-y-3">
-                {resultFiles.map((file) => (
-                  <a
-                    key={file.id}
-                    href={file.fileUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex flex-col gap-1 rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] px-4 py-3 transition hover:border-[color:var(--line-strong)]"
-                  >
-                    <span className="flex flex-wrap items-center gap-2 font-medium text-[var(--foreground)]">
-                      {file.fileName}
-                      {file.isVisibleToClient ? (
-                        <StatusBadge tone="success">Виден клиенту</StatusBadge>
-                      ) : (
-                        <StatusBadge tone="neutral">Внутренний</StatusBadge>
-                      )}
-                    </span>
-                    <span className="text-xs text-[var(--muted)]">
-                      {file.size
-                        ? `${Math.max(file.size / 1024 / 1024, 0.01).toFixed(2)} МБ`
-                        : "Размер не указан"}{" "}
-                      · {formatDate(file.createdAt)}
-                    </span>
-                    {file.note ? (
-                      <span className="text-xs text-[var(--muted)]">{file.note}</span>
-                    ) : null}
-                  </a>
-                ))}
-              </div>
-            ) : null}
           </section>
         </div>
 
@@ -520,63 +386,6 @@ export default async function AdminRequestDetailPage({
 
           <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-6">
             <h2 className="text-lg font-semibold text-[var(--foreground)]">
-              Заметки менеджера
-            </h2>
-            <form action={addRequestManagerNoteAction} className="mt-5 grid gap-3">
-              <input type="hidden" name="requestId" value={request.id} />
-              <Textarea
-                name="body"
-                rows={4}
-                placeholder="Внутренняя заметка: звонок, договоренность, уточнение по файлу."
-                required
-              />
-              <label className="flex items-center gap-2 text-sm text-[var(--muted)]">
-                <input
-                  type="checkbox"
-                  name="isVisibleToClient"
-                  className="size-4 rounded border-[color:var(--line-strong)] accent-[var(--accent)]"
-                />
-                Показать клиенту в кабинете
-              </label>
-              <AdminSubmitButton
-                type="submit"
-                variant="secondary"
-                size="sm"
-                idleLabel="Добавить заметку"
-                pendingLabel="Добавляем..."
-              />
-            </form>
-
-            {managerNotes.length > 0 ? (
-              <div className="mt-5 space-y-3 border-t border-[color:var(--line)] pt-5">
-                {managerNotes.map((note) => (
-                  <article
-                    key={note.id}
-                    className="rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] p-4"
-                  >
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="text-xs text-[var(--muted)]">
-                        {note.authorName ?? "Менеджер"} · {formatDate(note.createdAt)}
-                      </p>
-                      <StatusBadge tone={note.isVisibleToClient ? "success" : "neutral"}>
-                        {note.isVisibleToClient ? "Клиент видит" : "Внутренне"}
-                      </StatusBadge>
-                    </div>
-                    <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-[var(--foreground)]">
-                      {note.body}
-                    </p>
-                  </article>
-                ))}
-              </div>
-            ) : (
-              <p className="mt-4 text-sm text-[var(--muted)]">
-                Заметок пока нет.
-              </p>
-            )}
-          </section>
-
-          <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-6">
-            <h2 className="text-lg font-semibold text-[var(--foreground)]">
               Перевод в заказ
             </h2>
             <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
@@ -622,11 +431,6 @@ export default async function AdminRequestDetailPage({
               </p>
             )}
           </section>
-
-          <OperationTimeline
-            events={events}
-            emptyMessage="История появится после первого изменения статуса, назначения менеджера или создания заказа из заявки."
-          />
         </div>
       </section>
     </div>

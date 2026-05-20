@@ -16,6 +16,7 @@ const STORAGE_KEY = "artisan-cart-v1";
 export type CartItem = {
   productSlug: string;
   quantity: number;
+  note?: string;
 };
 
 type CartContextValue = {
@@ -25,6 +26,7 @@ type CartContextValue = {
   addItem: (productSlug: string, quantity?: number) => void;
   removeItem: (productSlug: string) => void;
   updateQuantity: (productSlug: string, quantity: number) => void;
+  updateNote: (productSlug: string, note?: string) => void;
   clearCart: () => void;
 };
 
@@ -143,6 +145,15 @@ export function CartProvider({
                 : item,
             )
             .filter((item) => item.quantity > 0),
+        );
+      },
+      updateNote: (productSlug, note) => {
+        setItems((prev) =>
+          prev.map((item) =>
+            item.productSlug === productSlug
+              ? { ...item, note: note || undefined }
+              : item,
+          ),
         );
       },
       clearCart: () => setItems((prev) => (prev.length > 0 ? [] : prev)),
