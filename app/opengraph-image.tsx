@@ -35,7 +35,7 @@ export default function Image() {
           }}
         >
           <span>Artisan Pro</span>
-          <span>Мебель и интерьер</span>
+          <span>РњРµР±РµР»СЊ Рё РёРЅС‚РµСЂСЊРµСЂ</span>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
           <div
@@ -47,7 +47,7 @@ export default function Image() {
               maxWidth: 860,
             }}
           >
-            Материалы, распил и фурнитура для мебели.
+            РњР°С‚РµСЂРёР°Р»С‹, СЂР°СЃРїРёР» Рё С„СѓСЂРЅРёС‚СѓСЂР° РґР»СЏ РјРµР±РµР»Рё.
           </div>
           <div
             style={{
@@ -57,9 +57,9 @@ export default function Image() {
               color: "#5f5952",
             }}
           >
-            <span>ЛДСП</span>
+            <span>Р›Р”РЎРџ</span>
             <span>/</span>
-            <span>МДФ</span>
+            <span>РњР”Р¤</span>
             <span>/</span>
             <span>AGT</span>
             <span>/</span>
