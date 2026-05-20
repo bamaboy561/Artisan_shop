@@ -11,6 +11,7 @@ import {
 } from "@/features/home/home-hero-carousel";
 import {
   getCatalogMetrics,
+  getPublicCategories,
   getPublicProducts,
   getPublicProductsByBrand,
   getPublicProductsByCategory,
@@ -39,6 +40,7 @@ function pickImage(images: Array<string | undefined>, fallback: string) {
 export default async function HomePage() {
   const [
     catalogMetrics,
+    catalogCategories,
     extravertProducts,
     swissKronoProducts,
     agtProducts,
@@ -48,6 +50,7 @@ export default async function HomePage() {
     profiles,
   ] = await Promise.all([
     getCatalogMetrics(),
+    getPublicCategories(),
     getPublicProductsByBrand("extravert"),
     getPublicProductsByBrand("swiss-krono"),
     getPublicProductsByBrand("agt"),
@@ -58,6 +61,7 @@ export default async function HomePage() {
   ]);
 
   const fallbackImage = allProducts[0]?.image ?? "";
+  const categoryBySlug = new Map(catalogCategories.map((c) => [c.slug, c]));
 
   const heroSlides: HomeHeroSlide[] = [
     {
@@ -87,10 +91,7 @@ export default async function HomePage() {
       eyebrow: "AGT / МДФ",
       title: "AGT Trendy и Supramat.",
       description: "Фасадные панели для кухни, шкафов и интерьера.",
-      primaryAction: {
-        href: "/catalog/mdf",
-        label: "Смотреть AGT",
-      },
+      primaryAction: { href: "/catalog/mdf", label: "Смотреть AGT" },
       secondaryAction: {
         href: "/catalog/mdf-panels?brand=agt&group=supramat",
         label: "Supramat",
@@ -142,25 +143,25 @@ export default async function HomePage() {
       title: "Плиты ЛДСП",
       label: `${catalogMetrics.furniturePanelCount} позиций`,
       href: "/catalog/ldsp",
-      image: pickImage([ldspProducts[0]?.image], fallbackImage),
+      image: pickImage([categoryBySlug.get("ldsp")?.coverImage, ldspProducts[0]?.image], fallbackImage),
     },
     {
       title: "МДФ",
       label: "Панели и фасады",
       href: "/catalog/mdf",
-      image: pickImage([mdfProducts[0]?.image], fallbackImage),
+      image: pickImage([categoryBySlug.get("mdf")?.coverImage ?? categoryBySlug.get("mdf-panels")?.coverImage, mdfProducts[0]?.image], fallbackImage),
     },
     {
       title: "Фурнитура",
       label: "Ручки, петли, направляющие",
       href: "/catalog/fittings",
-      image: pickImage([swissKronoProducts[0]?.image], fallbackImage),
+      image: pickImage([categoryBySlug.get("fittings")?.coverImage, extravertProducts[0]?.image], fallbackImage),
     },
     {
       title: "Онлайн распил",
       label: "Расчёт и заявка",
       href: "/calculator",
-      image: pickImage([swissKronoProducts[4]?.image], fallbackImage),
+      image: pickImage([swissKronoProducts[4]?.image, extravertProducts[3]?.image], fallbackImage),
     },
   ];
 
@@ -222,7 +223,6 @@ export default async function HomePage() {
           ))}
         </div>
       </section>
-
       </Suspense>
 
       <section className="border-y border-line bg-background px-4 py-8 sm:px-8 lg:px-10 lg:py-14">
