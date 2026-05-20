@@ -606,6 +606,15 @@ export async function notifyTelegramClientOrderCreated(orderId: string) {
       status: true,
       paymentStatus: true,
       total: true,
+      items: {
+        select: {
+          quantity: true,
+          snapshotName: true,
+          snapshotSku: true,
+          total: true,
+        },
+        take: 10,
+      },
       loyaltyTransactions: {
         where: {
           points: {
@@ -633,6 +642,10 @@ export async function notifyTelegramClientOrderCreated(orderId: string) {
     return;
   }
 
+  const itemLines = order.items.slice(0, 8).map((item, i) =>
+    `${i + 1}. ${item.snapshotName} × ${item.quantity} — ${formatPrice(Math.round(item.total))}`
+  );
+
   await sendTelegramDirectMessage(
     order.user.telegramChatId,
     [
@@ -641,12 +654,17 @@ export async function notifyTelegramClientOrderCreated(orderId: string) {
         : `Заказ ${order.number ?? ""} принят.`,
       `Статус: ${orderStatusLabels[order.status]}`,
       `Оплата: ${paymentStatusLabels[order.paymentStatus]}`,
+      "",
+      `Состав заказа (${order.items.length} поз.):`,
+      ...itemLines,
+      order.items.length > 8 ? `и ещё ${order.items.length - 8} поз.` : "",
+      "",
       `Сумма: ${formatPrice(order.total)}`,
       order.loyaltyTransactions[0]
         ? `Бонусы: +${order.loyaltyTransactions[0].points} ${order.loyaltyTransactions[0].status === LoyaltyTransactionStatus.APPROVED ? "начислены" : "ожидают подтверждения"}`
         : "",
       "Нажмите «Мои заказы» или «Мои бонусы» в меню ниже.",
-    ].join("\n"),
+    ].filter(Boolean).join("\n"),
   );
 }
 

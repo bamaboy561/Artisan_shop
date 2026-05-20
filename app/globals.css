@@ -239,6 +239,58 @@ button {
   }
 }
 
+/* === Premium enhancements === */
+
+.accent-glow {
+  box-shadow:
+    0 0 0 1px rgba(199, 106, 67, 0.08),
+    0 4px 24px rgba(199, 106, 67, 0.06);
+  transition: box-shadow 400ms ease;
+}
+.accent-glow:hover {
+  box-shadow:
+    0 0 0 1px rgba(199, 106, 67, 0.16),
+    0 8px 36px rgba(199, 106, 67, 0.12);
+}
+
+.gradient-border {
+  position: relative;
+}
+.gradient-border::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    135deg,
+    rgba(199, 106, 67, 0.3),
+    transparent 50%,
+    rgba(199, 106, 67, 0.1)
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+.hover-lift {
+  transition: transform 350ms ease, box-shadow 350ms ease;
+}
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 40px rgba(23, 22, 19, 0.1);
+}
+
+.frosted {
+  background: rgba(244, 239, 231, 0.48);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* === End premium === */
+
 @supports (animation-timeline: view()) {
   .view-rise {
     animation-timeline: view();

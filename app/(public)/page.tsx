@@ -197,7 +197,7 @@ export default async function HomePage() {
             <Link
               key={tile.href}
               href={tile.href}
-              className="view-rise group relative min-h-[10.75rem] overflow-hidden bg-[var(--hero)] text-white sm:min-h-[18rem]"
+              className="view-rise group relative min-h-[10.75rem] overflow-hidden bg-[var(--hero)] text-white sm:min-h-[18rem] gradient-border hover-lift"
               style={{ animationDelay: `${index * 80}ms` }}
             >
               {tile.image ? (
@@ -226,6 +226,7 @@ export default async function HomePage() {
       </Suspense>
 
       <section className="border-y border-line bg-background px-4 py-8 sm:px-8 lg:px-10 lg:py-14">
+        <div className="accent-glow rounded-2xl bg-[var(--surface)] px-5 py-8 sm:px-8 lg:px-10 lg:py-14">
         <div className="mx-auto max-w-[1500px]">
           <div className="mb-6 flex flex-wrap items-end justify-between gap-3 sm:mb-8 lg:mb-10">
             <div>
@@ -244,6 +245,7 @@ export default async function HomePage() {
             </Link>
           </div>
           <BrandGallery items={galleryItems} compact />
+        </div>
         </div>
       </section>
     </div>

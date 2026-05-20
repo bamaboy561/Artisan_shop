@@ -1,0 +1,95 @@
+/* === GLASS DEMO STYLES (warm theme) === */
+
+.glass-panel {
+  background: rgba(252, 249, 244, 0.55);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(23, 22, 19, 0.08);
+  box-shadow: 0 4px 24px rgba(23, 22, 19, 0.04);
+}
+
+.glass-panel-strong {
+  background: rgba(255, 253, 250, 0.72);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(23, 22, 19, 0.1);
+  box-shadow: 0 8px 40px rgba(23, 22, 19, 0.07);
+}
+
+.glass-card {
+  background: rgba(255, 253, 250, 0.65);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(23, 22, 19, 0.06);
+  box-shadow: 0 2px 16px rgba(23, 22, 19, 0.03);
+  transition: all 400ms ease;
+}
+.glass-card:hover {
+  background: rgba(255, 253, 250, 0.85);
+  border-color: rgba(23, 22, 19, 0.12);
+  box-shadow: 0 8px 36px rgba(23, 22, 19, 0.1);
+  transform: translateY(-3px);
+}
+
+/* Frosted surface */
+.frosted {
+  background: rgba(244, 239, 231, 0.48);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* Pulse dot */
+.pulse-dot {
+  position: relative;
+}
+.pulse-dot::before {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  background: rgba(16, 185, 129, 0.3);
+  animation: pulse-ring 2s ease-out infinite;
+}
+@keyframes pulse-ring {
+  0% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.8); opacity: 0.4; }
+  100% { transform: scale(2.2); opacity: 0; }
+}
+
+/* Card entrance stagger */
+.stagger-1 { animation-delay: 0ms; }
+.stagger-2 { animation-delay: 100ms; }
+.stagger-3 { animation-delay: 200ms; }
+.stagger-4 { animation-delay: 300ms; }
+
+/* Subtle gradient border */
+.gradient-border {
+  position: relative;
+}
+.gradient-border::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(199, 106, 67, 0.3), transparent 50%, rgba(199, 106, 67, 0.1));
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* Soft glow accent */
+.accent-glow {
+  box-shadow: 0 0 0 1px rgba(199, 106, 67, 0.08), 0 4px 24px rgba(199, 106, 67, 0.06);
+}
+
+/* Lift on hover */
+.hover-lift {
+  transition: transform 350ms ease, box-shadow 350ms ease;
+}
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 40px rgba(23, 22, 19, 0.1);
+}
