@@ -100,15 +100,19 @@ export function HomeHeroCarousel({ slides }: { slides: HomeHeroSlide[] }) {
                     : "hidden h-[24svh] w-[24vw] max-w-[16rem] sm:block sm:h-[32svh] lg:h-[41svh]",
                 )}
               >
-                <Image
-                  src={image.src}
-                  alt={image.alt}
-                  fill
-                  priority={slideIndex === 0}
-                  className="object-cover object-center transition duration-700"
-                  sizes="(max-width: 640px) 70vw, 28vw"
-                  unoptimized={shouldBypassNextImageOptimization(image.src)}
-                />
+                {image.src ? (
+                  <Image
+                    src={image.src}
+                    alt={image.alt}
+                    fill
+                    priority={slideIndex === 0}
+                    className="object-cover object-center transition duration-700"
+                    sizes="(max-width: 640px) 70vw, 28vw"
+                    unoptimized={shouldBypassNextImageOptimization(image.src)}
+                  />
+                ) : (
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(255,255,255,0.18),transparent_60%),linear-gradient(135deg,#2f2721_0%,#151411_55%,#3a2218_100%)]" />
+                )}
               </div>
             ))}
           </div>
