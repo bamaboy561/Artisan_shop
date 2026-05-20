@@ -86,7 +86,7 @@ export function HomeHeroCarousel({ slides }: { slides: HomeHeroSlide[] }) {
 
           <div
             className={cn(
-              "absolute inset-x-0 top-[13svh] mx-auto flex h-[31svh] max-w-[1180px] items-center justify-center gap-3 px-5 transition-transform duration-[7600ms] ease-linear sm:top-[12svh] sm:h-[44svh] sm:gap-5 sm:px-8 lg:top-[10svh] lg:h-[58svh] lg:px-16",
+              "absolute inset-x-0 top-[7svh] mx-auto flex h-[32svh] max-w-[1180px] items-center justify-center gap-3 px-4 transition-transform duration-[7600ms] ease-linear sm:top-[12svh] sm:h-[44svh] sm:gap-5 sm:px-8 lg:top-[10svh] lg:h-[58svh] lg:px-16",
               slideIndex === activeIndex ? "scale-[1.015]" : "scale-100",
             )}
           >
@@ -96,7 +96,7 @@ export function HomeHeroCarousel({ slides }: { slides: HomeHeroSlide[] }) {
                 className={cn(
                   "relative overflow-hidden bg-white/14 shadow-[0_26px_80px_rgba(0,0,0,0.18)] ring-1 ring-white/12",
                   imageIndex === 1
-                    ? "h-[29svh] w-[70vw] max-w-[22rem] sm:h-[40svh] sm:w-[58vw] lg:h-[50svh] lg:w-[42vw]"
+                    ? "h-[28svh] w-[84vw] max-w-[26rem] sm:h-[40svh] sm:w-[58vw] lg:h-[50svh] lg:w-[42vw]"
                     : "hidden h-[24svh] w-[24vw] max-w-[16rem] sm:block sm:h-[32svh] lg:h-[41svh]",
                 )}
               >
@@ -136,17 +136,17 @@ export function HomeHeroCarousel({ slides }: { slides: HomeHeroSlide[] }) {
         <ChevronRight className="size-5" />
       </button>
 
-      <div className="relative mx-auto flex min-h-[calc(84svh-4rem)] max-w-[1500px] flex-col justify-end px-4 pb-[calc(6.15rem+env(safe-area-inset-bottom))] sm:px-8 sm:pb-10 lg:min-h-[calc(100svh-3.5rem)] lg:px-10 lg:pb-8">
+      <div className="relative mx-auto flex min-h-[calc(82svh-4rem)] max-w-[1500px] flex-col justify-end px-4 pb-[calc(6.15rem+env(safe-area-inset-bottom))] sm:px-8 sm:pb-10 lg:min-h-[calc(100svh-3.5rem)] lg:px-10 lg:pb-8">
         <div className="grid gap-7 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
           <div
             key={activeSlide.id}
-            className="rise-in max-w-[31rem] rounded-[1.35rem] bg-black/14 p-3.5 backdrop-blur-sm sm:bg-transparent sm:p-0"
+            className="rise-in max-w-[31rem] sm:bg-transparent sm:p-0"
             aria-live="polite"
           >
             <p className="font-mono text-[10px] tracking-[0.22em] text-white/58 uppercase">
               {activeSlide.eyebrow}
             </p>
-            <h1 className="mt-2.5 max-w-[14ch] text-[1.65rem] leading-[0.98] font-semibold tracking-[-0.045em] text-balance text-white sm:mt-3 sm:text-[2.55rem] lg:text-[3rem]">
+            <h1 className="mt-2 max-w-[14ch] text-[1.4rem] leading-[1.08] font-semibold tracking-[-0.03em] text-balance text-white sm:mt-3 sm:text-[2.55rem] sm:leading-[0.98] sm:tracking-[-0.045em] lg:text-[3rem]">
               {activeSlide.title}
             </h1>
             <p className="mt-2.5 max-w-[24rem] text-sm leading-5 text-white/72 sm:mt-3 sm:leading-6">

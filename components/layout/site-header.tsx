@@ -31,7 +31,7 @@ const mobileDockNavigation: MobileNavItem[] = [
   { href: "/", label: "Главная", icon: Home },
   { href: "/catalog", label: "Каталог", icon: LayoutGrid },
   { href: "/calculator", label: "Раскрой", icon: Calculator },
-  { href: "/brands", label: "Бренды", icon: Shapes },
+  { href: "/cart", label: "Корзина", icon: ShoppingCart },
   { href: "/account", label: "Кабинет", icon: UserRound },
 ];
 
@@ -45,8 +45,10 @@ function isActivePath(pathname: string, href: string) {
 
 function MobileBottomDock({
   pathname,
+  itemCount = 0,
 }: {
   pathname: string;
+  itemCount?: number;
 }) {
   return (
     <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[color:var(--line)]/70 bg-[color:color-mix(in_srgb,var(--surface-strong)_92%,white)]/95 backdrop-blur-xl lg:hidden">
@@ -69,7 +71,14 @@ function MobileBottomDock({
                   : "text-[var(--muted)] hover:bg-[var(--surface)] hover:text-[var(--foreground)]",
               )}
             >
-              <Icon className="size-[17px]" />
+              <span className="relative">
+                <Icon className="size-[17px]" />
+                {item.href === "/cart" && itemCount > 0 ? (
+                  <span className="absolute -top-1 -right-1.5 flex size-[14px] items-center justify-center rounded-full bg-[var(--accent)] text-[8px] font-bold text-white">
+                    {itemCount}
+                  </span>
+                ) : null}
+              </span>
               <span className="truncate font-mono text-[8px] tracking-[0.1em] uppercase">
                 {item.label}
               </span>
@@ -356,7 +365,7 @@ export function SiteHeader() {
         </div>
       ) : null}
 
-      <MobileBottomDock pathname={pathname} />
+      <MobileBottomDock pathname={pathname} itemCount={itemCount} />
     </>
   );
 }
