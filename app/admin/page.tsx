@@ -26,8 +26,8 @@ import { hasDatabaseUrl, isDemoModeEnabled } from "@/lib/db";
 import {
   getAdminDashboardMetrics,
   getAdminOperationalQueues,
+  getAdminStockMaterials,
 } from "@/lib/server/admin-data";
-import { getPublicProducts } from "@/lib/server/catalog-public";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +37,10 @@ function formatCurrency(value: number) {
     currency: "KGS",
     maximumFractionDigits: 0,
   }).format(value);
+}
+
+function formatNumber(value: number) {
+  return new Intl.NumberFormat("ru-RU").format(value);
 }
 
 function formatDate(date: Date) {
@@ -106,14 +110,12 @@ function MiniChart() {
 function KpiCard({
   label,
   value,
-  delta,
   detail,
   icon: Icon,
   chart = false,
 }: {
   label: string;
   value: string | number;
-  delta: string;
   detail: string;
   icon: LucideIcon;
   chart?: boolean;
@@ -124,11 +126,10 @@ function KpiCard({
         <span className="text-sm text-[#77736c]">{label}</span>
         <Icon className="size-6 text-[#c65b3a]" strokeWidth={1.75} />
       </div>
-      <p className="mt-4 text-[26px] font-semibold leading-none tracking-[-0.03em] text-[#24221f]">
+      <p className="mt-4 text-[26px] leading-none font-semibold tracking-[-0.03em] text-[#24221f]">
         {value}
       </p>
-      <p className="mt-3 text-sm text-emerald-600">{delta}</p>
-      <p className="mt-1 text-sm text-[#8a857d]">{detail}</p>
+      <p className="mt-3 text-sm text-[#8a857d]">{detail}</p>
       {chart ? <MiniChart /> : null}
     </article>
   );
@@ -180,18 +181,11 @@ export default async function AdminPage() {
     );
   }
 
-  const [metrics, queues, catalogProducts] = await Promise.all([
+  const [metrics, queues, stockMaterials] = await Promise.all([
     getAdminDashboardMetrics(),
     getAdminOperationalQueues(),
-    getPublicProducts(),
+    getAdminStockMaterials(),
   ]);
-
-  const revenue = queues.recentOrders.reduce((sum, order) => sum + order.total, 0);
-  const averageOrder =
-    queues.recentOrders.length > 0
-      ? Math.round(revenue / queues.recentOrders.length)
-      : 0;
-  const repeatRate = metrics.usersTotal > 0 ? "68%" : "0%";
 
   const orderRows = queues.recentOrders.map((order) => ({
     order: (
@@ -241,82 +235,96 @@ export default async function AdminPage() {
     { href: "/admin/users", label: "Добавить клиента", icon: Users2 },
   ];
 
-  const popularMaterials = catalogProducts.slice(0, 5).map((product, index) => ({
+  const stockMaterialRows = stockMaterials.map((product) => ({
     name: product.name,
-    format: product.format ?? "16 мм",
-    stock: [126, 98, 76, 65, 54][index] ?? 40,
-    swatch: product.image ?? "",
+    format: product.format ?? "",
+    stock: product.stockQuantity ?? 0,
+    swatch: product.images[0]?.url ?? "",
+    updatedAt: product.updatedAt,
   }));
 
   const notifications = [
-    {
-      title: "Новый запрос на расчёт",
-      detail:
-        queues.recentRequests[0]?.contactName ??
-        "Появится после первой заявки клиента",
-      time: "сейчас",
-      icon: FileStack,
-      tone: "bg-blue-50 text-blue-700",
-    },
-    {
-      title: "Заказ переведен в работу",
-      detail: queues.recentOrders[0]?.number ?? "Пока нет активных заказов",
-      time: "10:32",
-      icon: ReceiptText,
-      tone: "bg-orange-50 text-orange-700",
-    },
-    {
-      title: "Материал добавлен в каталог",
-      detail: popularMaterials[0]?.name ?? "Каталог ожидает наполнения",
-      time: "вчера",
-      icon: Archive,
-      tone: "bg-neutral-100 text-neutral-700",
-    },
-  ];
+    queues.recentRequests[0]
+      ? {
+          title: "Последняя заявка",
+          detail: queues.recentRequests[0].contactName,
+          time: formatDate(queues.recentRequests[0].createdAt),
+          icon: FileStack,
+          tone: "bg-blue-50 text-blue-700",
+        }
+      : null,
+    queues.recentOrders[0]
+      ? {
+          title: "Последний заказ",
+          detail:
+            queues.recentOrders[0].number ?? queues.recentOrders[0].contactName,
+          time: formatDate(queues.recentOrders[0].createdAt),
+          icon: ReceiptText,
+          tone: "bg-orange-50 text-orange-700",
+        }
+      : null,
+    stockMaterialRows[0]
+      ? {
+          title: "Последний остаток",
+          detail: stockMaterialRows[0].name,
+          time: formatDate(stockMaterialRows[0].updatedAt),
+          icon: Archive,
+          tone: "bg-neutral-100 text-neutral-700",
+        }
+      : null,
+  ].filter(
+    (
+      item,
+    ): item is {
+      title: string;
+      detail: string;
+      time: string;
+      icon: LucideIcon;
+      tone: string;
+    } => Boolean(item),
+  );
 
   return (
     <div className="space-y-5">
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         <KpiCard
-          label="Выручка в заказах"
-          value={formatCurrency(revenue)}
-          delta="+12.4%"
-          detail="по текущей очереди"
+          label="Выручка по заказам"
+          value={formatCurrency(metrics.ordersRevenue)}
+          detail="все неотмененные заказы"
           icon={ReceiptText}
-          chart
         />
         <KpiCard
           label="Заказы в работе"
           value={metrics.openOrders}
-          delta="+6"
-          detail="к прошлой неделе"
+          detail="активные производственные статусы"
           icon={PackagePlus}
         />
         <KpiCard
           label="Запросы на расчёт"
           value={metrics.openRequests}
-          delta="-3"
-          detail="к прошлой неделе"
+          detail="активные заявки клиентов"
           icon={Calculator}
         />
         <KpiCard
           label="Средний чек"
-          value={formatCurrency(averageOrder)}
-          delta="+9.1%"
-          detail="по активным заказам"
+          value={formatCurrency(metrics.averageOrderTotal)}
+          detail="по неотмененным заказам"
           icon={TrendingUp}
         />
         <KpiCard
-          label="Повторные клиенты"
-          value={repeatRate}
-          delta="+5 п.п."
-          detail="по базе клиентов"
+          label="Клиенты"
+          value={formatNumber(metrics.usersTotal)}
+          detail="зарегистрированные аккаунты"
           icon={Users2}
         />
       </section>
 
       <section className="grid gap-5 xl:grid-cols-[1.05fr_1fr]">
-        <Panel title="Заказы в работе" href="/admin/orders" linkLabel="Все заказы">
+        <Panel
+          title="Заказы в работе"
+          href="/admin/orders"
+          linkLabel="Все заказы"
+        >
           <DataTable
             caption="Заказы в работе"
             variant="embedded"
@@ -374,33 +382,41 @@ export default async function AdminPage() {
         </Panel>
 
         <Panel
-          title="Популярные материалы"
+          title="Остатки материалов"
           href="/admin/products"
-          linkLabel="Все материалы"
+          linkLabel="Все товары"
         >
           <div className="divide-y divide-[#ece8e2] px-5">
-            {popularMaterials.map((material) => (
-              <div
-                key={material.name}
-                className="grid grid-cols-[44px_minmax(0,1fr)_70px_70px] items-center gap-3 py-3.5 text-sm"
-              >
-                <span
-                  className="size-8 rounded-md border border-[#e6e2dc] bg-cover bg-center"
-                  style={{
-                    backgroundImage: material.swatch
-                      ? `url(${material.swatch})`
-                      : undefined,
-                  }}
-                />
-                <span className="min-w-0 truncate font-medium text-[#24221f]">
-                  {material.name}
-                </span>
-                <span className="text-[#8a857d]">{material.format}</span>
-                <span className="text-right font-medium text-[#24221f]">
-                  {material.stock} шт.
-                </span>
-              </div>
-            ))}
+            {stockMaterialRows.length > 0 ? (
+              stockMaterialRows.map((material) => (
+                <div
+                  key={material.name}
+                  className="grid grid-cols-[44px_minmax(0,1fr)_70px_70px] items-center gap-3 py-3.5 text-sm"
+                >
+                  <span
+                    className="size-8 rounded-md border border-[#e6e2dc] bg-cover bg-center"
+                    style={{
+                      backgroundImage: material.swatch
+                        ? `url(${material.swatch})`
+                        : undefined,
+                    }}
+                  />
+                  <span className="min-w-0 truncate font-medium text-[#24221f]">
+                    {material.name}
+                  </span>
+                  <span className="truncate text-[#8a857d]">
+                    {material.format || "—"}
+                  </span>
+                  <span className="text-right font-medium text-[#24221f]">
+                    {formatNumber(material.stock)} шт.
+                  </span>
+                </div>
+              ))
+            ) : (
+              <p className="py-5 text-sm text-[#8a857d]">
+                Остатки пока не указаны в карточках товаров.
+              </p>
+            )}
           </div>
         </Panel>
 
@@ -410,30 +426,37 @@ export default async function AdminPage() {
           linkLabel="Все уведомления"
         >
           <div className="space-y-1 p-4">
-            {notifications.map((item) => {
-              const Icon = item.icon;
-              return (
-                <div
-                  key={`${item.title}-${item.detail}`}
-                  className="grid grid-cols-[38px_minmax(0,1fr)_auto] gap-3 rounded-xl px-2 py-3 text-sm"
-                >
-                  <span
-                    className={`flex size-9 items-center justify-center rounded-xl ${item.tone}`}
+            {notifications.length > 0 ? (
+              notifications.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <div
+                    key={`${item.title}-${item.detail}`}
+                    className="grid grid-cols-[38px_minmax(0,1fr)_auto] gap-3 rounded-xl px-2 py-3 text-sm"
                   >
-                    <Icon className="size-4" strokeWidth={1.8} />
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block font-medium text-[#24221f]">
-                      {item.title}
+                    <span
+                      className={`flex size-9 items-center justify-center rounded-xl ${item.tone}`}
+                    >
+                      <Icon className="size-4" strokeWidth={1.8} />
                     </span>
-                    <span className="mt-0.5 block truncate text-xs text-[#8a857d]">
-                      {item.detail}
+                    <span className="min-w-0">
+                      <span className="block font-medium text-[#24221f]">
+                        {item.title}
+                      </span>
+                      <span className="mt-0.5 block truncate text-xs text-[#8a857d]">
+                        {item.detail}
+                      </span>
                     </span>
-                  </span>
-                  <span className="text-xs text-[#8a857d]">{item.time}</span>
-                </div>
-              );
-            })}
+                    <span className="text-xs text-[#8a857d]">{item.time}</span>
+                  </div>
+                );
+              })
+            ) : (
+              <p className="px-2 py-5 text-sm text-[#8a857d]">
+                Новые события появятся после заявок, заказов или обновления
+                остатков.
+              </p>
+            )}
           </div>
         </Panel>
       </section>
@@ -442,13 +465,16 @@ export default async function AdminPage() {
         <div className="grid overflow-hidden rounded-xl border border-[#e6e2dc] bg-white shadow-[0_18px_50px_rgba(30,28,25,0.04)] md:grid-cols-4">
           {[
             ["Производство", `${metrics.openOrders} заказов в работе`],
-            ["Раскрой сегодня", "86 деталей"],
-            ["Кромление сегодня", "128 метров"],
-            ["Доставка сегодня", "5 заказов"],
+            [
+              "Заявки на распил сегодня",
+              `${metrics.cuttingRequestsToday} заявок`,
+            ],
+            ["Готово к выдаче", `${metrics.readyForPickupOrders} заказов`],
+            ["Отгружено сегодня", `${metrics.shippedToday} заказов`],
           ].map(([label, value]) => (
             <div
               key={label}
-              className="border-b border-[#e6e2dc] px-5 py-4 last:border-b-0 md:border-b-0 md:border-r md:last:border-r-0"
+              className="border-b border-[#e6e2dc] px-5 py-4 last:border-b-0 md:border-r md:border-b-0 md:last:border-r-0"
             >
               <p className="text-sm text-[#8a857d]">{label}</p>
               <p className="mt-2 text-xl font-semibold text-[#24221f]">
@@ -462,7 +488,7 @@ export default async function AdminPage() {
           <div>
             <p className="text-sm text-[#8a857d]">Склад</p>
             <p className="mt-2 text-xl font-semibold text-[#24221f]">
-              {metrics.activeProducts} материалов
+              {formatNumber(metrics.activeProducts)} материалов
             </p>
           </div>
           <Box className="size-8 text-[#c65b3a]" strokeWidth={1.6} />

@@ -2,6 +2,7 @@ import {
   OrderStatus,
   ProductStatus,
   PromotionStatus,
+  RequestType,
   RequestStatus,
 } from "@/generated/prisma";
 import { getDb, hasDatabaseUrl, isDemoModeEnabled } from "@/lib/db";
@@ -24,6 +25,12 @@ const activeRequestStatuses = new Set<RequestStatus>([
   RequestStatus.IN_PROGRESS,
 ]);
 
+function getStartOfToday() {
+  const date = new Date();
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
 export async function getAdminDashboardMetrics() {
   if (!hasDatabaseUrl() && isDemoModeEnabled()) {
     const [orders, requests] = await Promise.all([
@@ -32,8 +39,9 @@ export async function getAdminDashboardMetrics() {
     ]);
 
     const uniqueContacts = new Set(
-      [...orders, ...requests].map((item) =>
-        `${item.contactPhone}|${item.contactName}|${"contactEmail" in item ? item.contactEmail ?? "" : ""}`,
+      [...orders, ...requests].map(
+        (item) =>
+          `${item.contactPhone}|${item.contactName}|${"contactEmail" in item ? (item.contactEmail ?? "") : ""}`,
       ),
     );
 
@@ -43,16 +51,41 @@ export async function getAdminDashboardMetrics() {
       categoriesTotal: 0,
       brandsTotal: 0,
       usersTotal: uniqueContacts.size,
-      openOrders: orders.filter((order) => activeOrderStatuses.has(order.status))
-        .length,
+      openOrders: orders.filter((order) =>
+        activeOrderStatuses.has(order.status),
+      ).length,
       openRequests: requests.filter((request) =>
         activeRequestStatuses.has(request.status),
       ).length,
       activePromotions: 0,
+      ordersRevenue: orders
+        .filter((order) => order.status !== OrderStatus.CANCELED)
+        .reduce((sum, order) => sum + order.total, 0),
+      averageOrderTotal:
+        orders.length > 0
+          ? Math.round(
+              orders.reduce((sum, order) => sum + order.total, 0) /
+                orders.length,
+            )
+          : 0,
+      cuttingRequestsToday: requests.filter(
+        (request) =>
+          request.type === RequestType.CUTTING_SERVICE &&
+          request.createdAt >= getStartOfToday(),
+      ).length,
+      readyForPickupOrders: orders.filter(
+        (order) => order.status === OrderStatus.READY_FOR_PICKUP,
+      ).length,
+      shippedToday: orders.filter(
+        (order) =>
+          order.status === OrderStatus.SHIPPED &&
+          order.updatedAt >= getStartOfToday(),
+      ).length,
     };
   }
 
   const db = getDb();
+  const startOfToday = getStartOfToday();
 
   const [
     productsTotal,
@@ -63,6 +96,11 @@ export async function getAdminDashboardMetrics() {
     openOrders,
     openRequests,
     activePromotions,
+    ordersTotal,
+    orderRevenue,
+    cuttingRequestsToday,
+    readyForPickupOrders,
+    shippedToday,
   ] = await Promise.all([
     db.product.count(),
     db.product.count({ where: { status: ProductStatus.ACTIVE } }),
@@ -96,7 +134,27 @@ export async function getAdminDashboardMetrics() {
       },
     }),
     db.promotion.count({ where: { status: PromotionStatus.ACTIVE } }),
+    db.order.count({ where: { status: { not: OrderStatus.CANCELED } } }),
+    db.order.aggregate({
+      where: { status: { not: OrderStatus.CANCELED } },
+      _sum: { total: true },
+    }),
+    db.request.count({
+      where: {
+        type: RequestType.CUTTING_SERVICE,
+        createdAt: { gte: startOfToday },
+      },
+    }),
+    db.order.count({ where: { status: OrderStatus.READY_FOR_PICKUP } }),
+    db.order.count({
+      where: {
+        status: OrderStatus.SHIPPED,
+        updatedAt: { gte: startOfToday },
+      },
+    }),
   ]);
+
+  const ordersRevenue = orderRevenue._sum.total ?? 0;
 
   return {
     productsTotal,
@@ -107,7 +165,42 @@ export async function getAdminDashboardMetrics() {
     openOrders,
     openRequests,
     activePromotions,
+    ordersRevenue,
+    averageOrderTotal:
+      ordersTotal > 0 ? Math.round(ordersRevenue / ordersTotal) : 0,
+    cuttingRequestsToday,
+    readyForPickupOrders,
+    shippedToday,
   };
+}
+
+export async function getAdminStockMaterials(limit = 5) {
+  if (!hasDatabaseUrl() && isDemoModeEnabled()) {
+    return [];
+  }
+
+  const db = getDb();
+
+  return db.product.findMany({
+    where: {
+      status: ProductStatus.ACTIVE,
+      stockQuantity: { not: null },
+    },
+    orderBy: [{ stockQuantity: "desc" }, { updatedAt: "desc" }],
+    take: limit,
+    select: {
+      id: true,
+      name: true,
+      format: true,
+      stockQuantity: true,
+      updatedAt: true,
+      images: {
+        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+        take: 1,
+        select: { url: true },
+      },
+    },
+  });
 }
 
 export async function getAdminOperationalQueues(limit = 5) {
@@ -120,7 +213,9 @@ export async function getAdminOperationalQueues(limit = 5) {
     return {
       recentOrders: orders
         .slice()
-        .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
+        .sort(
+          (left, right) => right.createdAt.getTime() - left.createdAt.getTime(),
+        )
         .slice(0, limit)
         .map((order) => ({
           id: order.id,
