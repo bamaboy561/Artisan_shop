@@ -53,7 +53,7 @@ export function SimilarByDecor({
               inStock={item.inStock}
               categoryName={item.categoryName}
               purchaseMode={item.purchaseMode}
-              hoverImage={item.gallery?.[0]}
+              hoverImage={item.gallery?.[1]}
             />
           ))}
         </div>
