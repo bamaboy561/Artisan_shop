@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { SetupState } from "@/components/admin/setup-state";
+import { FavoriteToggle } from "@/components/catalog/favorite-toggle";
 import { ButtonLink } from "@/components/ui/button-link";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { DataTable } from "@/components/ui/table";
@@ -61,6 +62,14 @@ export default async function AccountFavoritesPage() {
     ),
     orderMode: favorite.product.orderMode,
     price: formatCurrency(favorite.product.price),
+    action: (
+      <FavoriteToggle
+        productSlug={favorite.product.slug}
+        isFavorite
+        next="/account/favorites"
+        variant="inline"
+      />
+    ),
   }));
 
   return (
@@ -79,6 +88,7 @@ export default async function AccountFavoritesPage() {
           { key: "product", label: "Товар" },
           { key: "orderMode", label: "Сценарий заказа" },
           { key: "price", label: "Цена" },
+          { key: "action", label: "" },
         ]}
         rows={rows}
         caption="Избранные товары"

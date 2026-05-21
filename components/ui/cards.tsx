@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 
+import { FavoriteToggle } from "@/components/catalog/favorite-toggle";
 import { formatPrice } from "@/lib/commerce";
 import { shouldBypassNextImageOptimization } from "@/lib/image-optimization";
 import { cn } from "@/lib/utils";
@@ -21,6 +22,10 @@ type ProductCardProps = {
   compact?: boolean;
   denseMobile?: boolean;
   mobileList?: boolean;
+  productSlug?: string;
+  isFavorite?: boolean;
+  favoriteNext?: string;
+  showFavorite?: boolean;
   className?: string;
 };
 
@@ -37,6 +42,10 @@ export function ProductCard({
   compact = false,
   denseMobile = false,
   mobileList = false,
+  productSlug,
+  isFavorite = false,
+  favoriteNext = href,
+  showFavorite = false,
   className,
 }: ProductCardProps) {
   const aspect = compact
@@ -48,133 +57,144 @@ export function ProductCard({
       : "aspect-[0.96] sm:aspect-[1.08]";
 
   return (
-    <Link
-      href={href}
-      className={cn(
-        "group relative flex h-full overflow-hidden bg-transparent",
-        mobileList
-          ? "flex-row items-start gap-3.5 border-b border-[color:var(--line)] pb-4 sm:flex-col sm:gap-0 sm:border-b-0 sm:pb-0"
-          : "flex-col",
-        className,
-      )}
-    >
-      <div
-        className={cn(
-          "relative overflow-hidden bg-[#ece8df]",
-          mobileList && "w-[7rem] shrink-0 sm:w-full",
-          aspect,
-        )}
-      >
-        {image ? (
-          <Image
-            src={image}
-            alt={name}
-            fill
-            className="object-cover transition-transform duration-[900ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.06]"
-            sizes={
-              mobileList
-                ? "(max-width: 639px) 112px, (max-width: 1024px) 50vw, 25vw"
-                : "(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
-            }
-            unoptimized={shouldBypassNextImageOptimization(image)}
+    <article className={cn("relative h-full", className)}>
+      {showFavorite && productSlug ? (
+        <div className="absolute top-2 right-2 z-20 sm:top-3 sm:right-3">
+          <FavoriteToggle
+            productSlug={productSlug}
+            isFavorite={isFavorite}
+            next={favoriteNext}
           />
-        ) : (
-          <div className="flex h-full items-center justify-center text-[var(--muted)]">
-            <span className="font-mono text-[10px] tracking-[0.22em] uppercase">
-              Artisan
-            </span>
-          </div>
-        )}
+        </div>
+      ) : null}
 
-        {!inStock ? (
-          <span className="absolute top-2.5 left-2.5 inline-flex items-center gap-1.5 bg-white/92 px-2 py-1 font-mono text-[9px] tracking-[0.16em] text-[var(--foreground)] uppercase backdrop-blur-sm sm:top-3 sm:left-3 sm:text-[10px]">
-            <span className="size-1 rounded-full bg-[var(--foreground)]/40" />
-            Под заказ
-          </span>
-        ) : null}
-      </div>
-
-      <div
+      <Link
+        href={href}
         className={cn(
-          "flex min-w-0 flex-1 flex-col",
+          "group relative flex h-full overflow-hidden bg-transparent",
           mobileList
-            ? "min-h-[7rem] pt-0 sm:min-h-0 sm:pt-3.5"
-            : compact
-              ? "pt-3"
-              : "pt-3 sm:pt-4",
+            ? "flex-row items-start gap-3.5 border-b border-[color:var(--line)] pb-4 sm:flex-col sm:gap-0 sm:border-b-0 sm:pb-0"
+            : "flex-col",
         )}
       >
-        <p
+        <div
           className={cn(
-            "font-mono tracking-[0.22em] text-[var(--muted)] uppercase",
-            mobileList ? "text-[9px] sm:text-[10px]" : "text-[10px] sm:text-[11px]",
+            "relative overflow-hidden bg-[#ece8df]",
+            mobileList && "w-[7rem] shrink-0 sm:w-full",
+            aspect,
           )}
         >
-          {brand}
-        </p>
+          {image ? (
+            <Image
+              src={image}
+              alt={name}
+              fill
+              className="object-cover transition-transform duration-[900ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.06]"
+              sizes={
+                mobileList
+                  ? "(max-width: 639px) 112px, (max-width: 1024px) 50vw, 25vw"
+                  : "(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+              }
+              unoptimized={shouldBypassNextImageOptimization(image)}
+            />
+          ) : (
+            <div className="flex h-full items-center justify-center text-[var(--muted)]">
+              <span className="font-mono text-[10px] tracking-[0.22em] uppercase">
+                Artisan
+              </span>
+            </div>
+          )}
 
-        <h3
-          className={cn(
-            "mt-1.5 font-medium tracking-[-0.01em] text-[var(--foreground)] transition-colors duration-300 group-hover:text-[#9d573d]",
-            compact
-              ? "text-[15px] leading-[1.3]"
-              : denseMobile
-                ? "text-[14px] leading-[1.3] sm:text-[17px] sm:leading-[1.25]"
-                : "text-[15px] leading-[1.3] sm:text-[17px] sm:leading-[1.25]",
-            mobileList && "line-clamp-2 sm:line-clamp-1",
-          )}
-        >
-          {name}
-        </h3>
+          {!inStock ? (
+            <span className="absolute top-2.5 left-2.5 inline-flex items-center gap-1.5 bg-white/92 px-2 py-1 font-mono text-[9px] tracking-[0.16em] text-[var(--foreground)] uppercase backdrop-blur-sm sm:top-3 sm:left-3 sm:text-[10px]">
+              <span className="size-1 rounded-full bg-[var(--foreground)]/40" />
+              Под заказ
+            </span>
+          ) : null}
+        </div>
 
         <div
           className={cn(
-            "mt-auto grid min-w-0 gap-1.5",
-            mobileList ? "pt-2.5 sm:pt-3.5" : "pt-3 sm:pt-4",
+            "flex min-w-0 flex-1 flex-col",
+            mobileList
+              ? "min-h-[7rem] pt-0 sm:min-h-0 sm:pt-3.5"
+              : compact
+                ? "pt-3"
+                : "pt-3 sm:pt-4",
           )}
         >
-          <div className="min-w-0">
-            {price ? (
-              <>
-                <p
-                  className={cn(
-                    "font-semibold text-[var(--foreground)]",
-                    compact
-                      ? "text-[15px]"
-                      : "text-[15px] sm:text-[17px]",
-                  )}
-                >
-                  {formatPrice(price)}
-                </p>
-                {oldPrice ? (
-                  <p className="text-[11px] text-[var(--muted)] line-through sm:text-xs">
-                    {formatPrice(oldPrice)}
-                  </p>
-                ) : null}
-              </>
-            ) : (
-              <p
-                className={cn(
-                  "font-medium text-[var(--foreground)]",
-                  compact ? "text-[12px]" : "text-[12px] sm:text-[13px]",
-                )}
-              >
-                {action}
-              </p>
-            )}
-          </div>
-
-          <span
+          <p
             className={cn(
-              "block max-w-full font-mono leading-4 tracking-[0.12em] break-words text-[var(--muted)] uppercase",
-              compact ? "text-[9px]" : "text-[9px] sm:text-[10px]",
+              "font-mono tracking-[0.22em] text-[var(--muted)] uppercase",
+              mobileList
+                ? "text-[9px] sm:text-[10px]"
+                : "text-[10px] sm:text-[11px]",
             )}
           >
-            {format}
-          </span>
+            {brand}
+          </p>
+
+          <h3
+            className={cn(
+              "mt-1.5 font-medium tracking-[-0.01em] text-[var(--foreground)] transition-colors duration-300 group-hover:text-[#9d573d]",
+              compact
+                ? "text-[15px] leading-[1.3]"
+                : denseMobile
+                  ? "text-[14px] leading-[1.3] sm:text-[17px] sm:leading-[1.25]"
+                  : "text-[15px] leading-[1.3] sm:text-[17px] sm:leading-[1.25]",
+              mobileList && "line-clamp-2 sm:line-clamp-1",
+            )}
+          >
+            {name}
+          </h3>
+
+          <div
+            className={cn(
+              "mt-auto grid min-w-0 gap-1.5",
+              mobileList ? "pt-2.5 sm:pt-3.5" : "pt-3 sm:pt-4",
+            )}
+          >
+            <div className="min-w-0">
+              {price ? (
+                <>
+                  <p
+                    className={cn(
+                      "font-semibold text-[var(--foreground)]",
+                      compact ? "text-[15px]" : "text-[15px] sm:text-[17px]",
+                    )}
+                  >
+                    {formatPrice(price)}
+                  </p>
+                  {oldPrice ? (
+                    <p className="text-[11px] text-[var(--muted)] line-through sm:text-xs">
+                      {formatPrice(oldPrice)}
+                    </p>
+                  ) : null}
+                </>
+              ) : (
+                <p
+                  className={cn(
+                    "font-medium text-[var(--foreground)]",
+                    compact ? "text-[12px]" : "text-[12px] sm:text-[13px]",
+                  )}
+                >
+                  {action}
+                </p>
+              )}
+            </div>
+
+            <span
+              className={cn(
+                "block max-w-full font-mono leading-4 tracking-[0.12em] break-words text-[var(--muted)] uppercase",
+                compact ? "text-[9px]" : "text-[9px] sm:text-[10px]",
+              )}
+            >
+              {format}
+            </span>
+          </div>
         </div>
-      </div>
-    </Link>
+      </Link>
+    </article>
   );
 }
 

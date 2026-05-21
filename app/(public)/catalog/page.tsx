@@ -23,6 +23,7 @@ import {
   getPublicCategories,
   getPublicProducts,
 } from "@/lib/server/catalog-public";
+import { getCurrentFavoriteProductSlugs } from "@/lib/server/favorites";
 import { collectionJsonLd, createSeoMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = createSeoMetadata({
@@ -37,13 +38,19 @@ type CatalogPageProps = {
 };
 
 export default async function CatalogPage({ searchParams }: CatalogPageProps) {
-  const [catalogProducts, catalogCategories, catalogMetrics, parsedSearchParams] =
-    await Promise.all([
-      getPublicProducts(),
-      getPublicCategories(),
-      getCatalogMetrics(),
-      searchParams,
-    ]);
+  const [
+    catalogProducts,
+    catalogCategories,
+    catalogMetrics,
+    favoriteSlugs,
+    parsedSearchParams,
+  ] = await Promise.all([
+    getPublicProducts(),
+    getPublicCategories(),
+    getCatalogMetrics(),
+    getCurrentFavoriteProductSlugs(),
+    searchParams,
+  ]);
   const parsedState = parseCatalogSearchParams(parsedSearchParams);
   const availableFilterOptions = getCatalogFilterOptions(catalogProducts);
   const state = sanitizeCatalogFilterState(parsedState, availableFilterOptions);
@@ -52,6 +59,7 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
   const sortedProducts = sortCatalogProducts(filteredProducts, state.sort);
   const pagination = paginateCatalogProducts(sortedProducts, state.page);
   const resolvedState = { ...state, page: pagination.currentPage };
+  const currentHref = buildCatalogHref("/catalog", resolvedState);
   const catalogDescription =
     "Каталог мебельных панелей, МДФ, ЛДСП, декоров и материалов для распила Artisan.";
 
@@ -67,7 +75,7 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
       />
       <section className="relative overflow-hidden border-b border-[color:var(--line)] bg-gradient-to-b from-[#f6f1e7] via-[#efeadf] to-[#f1eee8]">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[var(--foreground)]/12 to-transparent" />
-        <div className="pointer-events-none absolute inset-0 opacity-[0.035] [background-image:radial-gradient(circle_at_1px_1px,#151411_1px,transparent_0)] [background-size:18px_18px]" />
+        <div className="pointer-events-none absolute inset-0 [background-image:radial-gradient(circle_at_1px_1px,#151411_1px,transparent_0)] [background-size:18px_18px] opacity-[0.035]" />
 
         <div className="relative mx-auto flex max-w-[1500px] flex-col gap-6 px-4 pt-12 pb-10 sm:gap-8 sm:px-8 sm:pt-20 sm:pb-14 lg:flex-row lg:items-end lg:justify-between lg:gap-12 lg:px-10 lg:pt-24 lg:pb-16">
           <div className="max-w-[42rem]">
@@ -78,7 +86,9 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
               Материалы для проектной мебели.
             </h1>
             <p className="mt-4 max-w-[36rem] text-[14px] leading-[1.7] text-[var(--muted)] sm:mt-5 sm:text-[15px]">
-              Подбор плитных материалов, фасадных панелей и кромок под конкретный проект — с прозрачным сценарием заказа и сервисом распила.
+              Подбор плитных материалов, фасадных панелей и кромок под
+              конкретный проект — с прозрачным сценарием заказа и сервисом
+              распила.
             </p>
           </div>
 
@@ -120,14 +130,14 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
               <Link
                 key={category.slug}
                 href={`/catalog/${category.slug}`}
-                className="inline-flex h-8.5 items-center border border-[color:var(--line)] bg-white/70 px-3 font-mono text-[9px] tracking-[0.14em] text-[var(--foreground)] uppercase transition sm:h-10 sm:px-4 sm:text-[10px] hover:border-[var(--foreground)]"
+                className="inline-flex h-8.5 items-center border border-[color:var(--line)] bg-white/70 px-3 font-mono text-[9px] tracking-[0.14em] text-[var(--foreground)] uppercase transition hover:border-[var(--foreground)] sm:h-10 sm:px-4 sm:text-[10px]"
               >
                 {category.name}
               </Link>
             ))}
             <Link
               href="/calculator"
-              className="inline-flex h-8.5 items-center border border-[color:var(--foreground)] bg-[var(--foreground)] px-3 font-mono text-[9px] tracking-[0.14em] text-white uppercase transition sm:h-10 sm:px-4 sm:text-[10px] hover:bg-transparent hover:text-[var(--foreground)]"
+              className="inline-flex h-8.5 items-center border border-[color:var(--foreground)] bg-[var(--foreground)] px-3 font-mono text-[9px] tracking-[0.14em] text-white uppercase transition hover:bg-transparent hover:text-[var(--foreground)] sm:h-10 sm:px-4 sm:text-[10px]"
             >
               Калькулятор распила
             </Link>
@@ -164,6 +174,10 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
                       oldPrice={product.oldPrice}
                       inStock={product.inStock}
                       categoryName={product.categoryName}
+                      productSlug={product.slug}
+                      isFavorite={favoriteSlugs.has(product.slug)}
+                      favoriteNext={currentHref}
+                      showFavorite
                       denseMobile
                       mobileList
                     />
@@ -173,7 +187,8 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
                 {pagination.totalPages > 1 ? (
                   <div className="flex min-w-0 flex-col gap-3 border-t border-[color:var(--line)] pt-5 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:pt-6">
                     <p className="font-mono text-[10px] tracking-[0.14em] text-[var(--muted)] uppercase">
-                      Страница {pagination.currentPage} из {pagination.totalPages}
+                      Страница {pagination.currentPage} из{" "}
+                      {pagination.totalPages}
                     </p>
                     <Pagination
                       currentPage={pagination.currentPage}
@@ -190,7 +205,7 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
               </>
             ) : catalogProducts.length === 0 ? (
               <div className="relative overflow-hidden border border-[color:var(--line)] bg-[#f7f3ea] px-6 py-14 text-center sm:px-12 sm:py-20">
-                <div className="pointer-events-none absolute inset-0 opacity-[0.04] [background-image:radial-gradient(circle_at_1px_1px,#151411_1px,transparent_0)] [background-size:14px_14px]" />
+                <div className="pointer-events-none absolute inset-0 [background-image:radial-gradient(circle_at_1px_1px,#151411_1px,transparent_0)] [background-size:14px_14px] opacity-[0.04]" />
                 <div className="relative mx-auto max-w-[36rem]">
                   <span className="inline-flex items-center gap-2 border border-[color:var(--line-strong)]/50 bg-white/70 px-3 py-1 font-mono text-[10px] tracking-[0.18em] text-[var(--accent)] uppercase">
                     <span className="size-1 rounded-full bg-[var(--accent)]" />
@@ -200,7 +215,9 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
                     Материалы скоро появятся в каталоге.
                   </h2>
                   <p className="mt-4 text-[14px] leading-[1.65] text-[var(--muted)] sm:text-[15px]">
-                    Команда наполняет витрину коллекциями, форматами и ценами. Если нужно подобрать материал прямо сейчас — напишите менеджеру или оставьте заявку на расчёт.
+                    Команда наполняет витрину коллекциями, форматами и ценами.
+                    Если нужно подобрать материал прямо сейчас — напишите
+                    менеджеру или оставьте заявку на расчёт.
                   </p>
                   <div className="mt-7 flex flex-col items-center justify-center gap-3 sm:flex-row">
                     <Link
@@ -227,11 +244,12 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
                   По выбранным фильтрам ничего не нашлось.
                 </h2>
                 <p className="mx-auto mt-3 max-w-[32rem] text-[14px] leading-[1.65] text-[var(--muted)]">
-                  Снимите часть условий или попробуйте другой поисковый запрос — материалы у нас точно есть.
+                  Снимите часть условий или попробуйте другой поисковый запрос —
+                  материалы у нас точно есть.
                 </p>
                 <Link
                   href="/catalog"
-                  className="mt-6 inline-flex h-11 items-center border border-[var(--foreground)] px-7 font-mono text-[11px] tracking-[0.16em] text-[var(--foreground)] uppercase transition sm:mt-7 hover:bg-[var(--foreground)] hover:text-white"
+                  className="mt-6 inline-flex h-11 items-center border border-[var(--foreground)] px-7 font-mono text-[11px] tracking-[0.16em] text-[var(--foreground)] uppercase transition hover:bg-[var(--foreground)] hover:text-white sm:mt-7"
                 >
                   Сбросить фильтры
                 </Link>

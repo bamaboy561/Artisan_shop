@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { AddToCartButton } from "@/components/ecommerce/add-to-cart-button";
+import { FavoriteToggle } from "@/components/catalog/favorite-toggle";
 import { StructuredData } from "@/components/seo/structured-data";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { ButtonLink } from "@/components/ui/button-link";
@@ -13,6 +14,7 @@ import {
   getPublicProductBySlug,
   getPublicProductsByCategory,
 } from "@/lib/server/catalog-public";
+import { getCurrentFavoriteProductSlugs } from "@/lib/server/favorites";
 import { formatPrice } from "@/lib/commerce";
 import { shouldBypassNextImageOptimization } from "@/lib/image-optimization";
 import {
@@ -26,6 +28,53 @@ import {
 type ProductPageProps = {
   params: Promise<{ slug: string }>;
 };
+
+type RelatedProductCandidate = NonNullable<
+  Awaited<ReturnType<typeof getPublicProductBySlug>>
+>;
+
+function getRelatedProductScore(
+  product: RelatedProductCandidate,
+  candidate: RelatedProductCandidate,
+) {
+  let score = 0;
+
+  if (candidate.brandSlug && candidate.brandSlug === product.brandSlug) {
+    score += 40;
+  }
+
+  if (
+    candidate.decorGroupSlug &&
+    product.decorGroupSlug &&
+    candidate.decorGroupSlug === product.decorGroupSlug
+  ) {
+    score += 30;
+  }
+
+  if (
+    candidate.sheetPresetId &&
+    candidate.sheetPresetId === product.sheetPresetId
+  ) {
+    score += 12;
+  }
+
+  if (
+    candidate.calculatorMaterialId &&
+    candidate.calculatorMaterialId === product.calculatorMaterialId
+  ) {
+    score += 10;
+  }
+
+  if (candidate.format && candidate.format === product.format) {
+    score += 8;
+  }
+
+  if (candidate.purchaseMode === product.purchaseMode) {
+    score += 4;
+  }
+
+  return score;
+}
 
 export async function generateMetadata({
   params,
@@ -57,13 +106,28 @@ export default async function ProductPage({ params }: ProductPageProps) {
     notFound();
   }
 
-  const [category, sameCategoryProducts] = await Promise.all([
+  const [category, sameCategoryProducts, favoriteSlugs] = await Promise.all([
     getPublicCategoryBySlug(product.categorySlug),
     getPublicProductsByCategory(product.categorySlug),
+    getCurrentFavoriteProductSlugs(),
   ]);
   const categoryHref = category ? `/catalog/${category.slug}` : "/catalog";
   const relatedProducts = sameCategoryProducts
     .filter((item) => item.slug !== product.slug)
+    .map((item) => ({
+      item,
+      score: getRelatedProductScore(product, item),
+    }))
+    .sort((left, right) => {
+      if (right.score !== left.score) {
+        return right.score - left.score;
+      }
+
+      return left.item.name.localeCompare(right.item.name, "ru", {
+        sensitivity: "base",
+      });
+    })
+    .map(({ item }) => item)
     .slice(0, 4);
   const gallery =
     product.gallery.length > 0 ? product.gallery : [product.image];
@@ -88,9 +152,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
           breadcrumbJsonLd([
             { name: "Главная", href: "/" },
             { name: "Каталог", href: "/catalog" },
-            ...(category
-              ? [{ name: category.name, href: categoryHref }]
-              : []),
+            ...(category ? [{ name: category.name, href: categoryHref }] : []),
             { name: product.name, href: `/product/${product.slug}` },
           ]),
           productJsonLd(product),
@@ -102,7 +164,9 @@ export default async function ProductPage({ params }: ProductPageProps) {
             items={[
               { label: "Главная", href: "/" },
               { label: "Каталог", href: "/catalog" },
-              ...(category ? [{ label: category.name, href: categoryHref }] : []),
+              ...(category
+                ? [{ label: category.name, href: categoryHref }]
+                : []),
               { label: product.name },
             ]}
           />
@@ -149,9 +213,17 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
           <aside className="min-w-0 lg:sticky lg:top-20 lg:self-start">
             <div className="min-w-0 border border-[color:var(--line)] bg-[var(--surface-strong)] p-4 sm:p-6 lg:p-7">
-              <p className="font-mono text-[10px] tracking-[0.22em] text-[var(--accent)] uppercase">
-                {product.brand}
-              </p>
+              <div className="flex items-start justify-between gap-4">
+                <p className="font-mono text-[10px] tracking-[0.22em] text-[var(--accent)] uppercase">
+                  {product.brand}
+                </p>
+                <FavoriteToggle
+                  productSlug={product.slug}
+                  isFavorite={favoriteSlugs.has(product.slug)}
+                  next={`/product/${product.slug}`}
+                  variant="product"
+                />
+              </div>
               <h1 className="mt-3 text-[1.8rem] leading-[0.98] font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-[2.4rem]">
                 {product.name}
               </h1>
@@ -189,19 +261,19 @@ export default async function ProductPage({ params }: ProductPageProps) {
               <dl className="mt-4 grid gap-3 text-sm sm:mt-5">
                 <div className="grid grid-cols-[minmax(0,0.42fr)_minmax(0,0.58fr)] items-start gap-4 border-b border-[color:var(--line)] pb-3">
                   <dt className="text-[var(--muted)]">Артикул</dt>
-                  <dd className="min-w-0 break-words text-right font-medium text-[var(--foreground)]">
+                  <dd className="min-w-0 text-right font-medium break-words text-[var(--foreground)]">
                     {product.sku}
                   </dd>
                 </div>
                 <div className="grid grid-cols-[minmax(0,0.42fr)_minmax(0,0.58fr)] items-start gap-4 border-b border-[color:var(--line)] pb-3">
                   <dt className="text-[var(--muted)]">Формат</dt>
-                  <dd className="min-w-0 break-words text-right font-medium text-[var(--foreground)]">
+                  <dd className="min-w-0 text-right font-medium break-words text-[var(--foreground)]">
                     {product.format}
                   </dd>
                 </div>
                 <div className="grid grid-cols-[minmax(0,0.42fr)_minmax(0,0.58fr)] items-start gap-4 border-b border-[color:var(--line)] pb-3">
                   <dt className="text-[var(--muted)]">Наличие</dt>
-                  <dd className="min-w-0 break-words text-right font-medium text-[var(--foreground)]">
+                  <dd className="min-w-0 text-right font-medium break-words text-[var(--foreground)]">
                     {availabilityLabel}
                   </dd>
                 </div>
@@ -283,7 +355,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                 <p className="font-mono text-[10px] tracking-[0.14em] text-[var(--muted)] uppercase">
                   {row.key}
                 </p>
-                <p className="min-w-0 break-words text-sm leading-5 text-[var(--foreground)] sm:leading-6">
+                <p className="min-w-0 text-sm leading-5 break-words text-[var(--foreground)] sm:leading-6">
                   {row.value}
                 </p>
               </div>
@@ -297,9 +369,9 @@ export default async function ProductPage({ params }: ProductPageProps) {
           <div className="mx-auto max-w-[1500px]">
             <div className="mb-5 flex items-end justify-between gap-6 sm:mb-7">
               <div>
-              <p className="font-mono text-[10px] tracking-[0.22em] text-[var(--accent)] uppercase">
+                <p className="font-mono text-[10px] tracking-[0.22em] text-[var(--accent)] uppercase">
                   Похожие
-              </p>
+                </p>
                 <h2 className="mt-2 text-[1.45rem] leading-tight font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-[1.65rem]">
                   Похожие материалы
                 </h2>
@@ -320,6 +392,10 @@ export default async function ProductPage({ params }: ProductPageProps) {
                   oldPrice={item.oldPrice}
                   inStock={item.inStock}
                   categoryName={item.categoryName}
+                  productSlug={item.slug}
+                  isFavorite={favoriteSlugs.has(item.slug)}
+                  favoriteNext={`/product/${product.slug}`}
+                  showFavorite
                 />
               ))}
             </div>

@@ -61,6 +61,72 @@ function buildSearchText(parts: Array<string | null | undefined>) {
     .trim();
 }
 
+const DECOR_GROUP_SLUGS: Record<string, string> = {
+  однотонные: "odnotonnye",
+  дизайн: "dizayn",
+  древесные: "drevesnye",
+  trendy: "trendy",
+  "trendy panel": "trendy",
+  supramat: "supramat",
+  "supramat panel": "supramat",
+};
+
+function getAttributeValue(
+  attributes: Pick<ProductAttribute, "name" | "value">[],
+  names: string[],
+) {
+  const normalizedNames = new Set(
+    names.map((name) => name.trim().toLocaleLowerCase("ru-RU")),
+  );
+
+  return attributes.find((attribute) =>
+    normalizedNames.has(attribute.name.trim().toLocaleLowerCase("ru-RU")),
+  )?.value;
+}
+
+function getDecorGroupSlug(value: string) {
+  const normalized = value
+    .trim()
+    .toLocaleLowerCase("ru-RU")
+    .replace(/ё/g, "е")
+    .replace(/\s+/g, " ");
+
+  return (
+    DECOR_GROUP_SLUGS[normalized] ??
+    normalized.replace(/[^a-zа-я0-9]+/giu, "-").replace(/^-+|-+$/g, "")
+  );
+}
+
+function getProductDecorGroup(product: PrismaProductWithRelations) {
+  const attributeValue = getAttributeValue(product.attributes, [
+    "Группа декора",
+    "Группа",
+    "Коллекция",
+    "Серия",
+    "Подкатегория",
+  ]);
+  const inferredFromSku =
+    product.brand?.slug === "agt"
+      ? product.sku.toLocaleLowerCase("ru-RU").includes("supramat")
+        ? "Supramat"
+        : product.sku.toLocaleLowerCase("ru-RU").includes("trendy")
+          ? "Trendy"
+          : null
+      : null;
+  const group = attributeValue ?? inferredFromSku;
+
+  if (!group) {
+    return {};
+  }
+
+  const normalizedLabel = group.replace(/\s+panel$/i, "").trim();
+
+  return {
+    decorGroup: normalizedLabel,
+    decorGroupSlug: getDecorGroupSlug(group),
+  };
+}
+
 function mapProduct(product: PrismaProductWithRelations): FeaturedProduct {
   const gallery = product.images.map((image) => image.url);
   const inStock =
@@ -93,6 +159,7 @@ function mapProduct(product: PrismaProductWithRelations): FeaturedProduct {
     isCalculatorSheetPresetId(product.calculatorSheetPresetId)
       ? product.calculatorSheetPresetId
       : undefined;
+  const decorGroup = getProductDecorGroup(product);
 
   return {
     slug: product.slug,
@@ -116,15 +183,14 @@ function mapProduct(product: PrismaProductWithRelations): FeaturedProduct {
     purchaseMode,
     availabilityText,
     specifications: [
-      product.brand?.name
-        ? { key: "Бренд", value: product.brand.name }
-        : null,
+      product.brand?.name ? { key: "Бренд", value: product.brand.name } : null,
       { key: "Артикул", value: product.sku },
       ...product.attributes.map((attribute) => ({
         key: attribute.name,
         value: attribute.value,
       })),
     ].filter(Boolean) as FeaturedProduct["specifications"],
+    ...decorGroup,
     searchText: buildSearchText([
       product.name,
       product.sku,
@@ -329,24 +395,29 @@ export async function getCatalogMetrics() {
   }
 
   const db = getDb();
-  const [productCount, brandCount, categoryCount, furnitureCategory, mdfCategory] =
-    await Promise.all([
-      db.product.count({ where: { status: ProductStatus.ACTIVE } }),
-      db.brand.count({
-        where: { products: { some: { status: ProductStatus.ACTIVE } } },
-      }),
-      db.category.count({
-        where: { products: { some: { status: ProductStatus.ACTIVE } } },
-      }),
-      db.category.findUnique({
-        where: { slug: "ldsp" },
-        select: { _count: { select: { products: true } } },
-      }),
-      db.category.findUnique({
-        where: { slug: "mdf-panels" },
-        select: { _count: { select: { products: true } } },
-      }),
-    ]);
+  const [
+    productCount,
+    brandCount,
+    categoryCount,
+    furnitureCategory,
+    mdfCategory,
+  ] = await Promise.all([
+    db.product.count({ where: { status: ProductStatus.ACTIVE } }),
+    db.brand.count({
+      where: { products: { some: { status: ProductStatus.ACTIVE } } },
+    }),
+    db.category.count({
+      where: { products: { some: { status: ProductStatus.ACTIVE } } },
+    }),
+    db.category.findUnique({
+      where: { slug: "ldsp" },
+      select: { _count: { select: { products: true } } },
+    }),
+    db.category.findUnique({
+      where: { slug: "mdf-panels" },
+      select: { _count: { select: { products: true } } },
+    }),
+  ]);
 
   return {
     productCount,

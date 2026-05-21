@@ -26,6 +26,7 @@ import {
   getPublicCategoryBySlug,
   getPublicProductsByCategory,
 } from "@/lib/server/catalog-public";
+import { getCurrentFavoriteProductSlugs } from "@/lib/server/favorites";
 import {
   breadcrumbJsonLd,
   categorySeoDescription,
@@ -85,7 +86,10 @@ export default async function CategoryPage({
     notFound();
   }
 
-  const categoryProducts = await getPublicProductsByCategory(category.slug);
+  const [categoryProducts, favoriteSlugs] = await Promise.all([
+    getPublicProductsByCategory(category.slug),
+    getCurrentFavoriteProductSlugs(),
+  ]);
   const parsedState = parseCatalogSearchParams(await searchParams);
   const availableFilterOptions = getCatalogFilterOptions(categoryProducts);
   const state = sanitizeCatalogFilterState(parsedState, availableFilterOptions);
@@ -95,6 +99,7 @@ export default async function CategoryPage({
   const pagination = paginateCatalogProducts(sortedProducts, state.page);
   const resolvedState = { ...state, page: pagination.currentPage };
   const basePath = `/catalog/${category.slug}`;
+  const currentHref = buildCatalogHref(basePath, resolvedState);
   const copy = categoryCopy[category.slug as keyof typeof categoryCopy] ?? {
     eyebrow: "Раздел каталога",
     title: category.name,
@@ -139,7 +144,9 @@ export default async function CategoryPage({
             </div>
 
             <div className="shrink-0 text-right font-mono text-[9px] tracking-[0.14em] text-[var(--muted)] uppercase">
-              <p className="text-[var(--foreground)]">{categoryProducts.length}</p>
+              <p className="text-[var(--foreground)]">
+                {categoryProducts.length}
+              </p>
               <p>позиций</p>
             </div>
           </div>
@@ -200,7 +207,9 @@ export default async function CategoryPage({
                       fill
                       className="object-cover transition duration-700 group-hover:scale-[1.04]"
                       sizes="112px"
-                      unoptimized={shouldBypassNextImageOptimization(product.image)}
+                      unoptimized={shouldBypassNextImageOptimization(
+                        product.image,
+                      )}
                     />
                   </div>
                   <p className="mt-2 line-clamp-1 font-mono text-[9px] tracking-[0.12em] text-white/64 uppercase">
@@ -242,6 +251,10 @@ export default async function CategoryPage({
                       oldPrice={product.oldPrice}
                       inStock={product.inStock}
                       categoryName={product.categoryName}
+                      productSlug={product.slug}
+                      isFavorite={favoriteSlugs.has(product.slug)}
+                      favoriteNext={currentHref}
+                      showFavorite
                       denseMobile
                       mobileList
                     />
@@ -251,7 +264,8 @@ export default async function CategoryPage({
                 {pagination.totalPages > 1 ? (
                   <div className="flex min-w-0 flex-col gap-3 border-t border-[color:var(--line)] pt-5 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:pt-6">
                     <p className="font-mono text-[10px] tracking-[0.14em] text-[var(--muted)] uppercase">
-                      Страница {pagination.currentPage} из {pagination.totalPages}
+                      Страница {pagination.currentPage} из{" "}
+                      {pagination.totalPages}
                     </p>
 
                     <Pagination
@@ -277,7 +291,7 @@ export default async function CategoryPage({
                 </p>
                 <Link
                   href={basePath}
-                  className="mt-6 inline-flex h-10 items-center border border-[var(--foreground)] px-6 font-mono text-[10px] tracking-[0.14em] text-[var(--foreground)] uppercase transition sm:mt-7 sm:h-11 sm:px-8 sm:text-[11px] hover:bg-[var(--foreground)] hover:text-white"
+                  className="mt-6 inline-flex h-10 items-center border border-[var(--foreground)] px-6 font-mono text-[10px] tracking-[0.14em] text-[var(--foreground)] uppercase transition hover:bg-[var(--foreground)] hover:text-white sm:mt-7 sm:h-11 sm:px-8 sm:text-[11px]"
                 >
                   Сбросить фильтры
                 </Link>
@@ -286,7 +300,7 @@ export default async function CategoryPage({
 
             <Link
               href="/catalog"
-              className="inline-flex h-10 items-center border border-[color:var(--line-strong)] px-6 font-mono text-[10px] tracking-[0.14em] text-[var(--foreground)] uppercase transition sm:h-11 sm:px-8 sm:text-[11px] hover:border-[var(--foreground)] hover:bg-[var(--foreground)] hover:text-white"
+              className="inline-flex h-10 items-center border border-[color:var(--line-strong)] px-6 font-mono text-[10px] tracking-[0.14em] text-[var(--foreground)] uppercase transition hover:border-[var(--foreground)] hover:bg-[var(--foreground)] hover:text-white sm:h-11 sm:px-8 sm:text-[11px]"
             >
               Назад ко всему каталогу
             </Link>
