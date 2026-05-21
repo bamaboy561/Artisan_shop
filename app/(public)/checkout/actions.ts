@@ -17,6 +17,7 @@ import { handleOrderCreated } from "@/lib/server/commercial-integrations";
 import { getLoyaltyProgramConfig } from "@/lib/server/loyalty-settings";
 import { logOperationEvent } from "@/lib/server/operation-events";
 import { notifyTelegramClientOrderCreated } from "@/lib/server/telegram-client";
+import { buildOrderCreatedEmail, sendEmail } from "@/lib/server/email-notifications";
 import type { CheckoutFormState } from "@/app/(public)/checkout/types";
 import {
   applyPromotion,
@@ -522,6 +523,21 @@ export async function submitCheckoutAction(
     });
 
     await notifyTelegramClientOrderCreated(createdOrderForSync.id);
+
+    const customerEmail = normalizeOptionalText(parsed.data.email) ?? user?.email;
+    if (customerEmail) {
+      const emailPayload = buildOrderCreatedEmail({
+        orderNumber,
+        customerName: parsed.data.name,
+        total,
+        items: orderItems.map((item) => ({
+          name: item.snapshotName,
+          quantity: item.quantity,
+          price: item.unitPrice,
+        })),
+      });
+      sendEmail({ to: customerEmail, ...emailPayload }).catch(() => {});
+    }
   }
 
   revalidatePath("/cart");

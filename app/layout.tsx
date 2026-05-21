@@ -25,6 +25,10 @@ const googleVerification = process.env.GOOGLE_SITE_VERIFICATION;
 const yandexVerification = process.env.YANDEX_VERIFICATION;
 
 export const metadata: Metadata = {
+  icons: {
+    icon: "/icon.png",
+    apple: "/icon.png",
+  },
   title: {
     default: `${companyName} | Материалы и сервис для мебельных проектов`,
     template: `%s | ${companyName}`,

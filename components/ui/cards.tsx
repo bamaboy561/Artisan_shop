@@ -29,6 +29,15 @@ type ProductCardProps = {
   className?: string;
 };
 
+function getPricePerSqM(price: number, format: string): string | null {
+  const dims = format.match(/(\d{3,4})\s*[x×]\s*(\d{3,4})/);
+  if (!dims) return null;
+  const area = (Number(dims[1]) * Number(dims[2])) / 1_000_000;
+  if (area <= 0) return null;
+  const sqmPrice = Math.round(price / area);
+  return new Intl.NumberFormat("ru-RU").format(sqmPrice) + " KGS/м²";
+}
+
 export function ProductCard({
   href,
   slug,

@@ -108,6 +108,15 @@ export async function getAdminDashboardMetrics() {
   });
   const repeatUsers = orderCountsByUser.filter((g) => g._count.id > 1).length;
 
+  // Request-to-order conversion
+  const totalRequests = await db.request.count();
+  const convertedRequests = await db.request.count({
+    where: { status: RequestStatus.COMPLETED },
+  });
+  const conversionRate = totalRequests > 0
+    ? Math.round((convertedRequests / totalRequests) * 100)
+    : 0;
+
   // Most ordered products
   const topProductGroups = await db.orderItem.groupBy({
     by: ["productId"],
@@ -147,6 +156,8 @@ export async function getAdminDashboardMetrics() {
     openRequests,
     activePromotions,
     repeatUsers,
+    conversionRate,
+    totalRequests,
     popularProducts,
   };
 }
