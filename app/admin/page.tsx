@@ -283,37 +283,37 @@ export default async function AdminPage() {
         <KpiCard
           label="Выручка в заказах"
           value={formatCurrency(revenue)}
-          delta={revenue > 0 ? formatCurrency(revenue) : "—"}
-          detail="по текущей очереди"
+          delta={queues.recentOrders.length > 0 ? `${queues.recentOrders.length} заказов` : "—"}
+          detail="по последним поступлениям"
           icon={ReceiptText}
           chart
         />
         <KpiCard
           label="Заказы в работе"
           value={metrics.openOrders}
-          delta={metrics.openOrders > 0 ? `${metrics.openOrders} активных` : "—"}
-          detail="к прошлой неделе"
+          delta={metrics.openOrders > 0 ? "требуют внимания" : "—"}
+          detail="из общего потока"
           icon={PackagePlus}
         />
         <KpiCard
           label="Запросы на расчёт"
           value={metrics.openRequests}
-          delta={metrics.openRequests > 0 ? `${metrics.openRequests} активных` : "—"}
-          detail="к прошлой неделе"
+          delta={metrics.openRequests > 0 ? "ждут обработки" : "—"}
+          detail="из общего потока"
           icon={Calculator}
         />
         <KpiCard
           label="Средний чек"
           value={formatCurrency(averageOrder)}
-          delta={averageOrder > 0 ? formatCurrency(averageOrder) : "—"}
-          detail="по активным заказам"
+          delta={averageOrder > 0 ? "по очереди" : "—"}
+          detail="расчёт по последним заказам"
           icon={TrendingUp}
         />
         <KpiCard
           label="Повторные клиенты"
           value={repeatRate}
-          delta={metrics.usersTotal > 0 ? `${metrics.usersTotal} клиентов` : "—"}
-          detail="по базе клиентов"
+          delta={metrics.repeatUsers > 0 ? `${metrics.repeatUsers} чел.` : "—"}
+          detail="повторных покупок"
           icon={Users2}
         />
       </section>
@@ -474,3 +474,4 @@ export default async function AdminPage() {
     </div>
   );
 }
+
