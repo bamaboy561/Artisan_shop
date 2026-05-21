@@ -10,6 +10,7 @@ import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { ButtonLink } from "@/components/ui/button-link";
 import { FavoriteButton } from "@/components/account/favorite-button";
 import { ProductCard } from "@/components/ui/cards";
+import { SimilarByDecor } from "@/components/catalog/similar-by-decor";
 import {
   getPublicCategoryBySlug,
   getPublicProductBySlug,
