@@ -110,6 +110,7 @@ export default async function EditProductPage({ params }: EditProductPageProps) 
     format: product.format,
     thicknessMm: product.thicknessMm,
     imageUrl: product.images[0]?.url ?? null,
+    galleryUrls: product.images.slice(1).map((img) => img.url).join("\n") || null,
     calculatorMaterialId: product.calculatorMaterialId,
     calculatorSheetPresetId: product.calculatorSheetPresetId,
     summary: product.summary,

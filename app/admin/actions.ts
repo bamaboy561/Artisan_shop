@@ -351,6 +351,15 @@ async function uploadProductImageFile(file: File, productSlug: string) {
   return blob.url;
 }
 
+function parseGalleryUrls(formData: FormData): string[] {
+  const raw = getOptionalString(formData, "galleryUrls");
+  if (!raw) return [];
+  return raw
+    .split(/[\n,]+/)
+    .map((url) => url.trim())
+    .filter((url) => url.length > 0 && (url.startsWith("http") || url.startsWith("/")));
+}
+
 async function resolveProductImageUrl(formData: FormData, productSlug: string) {
   const uploadedImage = getFileList(formData, "imageFile")[0];
 

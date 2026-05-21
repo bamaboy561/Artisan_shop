@@ -163,6 +163,7 @@ export type ProductFormDefaults = {
   format: string | null;
   thicknessMm: number | null;
   imageUrl: string | null;
+  galleryUrls: string | null;
   calculatorMaterialId: string | null;
   calculatorSheetPresetId: string | null;
   summary: string | null;
