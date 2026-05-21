@@ -224,6 +224,7 @@ export default async function CategoryPage({
                       inStock={product.inStock}
                       categoryName={product.categoryName}
                       purchaseMode={product.purchaseMode}
+                      hoverImage={product.gallery?.[1]}
                       denseMobile
                       mobileList
                     />

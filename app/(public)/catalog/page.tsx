@@ -153,6 +153,7 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
                       inStock={product.inStock}
                       categoryName={product.categoryName}
                       purchaseMode={product.purchaseMode}
+                      hoverImage={product.gallery?.[1]}
                       denseMobile
                       mobileList
                     />

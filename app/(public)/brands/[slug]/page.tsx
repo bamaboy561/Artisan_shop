@@ -244,6 +244,7 @@ export default async function BrandDetailPage({ params }: BrandPageProps) {
                     inStock={product.inStock}
                     categoryName={product.categoryName}
                     purchaseMode={product.purchaseMode}
+                    hoverImage={product.gallery?.[1]}
                     compact
                   />
                 ))}
