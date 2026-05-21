@@ -1,10 +1,9 @@
-import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 
 import { FavoriteToggle } from "@/components/catalog/favorite-toggle";
+import { ProductImage } from "@/components/catalog/product-image";
 import { formatPrice } from "@/lib/commerce";
-import { shouldBypassNextImageOptimization } from "@/lib/image-optimization";
 import { cn } from "@/lib/utils";
 
 type ProductCardProps = {
@@ -84,26 +83,18 @@ export function ProductCard({
             aspect,
           )}
         >
-          {image ? (
-            <Image
-              src={image}
-              alt={name}
-              fill
-              className="object-cover transition-transform duration-[900ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.06]"
-              sizes={
-                mobileList
-                  ? "(max-width: 639px) 112px, (max-width: 1024px) 50vw, 25vw"
-                  : "(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
-              }
-              unoptimized={shouldBypassNextImageOptimization(image)}
-            />
-          ) : (
-            <div className="flex h-full items-center justify-center text-[var(--muted)]">
-              <span className="font-mono text-[10px] tracking-[0.22em] uppercase">
-                Artisan
-              </span>
-            </div>
-          )}
+          <ProductImage
+            src={image}
+            alt={name}
+            fill
+            fallbackLabel="Artisan"
+            className="object-cover transition-transform duration-[900ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.06]"
+            sizes={
+              mobileList
+                ? "(max-width: 639px) 112px, (max-width: 1024px) 50vw, 25vw"
+                : "(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+            }
+          />
 
           {!inStock ? (
             <span className="absolute top-2.5 left-2.5 inline-flex items-center gap-1.5 bg-white/92 px-2 py-1 font-mono text-[9px] tracking-[0.16em] text-[var(--foreground)] uppercase backdrop-blur-sm sm:top-3 sm:left-3 sm:text-[10px]">

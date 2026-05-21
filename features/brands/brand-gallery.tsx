@@ -1,8 +1,7 @@
-import Image from "next/image";
 import Link from "next/link";
 
+import { ProductImage } from "@/components/catalog/product-image";
 import type { FeaturedProduct } from "@/features/catalog/data";
-import { shouldBypassNextImageOptimization } from "@/lib/image-optimization";
 import { cn } from "@/lib/utils";
 
 export type BrandGalleryItem = {
@@ -62,7 +61,9 @@ function PlaceholderVisual({
         planned
           ? "border border-[#151411]/10 bg-[#e7e1d6] text-[#151411]"
           : "bg-[#151411] text-white",
-        compact ? "min-h-[28svh] sm:min-h-[46svh] lg:min-h-[68svh]" : "min-h-[42svh]",
+        compact
+          ? "min-h-[28svh] sm:min-h-[46svh] lg:min-h-[68svh]"
+          : "min-h-[42svh]",
       )}
     >
       <div
@@ -137,16 +138,18 @@ function BrandHero({
     <div
       className={cn(
         "relative overflow-hidden bg-[#d8d3c9]",
-        compact ? "min-h-[32svh] sm:min-h-[56svh] lg:min-h-[78svh]" : "min-h-[46svh]",
+        compact
+          ? "min-h-[32svh] sm:min-h-[56svh] lg:min-h-[78svh]"
+          : "min-h-[46svh]",
       )}
     >
-      <Image
+      <ProductImage
         src={heroProduct.image}
         alt={`${item.name}: ${heroProduct.name}`}
         fill
+        fallbackLabel={item.name}
         className="object-cover transition duration-700 group-hover:scale-[1.025]"
         sizes="100vw"
-        unoptimized={shouldBypassNextImageOptimization(heroProduct.image)}
       />
       <BrandLogoBadge item={item} />
       <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.02)_0%,rgba(0,0,0,0.16)_54%,rgba(0,0,0,0.72)_100%)]" />
@@ -199,84 +202,84 @@ function ProductRail({
       <div className="-mx-4 mt-4 overflow-x-auto px-4 pb-1 sm:mx-0 sm:mt-5 sm:px-0">
         <div
           className={cn(
-            "grid min-w-max auto-cols-[9.25rem] grid-flow-col gap-3 sm:min-w-0 sm:auto-cols-auto sm:grid-flow-row sm:grid-cols-2 md:grid-cols-3 sm:gap-4",
+            "grid min-w-max auto-cols-[9.25rem] grid-flow-col gap-3 sm:min-w-0 sm:auto-cols-auto sm:grid-flow-row sm:grid-cols-2 sm:gap-4 md:grid-cols-3",
             compact ? "xl:grid-cols-5" : "lg:grid-cols-5",
           )}
         >
-        {products.map((product) => (
-          <Link
-            key={product.slug}
-            href={`/product/${product.slug}`}
-            className="group block"
-          >
-            <div
-              className={cn(
-                "relative aspect-[4/5.2] overflow-hidden",
-                planned
-                  ? "border border-[#151411]/8 bg-[#ebe6de]"
-                  : "bg-[#e2ded6]",
-              )}
+          {products.map((product) => (
+            <Link
+              key={product.slug}
+              href={`/product/${product.slug}`}
+              className="group block"
             >
-              <Image
-                src={product.image}
-                alt={product.name}
-                fill
-                className="object-cover transition duration-500 group-hover:scale-[1.04]"
-                sizes={compact ? "(max-width: 1024px) 50vw, 25vw" : "20vw"}
-                unoptimized={shouldBypassNextImageOptimization(product.image)}
-              />
-            </div>
-            <p
-              className={cn(
-              "mt-2 text-[13px] leading-5 font-medium sm:mt-2.5 sm:text-sm",
-                planned ? "text-[#151411]/74" : "text-[#151411]",
-              )}
-            >
-              {product.name}
-            </p>
-            <p
-              className={cn(
-                "mt-1 font-mono text-[10px] tracking-[0.14em] uppercase",
-                planned ? "text-[#9a9389]" : "text-[#7b756d]",
-              )}
-            >
-              {planned ? "Скоро в каталоге" : product.action}
-            </p>
-          </Link>
-        ))}
+              <div
+                className={cn(
+                  "relative aspect-[4/5.2] overflow-hidden",
+                  planned
+                    ? "border border-[#151411]/8 bg-[#ebe6de]"
+                    : "bg-[#e2ded6]",
+                )}
+              >
+                <ProductImage
+                  src={product.image}
+                  alt={product.name}
+                  fill
+                  fallbackLabel={product.name}
+                  className="object-cover transition duration-500 group-hover:scale-[1.04]"
+                  sizes={compact ? "(max-width: 1024px) 50vw, 25vw" : "20vw"}
+                />
+              </div>
+              <p
+                className={cn(
+                  "mt-2 text-[13px] leading-5 font-medium sm:mt-2.5 sm:text-sm",
+                  planned ? "text-[#151411]/74" : "text-[#151411]",
+                )}
+              >
+                {product.name}
+              </p>
+              <p
+                className={cn(
+                  "mt-1 font-mono text-[10px] tracking-[0.14em] uppercase",
+                  planned ? "text-[#9a9389]" : "text-[#7b756d]",
+                )}
+              >
+                {planned ? "Скоро в каталоге" : product.action}
+              </p>
+            </Link>
+          ))}
         </div>
       </div>
     );
   }
 
   return (
-      <div className="-mx-4 mt-4 overflow-x-auto px-4 pb-1 sm:mx-0 sm:mt-5 sm:px-0">
+    <div className="-mx-4 mt-4 overflow-x-auto px-4 pb-1 sm:mx-0 sm:mt-5 sm:px-0">
       <div
         className={cn(
           "grid min-w-max auto-cols-[8.75rem] grid-flow-col gap-3 sm:min-w-0 sm:auto-cols-auto sm:grid-flow-row sm:grid-cols-3 sm:gap-4",
           compact ? "xl:grid-cols-5" : "lg:grid-cols-4",
         )}
       >
-      {(item.previewLabels ?? []).map((label) => (
-        <div
-          key={label}
-          className={cn(
-            "flex aspect-square items-end p-3.5 sm:p-4",
-            planned
-              ? "border border-dashed border-[#151411]/10 bg-[#f5f1ea]"
-              : "bg-[#e2ded6]",
-          )}
-        >
-          <span
+        {(item.previewLabels ?? []).map((label) => (
+          <div
+            key={label}
             className={cn(
-              "font-mono text-[10px] leading-5 tracking-[0.16em] uppercase",
-              planned ? "text-[#9a9389]" : "text-[#7b756d]",
+              "flex aspect-square items-end p-3.5 sm:p-4",
+              planned
+                ? "border border-dashed border-[#151411]/10 bg-[#f5f1ea]"
+                : "bg-[#e2ded6]",
             )}
           >
-            {label}
-          </span>
-        </div>
-      ))}
+            <span
+              className={cn(
+                "font-mono text-[10px] leading-5 tracking-[0.16em] uppercase",
+                planned ? "text-[#9a9389]" : "text-[#7b756d]",
+              )}
+            >
+              {label}
+            </span>
+          </div>
+        ))}
       </div>
     </div>
   );

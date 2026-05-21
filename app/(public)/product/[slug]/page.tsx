@@ -1,10 +1,10 @@
-import Image from "next/image";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { AddToCartButton } from "@/components/ecommerce/add-to-cart-button";
 import { FavoriteToggle } from "@/components/catalog/favorite-toggle";
+import { ProductImage } from "@/components/catalog/product-image";
 import { StructuredData } from "@/components/seo/structured-data";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { ButtonLink } from "@/components/ui/button-link";
@@ -16,7 +16,6 @@ import {
 } from "@/lib/server/catalog-public";
 import { getCurrentFavoriteProductSlugs } from "@/lib/server/favorites";
 import { formatPrice } from "@/lib/commerce";
-import { shouldBypassNextImageOptimization } from "@/lib/image-optimization";
 import {
   breadcrumbJsonLd,
   createSeoMetadata,
@@ -146,7 +145,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
   ];
 
   return (
-    <div className="bg-[#f1eee8]">
+    <div className="bg-[#f1eee8] pb-20 lg:pb-0">
       <StructuredData
         data={[
           breadcrumbJsonLd([
@@ -177,14 +176,14 @@ export default async function ProductPage({ params }: ProductPageProps) {
         <div className="mx-auto grid max-w-[1500px] min-w-0 gap-5 lg:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)] lg:gap-8">
           <div className="min-w-0 space-y-3 sm:space-y-4">
             <div className="relative aspect-[0.95] overflow-hidden bg-[#dad7cf] sm:aspect-[0.86]">
-              <Image
+              <ProductImage
                 src={product.image}
                 alt={product.name}
                 fill
                 priority
+                fallbackLabel="Нет фото"
                 className="object-cover"
                 sizes="(max-width: 1024px) 100vw, 58vw"
-                unoptimized={shouldBypassNextImageOptimization(product.image)}
               />
             </div>
 
@@ -196,13 +195,13 @@ export default async function ProductPage({ params }: ProductPageProps) {
                       key={`${product.slug}-gallery-${index}`}
                       className="relative aspect-square w-[8.25rem] overflow-hidden bg-[#dad7cf] sm:w-auto"
                     >
-                      <Image
+                      <ProductImage
                         src={image}
                         alt={`${product.name} - изображение ${index + 2}`}
                         fill
+                        fallbackLabel="Нет фото"
                         className="object-cover"
                         sizes="(max-width: 1024px) 40vw, 28vw"
-                        unoptimized={shouldBypassNextImageOptimization(image)}
                       />
                     </div>
                   ))}
@@ -402,6 +401,38 @@ export default async function ProductPage({ params }: ProductPageProps) {
           </div>
         </section>
       ) : null}
+
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[color:var(--line)] bg-[#f8f5ef]/96 px-4 py-3 shadow-[0_-18px_44px_rgba(21,20,17,0.12)] backdrop-blur lg:hidden">
+        <div className="mx-auto flex max-w-[720px] items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="line-clamp-1 text-[13px] font-semibold text-[var(--foreground)]">
+              {product.name}
+            </p>
+            <p className="mt-0.5 text-[12px] text-[var(--muted)]">
+              {typeof product.price === "number"
+                ? formatPrice(product.price)
+                : product.action}
+            </p>
+          </div>
+
+          {product.purchaseMode === "cart" &&
+          typeof product.price === "number" ? (
+            <AddToCartButton
+              productSlug={product.slug}
+              disabled={!product.inStock}
+              className="h-11 shrink-0 px-4 text-[11px]"
+            />
+          ) : (
+            <ButtonLink
+              href={`/calculator?product=${encodeURIComponent(product.slug)}`}
+              variant="contrast"
+              className="h-11 shrink-0 px-4 text-[11px]"
+            >
+              Распил
+            </ButtonLink>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
