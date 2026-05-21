@@ -39,10 +39,14 @@ function BrandLogoBadge({ item }: { item: BrandGalleryItem }) {
 
   return (
     <div
-      className="absolute top-4 right-4 z-10 h-12 w-28 rounded-2xl border border-white/30 bg-white/90 bg-contain bg-center bg-no-repeat shadow-[0_18px_44px_rgba(0,0,0,0.16)] sm:top-6 sm:right-6 sm:h-14 sm:w-32"
-      style={{ backgroundImage: `url(${item.logoUrl})` }}
+      className="absolute top-4 right-4 z-10 flex size-14 items-center justify-center rounded-full border border-white/20 bg-white/[0.14] p-2 shadow-[0_8px_32px_rgba(0,0,0,0.2)] backdrop-blur-md transition-all duration-500 hover:bg-white/[0.24] hover:shadow-[0_12px_40px_rgba(0,0,0,0.28)] sm:top-6 sm:right-6 sm:size-16 sm:p-2.5"
       aria-label={`Логотип ${item.name}`}
-    />
+    >
+      <div
+        className="size-full rounded-full bg-contain bg-center bg-no-repeat"
+        style={{ backgroundImage: `url(${item.logoUrl})` }}
+      />
+    </div>
   );
 }
 
