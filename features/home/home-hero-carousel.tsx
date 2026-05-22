@@ -1,12 +1,11 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
-import { shouldBypassNextImageOptimization } from "@/lib/image-optimization";
+import { ProductImage } from "@/components/catalog/product-image";
 import { cn } from "@/lib/utils";
 
 export type HomeHeroSlide = {
@@ -92,7 +91,7 @@ export function HomeHeroCarousel({ slides }: { slides: HomeHeroSlide[] }) {
           >
             {slide.images.map((image, imageIndex) => (
               <div
-                key={`${slide.id}-${image.src}`}
+                key={`${slide.id}-${imageIndex}-${image.src}`}
                 className={cn(
                   "relative overflow-hidden bg-white/14 shadow-[0_26px_80px_rgba(0,0,0,0.18)] ring-1 ring-white/12",
                   imageIndex === 1
@@ -100,14 +99,14 @@ export function HomeHeroCarousel({ slides }: { slides: HomeHeroSlide[] }) {
                     : "hidden h-[24svh] w-[24vw] max-w-[16rem] sm:block sm:h-[32svh] lg:h-[41svh]",
                 )}
               >
-                <Image
+                <ProductImage
                   src={image.src}
                   alt={image.alt}
                   fill
                   priority={slideIndex === 0}
+                  fallbackLabel="Artisan"
                   className="object-cover object-center transition duration-700"
                   sizes="(max-width: 640px) 70vw, 28vw"
-                  unoptimized={shouldBypassNextImageOptimization(image.src)}
                 />
               </div>
             ))}

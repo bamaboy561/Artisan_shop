@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 
+import { ProductImage } from "@/components/catalog/product-image";
 import { BrandGallery } from "@/features/brands/brand-gallery";
 import { getBrandProfiles } from "@/features/brands/data";
 import {
@@ -14,7 +14,6 @@ import {
   getPublicProductsByBrand,
   getPublicProductsByCategory,
 } from "@/lib/server/catalog-public";
-import { shouldBypassNextImageOptimization } from "@/lib/image-optimization";
 import { createSeoMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = createSeoMetadata({
@@ -197,16 +196,14 @@ export default async function HomePage() {
               className="view-rise group relative min-h-[10.75rem] overflow-hidden bg-[var(--hero)] text-white sm:min-h-[18rem]"
               style={{ animationDelay: `${index * 80}ms` }}
             >
-              {tile.image ? (
-                <Image
-                  src={tile.image}
-                  alt={tile.title}
-                  fill
-                  className="object-cover opacity-78 transition duration-700 group-hover:scale-[1.045] group-hover:opacity-92"
-                  sizes="(max-width: 1024px) 50vw, 25vw"
-                  unoptimized={shouldBypassNextImageOptimization(tile.image)}
-                />
-              ) : null}
+              <ProductImage
+                src={tile.image}
+                alt={tile.title}
+                fill
+                fallbackLabel={tile.title}
+                className="object-cover opacity-78 transition duration-700 group-hover:scale-[1.045] group-hover:opacity-92"
+                sizes="(max-width: 1024px) 50vw, 25vw"
+              />
               <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.04)_0%,rgba(0,0,0,0.2)_45%,rgba(0,0,0,0.72)_100%)]" />
               <div className="absolute inset-x-0 bottom-0 p-4 sm:p-5">
                 <p className="font-mono text-[10px] tracking-[0.18em] text-white/58 uppercase">
@@ -221,20 +218,20 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <section className="border-y border-line bg-background px-4 py-8 sm:px-8 lg:px-10 lg:py-14">
+      <section className="border-line bg-background border-y px-4 py-8 sm:px-8 lg:px-10 lg:py-14">
         <div className="mx-auto max-w-[1500px]">
           <div className="mb-6 flex flex-wrap items-end justify-between gap-3 sm:mb-8 lg:mb-10">
             <div>
-              <p className="font-mono text-[10px] tracking-[0.22em] text-accent uppercase">
+              <p className="text-accent font-mono text-[10px] tracking-[0.22em] uppercase">
                 Бренды
               </p>
-              <h2 className="mt-2 text-[1.18rem] leading-tight font-semibold tracking-[-0.04em] text-foreground sm:text-[1.6rem] lg:text-[1.85rem]">
+              <h2 className="text-foreground mt-2 text-[1.18rem] leading-tight font-semibold tracking-[-0.04em] sm:text-[1.6rem] lg:text-[1.85rem]">
                 Все бренды Artisan.
               </h2>
             </div>
             <Link
               href="/brands"
-              className="font-mono text-[11px] tracking-[0.16em] text-foreground/68 uppercase transition hover:text-foreground"
+              className="text-foreground/68 hover:text-foreground font-mono text-[11px] tracking-[0.16em] uppercase transition"
             >
               Каталог брендов
             </Link>

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 
+import { ProductImage } from "@/components/catalog/product-image";
 import {
   getCatalogMetrics,
   getPublicProductsByBrand,
@@ -38,17 +38,17 @@ export default async function AboutPage() {
     getPublicProductsByCategory("mdf-panels"),
     getPublicProductsByBrand("extravert"),
   ]);
-  const heroImage =
-    mdfProducts[2]?.image || extravertProducts[0]?.image || "";
+  const heroImage = mdfProducts[2]?.image || extravertProducts[0]?.image || "";
 
   return (
     <div className="bg-background">
       <section className="relative overflow-hidden bg-[var(--hero)] text-white">
-        <Image
+        <ProductImage
           src={heroImage}
           alt="Artisan"
           fill
           priority
+          fallbackLabel="Artisan"
           className="object-cover opacity-28"
           sizes="100vw"
         />

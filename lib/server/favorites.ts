@@ -10,27 +10,34 @@ export async function getCurrentFavoriteProductSlugs(productSlugs?: string[]) {
     return new Set<string>();
   }
 
-  const favorites = await getDb().favorite.findMany({
-    where: {
-      userId: session.userId,
-      ...(productSlugs?.length
-        ? {
-            product: {
-              slug: {
-                in: productSlugs,
+  try {
+    const favorites = await getDb().favorite.findMany({
+      where: {
+        userId: session.userId,
+        ...(productSlugs?.length
+          ? {
+              product: {
+                slug: {
+                  in: productSlugs,
+                },
               },
-            },
-          }
-        : {}),
-    },
-    select: {
-      product: {
-        select: {
-          slug: true,
+            }
+          : {}),
+      },
+      select: {
+        product: {
+          select: {
+            slug: true,
+          },
         },
       },
-    },
-  });
+    });
 
-  return new Set(favorites.map((favorite) => favorite.product.slug));
+    return new Set(favorites.map((favorite) => favorite.product.slug));
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Unknown database error";
+    console.error(`[favorites-db-fallback] ${message}`);
+    return new Set<string>();
+  }
 }

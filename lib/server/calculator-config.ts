@@ -73,86 +73,120 @@ const DEFAULT_SHEETS: CalculatorSheetFormatDto[] = [
   },
 ];
 
-export async function getCalculatorMaterials(): Promise<CalculatorMaterialDto[]> {
-  if (!hasDatabaseUrl()) return DEFAULT_MATERIALS;
+function logCalculatorFallback(scope: string, error: unknown) {
+  const message =
+    error instanceof Error ? error.message : "Unknown database error";
 
-  const db = getDb();
-  const rows = await db.calculatorMaterial.findMany({
-    where: { isActive: true },
-    orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
-  });
+  console.error(`[calculator-db-fallback] ${scope}: ${message}`);
+}
 
-  if (rows.length === 0) return DEFAULT_MATERIALS;
+async function withCalculatorDbFallback<T>(
+  scope: string,
+  fallback: T,
+  loader: () => Promise<T>,
+) {
+  if (!hasDatabaseUrl()) return fallback;
 
-  return rows.map((row) => ({
-    id: row.slug,
-    label: row.label,
-    pricePerSqM: row.pricePerSqM,
-    cutRatePerMeter: row.cutRatePerMeter,
-    edgeRatePerMeter: row.edgeRatePerMeter,
-    setupFee: row.setupFee,
-    thicknessMm: row.thicknessMm,
-  }));
+  try {
+    return await loader();
+  } catch (error) {
+    logCalculatorFallback(scope, error);
+    return fallback;
+  }
+}
+
+export async function getCalculatorMaterials(): Promise<
+  CalculatorMaterialDto[]
+> {
+  return withCalculatorDbFallback(
+    "getCalculatorMaterials",
+    DEFAULT_MATERIALS,
+    async () => {
+      const db = getDb();
+      const rows = await db.calculatorMaterial.findMany({
+        where: { isActive: true },
+        orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
+      });
+
+      if (rows.length === 0) return DEFAULT_MATERIALS;
+
+      return rows.map((row) => ({
+        id: row.slug,
+        label: row.label,
+        pricePerSqM: row.pricePerSqM,
+        cutRatePerMeter: row.cutRatePerMeter,
+        edgeRatePerMeter: row.edgeRatePerMeter,
+        setupFee: row.setupFee,
+        thicknessMm: row.thicknessMm,
+      }));
+    },
+  );
 }
 
 export async function getCalculatorSheetFormats(): Promise<
   CalculatorSheetFormatDto[]
 > {
-  if (!hasDatabaseUrl()) return DEFAULT_SHEETS;
+  return withCalculatorDbFallback(
+    "getCalculatorSheetFormats",
+    DEFAULT_SHEETS,
+    async () => {
+      const db = getDb();
+      const rows = await db.calculatorSheetFormat.findMany({
+        where: { isActive: true },
+        orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
+      });
 
-  const db = getDb();
-  const rows = await db.calculatorSheetFormat.findMany({
-    where: { isActive: true },
-    orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
-  });
+      if (rows.length === 0) return DEFAULT_SHEETS;
 
-  if (rows.length === 0) return DEFAULT_SHEETS;
-
-  return rows.map((row) => ({
-    id: row.slug,
-    label: row.label,
-    width: row.widthMm,
-    height: row.heightMm,
-  }));
+      return rows.map((row) => ({
+        id: row.slug,
+        label: row.label,
+        width: row.widthMm,
+        height: row.heightMm,
+      }));
+    },
+  );
 }
 
 export async function getCalculatorPresets(): Promise<CalculatorPresetDto[]> {
-  if (!hasDatabaseUrl()) return [];
+  return withCalculatorDbFallback("getCalculatorPresets", [], async () => {
+    const db = getDb();
+    const rows = await db.product.findMany({
+      where: {
+        status: ProductStatus.ACTIVE,
+        calculatorMaterialId: { not: null },
+        calculatorSheetPresetId: { not: null },
+      },
+      orderBy: [{ isFeatured: "desc" }, { name: "asc" }],
+      select: {
+        slug: true,
+        name: true,
+        calculatorMaterialId: true,
+        calculatorSheetPresetId: true,
+        brand: { select: { name: true } },
+      },
+    });
 
-  const db = getDb();
-  const rows = await db.product.findMany({
-    where: {
-      status: ProductStatus.ACTIVE,
-      calculatorMaterialId: { not: null },
-      calculatorSheetPresetId: { not: null },
-    },
-    orderBy: [{ isFeatured: "desc" }, { name: "asc" }],
-    select: {
-      slug: true,
-      name: true,
-      calculatorMaterialId: true,
-      calculatorSheetPresetId: true,
-      brand: { select: { name: true } },
-    },
+    return rows
+      .filter(
+        (
+          row,
+        ): row is typeof row & {
+          calculatorMaterialId: string;
+          calculatorSheetPresetId: string;
+        } =>
+          Boolean(row.calculatorMaterialId) &&
+          Boolean(row.calculatorSheetPresetId),
+      )
+      .map((row) => ({
+        id: row.slug,
+        label: row.brand?.name ? `${row.brand.name} — ${row.name}` : row.name,
+        brand: row.brand?.name ?? "",
+        materialName: row.name,
+        materialId: row.calculatorMaterialId,
+        sheetPresetId: row.calculatorSheetPresetId,
+      }));
   });
-
-  return rows
-    .filter(
-      (row): row is typeof row & {
-        calculatorMaterialId: string;
-        calculatorSheetPresetId: string;
-      } =>
-        Boolean(row.calculatorMaterialId) &&
-        Boolean(row.calculatorSheetPresetId),
-    )
-    .map((row) => ({
-      id: row.slug,
-      label: row.brand?.name ? `${row.brand.name} — ${row.name}` : row.name,
-      brand: row.brand?.name ?? "",
-      materialName: row.name,
-      materialId: row.calculatorMaterialId,
-      sheetPresetId: row.calculatorSheetPresetId,
-    }));
 }
 
 export async function getCalculatorBundle() {

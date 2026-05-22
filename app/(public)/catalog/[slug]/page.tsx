@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
@@ -8,6 +7,7 @@ import {
   CatalogToolbar,
 } from "@/components/catalog/catalog-filters";
 import { StructuredData } from "@/components/seo/structured-data";
+import { ProductImage } from "@/components/catalog/product-image";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { ProductCard } from "@/components/ui/cards";
 import { Pagination } from "@/components/ui/pagination";
@@ -21,7 +21,6 @@ import {
   sanitizeCatalogFilterState,
   sortCatalogProducts,
 } from "@/features/catalog/filters";
-import { shouldBypassNextImageOptimization } from "@/lib/image-optimization";
 import {
   getPublicCategoryBySlug,
   getPublicProductsByCategory,
@@ -161,14 +160,14 @@ export default async function CategoryPage({
       </section>
 
       <section className="relative hidden overflow-hidden bg-[#151411] text-white lg:block">
-        <Image
+        <ProductImage
           src={category.coverImage}
           alt={category.name}
           fill
+          fallbackLabel={category.name}
           className="object-cover opacity-28"
           sizes="100vw"
           priority
-          unoptimized={shouldBypassNextImageOptimization(category.coverImage)}
         />
         <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.2)_0%,rgba(0,0,0,0.48)_54%,rgba(0,0,0,0.78)_100%)]" />
         <div className="relative mx-auto flex min-h-[48svh] max-w-[1500px] flex-col justify-end px-8 pt-20 pb-8 lg:px-10">
@@ -201,15 +200,13 @@ export default async function CategoryPage({
                   className="group block w-28"
                 >
                   <div className="relative aspect-square overflow-hidden bg-white/14 ring-1 ring-white/14">
-                    <Image
+                    <ProductImage
                       src={product.image}
                       alt={product.name}
                       fill
+                      fallbackLabel={product.brand}
                       className="object-cover transition duration-700 group-hover:scale-[1.04]"
                       sizes="112px"
-                      unoptimized={shouldBypassNextImageOptimization(
-                        product.image,
-                      )}
                     />
                   </div>
                   <p className="mt-2 line-clamp-1 font-mono text-[9px] tracking-[0.12em] text-white/64 uppercase">

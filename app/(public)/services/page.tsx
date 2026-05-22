@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 
+import { ProductImage } from "@/components/catalog/product-image";
 import { ButtonLink } from "@/components/ui/button-link";
 import { ServiceRequestForm } from "@/components/services/service-request-form";
 import {
@@ -54,17 +54,17 @@ export default async function ServicesPage() {
     getPublicProductsByBrand("extravert"),
     getPublicProductsByCategory("mdf-panels"),
   ]);
-  const heroImage =
-    extravertProducts[3]?.image || mdfProducts[0]?.image || "";
+  const heroImage = extravertProducts[3]?.image || mdfProducts[0]?.image || "";
 
   return (
     <div className="bg-[#f1eee8]">
       <section className="relative overflow-hidden bg-[#151411] text-white">
-        <Image
+        <ProductImage
           src={heroImage}
           alt="Услуги распила Artisan"
           fill
           priority
+          fallbackLabel="Услуги Artisan"
           className="object-cover opacity-30"
           sizes="100vw"
         />
@@ -159,7 +159,10 @@ export default async function ServicesPage() {
         </div>
       </section>
 
-      <section id="service-request" className="px-4 py-6 sm:px-8 sm:py-10 lg:px-10">
+      <section
+        id="service-request"
+        className="px-4 py-6 sm:px-8 sm:py-10 lg:px-10"
+      >
         <div className="mx-auto max-w-[1500px]">
           <ServiceRequestForm />
         </div>

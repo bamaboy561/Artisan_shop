@@ -239,122 +239,277 @@ function mapBrand(
   };
 }
 
+const FALLBACK_PUBLIC_CATEGORIES: CatalogCategory[] = [
+  {
+    slug: "ldsp",
+    name: "ЛДСП",
+    summary: "Мебельные панели и декоры для корпусной мебели.",
+    indicator: "Мебельные панели",
+    scenario: "Запрос цены и распил",
+    coverImage: "",
+    spotlight: "",
+  },
+  {
+    slug: "mdf-panels",
+    name: "МДФ панели",
+    summary: "Фасадные и интерьерные МДФ панели.",
+    indicator: "AGT / МДФ",
+    scenario: "Запрос цены и консультация",
+    coverImage: "",
+    spotlight: "",
+  },
+  {
+    slug: "furniture-fittings",
+    name: "Фурнитура",
+    summary: "Петли, направляющие, механизмы и комплектующие.",
+    indicator: "Фурнитура",
+    scenario: "Покупка или запрос цены",
+    coverImage: "",
+    spotlight: "",
+  },
+];
+
+const FALLBACK_PUBLIC_BRANDS: Brand[] = [
+  {
+    slug: "agt",
+    name: "AGT",
+    description: "МДФ панели Trendy и Supramat.",
+    country: "Турция",
+    productCount: 0,
+    highlight: "МДФ панели Trendy и Supramat.",
+    categorySlug: "mdf-panels",
+  },
+  {
+    slug: "swiss-krono",
+    name: "Swiss Krono",
+    description: "ЛДСП панели и декоры для мебели.",
+    country: "Швейцария / Польша",
+    productCount: 0,
+    highlight: "ЛДСП панели и декоры для мебели.",
+    categorySlug: "ldsp",
+  },
+  {
+    slug: "extravert",
+    name: "Extravert",
+    description: "Мебельные панели ЛДСП для интерьерных задач.",
+    country: "Россия",
+    productCount: 0,
+    highlight: "Мебельные панели ЛДСП для интерьерных задач.",
+    categorySlug: "ldsp",
+  },
+  {
+    slug: "hettich",
+    name: "Hettich",
+    description: "Фурнитура для функциональной корпусной мебели.",
+    country: "Германия",
+    productCount: 0,
+    highlight: "Фурнитура для функциональной корпусной мебели.",
+    categorySlug: "furniture-fittings",
+  },
+  {
+    slug: "samet",
+    name: "Samet",
+    description: "Фурнитура для кухонь, шкафов и серийной мебели.",
+    country: "Турция",
+    productCount: 0,
+    highlight: "Фурнитура для кухонь, шкафов и серийной мебели.",
+    categorySlug: "furniture-fittings",
+  },
+  {
+    slug: "emaks",
+    name: "Emaks",
+    description: "Мебельная фурнитура и комплектующие.",
+    country: "",
+    productCount: 0,
+    highlight: "Мебельная фурнитура и комплектующие.",
+    categorySlug: "furniture-fittings",
+  },
+  {
+    slug: "slotex",
+    name: "Slotex",
+    description: "Столешницы, панели и декоративные поверхности.",
+    country: "Россия",
+    productCount: 0,
+    highlight: "Столешницы, панели и декоративные поверхности.",
+    categorySlug: "surfaces",
+  },
+  {
+    slug: "nuomi",
+    name: "Nuomi",
+    description: "Системы хранения и организация пространства.",
+    country: "",
+    productCount: 0,
+    highlight: "Системы хранения и организация пространства.",
+    categorySlug: "organization",
+  },
+  {
+    slug: "italiana-ferramenta",
+    name: "Italiana Ferramenta",
+    description: "Итальянская мебельная фурнитура и крепеж.",
+    country: "Италия",
+    productCount: 0,
+    highlight: "Итальянская мебельная фурнитура и крепеж.",
+    categorySlug: "furniture-fittings",
+  },
+];
+
+const EMPTY_CATALOG_METRICS = {
+  productCount: 0,
+  brandCount: 0,
+  categoryCount: 0,
+  furniturePanelCount: 0,
+  mdfPanelCount: 0,
+};
+
+function logPublicDbFallback(scope: string, error: unknown) {
+  const message =
+    error instanceof Error ? error.message : "Unknown database error";
+
+  console.error(`[public-db-fallback] ${scope}: ${message}`);
+}
+
+async function withPublicDbFallback<T>(
+  scope: string,
+  fallback: T,
+  loader: () => Promise<T>,
+) {
+  if (!hasDatabaseUrl()) return fallback;
+
+  try {
+    return await loader();
+  } catch (error) {
+    logPublicDbFallback(scope, error);
+    return fallback;
+  }
+}
+
 export async function getPublicProducts(): Promise<FeaturedProduct[]> {
-  if (!hasDatabaseUrl()) return [];
+  return withPublicDbFallback("getPublicProducts", [], async () => {
+    const db = getDb();
+    const products = await db.product.findMany({
+      where: { status: ProductStatus.ACTIVE },
+      orderBy: [{ isFeatured: "desc" }, { updatedAt: "desc" }],
+      include: PRODUCT_INCLUDE,
+    });
 
-  const db = getDb();
-  const products = await db.product.findMany({
-    where: { status: ProductStatus.ACTIVE },
-    orderBy: [{ isFeatured: "desc" }, { updatedAt: "desc" }],
-    include: PRODUCT_INCLUDE,
+    return products.map(mapProduct);
   });
-
-  return products.map(mapProduct);
 }
 
 export async function getPublicProductBySlug(
   slug: string,
 ): Promise<FeaturedProduct | null> {
-  if (!hasDatabaseUrl()) return null;
+  return withPublicDbFallback("getPublicProductBySlug", null, async () => {
+    const db = getDb();
+    const product = await db.product.findFirst({
+      where: { slug, status: ProductStatus.ACTIVE },
+      include: PRODUCT_INCLUDE,
+    });
 
-  const db = getDb();
-  const product = await db.product.findFirst({
-    where: { slug, status: ProductStatus.ACTIVE },
-    include: PRODUCT_INCLUDE,
+    return product ? mapProduct(product) : null;
   });
-
-  return product ? mapProduct(product) : null;
 }
 
 export async function getPublicProductsByCategory(
   categorySlug: string,
 ): Promise<FeaturedProduct[]> {
-  if (!hasDatabaseUrl()) return [];
+  return withPublicDbFallback("getPublicProductsByCategory", [], async () => {
+    const db = getDb();
+    const products = await db.product.findMany({
+      where: {
+        status: ProductStatus.ACTIVE,
+        category: { slug: categorySlug },
+      },
+      orderBy: [{ isFeatured: "desc" }, { updatedAt: "desc" }],
+      include: PRODUCT_INCLUDE,
+    });
 
-  const db = getDb();
-  const products = await db.product.findMany({
-    where: {
-      status: ProductStatus.ACTIVE,
-      category: { slug: categorySlug },
-    },
-    orderBy: [{ isFeatured: "desc" }, { updatedAt: "desc" }],
-    include: PRODUCT_INCLUDE,
+    return products.map(mapProduct);
   });
-
-  return products.map(mapProduct);
 }
 
 export async function getPublicProductsByBrand(
   brandSlug: string,
 ): Promise<FeaturedProduct[]> {
-  if (!hasDatabaseUrl()) return [];
+  return withPublicDbFallback("getPublicProductsByBrand", [], async () => {
+    const db = getDb();
+    const products = await db.product.findMany({
+      where: {
+        status: ProductStatus.ACTIVE,
+        brand: { slug: brandSlug },
+      },
+      orderBy: [{ isFeatured: "desc" }, { updatedAt: "desc" }],
+      include: PRODUCT_INCLUDE,
+    });
 
-  const db = getDb();
-  const products = await db.product.findMany({
-    where: {
-      status: ProductStatus.ACTIVE,
-      brand: { slug: brandSlug },
-    },
-    orderBy: [{ isFeatured: "desc" }, { updatedAt: "desc" }],
-    include: PRODUCT_INCLUDE,
+    return products.map(mapProduct);
   });
-
-  return products.map(mapProduct);
 }
 
 export async function getPublicCategories(): Promise<CatalogCategory[]> {
-  if (!hasDatabaseUrl()) return [];
+  return withPublicDbFallback(
+    "getPublicCategories",
+    FALLBACK_PUBLIC_CATEGORIES,
+    async () => {
+      const db = getDb();
+      const categories = await db.category.findMany({
+        where: {
+          products: {
+            some: { status: ProductStatus.ACTIVE },
+          },
+        },
+        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      });
 
-  const db = getDb();
-  const categories = await db.category.findMany({
-    where: {
-      products: {
-        some: { status: ProductStatus.ACTIVE },
-      },
+      return categories.map(mapCategory);
     },
-    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-  });
-
-  return categories.map(mapCategory);
+  );
 }
 
 export async function getPublicCategoryBySlug(
   slug: string,
 ): Promise<CatalogCategory | null> {
-  if (!hasDatabaseUrl()) return null;
-
-  const db = getDb();
-  const category = await db.category.findUnique({ where: { slug } });
-  return category ? mapCategory(category) : null;
+  return withPublicDbFallback(
+    "getPublicCategoryBySlug",
+    FALLBACK_PUBLIC_CATEGORIES.find((category) => category.slug === slug) ??
+      null,
+    async () => {
+      const db = getDb();
+      const category = await db.category.findUnique({ where: { slug } });
+      return category ? mapCategory(category) : null;
+    },
+  );
 }
 
 export async function getPublicBrands(): Promise<Brand[]> {
-  if (!hasDatabaseUrl()) return [];
+  return withPublicDbFallback(
+    "getPublicBrands",
+    FALLBACK_PUBLIC_BRANDS,
+    async () => {
+      const db = getDb();
+      await ensureBrandLogoColumn(db);
+      const brands = await db.brand.findMany({
+        include: {
+          _count: { select: { products: true } },
+          products: {
+            where: { status: ProductStatus.ACTIVE },
+            select: { category: { select: { slug: true } } },
+            take: 1,
+          },
+        },
+        orderBy: { name: "asc" },
+      });
 
-  const db = getDb();
-  await ensureBrandLogoColumn(db);
-  const brands = await db.brand.findMany({
-    include: {
-      _count: { select: { products: true } },
-      products: {
-        where: { status: ProductStatus.ACTIVE },
-        select: { category: { select: { slug: true } } },
-        take: 1,
-      },
+      return brands.map((brand) =>
+        mapBrand(brand, brand.products[0]?.category.slug ?? null),
+      );
     },
-    orderBy: { name: "asc" },
-  });
-
-  return brands.map((brand) =>
-    mapBrand(brand, brand.products[0]?.category.slug ?? null),
   );
 }
 
 export async function getCalculatorContextBySlug(
   slug: string,
 ): Promise<CalculatorProductContext | null> {
-  if (!hasDatabaseUrl()) return null;
-
   const product = await getPublicProductBySlug(slug);
   if (!product?.calculatorMaterialId || !product.sheetPresetId) return null;
 
@@ -370,60 +525,56 @@ export async function getCalculatorContextBySlug(
 export async function getFeaturedProducts(
   limit = 8,
 ): Promise<FeaturedProduct[]> {
-  if (!hasDatabaseUrl()) return [];
+  return withPublicDbFallback("getFeaturedProducts", [], async () => {
+    const db = getDb();
+    const products = await db.product.findMany({
+      where: { status: ProductStatus.ACTIVE, isFeatured: true },
+      orderBy: { updatedAt: "desc" },
+      take: limit,
+      include: PRODUCT_INCLUDE,
+    });
 
-  const db = getDb();
-  const products = await db.product.findMany({
-    where: { status: ProductStatus.ACTIVE, isFeatured: true },
-    orderBy: { updatedAt: "desc" },
-    take: limit,
-    include: PRODUCT_INCLUDE,
+    return products.map(mapProduct);
   });
-
-  return products.map(mapProduct);
 }
 
 export async function getCatalogMetrics() {
-  if (!hasDatabaseUrl()) {
-    return {
-      productCount: 0,
-      brandCount: 0,
-      categoryCount: 0,
-      furniturePanelCount: 0,
-      mdfPanelCount: 0,
-    };
-  }
+  return withPublicDbFallback(
+    "getCatalogMetrics",
+    EMPTY_CATALOG_METRICS,
+    async () => {
+      const db = getDb();
+      const [
+        productCount,
+        brandCount,
+        categoryCount,
+        furnitureCategory,
+        mdfCategory,
+      ] = await Promise.all([
+        db.product.count({ where: { status: ProductStatus.ACTIVE } }),
+        db.brand.count({
+          where: { products: { some: { status: ProductStatus.ACTIVE } } },
+        }),
+        db.category.count({
+          where: { products: { some: { status: ProductStatus.ACTIVE } } },
+        }),
+        db.category.findUnique({
+          where: { slug: "ldsp" },
+          select: { _count: { select: { products: true } } },
+        }),
+        db.category.findUnique({
+          where: { slug: "mdf-panels" },
+          select: { _count: { select: { products: true } } },
+        }),
+      ]);
 
-  const db = getDb();
-  const [
-    productCount,
-    brandCount,
-    categoryCount,
-    furnitureCategory,
-    mdfCategory,
-  ] = await Promise.all([
-    db.product.count({ where: { status: ProductStatus.ACTIVE } }),
-    db.brand.count({
-      where: { products: { some: { status: ProductStatus.ACTIVE } } },
-    }),
-    db.category.count({
-      where: { products: { some: { status: ProductStatus.ACTIVE } } },
-    }),
-    db.category.findUnique({
-      where: { slug: "ldsp" },
-      select: { _count: { select: { products: true } } },
-    }),
-    db.category.findUnique({
-      where: { slug: "mdf-panels" },
-      select: { _count: { select: { products: true } } },
-    }),
-  ]);
-
-  return {
-    productCount,
-    brandCount,
-    categoryCount,
-    furniturePanelCount: furnitureCategory?._count.products ?? 0,
-    mdfPanelCount: mdfCategory?._count.products ?? 0,
-  };
+      return {
+        productCount,
+        brandCount,
+        categoryCount,
+        furniturePanelCount: furnitureCategory?._count.products ?? 0,
+        mdfPanelCount: mdfCategory?._count.products ?? 0,
+      };
+    },
+  );
 }
