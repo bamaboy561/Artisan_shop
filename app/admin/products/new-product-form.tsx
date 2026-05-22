@@ -352,6 +352,46 @@ export function NewProductForm({
         </div>
       </CompactPanel>
 
+      <CompactPanel title="Сборка комплекта">
+        <div className="grid gap-3 lg:grid-cols-[minmax(220px,0.72fr)_minmax(0,1.28fr)]">
+          <div className="grid gap-3">
+            <Checkbox
+              name="isBundleProduct"
+              defaultChecked={defaults?.isBundleProduct ?? false}
+              label="Продавать как комплект"
+              description="Покупатель добавляет один товар, а внутри уже указан готовый набор."
+              className="rounded-2xl border border-[color:var(--line)] bg-[#faf8f4] px-3 py-3"
+            />
+            <div className="rounded-2xl border border-[color:var(--line)] bg-[#f8f5ef] p-3 text-xs leading-5 text-[var(--muted)]">
+              <p className="font-medium text-[var(--foreground)]">
+                Сейчас в составе: {bundleItemsCount} поз.
+              </p>
+              <p className="mt-1">
+                Для Hettich удобно создать товар “Комплект петель” и указать
+                петли, планки и крепеж в составе.
+              </p>
+            </div>
+          </div>
+
+          <FieldLabel>
+            Позиции комплекта
+            <Textarea
+              name="bundleItems"
+              rows={compact ? 4 : 6}
+              placeholder={
+                "Петля Hettich Sensys 110° - 2 шт.\nМонтажная планка Hettich - 2 шт.\nСаморезы 3.5x16 - 8 шт."
+              }
+              value={bundleItemsText}
+              onChange={(event) => setBundleItemsText(event.target.value)}
+            />
+            <FieldHint>
+              Одна строка - одна позиция. Цена, остаток и продажа задаются у
+              комплекта целиком.
+            </FieldHint>
+          </FieldLabel>
+        </div>
+      </CompactPanel>
+
       {showPlateFields ? (
         <CompactPanel title="Плитный материал">
           <div className={plateGridClassName}>
@@ -420,33 +460,6 @@ export function NewProductForm({
         title="Дополнительно"
         summary="адрес, старая цена, подборки"
       >
-        <div className="mb-3 grid gap-3 border-b border-[color:var(--line)] pb-4">
-          <Checkbox
-            name="isBundleProduct"
-            defaultChecked={defaults?.isBundleProduct ?? false}
-            label="Продавать как готовый комплект"
-            description="Клиент добавляет в корзину один товар, а состав комплекта видит в карточке."
-            className="rounded-2xl border border-[color:var(--line)] bg-[#faf8f4] px-3 py-3"
-          />
-
-          <FieldLabel>
-            Состав комплекта
-            <Textarea
-              name="bundleItems"
-              rows={compact ? 4 : 5}
-              placeholder={
-                "Петля Hettich Sensys 110° - 2 шт.\nМонтажная планка Hettich - 2 шт.\nСаморезы 3.5x16 - 8 шт."
-              }
-              value={bundleItemsText}
-              onChange={(event) => setBundleItemsText(event.target.value)}
-            />
-            <FieldHint>
-              Одна строка — одна позиция комплекта. Цена и остаток задаются у
-              комплекта целиком. Сейчас: {bundleItemsCount} поз.
-            </FieldHint>
-          </FieldLabel>
-        </div>
-
         <div className={compact ? "grid gap-2.5" : "grid gap-3 lg:grid-cols-3"}>
           <GeneratedSlugInput
             basePath="/product/"

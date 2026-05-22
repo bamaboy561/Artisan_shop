@@ -165,6 +165,9 @@ export default async function EditProductPage({ params }: EditProductPageProps) 
               {product.isFeatured ? (
                 <StatusBadge tone="accent">В подборках</StatusBadge>
               ) : null}
+              {bundleInfo.isBundle ? (
+                <StatusBadge tone="success">Комплект</StatusBadge>
+              ) : null}
             </div>
           </div>
 
