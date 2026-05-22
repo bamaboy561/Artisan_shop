@@ -21,6 +21,9 @@
     "prisma:migrate:dev": "prisma migrate dev",
     "prisma:seed": "prisma db seed",
     "prisma:bootstrap": "tsx prisma/bootstrap.ts",
+    "db:health": "tsx scripts/db-health.ts",
+    "db:health:direct": "tsx scripts/db-health.ts --direct",
+    "db:production:prepare": "prisma db push && tsx prisma/bootstrap.ts && tsx scripts/db-health.ts",
     "format": "prettier --check .",
     "format:write": "prettier --write ."
   },

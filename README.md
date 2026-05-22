@@ -162,6 +162,10 @@ docker compose --env-file .env.production exec app npm run prisma:bootstrap
 
 - [DEPLOY_VPS.md](./DEPLOY_VPS.md)
 
+Если production-базу нужно заменить или текущий PostgreSQL упёрся в лимиты:
+
+- [docs/PRODUCTION_DATABASE_MIGRATION.md](./docs/PRODUCTION_DATABASE_MIGRATION.md)
+
 ## Полезные команды
 
 ```bash
