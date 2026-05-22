@@ -67,6 +67,14 @@ export function CartView({ products }: { products: FeaturedProduct[] }) {
                       ? formatPrice(row.product.price)
                       : row.product.action}
                   </p>
+                  {row.product.isBundle ? (
+                    <p className="mt-2 inline-flex w-fit items-center rounded-full bg-[#f1eee8] px-2.5 py-1 text-xs font-medium text-[var(--foreground)]">
+                      Комплект
+                      {row.product.bundleItems.length > 0
+                        ? `: ${row.product.bundleItems.length} поз.`
+                        : ""}
+                    </p>
+                  ) : null}
                 </div>
                 <div className="flex items-center gap-2">
                   <Button

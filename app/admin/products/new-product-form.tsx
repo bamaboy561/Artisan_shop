@@ -21,6 +21,7 @@ import {
   ProductOrderMode,
   ProductStatus,
 } from "@/generated/prisma";
+import { parseBundleItemsText } from "@/features/catalog/bundles";
 import { cn } from "@/lib/utils";
 
 const statusLabels: Record<ProductStatus, string> = {
@@ -71,6 +72,8 @@ export type ProductFormDefaults = {
   seoTitle: string | null;
   seoDescription: string | null;
   attributesText: string;
+  isBundleProduct: boolean;
+  bundleItemsText: string;
   isFeatured: boolean;
 };
 
@@ -176,6 +179,9 @@ export function NewProductForm({
   const [name, setName] = useState(defaults?.name ?? "");
   const [categoryId, setCategoryId] = useState(defaults?.categoryId ?? "");
   const [brandId, setBrandId] = useState(defaults?.brandId ?? "");
+  const [bundleItemsText, setBundleItemsText] = useState(
+    defaults?.bundleItemsText ?? "",
+  );
   const selectedCategory = categories.find((item) => item.id === categoryId);
   const selectedBrand = brands.find((item) => item.id === brandId);
   const productIdentity = [selectedBrand?.name, selectedCategory?.name, name]
@@ -183,6 +189,7 @@ export function NewProductForm({
     .join(" ");
   const isFittings = selectedCategory?.kind === CategoryKind.FITTINGS;
   const showPlateFields = !isFittings;
+  const bundleItemsCount = parseBundleItemsText(bundleItemsText).length;
   const inputClassName = compact ? "h-9 px-3 text-[13px] sm:h-9" : "h-10";
   const quickGridClassName = compact
     ? "grid gap-2.5 md:grid-cols-2 xl:grid-cols-12"
@@ -413,6 +420,33 @@ export function NewProductForm({
         title="Дополнительно"
         summary="адрес, старая цена, подборки"
       >
+        <div className="mb-3 grid gap-3 border-b border-[color:var(--line)] pb-4">
+          <Checkbox
+            name="isBundleProduct"
+            defaultChecked={defaults?.isBundleProduct ?? false}
+            label="Продавать как готовый комплект"
+            description="Клиент добавляет в корзину один товар, а состав комплекта видит в карточке."
+            className="rounded-2xl border border-[color:var(--line)] bg-[#faf8f4] px-3 py-3"
+          />
+
+          <FieldLabel>
+            Состав комплекта
+            <Textarea
+              name="bundleItems"
+              rows={compact ? 4 : 5}
+              placeholder={
+                "Петля Hettich Sensys 110° - 2 шт.\nМонтажная планка Hettich - 2 шт.\nСаморезы 3.5x16 - 8 шт."
+              }
+              value={bundleItemsText}
+              onChange={(event) => setBundleItemsText(event.target.value)}
+            />
+            <FieldHint>
+              Одна строка — одна позиция комплекта. Цена и остаток задаются у
+              комплекта целиком. Сейчас: {bundleItemsCount} поз.
+            </FieldHint>
+          </FieldLabel>
+        </div>
+
         <div className={compact ? "grid gap-2.5" : "grid gap-3 lg:grid-cols-3"}>
           <GeneratedSlugInput
             basePath="/product/"

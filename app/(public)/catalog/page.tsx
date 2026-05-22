@@ -173,6 +173,7 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
                       price={product.price}
                       oldPrice={product.oldPrice}
                       inStock={product.inStock}
+                      isBundle={product.isBundle}
                       categoryName={product.categoryName}
                       productSlug={product.slug}
                       isFavorite={favoriteSlugs.has(product.slug)}

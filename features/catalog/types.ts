@@ -33,6 +33,10 @@ export type ProductSpecification = {
   value: string;
 };
 
+export type ProductBundleItem = {
+  label: string;
+};
+
 export type CalculatorMaterialId = "ldsp-16" | "mdf-16";
 
 export type CalculatorSheetPresetId =
@@ -70,6 +74,8 @@ export type FeaturedProduct = {
   purchaseMode: "cart" | "request";
   availabilityText: string;
   specifications: ProductSpecification[];
+  isBundle: boolean;
+  bundleItems: ProductBundleItem[];
   decorGroup?: string;
   decorGroupSlug?: string;
   searchText: string;

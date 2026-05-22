@@ -322,6 +322,39 @@ export default async function ProductPage({ params }: ProductPageProps) {
                 </div>
               </dl>
 
+              {product.isBundle ? (
+                <div className="mt-4 border border-[color:var(--line)] bg-[#f8f5ef] p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-mono text-[10px] tracking-[0.18em] text-[var(--accent)] uppercase">
+                        Готовый комплект
+                      </p>
+                      <p className="mt-1 text-sm leading-5 text-[var(--muted)]">
+                        Добавляется в корзину одной позицией.
+                      </p>
+                    </div>
+                    <span className="shrink-0 rounded-full bg-[var(--foreground)] px-2.5 py-1 text-xs font-semibold text-white">
+                      {product.bundleItems.length || 1}
+                    </span>
+                  </div>
+
+                  {product.bundleItems.length > 0 ? (
+                    <ul className="mt-3 grid gap-2 text-sm text-[var(--foreground)]">
+                      {product.bundleItems.slice(0, 4).map((item, index) => (
+                        <li key={`${product.slug}-bundle-aside-${index}`}>
+                          {item.label}
+                        </li>
+                      ))}
+                      {product.bundleItems.length > 4 ? (
+                        <li className="text-[var(--muted)]">
+                          Еще {product.bundleItems.length - 4} поз.
+                        </li>
+                      ) : null}
+                    </ul>
+                  ) : null}
+                </div>
+              ) : null}
+
               <div className="mt-5 grid gap-2.5 sm:mt-7 sm:gap-3">
                 {product.purchaseMode === "cart" &&
                 typeof product.price === "number" ? (
@@ -369,6 +402,43 @@ export default async function ProductPage({ params }: ProductPageProps) {
           </aside>
         </div>
       </section>
+
+      {product.isBundle && product.bundleItems.length > 0 ? (
+        <section className="border-t border-[color:var(--line)] px-4 py-6 sm:px-8 sm:py-10 lg:px-10">
+          <div className="mx-auto max-w-[1500px]">
+            <div className="mb-5 flex flex-col gap-2 sm:mb-6 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="font-mono text-[10px] tracking-[0.22em] text-[var(--accent)] uppercase">
+                  Комплектация
+                </p>
+                <h2 className="mt-2 text-[1.45rem] leading-tight font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-[1.65rem]">
+                  Что входит в комплект
+                </h2>
+              </div>
+              <p className="max-w-[32rem] text-sm leading-6 text-[var(--muted)]">
+                Клиент покупает готовый набор, без ручного подбора каждой
+                ответной детали.
+              </p>
+            </div>
+
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+              {product.bundleItems.map((item, index) => (
+                <article
+                  key={`${product.slug}-bundle-${index}`}
+                  className="border border-[color:var(--line)] bg-[var(--surface-strong)] p-4"
+                >
+                  <p className="font-mono text-[10px] tracking-[0.18em] text-[var(--muted)] uppercase">
+                    {String(index + 1).padStart(2, "0")}
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-[var(--foreground)]">
+                    {item.label}
+                  </p>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       <section className="border-t border-[color:var(--line)] px-4 py-6 sm:px-8 sm:py-10 lg:px-10">
         <div className="mx-auto max-w-[1500px]">
@@ -434,6 +504,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                   price={item.price}
                   oldPrice={item.oldPrice}
                   inStock={item.inStock}
+                  isBundle={item.isBundle}
                   categoryName={item.categoryName}
                   productSlug={item.slug}
                   isFavorite={favoriteSlugs.has(item.slug)}

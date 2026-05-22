@@ -23,6 +23,7 @@ type ProductCardProps = {
   mobileList?: boolean;
   productSlug?: string;
   isFavorite?: boolean;
+  isBundle?: boolean;
   favoriteNext?: string;
   showFavorite?: boolean;
   className?: string;
@@ -43,6 +44,7 @@ export function ProductCard({
   mobileList = false,
   productSlug,
   isFavorite = false,
+  isBundle = false,
   favoriteNext = href,
   showFavorite = false,
   className,
@@ -96,8 +98,19 @@ export function ProductCard({
             }
           />
 
+          {isBundle ? (
+            <span className="absolute top-2.5 left-2.5 inline-flex items-center bg-white/92 px-2 py-1 font-mono text-[9px] tracking-[0.16em] text-[var(--foreground)] uppercase backdrop-blur-sm sm:top-3 sm:left-3 sm:text-[10px]">
+              Комплект
+            </span>
+          ) : null}
+
           {!inStock ? (
-            <span className="absolute top-2.5 left-2.5 inline-flex items-center gap-1.5 bg-white/92 px-2 py-1 font-mono text-[9px] tracking-[0.16em] text-[var(--foreground)] uppercase backdrop-blur-sm sm:top-3 sm:left-3 sm:text-[10px]">
+            <span
+              className={cn(
+                "absolute left-2.5 inline-flex items-center gap-1.5 bg-white/92 px-2 py-1 font-mono text-[9px] tracking-[0.16em] text-[var(--foreground)] uppercase backdrop-blur-sm sm:left-3 sm:text-[10px]",
+                isBundle ? "top-10 sm:top-11" : "top-2.5 sm:top-3",
+              )}
+            >
               <span className="size-1 rounded-full bg-[var(--foreground)]/40" />
               Под заказ
             </span>

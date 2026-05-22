@@ -8,6 +8,10 @@ import type {
 } from "@/generated/prisma";
 import { getDb, hasDatabaseUrl } from "@/lib/db";
 import { ensureBrandLogoColumn } from "@/lib/server/brand-schema";
+import {
+  getProductBundleInfo,
+  isBundleAttributeName,
+} from "@/features/catalog/bundles";
 import type {
   Brand,
   CalculatorMaterialId,
@@ -160,6 +164,10 @@ function mapProduct(product: PrismaProductWithRelations): FeaturedProduct {
       ? product.calculatorSheetPresetId
       : undefined;
   const decorGroup = getProductDecorGroup(product);
+  const bundleInfo = getProductBundleInfo(product.attributes);
+  const publicAttributes = product.attributes.filter(
+    (attribute) => !isBundleAttributeName(attribute.name),
+  );
 
   return {
     slug: product.slug,
@@ -185,11 +193,13 @@ function mapProduct(product: PrismaProductWithRelations): FeaturedProduct {
     specifications: [
       product.brand?.name ? { key: "Бренд", value: product.brand.name } : null,
       { key: "Артикул", value: product.sku },
-      ...product.attributes.map((attribute) => ({
+      ...publicAttributes.map((attribute) => ({
         key: attribute.name,
         value: attribute.value,
       })),
     ].filter(Boolean) as FeaturedProduct["specifications"],
+    isBundle: bundleInfo.isBundle,
+    bundleItems: bundleInfo.items,
     ...decorGroup,
     searchText: buildSearchText([
       product.name,
@@ -197,6 +207,7 @@ function mapProduct(product: PrismaProductWithRelations): FeaturedProduct {
       product.brand?.name,
       product.category.name,
       product.summary,
+      ...bundleInfo.items.map((item) => item.label),
     ]),
     calculatorMaterialId,
     sheetPresetId,

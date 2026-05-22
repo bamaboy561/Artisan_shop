@@ -10,6 +10,10 @@ import { StatusBadge } from "@/components/admin/status-badge";
 import { Button } from "@/components/ui/button";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { ProductOrderMode, ProductStatus } from "@/generated/prisma";
+import {
+  getProductBundleInfo,
+  isBundleAttributeName,
+} from "@/features/catalog/bundles";
 import { requireAdminSession } from "@/lib/auth/dal";
 import { getDb, hasDatabaseUrl } from "@/lib/db";
 import { getAdminProductFormOptions } from "@/lib/server/catalog-admin";
@@ -94,6 +98,11 @@ export default async function EditProductPage({ params }: EditProductPageProps) 
 
   if (!product) notFound();
 
+  const bundleInfo = getProductBundleInfo(product.attributes);
+  const publicAttributes = product.attributes.filter(
+    (attribute) => !isBundleAttributeName(attribute.name),
+  );
+
   const defaults: ProductFormDefaults = {
     id: product.id,
     name: product.name,
@@ -116,9 +125,11 @@ export default async function EditProductPage({ params }: EditProductPageProps) 
     description: product.description,
     seoTitle: product.seoTitle,
     seoDescription: product.seoDescription,
-    attributesText: product.attributes
+    attributesText: publicAttributes
       .map((attribute) => `${attribute.name}: ${attribute.value}`)
       .join("\n"),
+    isBundleProduct: bundleInfo.isBundle,
+    bundleItemsText: bundleInfo.items.map((item) => item.label).join("\n"),
     isFeatured: product.isFeatured,
   };
 

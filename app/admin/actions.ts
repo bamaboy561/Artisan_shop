@@ -19,6 +19,13 @@ import {
   slugifyImportValue,
 } from "@/features/admin/product-import";
 import {
+  BUNDLE_ITEM_ATTRIBUTE_NAME,
+  BUNDLE_MARKER_ATTRIBUTE_NAME,
+  BUNDLE_MARKER_ATTRIBUTE_VALUE,
+  isBundleAttributeName,
+  parseBundleItemsText,
+} from "@/features/catalog/bundles";
+import {
   handleOrderUpdated,
   handleOrderCreated,
   handleRequestUpdated,
@@ -275,6 +282,38 @@ function parseProductAttributes(value: string) {
         },
       ];
     });
+}
+
+function getProductAttributesFromForm(formData: FormData) {
+  const baseAttributes = parseProductAttributes(
+    getString(formData, "attributes"),
+  ).filter((attribute) => !isBundleAttributeName(attribute.name));
+  const bundleItems = parseBundleItemsText(getString(formData, "bundleItems"));
+  const isBundleProduct =
+    getString(formData, "isBundleProduct") === "on" ||
+    bundleItems.length > 0;
+  const attributes = [...baseAttributes];
+
+  if (isBundleProduct) {
+    attributes.push({
+      name: BUNDLE_MARKER_ATTRIBUTE_NAME,
+      value: BUNDLE_MARKER_ATTRIBUTE_VALUE,
+      sortOrder: 0,
+    });
+
+    bundleItems.forEach((item) => {
+      attributes.push({
+        name: BUNDLE_ITEM_ATTRIBUTE_NAME,
+        value: item,
+        sortOrder: 0,
+      });
+    });
+  }
+
+  return attributes.map((attribute, index) => ({
+    ...attribute,
+    sortOrder: (index + 1) * 10,
+  }));
 }
 
 function getFileList(formData: FormData, key: string) {
@@ -969,7 +1008,7 @@ export async function createProductAction(formData: FormData) {
   const status = getString(formData, "status");
   const orderMode = getString(formData, "orderMode");
   const inventoryStatus = getString(formData, "inventoryStatus");
-  const attributes = parseProductAttributes(getString(formData, "attributes"));
+  const attributes = getProductAttributesFromForm(formData);
   const brandId = getOptionalString(formData, "brandId");
   const db = getDb();
   const [category, brand] = await Promise.all([
@@ -1134,7 +1173,7 @@ export async function updateProductDetailsAction(formData: FormData) {
   const status = getString(formData, "status");
   const orderMode = getString(formData, "orderMode");
   const inventoryStatus = getString(formData, "inventoryStatus");
-  const attributes = parseProductAttributes(getString(formData, "attributes"));
+  const attributes = getProductAttributesFromForm(formData);
   const brandId = getOptionalString(formData, "brandId");
 
   const db = getDb();
