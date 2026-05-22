@@ -73,6 +73,8 @@ const DEFAULT_SHEETS: CalculatorSheetFormatDto[] = [
   },
 ];
 
+let calculatorDbFallbackActive = false;
+
 function logCalculatorFallback(scope: string, error: unknown) {
   const message =
     error instanceof Error ? error.message : "Unknown database error";
@@ -86,10 +88,22 @@ async function withCalculatorDbFallback<T>(
   loader: () => Promise<T>,
 ) {
   if (!hasDatabaseUrl()) return fallback;
+  if (calculatorDbFallbackActive) return fallback;
 
   try {
     return await loader();
   } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Unknown database error";
+
+    if (
+      message.includes("data transfer quota") ||
+      message.includes("exceeded") ||
+      message.includes("Raw query failed")
+    ) {
+      calculatorDbFallbackActive = true;
+    }
+
     logCalculatorFallback(scope, error);
     return fallback;
   }

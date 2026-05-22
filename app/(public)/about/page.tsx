@@ -32,13 +32,17 @@ const principles = [
   },
 ];
 
+const fallbackAboutImage =
+  "https://www.agtwood.com/medium/Product/Image/be159b31-2756-48a2-9f70-1e06ccde7149";
+
 export default async function AboutPage() {
   const [catalogMetrics, mdfProducts, extravertProducts] = await Promise.all([
     getCatalogMetrics(),
     getPublicProductsByCategory("mdf-panels"),
     getPublicProductsByBrand("extravert"),
   ]);
-  const heroImage = mdfProducts[2]?.image || extravertProducts[0]?.image || "";
+  const heroImage =
+    mdfProducts[2]?.image || extravertProducts[0]?.image || fallbackAboutImage;
 
   return (
     <div className="bg-background">

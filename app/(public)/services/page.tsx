@@ -49,12 +49,18 @@ const workflowSteps = [
   },
 ];
 
+const fallbackServiceImage =
+  "https://swisskrono.ru/ldsp_files/4080_347346_82c7bd10.jpg";
+
 export default async function ServicesPage() {
   const [extravertProducts, mdfProducts] = await Promise.all([
     getPublicProductsByBrand("extravert"),
     getPublicProductsByCategory("mdf-panels"),
   ]);
-  const heroImage = extravertProducts[3]?.image || mdfProducts[0]?.image || "";
+  const heroImage =
+    extravertProducts[3]?.image ||
+    mdfProducts[0]?.image ||
+    fallbackServiceImage;
 
   return (
     <div className="bg-[#f1eee8]">

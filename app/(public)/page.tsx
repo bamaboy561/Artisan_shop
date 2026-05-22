@@ -30,6 +30,15 @@ type CategoryTile = {
   image: string;
 };
 
+const fallbackVisuals = {
+  extravert:
+    "https://extravert.ru/wp-content/uploads/2023/11/kromka_D.301.W04.jpg",
+  swissKrono: "https://swisskrono.ru/ldsp_files/2077_331554_82c7bd10.jpg",
+  agt: "https://www.agtwood.com/medium/Product/Image/daf29e0f-9b7b-46e4-babd-eadb915deb80",
+  cutting: "https://swisskrono.ru/ldsp_files/4080_347346_82c7bd10.jpg",
+  fittings: "https://cheapollo.ru/statics/product/56567/6790b706620a4.jpg",
+};
+
 function pickImage(images: Array<string | undefined>, fallback: string) {
   return images.find((image) => image && image.length > 0) ?? fallback;
 }
@@ -55,7 +64,7 @@ export default async function HomePage() {
     getBrandProfiles(),
   ]);
 
-  const fallbackImage = allProducts[0]?.image ?? "";
+  const fallbackImage = allProducts[0]?.image ?? fallbackVisuals.extravert;
 
   const heroSlides: HomeHeroSlide[] = [
     {
@@ -95,15 +104,15 @@ export default async function HomePage() {
       },
       images: [
         {
-          src: pickImage([agtProducts[0]?.image], fallbackImage),
+          src: pickImage([agtProducts[0]?.image], fallbackVisuals.agt),
           alt: "МДФ панель AGT Trendy",
         },
         {
-          src: pickImage([agtProducts[2]?.image], fallbackImage),
+          src: pickImage([agtProducts[2]?.image], fallbackVisuals.agt),
           alt: "МДФ панель AGT Supramat",
         },
         {
-          src: pickImage([agtProducts[3]?.image], fallbackImage),
+          src: pickImage([agtProducts[3]?.image], fallbackVisuals.agt),
           alt: "МДФ панель AGT",
         },
       ],
@@ -120,15 +129,21 @@ export default async function HomePage() {
       },
       images: [
         {
-          src: pickImage([swissKronoProducts[1]?.image], fallbackImage),
+          src: pickImage(
+            [swissKronoProducts[1]?.image],
+            fallbackVisuals.cutting,
+          ),
           alt: "Материал для распила",
         },
         {
-          src: pickImage([extravertProducts[3]?.image], fallbackImage),
+          src: pickImage(
+            [extravertProducts[3]?.image],
+            fallbackVisuals.extravert,
+          ),
           alt: "Панель для распила",
         },
         {
-          src: pickImage([agtProducts[1]?.image], fallbackImage),
+          src: pickImage([agtProducts[1]?.image], fallbackVisuals.agt),
           alt: "МДФ панель для распила",
         },
       ],
@@ -140,25 +155,28 @@ export default async function HomePage() {
       title: "Мебельные панели",
       label: `${catalogMetrics.furniturePanelCount} позиций`,
       href: "/catalog/ldsp",
-      image: pickImage([ldspProducts[0]?.image], fallbackImage),
+      image: pickImage([ldspProducts[0]?.image], fallbackVisuals.extravert),
     },
     {
       title: "МДФ панели",
       label: "AGT Trendy / Supramat",
       href: "/catalog/mdf-panels?brand=agt",
-      image: pickImage([mdfProducts[0]?.image], fallbackImage),
+      image: pickImage([mdfProducts[0]?.image], fallbackVisuals.agt),
     },
     {
       title: "SWISS KRONO",
       label: "Однотонные, дизайн, древесные",
       href: "/catalog?brand=swiss-krono",
-      image: pickImage([swissKronoProducts[0]?.image], fallbackImage),
+      image: pickImage(
+        [swissKronoProducts[0]?.image],
+        fallbackVisuals.swissKrono,
+      ),
     },
     {
       title: "Онлайн распил",
       label: "Расчет и заявка",
       href: "/calculator",
-      image: pickImage([swissKronoProducts[4]?.image], fallbackImage),
+      image: pickImage([swissKronoProducts[4]?.image], fallbackVisuals.cutting),
     },
   ];
 

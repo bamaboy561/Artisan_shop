@@ -246,7 +246,8 @@ const FALLBACK_PUBLIC_CATEGORIES: CatalogCategory[] = [
     summary: "Мебельные панели и декоры для корпусной мебели.",
     indicator: "Мебельные панели",
     scenario: "Запрос цены и распил",
-    coverImage: "",
+    coverImage:
+      "https://extravert.ru/wp-content/uploads/2023/11/kromka_D.301.W04.jpg",
     spotlight: "",
   },
   {
@@ -255,7 +256,8 @@ const FALLBACK_PUBLIC_CATEGORIES: CatalogCategory[] = [
     summary: "Фасадные и интерьерные МДФ панели.",
     indicator: "AGT / МДФ",
     scenario: "Запрос цены и консультация",
-    coverImage: "",
+    coverImage:
+      "https://www.agtwood.com/medium/Product/Image/daf29e0f-9b7b-46e4-babd-eadb915deb80",
     spotlight: "",
   },
   {
@@ -264,7 +266,7 @@ const FALLBACK_PUBLIC_CATEGORIES: CatalogCategory[] = [
     summary: "Петли, направляющие, механизмы и комплектующие.",
     indicator: "Фурнитура",
     scenario: "Покупка или запрос цены",
-    coverImage: "",
+    coverImage: "https://cheapollo.ru/statics/product/56567/6790b706620a4.jpg",
     spotlight: "",
   },
 ];
@@ -361,6 +363,8 @@ const EMPTY_CATALOG_METRICS = {
   mdfPanelCount: 0,
 };
 
+let publicDbFallbackActive = false;
+
 function logPublicDbFallback(scope: string, error: unknown) {
   const message =
     error instanceof Error ? error.message : "Unknown database error";
@@ -374,10 +378,22 @@ async function withPublicDbFallback<T>(
   loader: () => Promise<T>,
 ) {
   if (!hasDatabaseUrl()) return fallback;
+  if (publicDbFallbackActive) return fallback;
 
   try {
     return await loader();
   } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Unknown database error";
+
+    if (
+      message.includes("data transfer quota") ||
+      message.includes("exceeded") ||
+      message.includes("Raw query failed")
+    ) {
+      publicDbFallbackActive = true;
+    }
+
     logPublicDbFallback(scope, error);
     return fallback;
   }
