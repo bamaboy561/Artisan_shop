@@ -1,9 +1,9 @@
-import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { ArrowUpRight, Check, ChevronRight } from "lucide-react";
 
+import { ProductImage } from "@/components/catalog/product-image";
 import { StructuredData } from "@/components/seo/structured-data";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { ButtonLink } from "@/components/ui/button-link";
@@ -14,8 +14,8 @@ import {
 } from "@/features/brands/data";
 import type { FeaturedProduct } from "@/features/catalog/data";
 import { formatPrice } from "@/lib/commerce";
-import { shouldBypassNextImageOptimization } from "@/lib/image-optimization";
 import { companyName } from "@/lib/site-config";
+import { cn } from "@/lib/utils";
 import {
   breadcrumbJsonLd,
   brandSeoDescription,
@@ -110,7 +110,10 @@ function ProductVisual({
   if (!product?.image) {
     return (
       <div
-        className={`relative overflow-hidden bg-[radial-gradient(circle_at_28%_16%,rgba(255,255,255,0.92),transparent_34%),linear-gradient(135deg,#eee9df,#d8d0c3)] ${className}`}
+        className={cn(
+          "relative overflow-hidden bg-[radial-gradient(circle_at_28%_16%,rgba(255,255,255,0.92),transparent_34%),linear-gradient(135deg,#eee9df,#d8d0c3)]",
+          className,
+        )}
       >
         <div className="absolute inset-0 opacity-[0.18] [background-image:linear-gradient(90deg,#151411_1px,transparent_1px),linear-gradient(#151411_1px,transparent_1px)] [background-size:42px_42px]" />
       </div>
@@ -118,15 +121,14 @@ function ProductVisual({
   }
 
   return (
-    <div className={`relative overflow-hidden bg-[#e6e0d5] ${className}`}>
-      <Image
+    <div className={cn("relative overflow-hidden bg-[#e6e0d5]", className)}>
+      <ProductImage
         src={product.image}
         alt={product.name}
         fill
         priority={priority}
         className="object-cover transition duration-700 group-hover:scale-[1.035]"
         sizes="(max-width: 1024px) 100vw, 50vw"
-        unoptimized={shouldBypassNextImageOptimization(product.image)}
       />
     </div>
   );
@@ -219,13 +221,12 @@ function ProductEditorialCard({ product }: { product: FeaturedProduct }) {
     <Link href={`/product/${product.slug}`} className="group block">
       <div className="relative aspect-[0.92] overflow-hidden rounded-[28px] bg-[#e5dfd4]">
         {product.image ? (
-          <Image
+          <ProductImage
             src={product.image}
             alt={product.name}
             fill
             className="object-cover transition duration-700 group-hover:scale-[1.04]"
             sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-            unoptimized={shouldBypassNextImageOptimization(product.image)}
           />
         ) : (
           <div className="flex h-full items-center justify-center text-[var(--muted)]">
