@@ -11,15 +11,21 @@ export function shouldBypassNextImageOptimization(src?: string | null) {
       hostname === "agtwood.com" ||
       hostname === "www.agtwood.ru" ||
       hostname === "agtwood.ru";
+    const isHettichHost = hostname === "shop.hettich.com";
 
-    if (!isAgtHost) {
-      return false;
+    if (isHettichHost) {
+      return true;
     }
 
     const pathname = url.pathname.toLowerCase();
     const hasFileExtension = /\.[a-z0-9]+$/i.test(pathname);
 
-    return pathname.includes("/medium/") && pathname.includes("/image/") && !hasFileExtension;
+    return (
+      isAgtHost &&
+      pathname.includes("/medium/") &&
+      pathname.includes("/image/") &&
+      !hasFileExtension
+    );
   } catch {
     return false;
   }

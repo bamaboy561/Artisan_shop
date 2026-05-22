@@ -17,6 +17,7 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "agtwood.com" },
       { protocol: "https", hostname: "nuomihome.com" },
       { protocol: "https", hostname: "www.nuomihome.com" },
+      { protocol: "https", hostname: "shop.hettich.com" },
       { protocol: "https", hostname: "cheapollo.ru" },
       { protocol: "https", hostname: "www.cheapollo.ru" },
       { protocol: "https", hostname: "**.public.blob.vercel-storage.com" },
