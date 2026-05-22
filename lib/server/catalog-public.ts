@@ -365,6 +365,10 @@ const EMPTY_CATALOG_METRICS = {
 
 let publicDbFallbackActive = false;
 
+export function isPublicCatalogFallbackActive() {
+  return publicDbFallbackActive || !hasDatabaseUrl();
+}
+
 function logPublicDbFallback(scope: string, error: unknown) {
   const message =
     error instanceof Error ? error.message : "Unknown database error";

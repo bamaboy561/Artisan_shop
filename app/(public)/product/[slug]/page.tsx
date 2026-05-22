@@ -13,6 +13,7 @@ import {
   getPublicCategoryBySlug,
   getPublicProductBySlug,
   getPublicProductsByCategory,
+  isPublicCatalogFallbackActive,
 } from "@/lib/server/catalog-public";
 import { getCurrentFavoriteProductSlugs } from "@/lib/server/favorites";
 import { formatPrice } from "@/lib/commerce";
@@ -31,6 +32,36 @@ type ProductPageProps = {
 type RelatedProductCandidate = NonNullable<
   Awaited<ReturnType<typeof getPublicProductBySlug>>
 >;
+
+function ProductCatalogUnavailable() {
+  return (
+    <div className="bg-[#f1eee8] px-4 py-16 sm:px-8 lg:px-10">
+      <div className="mx-auto grid min-h-[52vh] max-w-[980px] place-items-center">
+        <div className="w-full border border-[color:var(--line)] bg-[var(--surface-strong)] p-6 text-center shadow-[0_24px_70px_rgba(21,20,17,0.06)] sm:p-10">
+          <p className="font-mono text-[10px] tracking-[0.22em] text-[var(--accent)] uppercase">
+            Каталог временно недоступен
+          </p>
+          <h1 className="mx-auto mt-3 max-w-[16ch] text-[2.1rem] leading-[0.96] font-semibold tracking-[-0.05em] text-[var(--foreground)] sm:text-[3rem]">
+            Не удалось загрузить карточку товара.
+          </h1>
+          <p className="mx-auto mt-4 max-w-[36rem] text-sm leading-7 text-[var(--muted)] sm:text-base">
+            Товар не удален. Сейчас сайт не получил данные из базы, поэтому
+            временно показывает безопасный экран вместо пустой или ошибочной
+            карточки.
+          </p>
+          <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
+            <ButtonLink href="/catalog" variant="contrast">
+              Вернуться в каталог
+            </ButtonLink>
+            <ButtonLink href="/contacts" variant="secondary">
+              Связаться с менеджером
+            </ButtonLink>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function getRelatedProductScore(
   product: RelatedProductCandidate,
@@ -82,6 +113,15 @@ export async function generateMetadata({
   const product = await getPublicProductBySlug(slug);
 
   if (!product) {
+    if (isPublicCatalogFallbackActive()) {
+      return createSeoMetadata({
+        title: "Каталог временно недоступен",
+        description:
+          "Карточка товара временно недоступна из-за подключения каталога. Вернитесь в каталог или свяжитесь с менеджером Artisan.",
+        path: "/catalog",
+      });
+    }
+
     return createSeoMetadata({
       title: "Товар не найден",
       description: "Карточка товара Artisan не найдена.",
@@ -102,6 +142,10 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const product = await getPublicProductBySlug(slug);
 
   if (!product) {
+    if (isPublicCatalogFallbackActive()) {
+      return <ProductCatalogUnavailable />;
+    }
+
     notFound();
   }
 
