@@ -82,7 +82,7 @@ export default async function EditProductPage({ params }: EditProductPageProps) 
         },
         images: {
           orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-          take: 1,
+          take: 4,
         },
         attributes: {
           orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
@@ -127,7 +127,7 @@ export default async function EditProductPage({ params }: EditProductPageProps) 
     inventoryStatus: product.inventoryStatus,
     format: product.format,
     thicknessMm: product.thicknessMm,
-    imageUrl: product.images[0]?.url ?? null,
+    imageUrls: product.images.map((image) => image.url).slice(0, 4),
     calculatorMaterialId: product.calculatorMaterialId,
     calculatorSheetPresetId: product.calculatorSheetPresetId,
     summary: product.summary,

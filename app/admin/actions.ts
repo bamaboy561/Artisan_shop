@@ -368,6 +368,7 @@ const PRODUCT_IMAGE_TYPES = new Set([
   "image/png",
   "image/webp",
 ]);
+const PRODUCT_IMAGE_SLOT_COUNT = 4;
 
 function sanitizeUploadSegment(value: string) {
   return value
@@ -401,18 +402,29 @@ async function uploadProductImageFile(file: File, productSlug: string) {
   return blob.url;
 }
 
-async function resolveProductImageUrl(formData: FormData, productSlug: string) {
-  const uploadedImage = getFileList(formData, "imageFile")[0];
+async function resolveProductImageUrls(formData: FormData, productSlug: string) {
+  const urls: string[] = [];
 
-  if (uploadedImage) {
-    const blobUrl = await uploadProductImageFile(uploadedImage, productSlug);
+  for (let index = 0; index < PRODUCT_IMAGE_SLOT_COUNT; index += 1) {
+    const uploadedImage = getFileList(formData, `imageFile${index}`)[0];
 
-    if (blobUrl) {
-      return blobUrl;
+    if (uploadedImage) {
+      const blobUrl = await uploadProductImageFile(uploadedImage, productSlug);
+
+      if (blobUrl) {
+        urls.push(blobUrl);
+        continue;
+      }
+    }
+
+    const imageUrl = getOptionalString(formData, `imageUrl${index}`);
+
+    if (imageUrl) {
+      urls.push(imageUrl);
     }
   }
 
-  return getOptionalString(formData, "imageUrl");
+  return [...new Set(urls)].slice(0, PRODUCT_IMAGE_SLOT_COUNT);
 }
 
 const PRODUCT_IMPORT_MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -1077,7 +1089,7 @@ export async function createProductAction(formData: FormData) {
     db,
     getString(formData, "sku") || identity || name,
   );
-  const imageUrl = await resolveProductImageUrl(formData, slug);
+  const imageUrls = await resolveProductImageUrls(formData, slug);
 
   await db.product.create({
     data: {
@@ -1111,15 +1123,13 @@ export async function createProductAction(formData: FormData) {
           (item) => item === inventoryStatus,
         ) ?? InventoryStatus.ON_REQUEST,
       isFeatured: getString(formData, "isFeatured") === "on",
-      images: imageUrl
+      images: imageUrls.length > 0
         ? {
-            create: [
-              {
-                url: imageUrl,
-                alt: name,
-                sortOrder: 10,
-              },
-            ],
+            create: imageUrls.map((imageUrl, index) => ({
+              url: imageUrl,
+              alt: name,
+              sortOrder: (index + 1) * 10,
+            })),
           }
         : undefined,
       attributes:
@@ -1272,7 +1282,7 @@ export async function updateProductDetailsAction(formData: FormData) {
     getString(formData, "sku") || identity || name,
     id,
   );
-  const imageUrl = await resolveProductImageUrl(formData, slug);
+  const imageUrls = await resolveProductImageUrls(formData, slug);
 
   await db.$transaction(async (tx) => {
     await tx.product.update({
@@ -1314,23 +1324,16 @@ export async function updateProductDetailsAction(formData: FormData) {
       },
     });
 
-    if (imageUrl) {
-      const existing = await tx.productImage.findFirst({
-        where: { productId: id },
-        orderBy: { sortOrder: "asc" },
+    await tx.productImage.deleteMany({ where: { productId: id } });
+    if (imageUrls.length > 0) {
+      await tx.productImage.createMany({
+        data: imageUrls.map((imageUrl, index) => ({
+          productId: id,
+          url: imageUrl,
+          alt: name,
+          sortOrder: (index + 1) * 10,
+        })),
       });
-      if (existing) {
-        await tx.productImage.update({
-          where: { id: existing.id },
-          data: { url: imageUrl, alt: name },
-        });
-      } else {
-        await tx.productImage.create({
-          data: { productId: id, url: imageUrl, alt: name, sortOrder: 10 },
-        });
-      }
-    } else {
-      await tx.productImage.deleteMany({ where: { productId: id } });
     }
 
     await tx.productAttribute.deleteMany({ where: { productId: id } });

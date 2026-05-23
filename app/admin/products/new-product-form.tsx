@@ -77,7 +77,7 @@ export type ProductFormDefaults = {
   inventoryStatus: InventoryStatus;
   format: string | null;
   thicknessMm: number | null;
-  imageUrl: string | null;
+  imageUrls: string[];
   calculatorMaterialId: string | null;
   calculatorSheetPresetId: string | null;
   summary: string | null;
@@ -677,7 +677,7 @@ export function NewProductForm({
           <FieldLabel>
             Фото товара
             <Input
-              name="imageFile"
+              name="imageFile0"
               type="file"
               accept="image/png,image/jpeg,image/webp,image/avif"
               disabled={!canUploadImages}
@@ -693,14 +693,52 @@ export function NewProductForm({
           <FieldLabel>
             Ссылка на изображение
             <Input
-              name="imageUrl"
+              name="imageUrl0"
               type="url"
               placeholder="https://..."
-              defaultValue={defaults?.imageUrl ?? ""}
+              defaultValue={defaults?.imageUrls[0] ?? ""}
               className={inputClassName}
             />
           </FieldLabel>
         </div>
+
+        <div className="mt-3 grid gap-3 md:grid-cols-3">
+          {[1, 2, 3].map((index) => (
+            <div
+              key={`product-gallery-slot-${index}`}
+              className="grid gap-2 rounded-2xl border border-[color:var(--line)] bg-[#faf8f4] p-3"
+            >
+              <p className="font-mono text-[10px] tracking-[0.16em] text-[var(--accent)] uppercase">
+                Фото {index + 1}
+              </p>
+              <FieldLabel>
+                Файл
+                <Input
+                  name={`imageFile${index}`}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/avif"
+                  disabled={!canUploadImages}
+                  className={inputClassName}
+                />
+              </FieldLabel>
+              <FieldLabel>
+                Ссылка
+                <Input
+                  name={`imageUrl${index}`}
+                  type="url"
+                  placeholder="https://..."
+                  defaultValue={defaults?.imageUrls[index] ?? ""}
+                  className={inputClassName}
+                />
+              </FieldLabel>
+            </div>
+          ))}
+        </div>
+
+        <FieldHint>
+          Первое фото будет главным. Остальные изображения попадут в галерею
+          карточки товара.
+        </FieldHint>
 
         <div className={detailsGridClassName}>
           <FieldLabel>
