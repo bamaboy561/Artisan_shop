@@ -35,6 +35,13 @@ export type ProductSpecification = {
 
 export type ProductBundleItem = {
   label: string;
+  productSlug?: string;
+  productName?: string;
+  productSku?: string;
+  brand?: string;
+  image?: string;
+  quantity?: number;
+  unitPrice?: number;
 };
 
 export type CalculatorMaterialId = "ldsp-16" | "mdf-16";

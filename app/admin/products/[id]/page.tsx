@@ -17,6 +17,7 @@ import {
 import { requireAdminSession } from "@/lib/auth/dal";
 import { getDb, hasDatabaseUrl } from "@/lib/db";
 import { getAdminProductFormOptions } from "@/lib/server/catalog-admin";
+import { ensureProductBundleItemsTable } from "@/lib/server/product-bundle-schema";
 
 export const dynamic = "force-dynamic";
 
@@ -63,6 +64,7 @@ export default async function EditProductPage({ params }: EditProductPageProps) 
 
   const { id } = await params;
   const db = getDb();
+  await ensureProductBundleItemsTable(db);
 
   const [product, options] = await Promise.all([
     db.product.findUnique({
@@ -84,6 +86,13 @@ export default async function EditProductPage({ params }: EditProductPageProps) 
         },
         attributes: {
           orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+        },
+        bundleItems: {
+          orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+          select: {
+            componentProductId: true,
+            quantity: true,
+          },
         },
         _count: {
           select: {
@@ -128,8 +137,11 @@ export default async function EditProductPage({ params }: EditProductPageProps) 
     attributesText: publicAttributes
       .map((attribute) => `${attribute.name}: ${attribute.value}`)
       .join("\n"),
-    isBundleProduct: bundleInfo.isBundle,
-    bundleItemsText: bundleInfo.items.map((item) => item.label).join("\n"),
+    isBundleProduct: bundleInfo.isBundle || product.bundleItems.length > 0,
+    bundleItems: product.bundleItems.map((item) => ({
+      componentProductId: item.componentProductId,
+      quantity: item.quantity,
+    })),
     isFeatured: product.isFeatured,
   };
 
@@ -165,7 +177,7 @@ export default async function EditProductPage({ params }: EditProductPageProps) 
               {product.isFeatured ? (
                 <StatusBadge tone="accent">В подборках</StatusBadge>
               ) : null}
-              {bundleInfo.isBundle ? (
+              {bundleInfo.isBundle || product.bundleItems.length > 0 ? (
                 <StatusBadge tone="success">Комплект</StatusBadge>
               ) : null}
             </div>
@@ -243,6 +255,7 @@ export default async function EditProductPage({ params }: EditProductPageProps) 
           brands={options.brands}
           calculatorMaterials={options.calculatorMaterials}
           calculatorSheetFormats={options.calculatorSheetFormats}
+          bundleProductOptions={options.bundleProductOptions}
           canUploadImages={Boolean(process.env.BLOB_READ_WRITE_TOKEN)}
           defaults={defaults}
         />

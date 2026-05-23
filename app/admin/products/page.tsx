@@ -203,7 +203,13 @@ export default async function AdminProductsPage({
   await requireAdminSession("/login?next=/admin/products");
 
   const [
-    { categories, brands, calculatorMaterials, calculatorSheetFormats },
+    {
+      categories,
+      brands,
+      calculatorMaterials,
+      calculatorSheetFormats,
+      bundleProductOptions,
+    },
     products,
     resolvedSearchParams,
   ] = await Promise.all([
@@ -425,6 +431,7 @@ export default async function AdminProductsPage({
             brands={brands}
             calculatorMaterials={calculatorMaterials}
             calculatorSheetFormats={calculatorSheetFormats}
+            bundleProductOptions={bundleProductOptions}
             canUploadImages={Boolean(process.env.BLOB_READ_WRITE_TOKEN)}
             compact
           />

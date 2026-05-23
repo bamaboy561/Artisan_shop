@@ -12,6 +12,7 @@ import {
   PromotionStatus,
   PromotionTargetType,
   RequestStatus,
+  RoleCode,
   type Prisma,
 } from "@/generated/prisma";
 import {
@@ -19,11 +20,9 @@ import {
   slugifyImportValue,
 } from "@/features/admin/product-import";
 import {
-  BUNDLE_ITEM_ATTRIBUTE_NAME,
   BUNDLE_MARKER_ATTRIBUTE_NAME,
   BUNDLE_MARKER_ATTRIBUTE_VALUE,
   isBundleAttributeName,
-  parseBundleItemsText,
 } from "@/features/catalog/bundles";
 import {
   handleOrderUpdated,
@@ -41,6 +40,12 @@ import { requireAdminSession } from "@/lib/auth/dal";
 import { hasDatabaseUrl, getDb } from "@/lib/db";
 import { ensureBrandLogoColumn } from "@/lib/server/brand-schema";
 import { logOperationEvent } from "@/lib/server/operation-events";
+import { ensureProductBundleItemsTable } from "@/lib/server/product-bundle-schema";
+import {
+  estimateLoyaltyPoints,
+  getEffectiveDiscountPercent,
+  getLoyaltyTierForLifetimePoints,
+} from "@/lib/server/pricing";
 import {
   bulkUpdateOrderInboxItems,
   createOrderFromRequest,
@@ -284,14 +289,15 @@ function parseProductAttributes(value: string) {
     });
 }
 
-function getProductAttributesFromForm(formData: FormData) {
+function getProductAttributesFromForm(
+  formData: FormData,
+  hasBundleItems = false,
+) {
   const baseAttributes = parseProductAttributes(
     getString(formData, "attributes"),
   ).filter((attribute) => !isBundleAttributeName(attribute.name));
-  const bundleItems = parseBundleItemsText(getString(formData, "bundleItems"));
   const isBundleProduct =
-    getString(formData, "isBundleProduct") === "on" ||
-    bundleItems.length > 0;
+    getString(formData, "isBundleProduct") === "on" || hasBundleItems;
   const attributes = [...baseAttributes];
 
   if (isBundleProduct) {
@@ -300,20 +306,48 @@ function getProductAttributesFromForm(formData: FormData) {
       value: BUNDLE_MARKER_ATTRIBUTE_VALUE,
       sortOrder: 0,
     });
-
-    bundleItems.forEach((item) => {
-      attributes.push({
-        name: BUNDLE_ITEM_ATTRIBUTE_NAME,
-        value: item,
-        sortOrder: 0,
-      });
-    });
   }
 
   return attributes.map((attribute, index) => ({
     ...attribute,
     sortOrder: (index + 1) * 10,
   }));
+}
+
+function getBundleItemsFromForm(formData: FormData, currentProductId?: string) {
+  const productIds = formData
+    .getAll("bundleProductId")
+    .map((value) => (typeof value === "string" ? value.trim() : ""))
+    .filter(Boolean);
+  const quantities = formData.getAll("bundleQuantity");
+  const seen = new Set<string>();
+
+  return productIds.flatMap((componentProductId, index) => {
+    if (
+      seen.has(componentProductId) ||
+      (currentProductId && componentProductId === currentProductId)
+    ) {
+      return [];
+    }
+
+    seen.add(componentProductId);
+    const rawQuantity = quantities[index];
+    const parsedQuantity =
+      typeof rawQuantity === "string"
+        ? Number.parseInt(rawQuantity, 10)
+        : Number.NaN;
+    const quantity = Number.isFinite(parsedQuantity)
+      ? Math.max(1, Math.min(999, parsedQuantity))
+      : 1;
+
+    return [
+      {
+        componentProductId,
+        quantity,
+        sortOrder: (index + 1) * 10,
+      },
+    ];
+  });
 }
 
 function getFileList(formData: FormData, key: string) {
@@ -532,6 +566,13 @@ function getRequiredInt(formData: FormData, key: string) {
   const parsed = Number.parseInt(value, 10);
   if (Number.isNaN(parsed) || parsed < 0) return null;
   return parsed;
+}
+
+function buildAdminOrderNumber(prefix = "A") {
+  const datePart = new Date().toISOString().slice(2, 10).replaceAll("-", "");
+  const randomPart = Math.floor(1000 + Math.random() * 9000);
+
+  return `${prefix}-${datePart}-${randomPart}`;
 }
 
 async function syncOrderById(
@@ -1008,9 +1049,14 @@ export async function createProductAction(formData: FormData) {
   const status = getString(formData, "status");
   const orderMode = getString(formData, "orderMode");
   const inventoryStatus = getString(formData, "inventoryStatus");
-  const attributes = getProductAttributesFromForm(formData);
+  const bundleItems = getBundleItemsFromForm(formData);
+  const attributes = getProductAttributesFromForm(
+    formData,
+    bundleItems.length > 0,
+  );
   const brandId = getOptionalString(formData, "brandId");
   const db = getDb();
+  await ensureProductBundleItemsTable(db);
   const [category, brand] = await Promise.all([
     db.category.findUnique({ where: { id: categoryId }, select: { name: true } }),
     brandId
@@ -1082,6 +1128,18 @@ export async function createProductAction(formData: FormData) {
               create: attributes,
             }
           : undefined,
+      bundleItems:
+        bundleItems.length > 0
+          ? {
+              create: bundleItems.map((item) => ({
+                componentProduct: {
+                  connect: { id: item.componentProductId },
+                },
+                quantity: item.quantity,
+                sortOrder: item.sortOrder,
+              })),
+            }
+          : undefined,
     },
   });
 
@@ -1102,11 +1160,17 @@ export async function deleteProductAction(formData: FormData) {
   }
 
   const db = getDb();
+  await ensureProductBundleItemsTable(db);
 
   await db.$transaction([
     db.favorite.deleteMany({ where: { productId: id } }),
     db.productImage.deleteMany({ where: { productId: id } }),
     db.productAttribute.deleteMany({ where: { productId: id } }),
+    db.productBundleItem.deleteMany({
+      where: {
+        OR: [{ bundleProductId: id }, { componentProductId: id }],
+      },
+    }),
     db.promotionProduct.deleteMany({ where: { productId: id } }),
     db.product.delete({ where: { id } }),
   ]);
@@ -1173,10 +1237,15 @@ export async function updateProductDetailsAction(formData: FormData) {
   const status = getString(formData, "status");
   const orderMode = getString(formData, "orderMode");
   const inventoryStatus = getString(formData, "inventoryStatus");
-  const attributes = getProductAttributesFromForm(formData);
+  const bundleItems = getBundleItemsFromForm(formData, id);
+  const attributes = getProductAttributesFromForm(
+    formData,
+    bundleItems.length > 0,
+  );
   const brandId = getOptionalString(formData, "brandId");
 
   const db = getDb();
+  await ensureProductBundleItemsTable(db);
   const [previousProduct, category, brand] = await Promise.all([
     db.product.findUnique({
       where: { id },
@@ -1270,6 +1339,21 @@ export async function updateProductDetailsAction(formData: FormData) {
         data: attributes.map((attribute) => ({
           ...attribute,
           productId: id,
+        })),
+      });
+    }
+
+    await tx.productBundleItem.deleteMany({
+      where: { bundleProductId: id },
+    });
+
+    if (bundleItems.length > 0) {
+      await tx.productBundleItem.createMany({
+        data: bundleItems.map((item) => ({
+          bundleProductId: id,
+          componentProductId: item.componentProductId,
+          quantity: item.quantity,
+          sortOrder: item.sortOrder,
         })),
       });
     }
@@ -2453,6 +2537,258 @@ export async function bulkUpdateRequestsAction(formData: FormData) {
   );
 
   revalidateAdminOperations();
+}
+
+export async function createSalesFloorOrderAction(formData: FormData) {
+  if (!hasDatabaseUrl()) {
+    return;
+  }
+
+  const actor = await ensureAdminAccess();
+  const customerId = getString(formData, "customerId");
+  const productIds = getStringList(formData, "productId");
+  const quantities = formData.getAll("quantity");
+  const receiptNumber = getOptionalString(formData, "receiptNumber");
+  const managerComment = getOptionalString(formData, "comment");
+  const applyClientDiscount = getString(formData, "applyClientDiscount") === "on";
+  const accrueLoyalty = getString(formData, "accrueLoyalty") === "on";
+
+  if (!customerId || productIds.length === 0) {
+    redirect("/admin/sales-floor?error=empty");
+  }
+
+  const requestedItems = productIds
+    .map((productId, index) => {
+      const rawQuantity = quantities[index];
+      const parsedQuantity =
+        typeof rawQuantity === "string"
+          ? Number.parseInt(rawQuantity, 10)
+          : Number.NaN;
+
+      return {
+        productId,
+        quantity: Number.isFinite(parsedQuantity)
+          ? Math.max(1, Math.min(999, parsedQuantity))
+          : 1,
+      };
+    })
+    .filter((item) => item.productId);
+
+  if (requestedItems.length === 0) {
+    redirect("/admin/sales-floor?error=empty");
+  }
+
+  const db = getDb();
+  const uniqueProductIds = [...new Set(requestedItems.map((item) => item.productId))];
+  const [customer, products] = await Promise.all([
+    db.user.findFirst({
+      where: {
+        id: customerId,
+        isActive: true,
+        role: {
+          code: {
+            in: [RoleCode.CUSTOMER, RoleCode.DEALER],
+          },
+        },
+      },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        companyName: true,
+        loyaltyTier: true,
+        loyaltyPointsBalance: true,
+        loyaltyPointsLifetime: true,
+        personalDiscountPercent: true,
+      },
+    }),
+    db.product.findMany({
+      where: {
+        id: { in: uniqueProductIds },
+        status: ProductStatus.ACTIVE,
+        price: { not: null },
+      },
+      select: {
+        id: true,
+        name: true,
+        sku: true,
+        price: true,
+        brand: { select: { name: true } },
+      },
+    }),
+  ]);
+
+  if (!customer || products.length === 0) {
+    redirect("/admin/sales-floor?error=not-found");
+  }
+
+  const productMap = new Map(products.map((product) => [product.id, product]));
+  const discountPercent = applyClientDiscount
+    ? getEffectiveDiscountPercent(customer)
+    : 0;
+  const orderItems = requestedItems.flatMap((requestedItem) => {
+    const product = productMap.get(requestedItem.productId);
+
+    if (!product?.price) {
+      return [];
+    }
+
+    const lineSubtotal = product.price * requestedItem.quantity;
+    const discountAmount = Math.round((lineSubtotal * discountPercent) / 100);
+    const total = Math.max(0, lineSubtotal - discountAmount);
+
+    return [
+      {
+        productId: product.id,
+        quantity: requestedItem.quantity,
+        unitPrice: product.price,
+        discountAmount,
+        total,
+        snapshotName: product.name,
+        snapshotSku: product.sku,
+        snapshotBrand: product.brand?.name ?? null,
+      },
+    ];
+  });
+
+  if (orderItems.length === 0) {
+    redirect("/admin/sales-floor?error=not-found");
+  }
+
+  const subtotal = orderItems.reduce(
+    (sum, item) => sum + item.unitPrice * item.quantity,
+    0,
+  );
+  const discountTotal = orderItems.reduce(
+    (sum, item) => sum + item.discountAmount,
+    0,
+  );
+  const total = Math.max(0, subtotal - discountTotal);
+  const awardedPoints = accrueLoyalty
+    ? estimateLoyaltyPoints(total, customer.loyaltyTier)
+    : 0;
+  const customerName =
+    [customer.firstName, customer.lastName].filter(Boolean).join(" ") ||
+    customer.companyName ||
+    customer.email;
+  const commentParts = [
+    "Продажа в зале",
+    receiptNumber ? `Кассовый чек: ${receiptNumber}` : "",
+    discountPercent > 0 ? `Скидка клиента: ${discountPercent}%` : "",
+    awardedPoints > 0 ? `Начислено бонусов: ${awardedPoints}` : "",
+    managerComment,
+  ].filter(Boolean);
+  const orderNumber = buildAdminOrderNumber("H");
+
+  const createdOrder = await db.$transaction(async (tx) => {
+    const order = await tx.order.create({
+      data: {
+        number: orderNumber,
+        userId: customer.id,
+        managerId: actor.userId,
+        status: OrderStatus.NEW,
+        contactName: customerName,
+        contactPhone: customer.phone ?? "",
+        contactEmail: customer.email,
+        companyName: customer.companyName,
+        comment: commentParts.join("\n"),
+        subtotal,
+        discountTotal,
+        total,
+        items: {
+          create: orderItems.map((item) => ({
+            productId: item.productId,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            discountAmount: item.discountAmount,
+            total: item.total,
+            snapshotName: item.snapshotName,
+            snapshotSku: item.snapshotSku,
+            snapshotBrand: item.snapshotBrand,
+          })),
+        },
+      },
+      select: {
+        id: true,
+        number: true,
+        createdAt: true,
+      },
+    });
+
+    if (awardedPoints > 0) {
+      const nextBalance = customer.loyaltyPointsBalance + awardedPoints;
+      const nextLifetime = customer.loyaltyPointsLifetime + awardedPoints;
+
+      await tx.user.update({
+        where: { id: customer.id },
+        data: {
+          loyaltyPointsBalance: nextBalance,
+          loyaltyPointsLifetime: nextLifetime,
+          loyaltyTier: getLoyaltyTierForLifetimePoints(nextLifetime),
+        },
+      });
+
+      await tx.loyaltyTransaction.create({
+        data: {
+          userId: customer.id,
+          orderId: order.id,
+          type: LoyaltyTransactionType.ORDER_ACCRUAL,
+          points: awardedPoints,
+          balanceAfter: nextBalance,
+          title: "Бонусы за покупку в зале",
+          description: `Начисление по продаже ${order.number ?? order.id}.`,
+        },
+      });
+    }
+
+    return order;
+  });
+
+  await logOperationEvent({
+    entityType: "order",
+    entityId: createdOrder.id,
+    eventType: "status",
+    title: "Заказ создан в продаже в зале",
+    description: "Менеджер собрал продажу на планшете и привязал ее к клиенту.",
+    toStatus: OrderStatus.NEW,
+    isVisibleToClient: true,
+    actor,
+  });
+
+  await handleOrderCreated({
+    id: createdOrder.id,
+    number: createdOrder.number,
+    status: OrderStatus.NEW,
+    contactName: customerName,
+    contactPhone: customer.phone ?? "",
+    contactEmail: customer.email,
+    companyName: customer.companyName,
+    comment: commentParts.join("\n"),
+    total,
+    subtotal,
+    discountTotal,
+    deliveryTotal: 0,
+    createdAt: createdOrder.createdAt.toISOString(),
+    manager: {
+      firstName: actor.firstName,
+      lastName: actor.lastName,
+      email: actor.email,
+    },
+    items: orderItems.map((item) => ({
+      name: item.snapshotName,
+      sku: item.snapshotSku,
+      brand: item.snapshotBrand,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      total: item.total,
+    })),
+  });
+
+  revalidateAdminOperations();
+  revalidateAdminUsers();
+  redirect(`/admin/orders/${createdOrder.id}`);
 }
 
 export async function createPromotionAction(formData: FormData) {

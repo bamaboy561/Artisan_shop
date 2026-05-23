@@ -263,6 +263,8 @@ model Product {
   calculatorSheetPresetId String?
   images                  ProductImage[]
   attributes              ProductAttribute[]
+  bundleItems             ProductBundleItem[] @relation("BundleProduct")
+  includedInBundles       ProductBundleItem[] @relation("BundleComponent")
   orderItems              OrderItem[]
   favorites               Favorite[]
   requests                Request[]
@@ -273,6 +275,22 @@ model Product {
   @@index([categoryId, status])
   @@index([brandId, status])
   @@index([isFeatured, status])
+}
+
+model ProductBundleItem {
+  id                 String   @id @default(cuid())
+  bundleProductId    String
+  bundleProduct      Product  @relation("BundleProduct", fields: [bundleProductId], references: [id], onDelete: Cascade)
+  componentProductId String
+  componentProduct   Product  @relation("BundleComponent", fields: [componentProductId], references: [id], onDelete: Cascade)
+  quantity           Int      @default(1)
+  sortOrder          Int      @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@unique([bundleProductId, componentProductId])
+  @@index([bundleProductId, sortOrder])
+  @@index([componentProductId])
 }
 
 model ProductImage {

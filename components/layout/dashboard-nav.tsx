@@ -12,6 +12,7 @@ import {
   Package2,
   ReceiptText,
   Rocket,
+  ShoppingBag,
   Scissors,
   Users2,
 } from "lucide-react";
@@ -33,6 +34,7 @@ const iconMap = {
   "/admin/products": Package2,
   "/admin/users": Users2,
   "/admin/orders": ReceiptText,
+  "/admin/sales-floor": ShoppingBag,
   "/admin/requests": FileStack,
   "/admin/cutting": Scissors,
   "/admin/promotions": BadgePercent,

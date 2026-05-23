@@ -54,6 +54,11 @@ export const adminNavigation: NavItem[] = [
     description: "Производство и выдача.",
   },
   {
+    href: "/admin/sales-floor",
+    label: "Продажа в зале",
+    description: "Планшет менеджера: клиент, товары, скидка и бонусы.",
+  },
+  {
     href: "/admin/requests",
     label: "Запросы на расчёт",
     description: "Расчёт и входящий поток.",

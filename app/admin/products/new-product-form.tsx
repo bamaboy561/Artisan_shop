@@ -21,7 +21,6 @@ import {
   ProductOrderMode,
   ProductStatus,
 } from "@/generated/prisma";
-import { parseBundleItemsText } from "@/features/catalog/bundles";
 import { cn } from "@/lib/utils";
 
 const statusLabels: Record<ProductStatus, string> = {
@@ -48,6 +47,20 @@ const THICKNESS_OPTIONS = [8, 10, 12, 16, 18, 22, 25];
 type CategoryOption = { id: string; name: string; kind: CategoryKind };
 type BrandOption = { id: string; name: string };
 type SlugLabelOption = { slug: string; label: string };
+type BundleProductOption = {
+  id: string;
+  name: string;
+  sku: string;
+  price: number | null;
+  stockQuantity: number | null;
+  brandName: string;
+  categoryName: string;
+};
+
+export type ProductBundleFormItem = {
+  componentProductId: string;
+  quantity: number;
+};
 
 export type ProductFormDefaults = {
   id: string;
@@ -73,7 +86,7 @@ export type ProductFormDefaults = {
   seoDescription: string | null;
   attributesText: string;
   isBundleProduct: boolean;
-  bundleItemsText: string;
+  bundleItems: ProductBundleFormItem[];
   isFeatured: boolean;
 };
 
@@ -82,6 +95,7 @@ type Props = {
   brands: BrandOption[];
   calculatorMaterials: SlugLabelOption[];
   calculatorSheetFormats: SlugLabelOption[];
+  bundleProductOptions: BundleProductOption[];
   canUploadImages: boolean;
   defaults?: ProductFormDefaults;
   compact?: boolean;
@@ -166,11 +180,213 @@ function FieldLabel({
   );
 }
 
+function formatBundlePrice(value: number | null) {
+  if (typeof value !== "number") {
+    return "цена не указана";
+  }
+
+  return `${new Intl.NumberFormat("ru-RU", {
+    maximumFractionDigits: 0,
+  }).format(value)} сом`;
+}
+
+function BundleCatalogPicker({
+  products,
+  defaults = [],
+  isBundle = false,
+  currentProductId,
+}: {
+  products: BundleProductOption[];
+  defaults?: ProductBundleFormItem[];
+  isBundle?: boolean;
+  currentProductId?: string;
+}) {
+  const [query, setQuery] = useState("");
+  const [items, setItems] = useState<ProductBundleFormItem[]>(defaults);
+  const selectedIds = new Set(items.map((item) => item.componentProductId));
+  const normalizedQuery = query.trim().toLocaleLowerCase("ru-RU");
+  const results = products
+    .filter((product) => product.id !== currentProductId)
+    .filter((product) => !selectedIds.has(product.id))
+    .filter((product) => {
+      if (!normalizedQuery) {
+        return true;
+      }
+
+      return [
+        product.name,
+        product.sku,
+        product.brandName,
+        product.categoryName,
+      ]
+        .join(" ")
+        .toLocaleLowerCase("ru-RU")
+        .includes(normalizedQuery);
+    })
+    .slice(0, 8);
+  const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
+
+  function getProduct(productId: string) {
+    return products.find((product) => product.id === productId);
+  }
+
+  function addProduct(productId: string) {
+    if (selectedIds.has(productId) || productId === currentProductId) {
+      return;
+    }
+
+    setItems((current) => [
+      ...current,
+      { componentProductId: productId, quantity: 1 },
+    ]);
+    setQuery("");
+  }
+
+  function updateQuantity(productId: string, quantity: number) {
+    setItems((current) =>
+      current.map((item) =>
+        item.componentProductId === productId
+          ? { ...item, quantity: Math.max(1, Math.min(999, quantity || 1)) }
+          : item,
+      ),
+    );
+  }
+
+  function removeProduct(productId: string) {
+    setItems((current) =>
+      current.filter((item) => item.componentProductId !== productId),
+    );
+  }
+
+  return (
+    <div className="grid gap-3 lg:grid-cols-[minmax(260px,0.78fr)_minmax(0,1.22fr)]">
+      <div className="grid gap-3">
+        <Checkbox
+          name="isBundleProduct"
+          defaultChecked={isBundle || (defaults?.length ?? 0) > 0}
+          label="Продавать как комплект"
+          description="Комплект продаётся одной карточкой, а состав выбирается из каталога."
+          className="rounded-2xl border border-[color:var(--line)] bg-[#faf8f4] px-3 py-3"
+        />
+
+        <FieldLabel>
+          Найти товар для комплекта
+          <Input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Название, артикул или бренд"
+            className="h-10"
+          />
+        </FieldLabel>
+
+        <div className="max-h-[18rem] overflow-y-auto rounded-2xl border border-[color:var(--line)] bg-white">
+          {results.length > 0 ? (
+            results.map((product) => (
+              <button
+                key={product.id}
+                type="button"
+                onClick={() => addProduct(product.id)}
+                className="grid w-full gap-1 border-b border-[color:var(--line)] px-3 py-2.5 text-left transition last:border-b-0 hover:bg-[#f8f5ef]"
+              >
+                <span className="text-sm font-medium text-[var(--foreground)]">
+                  {product.name}
+                </span>
+                <span className="text-xs leading-5 text-[var(--muted)]">
+                  {[product.brandName, product.sku, formatBundlePrice(product.price)]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </span>
+              </button>
+            ))
+          ) : (
+            <div className="p-3 text-sm leading-6 text-[var(--muted)]">
+              Поиск ничего не нашел. Проверь название или артикул товара.
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="grid content-start gap-3">
+        <div className="rounded-2xl border border-[color:var(--line)] bg-[#f8f5ef] p-3 text-sm">
+          <p className="font-medium text-[var(--foreground)]">
+            Состав комплекта: {items.length} поз. / {totalQuantity} шт.
+          </p>
+          <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
+            В заказе клиент увидит комплект как один товар. Внутренний состав
+            нужен менеджеру и для будущего списания остатков.
+          </p>
+        </div>
+
+        {items.length > 0 ? (
+          <div className="grid gap-2">
+            {items.map((item, index) => {
+              const product = getProduct(item.componentProductId);
+
+              return (
+                <div
+                  key={`${item.componentProductId}-${index}`}
+                  className="grid gap-2 rounded-2xl border border-[color:var(--line)] bg-white p-3 sm:grid-cols-[minmax(0,1fr)_120px_auto] sm:items-center"
+                >
+                  <input
+                    type="hidden"
+                    name="bundleProductId"
+                    value={item.componentProductId}
+                  />
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-[var(--foreground)]">
+                      {product?.name ?? "Товар из каталога"}
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
+                      {[product?.brandName, product?.sku, product?.categoryName]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </p>
+                  </div>
+                  <FieldLabel>
+                    Кол-во
+                    <Input
+                      name="bundleQuantity"
+                      type="number"
+                      min="1"
+                      max="999"
+                      value={item.quantity}
+                      onChange={(event) =>
+                        updateQuantity(
+                          item.componentProductId,
+                          Number.parseInt(event.target.value, 10),
+                        )
+                      }
+                      className="h-9"
+                    />
+                  </FieldLabel>
+                  <button
+                    type="button"
+                    onClick={() => removeProduct(item.componentProductId)}
+                    className="h-9 border border-[color:var(--line)] px-3 font-mono text-[10px] tracking-[0.14em] text-red-600 uppercase transition hover:border-red-300 hover:bg-red-50"
+                  >
+                    Убрать
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-dashed border-[color:var(--line)] bg-white/70 p-4 text-sm leading-6 text-[var(--muted)]">
+            Добавьте товары слева: петли, планки, крепеж, направляющие или
+            любые позиции из каталога.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function NewProductForm({
   categories,
   brands,
   calculatorMaterials,
   calculatorSheetFormats,
+  bundleProductOptions,
   canUploadImages,
   defaults,
   compact = false,
@@ -179,9 +395,6 @@ export function NewProductForm({
   const [name, setName] = useState(defaults?.name ?? "");
   const [categoryId, setCategoryId] = useState(defaults?.categoryId ?? "");
   const [brandId, setBrandId] = useState(defaults?.brandId ?? "");
-  const [bundleItemsText, setBundleItemsText] = useState(
-    defaults?.bundleItemsText ?? "",
-  );
   const selectedCategory = categories.find((item) => item.id === categoryId);
   const selectedBrand = brands.find((item) => item.id === brandId);
   const productIdentity = [selectedBrand?.name, selectedCategory?.name, name]
@@ -189,7 +402,6 @@ export function NewProductForm({
     .join(" ");
   const isFittings = selectedCategory?.kind === CategoryKind.FITTINGS;
   const showPlateFields = !isFittings;
-  const bundleItemsCount = parseBundleItemsText(bundleItemsText).length;
   const inputClassName = compact ? "h-9 px-3 text-[13px] sm:h-9" : "h-10";
   const quickGridClassName = compact
     ? "grid gap-2.5 md:grid-cols-2 xl:grid-cols-12"
@@ -353,43 +565,12 @@ export function NewProductForm({
       </CompactPanel>
 
       <CompactPanel title="Сборка комплекта">
-        <div className="grid gap-3 lg:grid-cols-[minmax(220px,0.72fr)_minmax(0,1.28fr)]">
-          <div className="grid gap-3">
-            <Checkbox
-              name="isBundleProduct"
-              defaultChecked={defaults?.isBundleProduct ?? false}
-              label="Продавать как комплект"
-              description="Покупатель добавляет один товар, а внутри уже указан готовый набор."
-              className="rounded-2xl border border-[color:var(--line)] bg-[#faf8f4] px-3 py-3"
-            />
-            <div className="rounded-2xl border border-[color:var(--line)] bg-[#f8f5ef] p-3 text-xs leading-5 text-[var(--muted)]">
-              <p className="font-medium text-[var(--foreground)]">
-                Сейчас в составе: {bundleItemsCount} поз.
-              </p>
-              <p className="mt-1">
-                Для Hettich удобно создать товар “Комплект петель” и указать
-                петли, планки и крепеж в составе.
-              </p>
-            </div>
-          </div>
-
-          <FieldLabel>
-            Позиции комплекта
-            <Textarea
-              name="bundleItems"
-              rows={compact ? 4 : 6}
-              placeholder={
-                "Петля Hettich Sensys 110° - 2 шт.\nМонтажная планка Hettich - 2 шт.\nСаморезы 3.5x16 - 8 шт."
-              }
-              value={bundleItemsText}
-              onChange={(event) => setBundleItemsText(event.target.value)}
-            />
-            <FieldHint>
-              Одна строка - одна позиция. Цена, остаток и продажа задаются у
-              комплекта целиком.
-            </FieldHint>
-          </FieldLabel>
-        </div>
+        <BundleCatalogPicker
+          products={bundleProductOptions}
+          defaults={defaults?.bundleItems ?? []}
+          isBundle={defaults?.isBundleProduct ?? false}
+          currentProductId={defaults?.id}
+        />
       </CompactPanel>
 
       {showPlateFields ? (

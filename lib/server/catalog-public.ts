@@ -4,10 +4,12 @@ import type {
   Category as PrismaCategory,
   Product as PrismaProduct,
   ProductAttribute,
+  ProductBundleItem as PrismaProductBundleItem,
   ProductImage,
 } from "@/generated/prisma";
 import { getDb, hasDatabaseUrl } from "@/lib/db";
 import { ensureBrandLogoColumn } from "@/lib/server/brand-schema";
+import { ensureProductBundleItemsTable } from "@/lib/server/product-bundle-schema";
 import {
   getProductBundleInfo,
   isBundleAttributeName,
@@ -19,6 +21,7 @@ import type {
   CalculatorSheetPresetId,
   CatalogCategory,
   FeaturedProduct,
+  ProductBundleItem,
 } from "@/features/catalog/types";
 
 type PrismaProductWithRelations = PrismaProduct & {
@@ -26,6 +29,17 @@ type PrismaProductWithRelations = PrismaProduct & {
   brand: Pick<PrismaBrand, "slug" | "name"> | null;
   images: Pick<ProductImage, "url" | "alt" | "sortOrder">[];
   attributes: Pick<ProductAttribute, "name" | "value" | "sortOrder">[];
+  bundleItems: Array<
+    Pick<PrismaProductBundleItem, "quantity" | "sortOrder"> & {
+      componentProduct: Pick<
+        PrismaProduct,
+        "slug" | "name" | "sku" | "price"
+      > & {
+        brand: Pick<PrismaBrand, "name"> | null;
+        images: Pick<ProductImage, "url" | "alt" | "sortOrder">[];
+      };
+    }
+  >;
 };
 
 const PRODUCT_INCLUDE = {
@@ -38,6 +52,30 @@ const PRODUCT_INCLUDE = {
   attributes: {
     orderBy: [{ sortOrder: "asc" as const }, { createdAt: "asc" as const }],
     select: { name: true, value: true, sortOrder: true },
+  },
+  bundleItems: {
+    orderBy: [{ sortOrder: "asc" as const }, { createdAt: "asc" as const }],
+    select: {
+      quantity: true,
+      sortOrder: true,
+      componentProduct: {
+        select: {
+          slug: true,
+          name: true,
+          sku: true,
+          price: true,
+          brand: { select: { name: true } },
+          images: {
+            orderBy: [
+              { sortOrder: "asc" as const },
+              { createdAt: "asc" as const },
+            ],
+            take: 1,
+            select: { url: true, alt: true, sortOrder: true },
+          },
+        },
+      },
+    },
   },
 };
 
@@ -131,6 +169,38 @@ function getProductDecorGroup(product: PrismaProductWithRelations) {
   };
 }
 
+function mapCatalogBundleItems(
+  product: PrismaProductWithRelations,
+): ProductBundleItem[] {
+  const linkedItems = product.bundleItems.map((item) => {
+    const component = item.componentProduct;
+    const brandPrefix = component.brand?.name ? `${component.brand.name} ` : "";
+
+    return {
+      label: `${brandPrefix}${component.name} — ${item.quantity} шт.`,
+      productSlug: component.slug,
+      productName: component.name,
+      productSku: component.sku,
+      brand: component.brand?.name ?? undefined,
+      image: component.images[0]?.url,
+      quantity: item.quantity,
+      unitPrice: component.price ?? undefined,
+    };
+  });
+  const legacyInfo = getProductBundleInfo(product.attributes);
+  const seen = new Set(linkedItems.map((item) => item.label));
+  const legacyItems = legacyInfo.items.filter((item) => {
+    if (seen.has(item.label)) {
+      return false;
+    }
+
+    seen.add(item.label);
+    return true;
+  });
+
+  return [...linkedItems, ...legacyItems];
+}
+
 function mapProduct(product: PrismaProductWithRelations): FeaturedProduct {
   const gallery = product.images.map((image) => image.url);
   const inStock =
@@ -165,6 +235,7 @@ function mapProduct(product: PrismaProductWithRelations): FeaturedProduct {
       : undefined;
   const decorGroup = getProductDecorGroup(product);
   const bundleInfo = getProductBundleInfo(product.attributes);
+  const bundleItems = mapCatalogBundleItems(product);
   const publicAttributes = product.attributes.filter(
     (attribute) => !isBundleAttributeName(attribute.name),
   );
@@ -198,8 +269,8 @@ function mapProduct(product: PrismaProductWithRelations): FeaturedProduct {
         value: attribute.value,
       })),
     ].filter(Boolean) as FeaturedProduct["specifications"],
-    isBundle: bundleInfo.isBundle,
-    bundleItems: bundleInfo.items,
+    isBundle: bundleInfo.isBundle || bundleItems.length > 0,
+    bundleItems,
     ...decorGroup,
     searchText: buildSearchText([
       product.name,
@@ -207,7 +278,7 @@ function mapProduct(product: PrismaProductWithRelations): FeaturedProduct {
       product.brand?.name,
       product.category.name,
       product.summary,
-      ...bundleInfo.items.map((item) => item.label),
+      ...bundleItems.map((item) => item.label),
     ]),
     calculatorMaterialId,
     sheetPresetId,
@@ -417,6 +488,7 @@ async function withPublicDbFallback<T>(
 export async function getPublicProducts(): Promise<FeaturedProduct[]> {
   return withPublicDbFallback("getPublicProducts", [], async () => {
     const db = getDb();
+    await ensureProductBundleItemsTable(db);
     const products = await db.product.findMany({
       where: { status: ProductStatus.ACTIVE },
       orderBy: [{ isFeatured: "desc" }, { updatedAt: "desc" }],
@@ -432,6 +504,7 @@ export async function getPublicProductBySlug(
 ): Promise<FeaturedProduct | null> {
   return withPublicDbFallback("getPublicProductBySlug", null, async () => {
     const db = getDb();
+    await ensureProductBundleItemsTable(db);
     const product = await db.product.findFirst({
       where: { slug, status: ProductStatus.ACTIVE },
       include: PRODUCT_INCLUDE,
@@ -446,6 +519,7 @@ export async function getPublicProductsByCategory(
 ): Promise<FeaturedProduct[]> {
   return withPublicDbFallback("getPublicProductsByCategory", [], async () => {
     const db = getDb();
+    await ensureProductBundleItemsTable(db);
     const products = await db.product.findMany({
       where: {
         status: ProductStatus.ACTIVE,
@@ -464,6 +538,7 @@ export async function getPublicProductsByBrand(
 ): Promise<FeaturedProduct[]> {
   return withPublicDbFallback("getPublicProductsByBrand", [], async () => {
     const db = getDb();
+    await ensureProductBundleItemsTable(db);
     const products = await db.product.findMany({
       where: {
         status: ProductStatus.ACTIVE,
@@ -558,6 +633,7 @@ export async function getFeaturedProducts(
 ): Promise<FeaturedProduct[]> {
   return withPublicDbFallback("getFeaturedProducts", [], async () => {
     const db = getDb();
+    await ensureProductBundleItemsTable(db);
     const products = await db.product.findMany({
       where: { status: ProductStatus.ACTIVE, isFeatured: true },
       orderBy: { updatedAt: "desc" },

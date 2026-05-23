@@ -1,5 +1,6 @@
 import { getDb } from "@/lib/db";
 import { ensureBrandLogoColumn } from "@/lib/server/brand-schema";
+import { ProductStatus } from "@/generated/prisma";
 
 export async function getAdminCategories() {
   const db = getDb();
@@ -83,8 +84,13 @@ const DEFAULT_CALCULATOR_SHEETS = [
 export async function getAdminProductFormOptions() {
   const db = getDb();
 
-  const [categories, brands, calculatorMaterials, calculatorSheetFormats] =
-    await Promise.all([
+  const [
+    categories,
+    brands,
+    calculatorMaterials,
+    calculatorSheetFormats,
+    bundleProductOptions,
+  ] = await Promise.all([
       db.category.findMany({
         orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
         select: {
@@ -116,6 +122,20 @@ export async function getAdminProductFormOptions() {
           label: true,
         },
       }),
+      db.product.findMany({
+        where: { status: { not: ProductStatus.ARCHIVED } },
+        orderBy: [{ name: "asc" }, { sku: "asc" }],
+        take: 1500,
+        select: {
+          id: true,
+          name: true,
+          sku: true,
+          price: true,
+          stockQuantity: true,
+          brand: { select: { name: true } },
+          category: { select: { name: true } },
+        },
+      }),
     ]);
 
   return {
@@ -129,5 +149,14 @@ export async function getAdminProductFormOptions() {
       calculatorSheetFormats.length > 0
         ? calculatorSheetFormats
         : DEFAULT_CALCULATOR_SHEETS,
+    bundleProductOptions: bundleProductOptions.map((product) => ({
+      id: product.id,
+      name: product.name,
+      sku: product.sku,
+      price: product.price,
+      stockQuantity: product.stockQuantity,
+      brandName: product.brand?.name ?? "",
+      categoryName: product.category.name,
+    })),
   };
 }
