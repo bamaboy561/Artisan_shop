@@ -202,9 +202,25 @@ function BundleCatalogPicker({
   currentProductId?: string;
 }) {
   const [query, setQuery] = useState("");
+  const [enabled, setEnabled] = useState(isBundle || defaults.length > 0);
   const [items, setItems] = useState<ProductBundleFormItem[]>(defaults);
   const selectedIds = new Set(items.map((item) => item.componentProductId));
   const normalizedQuery = query.trim().toLocaleLowerCase("ru-RU");
+  const selectedProducts = items
+    .map((item) => ({
+      item,
+      product: products.find(
+        (product) => product.id === item.componentProductId,
+      ),
+    }))
+    .filter(
+      (
+        entry,
+      ): entry is {
+        item: ProductBundleFormItem;
+        product: BundleProductOption;
+      } => Boolean(entry.product),
+    );
   const results = products
     .filter((product) => product.id !== currentProductId)
     .filter((product) => !selectedIds.has(product.id))
@@ -223,8 +239,12 @@ function BundleCatalogPicker({
         .toLocaleLowerCase("ru-RU")
         .includes(normalizedQuery);
     })
-    .slice(0, 8);
+    .slice(0, 10);
   const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
+  const componentSubtotal = selectedProducts.reduce(
+    (sum, entry) => sum + (entry.product.price ?? 0) * entry.item.quantity,
+    0,
+  );
 
   function getProduct(productId: string) {
     return products.find((product) => product.id === productId);
@@ -259,124 +279,239 @@ function BundleCatalogPicker({
   }
 
   return (
-    <div className="grid gap-3 lg:grid-cols-[minmax(260px,0.78fr)_minmax(0,1.22fr)]">
-      <div className="grid gap-3">
-        <Checkbox
-          name="isBundleProduct"
-          defaultChecked={isBundle || (defaults?.length ?? 0) > 0}
-          label="Продавать как комплект"
-          description="Комплект продаётся одной карточкой, а состав выбирается из каталога."
-          className="rounded-2xl border border-[color:var(--line)] bg-[#faf8f4] px-3 py-3"
-        />
+    <div className="grid gap-4">
+      <input type="hidden" name="isBundleProduct" value={enabled ? "on" : ""} />
 
-        <FieldLabel>
-          Найти товар для комплекта
-          <Input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Название, артикул или бренд"
-            className="h-10"
-          />
-        </FieldLabel>
-
-        <div className="max-h-[18rem] overflow-y-auto rounded-2xl border border-[color:var(--line)] bg-white">
-          {results.length > 0 ? (
-            results.map((product) => (
-              <button
-                key={product.id}
-                type="button"
-                onClick={() => addProduct(product.id)}
-                className="grid w-full gap-1 border-b border-[color:var(--line)] px-3 py-2.5 text-left transition last:border-b-0 hover:bg-[#f8f5ef]"
-              >
-                <span className="text-sm font-medium text-[var(--foreground)]">
-                  {product.name}
-                </span>
-                <span className="text-xs leading-5 text-[var(--muted)]">
-                  {[product.brandName, product.sku, formatBundlePrice(product.price)]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </span>
-              </button>
-            ))
-          ) : (
-            <div className="p-3 text-sm leading-6 text-[var(--muted)]">
-              Поиск ничего не нашел. Проверь название или артикул товара.
-            </div>
+      <div className="grid gap-2 md:grid-cols-2">
+        <button
+          type="button"
+          onClick={() => setEnabled(false)}
+          className={cn(
+            "grid gap-1 rounded-2xl border p-4 text-left transition",
+            !enabled
+              ? "border-[#111] bg-[#111] text-white shadow-[0_16px_36px_rgba(17,17,17,0.16)]"
+              : "border-[color:var(--line)] bg-white text-[var(--foreground)] hover:border-[#c65b3a]",
           )}
-        </div>
+        >
+          <span className="text-sm font-semibold">Обычный товар</span>
+          <span
+            className={cn(
+              "text-xs leading-5",
+              !enabled ? "text-white/72" : "text-[var(--muted)]",
+            )}
+          >
+            Продаётся как одна позиция без внутреннего состава.
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setEnabled(true)}
+          className={cn(
+            "grid gap-1 rounded-2xl border p-4 text-left transition",
+            enabled
+              ? "border-[#111] bg-[#111] text-white shadow-[0_16px_36px_rgba(17,17,17,0.16)]"
+              : "border-[color:var(--line)] bg-white text-[var(--foreground)] hover:border-[#c65b3a]",
+          )}
+        >
+          <span className="text-sm font-semibold">Комплект из каталога</span>
+          <span
+            className={cn(
+              "text-xs leading-5",
+              enabled ? "text-white/72" : "text-[var(--muted)]",
+            )}
+          >
+            Карточка продаётся одной ценой, состав выбирается из товаров ниже.
+          </span>
+        </button>
       </div>
 
-      <div className="grid content-start gap-3">
-        <div className="rounded-2xl border border-[color:var(--line)] bg-[#f8f5ef] p-3 text-sm">
-          <p className="font-medium text-[var(--foreground)]">
-            Состав комплекта: {items.length} поз. / {totalQuantity} шт.
-          </p>
-          <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
-            В заказе клиент увидит комплект как один товар. Внутренний состав
-            нужен менеджеру и для будущего списания остатков.
-          </p>
+      {!enabled ? (
+        <div className="rounded-2xl border border-[color:var(--line)] bg-[#faf8f4] p-4 text-sm leading-6 text-[var(--muted)]">
+          Сценарий комплекта выключен. Если это петля, направляющая, ручка,
+          столешница или любой самостоятельный товар, оставьте режим «Обычный
+          товар».
         </div>
+      ) : (
+        <div className="grid gap-4 xl:grid-cols-[minmax(280px,0.9fr)_minmax(0,1.1fr)]">
+          <div className="grid content-start gap-3">
+            <div className="rounded-2xl border border-[color:var(--line)] bg-[#faf8f4] p-4">
+              <p className="text-sm font-semibold text-[var(--foreground)]">
+                Как работает комплект
+              </p>
+              <div className="mt-2 grid gap-2 text-xs leading-5 text-[var(--muted)]">
+                <p>1. Создайте карточку комплекта и укажите цену комплекта.</p>
+                <p>2. Ниже добавьте реальные товары из каталога и количество.</p>
+                <p>
+                  3. Клиент увидит один товар, а менеджер увидит полный состав.
+                </p>
+              </div>
+            </div>
 
-        {items.length > 0 ? (
-          <div className="grid gap-2">
-            {items.map((item, index) => {
-              const product = getProduct(item.componentProductId);
+            <FieldLabel>
+              Найти товар для состава
+              <Input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Название, артикул, бренд или категория"
+                className="h-10"
+              />
+            </FieldLabel>
 
-              return (
-                <div
-                  key={`${item.componentProductId}-${index}`}
-                  className="grid gap-2 rounded-2xl border border-[color:var(--line)] bg-white p-3 sm:grid-cols-[minmax(0,1fr)_120px_auto] sm:items-center"
-                >
-                  <input
-                    type="hidden"
-                    name="bundleProductId"
-                    value={item.componentProductId}
-                  />
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-[var(--foreground)]">
-                      {product?.name ?? "Товар из каталога"}
-                    </p>
-                    <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
-                      {[product?.brandName, product?.sku, product?.categoryName]
+            <div className="max-h-[22rem] overflow-y-auto rounded-2xl border border-[color:var(--line)] bg-white">
+              {results.length > 0 ? (
+                results.map((product) => (
+                  <button
+                    key={product.id}
+                    type="button"
+                    onClick={() => addProduct(product.id)}
+                    className="grid w-full gap-2 border-b border-[color:var(--line)] px-3 py-3 text-left transition last:border-b-0 hover:bg-[#f8f5ef]"
+                  >
+                    <span className="text-sm font-semibold text-[var(--foreground)]">
+                      {product.name}
+                    </span>
+                    <span className="text-xs leading-5 text-[var(--muted)]">
+                      {[
+                        product.brandName,
+                        product.sku,
+                        product.categoryName,
+                      ]
                         .filter(Boolean)
                         .join(" · ")}
-                    </p>
-                  </div>
-                  <FieldLabel>
-                    Кол-во
-                    <Input
-                      name="bundleQuantity"
-                      type="number"
-                      min="1"
-                      max="999"
-                      value={item.quantity}
-                      onChange={(event) =>
-                        updateQuantity(
-                          item.componentProductId,
-                          Number.parseInt(event.target.value, 10),
-                        )
-                      }
-                      className="h-9"
-                    />
-                  </FieldLabel>
-                  <button
-                    type="button"
-                    onClick={() => removeProduct(item.componentProductId)}
-                    className="h-9 border border-[color:var(--line)] px-3 font-mono text-[10px] tracking-[0.14em] text-red-600 uppercase transition hover:border-red-300 hover:bg-red-50"
-                  >
-                    Убрать
+                    </span>
+                    <span className="flex flex-wrap items-center gap-2 text-xs">
+                      <span className="rounded-full bg-[#f1eee8] px-2.5 py-1 text-[var(--foreground)]">
+                        {formatBundlePrice(product.price)}
+                      </span>
+                      <span className="rounded-full bg-white px-2.5 py-1 text-[var(--muted)] ring-1 ring-[color:var(--line)]">
+                        Остаток: {product.stockQuantity ?? 0} шт.
+                      </span>
+                      <span className="ml-auto font-mono text-[10px] tracking-[0.16em] text-[var(--accent)] uppercase">
+                        Добавить
+                      </span>
+                    </span>
                   </button>
+                ))
+              ) : (
+                <div className="p-4 text-sm leading-6 text-[var(--muted)]">
+                  Товар не найден. Проверьте название, артикул или бренд.
                 </div>
-              );
-            })}
+              )}
+            </div>
           </div>
-        ) : (
-          <div className="rounded-2xl border border-dashed border-[color:var(--line)] bg-white/70 p-4 text-sm leading-6 text-[var(--muted)]">
-            Добавьте товары слева: петли, планки, крепеж, направляющие или
-            любые позиции из каталога.
+
+          <div className="grid content-start gap-3">
+            <div className="grid gap-2 sm:grid-cols-3">
+              <div className="rounded-2xl border border-[color:var(--line)] bg-white p-3">
+                <p className="font-mono text-[10px] tracking-[0.16em] text-[var(--muted)] uppercase">
+                  Позиций
+                </p>
+                <p className="mt-1 text-xl font-semibold text-[var(--foreground)]">
+                  {items.length}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-[color:var(--line)] bg-white p-3">
+                <p className="font-mono text-[10px] tracking-[0.16em] text-[var(--muted)] uppercase">
+                  Кол-во
+                </p>
+                <p className="mt-1 text-xl font-semibold text-[var(--foreground)]">
+                  {totalQuantity}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-[color:var(--line)] bg-white p-3">
+                <p className="font-mono text-[10px] tracking-[0.16em] text-[var(--muted)] uppercase">
+                  Компоненты
+                </p>
+                <p className="mt-1 text-xl font-semibold text-[var(--foreground)]">
+                  {formatBundlePrice(componentSubtotal)}
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-[color:var(--line)] bg-[#f8f5ef] p-3 text-xs leading-5 text-[var(--muted)]">
+              Сумма компонентов нужна только для проверки. Цена комплекта
+              задаётся отдельно в поле «Цена» выше.
+            </div>
+
+            {items.length > 0 ? (
+              <div className="grid gap-2">
+                {items.map((item, index) => {
+                  const product = getProduct(item.componentProductId);
+                  const lineTotal =
+                    typeof product?.price === "number"
+                      ? product.price * item.quantity
+                      : null;
+
+                  return (
+                    <div
+                      key={`${item.componentProductId}-${index}`}
+                      className="grid gap-3 rounded-2xl border border-[color:var(--line)] bg-white p-3 lg:grid-cols-[minmax(0,1fr)_116px_116px_auto] lg:items-center"
+                    >
+                      <input
+                        type="hidden"
+                        name="bundleProductId"
+                        value={item.componentProductId}
+                      />
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-[var(--foreground)]">
+                          {product?.name ?? "Товар из каталога"}
+                        </p>
+                        <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
+                          {[
+                            product?.brandName,
+                            product?.sku,
+                            product?.categoryName,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </p>
+                      </div>
+                      <FieldLabel>
+                        Кол-во
+                        <Input
+                          name="bundleQuantity"
+                          type="number"
+                          min="1"
+                          max="999"
+                          value={item.quantity}
+                          onChange={(event) =>
+                            updateQuantity(
+                              item.componentProductId,
+                              Number.parseInt(event.target.value, 10),
+                            )
+                          }
+                          className="h-9"
+                        />
+                      </FieldLabel>
+                      <div>
+                        <p className="font-mono text-[10px] tracking-[0.16em] text-[var(--muted)] uppercase">
+                          Сумма
+                        </p>
+                        <p className="mt-2 text-sm font-semibold text-[var(--foreground)]">
+                          {formatBundlePrice(lineTotal)}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeProduct(item.componentProductId)}
+                        className="h-9 border border-[color:var(--line)] px-3 font-mono text-[10px] tracking-[0.14em] text-red-600 uppercase transition hover:border-red-300 hover:bg-red-50"
+                      >
+                        Убрать
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-dashed border-[color:var(--line)] bg-white/70 p-5 text-sm leading-6 text-[var(--muted)]">
+                Добавьте товары слева: петли, планки, крепёж, направляющие,
+                опоры или любые позиции из каталога. Ничего вручную прописывать
+                не нужно.
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
