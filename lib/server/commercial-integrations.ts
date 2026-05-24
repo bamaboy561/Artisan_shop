@@ -10,11 +10,17 @@ import {
 } from "@/generated/prisma";
 import { formatPrice } from "@/lib/commerce";
 import { getDb, hasDatabaseUrl, isDemoModeEnabled } from "@/lib/db";
+import { absoluteUrl } from "@/lib/seo";
+import { sendTelegramDirectMessage } from "@/lib/server/telegram-bot";
 
 type TelegramMessagePayload = {
   title: string;
   lines: string[];
   threadKey?: "requests" | "orders" | "cutting";
+  actions?: Array<{
+    label: string;
+    url: string;
+  }>;
 };
 
 export type TelegramThreadKey = NonNullable<TelegramMessagePayload["threadKey"]>;
@@ -45,6 +51,7 @@ type IntegrationLogRecord = {
 
 type RequestIntegrationInput = {
   id: string;
+  userId?: string | null;
   number: string | null;
   requestType?: string | null;
   subject: string;
@@ -71,6 +78,7 @@ type RequestIntegrationInput = {
 
 type OrderIntegrationInput = {
   id: string;
+  userId?: string | null;
   number: string | null;
   status: string;
   contactName: string;
@@ -83,6 +91,7 @@ type OrderIntegrationInput = {
   subtotal?: number;
   discountTotal?: number;
   deliveryTotal?: number;
+  loyaltyPointsDelta?: number | null;
   createdAt?: string;
   manager?: ManagerSnapshot | null;
   previousStatus?: string | null;
@@ -394,6 +403,12 @@ function buildRequestTelegramMessage(
   return {
     title: `${urgent ? "Срочная заявка" : cutting ? "Новая заявка на распил" : "Новая заявка"} ${input.number ?? input.id}`,
     threadKey: cutting ? "cutting" : "requests",
+    actions: [
+      {
+        label: "Открыть заявку",
+        url: absoluteUrl(`/admin/requests/${input.id}`),
+      },
+    ],
     lines: [
       `Тип: ${input.subject}`,
       `Клиент: ${input.contactName}`,
@@ -426,6 +441,12 @@ function buildOrderTelegramMessage(input: OrderIntegrationInput): TelegramMessag
   return {
     title: `Новый заказ ${input.number ?? input.id}`,
     threadKey: "orders",
+    actions: [
+      {
+        label: "Открыть заказ",
+        url: absoluteUrl(`/admin/orders/${input.id}`),
+      },
+    ],
     lines: [
       `Клиент: ${input.contactName}`,
       `Телефон: ${input.contactPhone}`,
@@ -496,6 +517,12 @@ function buildRequestStatusTelegramMessage(
   return {
     title,
     threadKey: isCuttingRequest(input) ? "cutting" : "requests",
+    actions: [
+      {
+        label: "Открыть заявку",
+        url: absoluteUrl(`/admin/requests/${input.id}`),
+      },
+    ],
     lines: [
       `Статус: ${requestStatusLabels[input.status] ?? input.status}`,
       `Клиент: ${input.contactName}`,
@@ -554,6 +581,12 @@ function buildOrderStatusTelegramMessage(
   return {
     title,
     threadKey: "orders",
+    actions: [
+      {
+        label: "Открыть заказ",
+        url: absoluteUrl(`/admin/orders/${input.id}`),
+      },
+    ],
     lines: [
       `Статус: ${orderStatusLabels[input.status] ?? input.status}`,
       `Клиент: ${input.contactName}`,
@@ -595,6 +628,15 @@ async function sendTelegramMessage(payload: TelegramMessagePayload) {
         chat_id: process.env.TELEGRAM_CHAT_ID,
         text,
         disable_web_page_preview: true,
+        ...(payload.actions?.length
+          ? {
+              reply_markup: {
+                inline_keyboard: payload.actions.map((action) => [
+                  { text: action.label, url: action.url },
+                ]),
+              },
+            }
+          : {}),
         ...(threadId ? { message_thread_id: threadId } : {}),
       }),
     },
@@ -621,6 +663,86 @@ async function sendTelegramMessage(payload: TelegramMessagePayload) {
     payload,
     createdAt: new Date().toISOString(),
   });
+}
+
+function buildClientRequestCreatedMessage(input: RequestIntegrationInput) {
+  const cutting = isCuttingRequest(input);
+
+  return {
+    title: cutting
+      ? `Заявка на распил ${input.number ?? input.id} принята`
+      : `Заявка ${input.number ?? input.id} принята`,
+    lines: [
+      `Статус: ${requestStatusLabels[input.status] ?? input.status}`,
+      input.material ? `Материал: ${input.material}` : "",
+      input.edgeOption ? `Кромка: ${input.edgeOption}` : "",
+      input.estimatedBudget
+        ? `Ориентир: ${formatPrice(Math.round(input.estimatedBudget))}`
+        : "",
+      "Менеджер проверит данные и обновит статус в личном кабинете.",
+    ].filter(Boolean),
+    actions: [
+      {
+        text: "Открыть заявки",
+        url: absoluteUrl("/account/requests"),
+      },
+    ],
+  };
+}
+
+function buildClientRequestStatusMessage(input: RequestIntegrationInput) {
+  return {
+    title: `Статус заявки ${input.number ?? input.id} обновлен`,
+    lines: [
+      `Теперь: ${requestStatusLabels[input.status] ?? input.status}`,
+      `Менеджер: ${buildManagerLabel(input.manager)}`,
+      input.estimatedBudget
+        ? `Ориентир: ${formatPrice(Math.round(input.estimatedBudget))}`
+        : "",
+    ].filter(Boolean),
+    actions: [
+      {
+        text: "Открыть заявку",
+        url: absoluteUrl("/account/requests"),
+      },
+    ],
+  };
+}
+
+function buildClientOrderCreatedMessage(input: OrderIntegrationInput) {
+  return {
+    title: `Заказ ${input.number ?? input.id} принят`,
+    lines: [
+      `Статус: ${orderStatusLabels[input.status] ?? input.status}`,
+      `Сумма: ${formatPrice(Math.round(input.total))}`,
+      input.loyaltyPointsDelta
+        ? `Баллы к начислению: ${input.loyaltyPointsDelta}`
+        : "Баллы начисляются после подтверждения менеджером.",
+    ].filter(Boolean),
+    actions: [
+      {
+        text: "Открыть заказы",
+        url: absoluteUrl("/account/orders"),
+      },
+    ],
+  };
+}
+
+function buildClientOrderStatusMessage(input: OrderIntegrationInput) {
+  return {
+    title: `Статус заказа ${input.number ?? input.id} обновлен`,
+    lines: [
+      `Теперь: ${orderStatusLabels[input.status] ?? input.status}`,
+      `Сумма: ${formatPrice(Math.round(input.total))}`,
+      `Менеджер: ${buildManagerLabel(input.manager)}`,
+    ],
+    actions: [
+      {
+        text: "Открыть заказ",
+        url: absoluteUrl("/account/orders"),
+      },
+    ],
+  };
 }
 
 export async function sendTelegramTestNotification(threadKey: TelegramThreadKey) {
@@ -806,11 +928,28 @@ function buildOrderPayload(input: OrderIntegrationInput) {
 export async function handleCuttingRequestCreated(input: RequestIntegrationInput) {
   const requestPayload = buildRequestPayload(input);
   const telegramPayload = buildRequestTelegramMessage(input);
+  const clientPayload = buildClientRequestCreatedMessage(input);
 
   await Promise.all([
     safelyRunIntegration("telegram", telegramPayload.title, requestPayload, () =>
       sendTelegramMessage(telegramPayload),
     ),
+    ...(input.userId
+      ? [
+          safelyRunIntegration(
+            "telegram",
+            clientPayload.title,
+            requestPayload,
+            () =>
+              sendTelegramDirectMessage(input.userId, {
+                title: clientPayload.title,
+                lines: clientPayload.lines,
+                category: "requests",
+                actions: clientPayload.actions,
+              }).then(() => undefined),
+          ),
+        ]
+      : []),
     safelyRunIntegration("1c", "request.created", requestPayload, () =>
       pushOneCEvent({
         event: "request.created",
@@ -825,6 +964,9 @@ export async function handleCuttingRequestCreated(input: RequestIntegrationInput
 export async function handleRequestUpdated(input: RequestIntegrationInput) {
   const requestPayload = buildRequestPayload(input);
   const telegramPayload = buildRequestStatusTelegramMessage(input);
+  const clientPayload = telegramPayload
+    ? buildClientRequestStatusMessage(input)
+    : null;
 
   await Promise.all([
     ...(telegramPayload
@@ -834,6 +976,22 @@ export async function handleRequestUpdated(input: RequestIntegrationInput) {
             telegramPayload.title,
             requestPayload,
             () => sendTelegramMessage(telegramPayload),
+          ),
+        ]
+      : []),
+    ...(clientPayload && input.userId
+      ? [
+          safelyRunIntegration(
+            "telegram",
+            clientPayload.title,
+            requestPayload,
+            () =>
+              sendTelegramDirectMessage(input.userId, {
+                title: clientPayload.title,
+                lines: clientPayload.lines,
+                category: "requests",
+                actions: clientPayload.actions,
+              }).then(() => undefined),
           ),
         ]
       : []),
@@ -851,11 +1009,28 @@ export async function handleRequestUpdated(input: RequestIntegrationInput) {
 export async function handleOrderCreated(input: OrderIntegrationInput) {
   const orderPayload = buildOrderPayload(input);
   const telegramPayload = buildOrderTelegramMessage(input);
+  const clientPayload = buildClientOrderCreatedMessage(input);
 
   await Promise.all([
     safelyRunIntegration("telegram", telegramPayload.title, orderPayload, () =>
       sendTelegramMessage(telegramPayload),
     ),
+    ...(input.userId
+      ? [
+          safelyRunIntegration(
+            "telegram",
+            clientPayload.title,
+            orderPayload,
+            () =>
+              sendTelegramDirectMessage(input.userId, {
+                title: clientPayload.title,
+                lines: clientPayload.lines,
+                category: "orders",
+                actions: clientPayload.actions,
+              }).then(() => undefined),
+          ),
+        ]
+      : []),
     safelyRunIntegration("1c", "order.created", orderPayload, () =>
       pushOneCEvent({
         event: "order.created",
@@ -870,6 +1045,7 @@ export async function handleOrderCreated(input: OrderIntegrationInput) {
 export async function handleOrderUpdated(input: OrderIntegrationInput) {
   const orderPayload = buildOrderPayload(input);
   const telegramPayload = buildOrderStatusTelegramMessage(input);
+  const clientPayload = telegramPayload ? buildClientOrderStatusMessage(input) : null;
 
   await Promise.all([
     ...(telegramPayload
@@ -879,6 +1055,22 @@ export async function handleOrderUpdated(input: OrderIntegrationInput) {
             telegramPayload.title,
             orderPayload,
             () => sendTelegramMessage(telegramPayload),
+          ),
+        ]
+      : []),
+    ...(clientPayload && input.userId
+      ? [
+          safelyRunIntegration(
+            "telegram",
+            clientPayload.title,
+            orderPayload,
+            () =>
+              sendTelegramDirectMessage(input.userId, {
+                title: clientPayload.title,
+                lines: clientPayload.lines,
+                category: "orders",
+                actions: clientPayload.actions,
+              }).then(() => undefined),
           ),
         ]
       : []),

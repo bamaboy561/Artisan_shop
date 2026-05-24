@@ -49,6 +49,10 @@ import {
   getLoyaltyTierForLifetimePoints,
 } from "@/lib/server/pricing";
 import {
+  configureTelegramWebhook,
+  sendTelegramDirectMessage,
+} from "@/lib/server/telegram-bot";
+import {
   bulkUpdateOrderInboxItems,
   createOrderFromRequest,
   getOrderInbox,
@@ -614,6 +618,7 @@ async function syncOrderById(
 
   await handleOrderUpdated({
     id: order.id,
+    userId: order.userId ?? null,
     number: order.number,
     status: order.status,
     contactName: order.contactName,
@@ -653,6 +658,7 @@ async function syncRequestById(
 
   await handleRequestUpdated({
     id: request.id,
+    userId: request.userId ?? null,
     number: request.number,
     requestType: request.type,
     subject: request.subject,
@@ -693,6 +699,34 @@ export async function sendTelegramTestAction(formData: FormData) {
     telegramMessage: result.message,
     telegramThread: threadKey,
   });
+
+  revalidatePath("/admin/launch");
+  redirect(`/admin/launch?${searchParams.toString()}`);
+}
+
+export async function configureTelegramWebhookAction() {
+  await ensureAdminAccess();
+
+  let searchParams: URLSearchParams;
+
+  try {
+    const result = await configureTelegramWebhook();
+    searchParams = new URLSearchParams({
+      telegramWebhook: "ok",
+      telegramMessage: result.hasSecret
+        ? "Webhook подключен с секретной проверкой."
+        : "Webhook подключен без TELEGRAM_WEBHOOK_SECRET.",
+      telegramWebhookUrl: result.webhookUrl,
+    });
+  } catch (error) {
+    searchParams = new URLSearchParams({
+      telegramWebhook: "error",
+      telegramMessage:
+        error instanceof Error
+          ? error.message
+          : "Telegram вернул неизвестную ошибку.",
+    });
+  }
 
   revalidatePath("/admin/launch");
   redirect(`/admin/launch?${searchParams.toString()}`);
@@ -2224,6 +2258,7 @@ export async function createOrderFromRequestAction(formData: FormData) {
 
   await handleOrderCreated({
     id: createdOrder.id,
+    userId: request.userId ?? null,
     number: createdOrder.number ?? null,
     status: OrderStatus.NEW,
     contactName: request.contactName,
@@ -2777,6 +2812,7 @@ export async function createSalesFloorOrderAction(formData: FormData) {
 
   await handleOrderCreated({
     id: createdOrder.id,
+    userId: customer.id,
     number: createdOrder.number,
     status: OrderStatus.NEW,
     contactName: customerName,
@@ -2788,6 +2824,7 @@ export async function createSalesFloorOrderAction(formData: FormData) {
     subtotal,
     discountTotal,
     deliveryTotal: 0,
+    loyaltyPointsDelta: awardedPoints,
     createdAt: createdOrder.createdAt.toISOString(),
     manager: {
       firstName: actor.firstName,
@@ -3267,6 +3304,29 @@ export async function adjustUserLoyaltyPointsAction(formData: FormData) {
       },
     }),
   ]);
+
+  try {
+    await sendTelegramDirectMessage(id, {
+      title:
+        appliedDelta > 0
+          ? "Баллы начислены менеджером"
+          : "Баллы скорректированы менеджером",
+      category: "loyalty",
+      lines: [
+        `Изменение: ${appliedDelta > 0 ? "+" : ""}${appliedDelta}`,
+        `Баланс: ${nextBalance} баллов`,
+        description ? `Комментарий: ${description}` : "",
+      ].filter(Boolean),
+      actions: [
+        {
+          text: "Открыть бонусы",
+          url: "/account",
+        },
+      ],
+    });
+  } catch (error) {
+    console.error("[telegram:loyalty]", error);
+  }
 
   revalidateAdminUsers();
 }

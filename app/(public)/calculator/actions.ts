@@ -78,6 +78,7 @@ export async function submitCuttingRequestAction(
     if (!createdRequest.duplicate) {
       await handleCuttingRequestCreated({
         id: createdRequest.id,
+        userId: session?.userId ?? null,
         number: createdRequest.number ?? null,
         requestType: "CUTTING_SERVICE",
         subject,

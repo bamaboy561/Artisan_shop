@@ -6,7 +6,10 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-import { sendTelegramTestAction } from "@/app/admin/actions";
+import {
+  configureTelegramWebhookAction,
+  sendTelegramTestAction,
+} from "@/app/admin/actions";
 import { AdminSubmitButton } from "@/components/admin/admin-submit-button";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { SectionHeading } from "@/components/ui/section-heading";
@@ -69,6 +72,14 @@ export default async function AdminLaunchPage({
     "telegramMessage",
   );
   const telegramThread = getSearchValue(resolvedSearchParams, "telegramThread");
+  const telegramWebhook = getSearchValue(
+    resolvedSearchParams,
+    "telegramWebhook",
+  );
+  const telegramWebhookUrl = getSearchValue(
+    resolvedSearchParams,
+    "telegramWebhookUrl",
+  );
 
   return (
     <div className="space-y-5">
@@ -164,6 +175,26 @@ export default async function AdminLaunchPage({
           </div>
         ) : null}
 
+        {telegramWebhook ? (
+          <div
+            className={`mt-4 rounded-2xl border p-3 text-sm ${
+              telegramWebhook === "ok"
+                ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+                : "border-red-200 bg-red-50 text-red-900"
+            }`}
+          >
+            <strong>
+              {telegramWebhook === "ok"
+                ? "Webhook подключен"
+                : "Webhook не подключен"}
+            </strong>
+            {telegramMessage ? <p className="mt-1">{telegramMessage}</p> : null}
+            {telegramWebhookUrl ? (
+              <p className="mt-1 break-all text-xs">{telegramWebhookUrl}</p>
+            ) : null}
+          </div>
+        ) : null}
+
         <div className="mt-4 grid gap-2 sm:grid-cols-3">
           {[
             { key: "cutting", label: "Тест распила" },
@@ -182,6 +213,16 @@ export default async function AdminLaunchPage({
             </form>
           ))}
         </div>
+
+        <form action={configureTelegramWebhookAction} className="mt-3">
+          <AdminSubmitButton
+            type="submit"
+            variant="secondary"
+            className="h-10 w-full sm:w-auto"
+            idleLabel="Подключить webhook и кнопки бота"
+            pendingLabel="Подключаем..."
+          />
+        </form>
       </section>
     </div>
   );

@@ -63,6 +63,7 @@ export type AdminRequestFilterState = {
 
 export type AdminOrderItem = {
   id: string;
+  userId?: string | null;
   number: string | null;
   status: OrderStatus;
   contactName: string;
@@ -95,6 +96,7 @@ export type AdminOrderItem = {
 
 export type AdminRequestItem = {
   id: string;
+  userId?: string | null;
   number: string | null;
   type: RequestType;
   status: RequestStatus;

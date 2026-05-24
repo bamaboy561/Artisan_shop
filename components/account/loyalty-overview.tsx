@@ -5,6 +5,7 @@ import {
   FileStack,
   Gem,
   Heart,
+  MessageCircle,
   ReceiptText,
   Scissors,
   ShoppingBag,
@@ -29,6 +30,12 @@ type LoyaltyOverviewProps = {
     email: string;
     companyName: string | null;
     phone: string | null;
+    telegramUsername: string | null;
+    telegramLinked: boolean;
+    telegramStartLink: string;
+    telegramNotifyOrders: boolean;
+    telegramNotifyRequests: boolean;
+    telegramNotifyLoyalty: boolean;
     loyaltyTier: LoyaltyTier;
     loyaltyPointsBalance: number;
     loyaltyPointsLifetime: number;
@@ -130,10 +137,15 @@ export function LoyaltyOverview({
       icon: Scissors,
     },
     {
-      href: "/account/requests",
-      label: "Заявки",
-      description: "Статусы расчётов",
-      icon: FileStack,
+      href: user.telegramStartLink,
+      label: user.telegramLinked ? "Telegram подключен" : "Подключить Telegram",
+      description: user.telegramLinked
+        ? user.telegramUsername
+          ? `@${user.telegramUsername}`
+          : "Статусы и бонусы в боте"
+        : "Статусы заказов и распила",
+      icon: MessageCircle,
+      external: true,
     },
   ];
 
@@ -245,6 +257,7 @@ export function LoyaltyOverview({
                   <Link
                     key={action.href}
                     href={action.href}
+                    target={"external" in action && action.external ? "_blank" : undefined}
                     className="group flex min-w-0 items-center justify-between gap-3 rounded-[18px] border border-white/10 bg-white/[0.065] p-3 transition hover:border-white/25 hover:bg-white/[0.1]"
                   >
                     <span className="flex min-w-0 items-center gap-3">
@@ -270,6 +283,32 @@ export function LoyaltyOverview({
             </div>
           </div>
         </div>
+      </article>
+
+      <article className="grid gap-3 rounded-[24px] border border-[color:var(--line)] bg-white/92 p-4 shadow-[0_14px_34px_rgba(17,17,17,0.04)] sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+        <div className="min-w-0">
+          <p className="font-mono text-[10px] tracking-[0.18em] text-[var(--muted)] uppercase">
+            Telegram
+          </p>
+          <h3 className="mt-1 text-lg font-semibold tracking-[-0.03em] text-[var(--foreground)]">
+            {user.telegramLinked
+              ? "Бот подключен к личному кабинету"
+              : "Подключите бот для статусов"}
+          </h3>
+          <p className="mt-1 text-sm leading-6 text-[var(--muted)]">
+            {user.telegramLinked
+              ? "Клиент получает обновления по заказам, заявкам на распил и бонусам прямо в Telegram."
+              : "После подключения клиент увидит кнопки «Мои заказы», «Мои заявки», «Баллы и скидка» без ручных команд."}
+          </p>
+        </div>
+
+        <Link
+          href={user.telegramStartLink}
+          target="_blank"
+          className="inline-flex h-11 items-center justify-center rounded-full bg-[var(--foreground)] px-5 text-sm font-semibold text-white transition hover:bg-[var(--accent)]"
+        >
+          {user.telegramLinked ? "Открыть бота" : "Подключить Telegram"}
+        </Link>
       </article>
 
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">

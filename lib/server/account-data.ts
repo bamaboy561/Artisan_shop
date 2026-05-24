@@ -3,6 +3,7 @@ import { OrderStatus, RequestFileKind, RequestStatus } from "@/generated/prisma"
 import { verifySession } from "@/lib/auth/dal";
 import { getDb } from "@/lib/db";
 import { getClientOperationEvents } from "@/lib/server/operation-events";
+import { ensureTelegramUserColumns } from "@/lib/server/telegram-user-schema";
 
 const activeOrderStatuses = [
   OrderStatus.NEW,
@@ -23,6 +24,7 @@ const activeRequestStatuses = [
 export async function getAccountUser() {
   const db = getDb();
   const session = await verifySession("/login?next=/account");
+  await ensureTelegramUserColumns(db);
 
   return db.user.findUnique({
     where: { id: session.userId },
@@ -33,6 +35,11 @@ export async function getAccountUser() {
       lastName: true,
       phone: true,
       companyName: true,
+      telegramUsername: true,
+      telegramLinkedAt: true,
+      telegramNotifyOrders: true,
+      telegramNotifyRequests: true,
+      telegramNotifyLoyalty: true,
       loyaltyTier: true,
       loyaltyPointsBalance: true,
       loyaltyPointsLifetime: true,

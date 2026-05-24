@@ -158,6 +158,12 @@ model User {
   companyName             String?
   messengerType           MessengerType?
   messengerHandle         String?
+  telegramChatId          String?              @unique
+  telegramUsername        String?
+  telegramLinkedAt        DateTime?
+  telegramNotifyOrders    Boolean              @default(true)
+  telegramNotifyRequests  Boolean              @default(true)
+  telegramNotifyLoyalty   Boolean              @default(true)
   isActive                Boolean              @default(true)
   loyaltyTier             LoyaltyTier          @default(BRONZE)
   loyaltyPointsBalance    Int                  @default(0)

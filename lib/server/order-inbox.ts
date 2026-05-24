@@ -108,6 +108,7 @@ function createDemoOrderRecord(
 
   return {
     id: record.id,
+    userId: record.userId ?? null,
     number: record.number,
     status: record.status ?? OrderStatus.NEW,
     contactName: record.contactName,
@@ -265,6 +266,7 @@ export async function getOrderInboxItemById(id: string): Promise<OrderDetailItem
       where: { id },
       select: {
         id: true,
+        userId: true,
         number: true,
         status: true,
         sourceRequestId: true,

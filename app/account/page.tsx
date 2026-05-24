@@ -8,6 +8,7 @@ import {
   getEffectiveDiscountPercent,
   getLoyaltyProgress,
 } from "@/lib/server/pricing";
+import { buildTelegramStartLink } from "@/lib/server/telegram-bot";
 
 export const dynamic = "force-dynamic";
 
@@ -57,6 +58,12 @@ export default async function AccountPage() {
           email: user.email,
           companyName: user.companyName,
           phone: user.phone,
+          telegramUsername: user.telegramUsername,
+          telegramLinked: Boolean(user.telegramLinkedAt),
+          telegramStartLink: buildTelegramStartLink(user.id),
+          telegramNotifyOrders: user.telegramNotifyOrders,
+          telegramNotifyRequests: user.telegramNotifyRequests,
+          telegramNotifyLoyalty: user.telegramNotifyLoyalty,
           loyaltyTier: user.loyaltyTier,
           loyaltyPointsBalance: user.loyaltyPointsBalance,
           loyaltyPointsLifetime: user.loyaltyPointsLifetime,

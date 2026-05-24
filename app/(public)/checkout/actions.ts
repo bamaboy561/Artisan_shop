@@ -491,6 +491,7 @@ export async function submitCheckoutAction(
 
     await handleOrderCreated({
       id: createdOrderForSync.id,
+      userId: user?.id ?? null,
       number: createdOrderForSync.number ?? orderNumber,
       status: OrderStatus.NEW,
       contactName: parsed.data.name,
@@ -503,6 +504,7 @@ export async function submitCheckoutAction(
       subtotal,
       discountTotal,
       deliveryTotal,
+      loyaltyPointsDelta: awardedPoints,
       createdAt: new Date().toISOString(),
       items: orderItems.map((item) => ({
         name: item.snapshotName,

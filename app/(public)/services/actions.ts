@@ -204,6 +204,7 @@ export async function submitServiceRequestAction(
 
       await handleCuttingRequestCreated({
         id: createdRequest.id,
+        userId: session?.userId ?? null,
         number: createdRequest.number ?? null,
         requestType: "CUTTING_SERVICE",
         subject,
