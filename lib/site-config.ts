@@ -94,6 +94,11 @@ export const adminNavigation: NavItem[] = [
     description: "Промо и механики.",
   },
   {
+    href: "/admin/content",
+    label: "Контент",
+    description: "Страницы, баннеры и витрина.",
+  },
+  {
     href: "/admin/calculator",
     label: "Калькулятор",
     description: "Материалы, цены и форматы листов.",

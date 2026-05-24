@@ -1,12 +1,14 @@
 "use server";
 
 import {
+  BannerPlacement,
   CategoryKind,
   DiscountType,
   InventoryStatus,
   LoyaltyTier,
   LoyaltyTransactionType,
   OrderStatus,
+  PageStatus,
   ProductOrderMode,
   ProductStatus,
   PromotionStatus,
@@ -556,6 +558,19 @@ function revalidateAdminOperations() {
 function revalidateAdminPromotions() {
   revalidatePath("/admin");
   revalidatePath("/admin/promotions");
+  revalidatePath("/");
+  revalidatePath("/catalog");
+  revalidatePath("/checkout");
+}
+
+function revalidateAdminContent() {
+  revalidatePath("/admin");
+  revalidatePath("/admin/content");
+  revalidatePath("/");
+  revalidatePath("/catalog");
+  revalidatePath("/brands");
+  revalidatePath("/services");
+  revalidatePath("/contacts");
 }
 
 function revalidateAdminUsers() {
@@ -2985,6 +3000,183 @@ export async function deletePromotionAction(formData: FormData) {
   ]);
 
   revalidateAdminPromotions();
+}
+
+export async function createSitePageAction(formData: FormData) {
+  if (!hasDatabaseUrl()) {
+    return;
+  }
+
+  await ensureAdminAccess();
+
+  const title = getString(formData, "title");
+  const slug = getString(formData, "slug") || slugifyImportValue(title);
+
+  if (!title || !slug) {
+    return;
+  }
+
+  const status = getString(formData, "status");
+
+  await getDb().sitePage.create({
+    data: {
+      title,
+      slug,
+      excerpt: getOptionalString(formData, "excerpt"),
+      body: getOptionalString(formData, "body"),
+      status:
+        Object.values(PageStatus).find((item) => item === status) ??
+        PageStatus.DRAFT,
+      seoTitle: getOptionalString(formData, "seoTitle"),
+      seoDescription: getOptionalString(formData, "seoDescription"),
+    },
+  });
+
+  revalidateAdminContent();
+}
+
+export async function updateSitePageAction(formData: FormData) {
+  if (!hasDatabaseUrl()) {
+    return;
+  }
+
+  await ensureAdminAccess();
+
+  const id = getString(formData, "id");
+  const title = getString(formData, "title");
+  const slug = getString(formData, "slug") || slugifyImportValue(title);
+  const status = getString(formData, "status");
+
+  if (!id || !title || !slug) {
+    return;
+  }
+
+  await getDb().sitePage.update({
+    where: { id },
+    data: {
+      title,
+      slug,
+      excerpt: getOptionalString(formData, "excerpt"),
+      body: getOptionalString(formData, "body"),
+      status:
+        Object.values(PageStatus).find((item) => item === status) ??
+        PageStatus.DRAFT,
+      seoTitle: getOptionalString(formData, "seoTitle"),
+      seoDescription: getOptionalString(formData, "seoDescription"),
+    },
+  });
+
+  revalidateAdminContent();
+}
+
+export async function deleteSitePageAction(formData: FormData) {
+  if (!hasDatabaseUrl()) {
+    return;
+  }
+
+  await ensureAdminAccess();
+
+  const id = getString(formData, "id");
+
+  if (!id) {
+    return;
+  }
+
+  await getDb().sitePage.delete({ where: { id } });
+
+  revalidateAdminContent();
+}
+
+export async function createBannerAction(formData: FormData) {
+  if (!hasDatabaseUrl()) {
+    return;
+  }
+
+  await ensureAdminAccess();
+
+  const title = getString(formData, "title");
+  const key = getString(formData, "key") || slugifyImportValue(title);
+  const placement = getString(formData, "placement");
+
+  if (!title || !key) {
+    return;
+  }
+
+  await getDb().banner.create({
+    data: {
+      key,
+      title,
+      placement:
+        Object.values(BannerPlacement).find((item) => item === placement) ??
+        BannerPlacement.HOME_SECONDARY,
+      subtitle: getOptionalString(formData, "subtitle"),
+      ctaLabel: getOptionalString(formData, "ctaLabel"),
+      ctaHref: getOptionalString(formData, "ctaHref"),
+      imageUrl: getOptionalUrl(formData, "imageUrl"),
+      isActive: getString(formData, "isActive") === "on",
+      sortOrder: getOptionalInt(formData, "sortOrder") ?? 100,
+      startsAt: getOptionalDate(formData, "startsAt"),
+      endsAt: getOptionalDate(formData, "endsAt"),
+    },
+  });
+
+  revalidateAdminContent();
+}
+
+export async function updateBannerAction(formData: FormData) {
+  if (!hasDatabaseUrl()) {
+    return;
+  }
+
+  await ensureAdminAccess();
+
+  const id = getString(formData, "id");
+  const title = getString(formData, "title");
+  const key = getString(formData, "key") || slugifyImportValue(title);
+  const placement = getString(formData, "placement");
+
+  if (!id || !title || !key) {
+    return;
+  }
+
+  await getDb().banner.update({
+    where: { id },
+    data: {
+      key,
+      title,
+      placement:
+        Object.values(BannerPlacement).find((item) => item === placement) ??
+        BannerPlacement.HOME_SECONDARY,
+      subtitle: getOptionalString(formData, "subtitle"),
+      ctaLabel: getOptionalString(formData, "ctaLabel"),
+      ctaHref: getOptionalString(formData, "ctaHref"),
+      imageUrl: getOptionalUrl(formData, "imageUrl"),
+      isActive: getString(formData, "isActive") === "on",
+      sortOrder: getOptionalInt(formData, "sortOrder") ?? 100,
+      startsAt: getOptionalDate(formData, "startsAt"),
+      endsAt: getOptionalDate(formData, "endsAt"),
+    },
+  });
+
+  revalidateAdminContent();
+}
+
+export async function deleteBannerAction(formData: FormData) {
+  if (!hasDatabaseUrl()) {
+    return;
+  }
+
+  await ensureAdminAccess();
+
+  const id = getString(formData, "id");
+
+  if (!id) {
+    return;
+  }
+
+  await getDb().banner.delete({ where: { id } });
+
+  revalidateAdminContent();
 }
 
 export async function updateUserLoyaltyAction(formData: FormData) {

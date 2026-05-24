@@ -176,6 +176,7 @@ export default async function AdminPromotionsPage({
   const orderPromotions = promotions.filter(
     (promotion) => promotion.targetType === PromotionTargetType.ORDER,
   );
+  const showcasePromotions = highlightedPromotions.slice(0, 3);
 
   const activeFilters = [
     state.q
@@ -395,6 +396,67 @@ export default async function AdminPromotionsPage({
           value={codePromotions.length}
           detail={`${orderPromotions.length} механик работают на уровне заказа`}
         />
+      </section>
+
+      <section className="overflow-hidden rounded-[30px] border border-[#15110d]/10 bg-[#15110d] text-white shadow-[0_28px_80px_rgba(21,17,13,0.18)]">
+        <div className="grid gap-6 p-5 sm:p-7 xl:grid-cols-[0.86fr_1.14fr] xl:items-end">
+          <div>
+            <p className="font-mono text-[10px] tracking-[0.24em] text-white/44 uppercase">
+              Витрина промо
+            </p>
+            <h2 className="mt-3 max-w-xl text-3xl leading-none font-semibold tracking-[-0.06em] sm:text-5xl">
+              Акции должны продавать с первого взгляда.
+            </h2>
+            <p className="mt-4 max-w-xl text-sm leading-7 text-white/62">
+              Выделенные активные акции теперь показываются на сайте как верхняя
+              promo bar и мягкий pop-up. Используйте короткий бейдж, понятное
+              условие и один главный CTA.
+            </p>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-3">
+            {showcasePromotions.length > 0 ? (
+              showcasePromotions.map((promotion) => (
+                <article
+                  key={promotion.id}
+                  className="grid min-h-[14rem] content-between rounded-[24px] border border-white/12 bg-white/[0.08] p-4 backdrop-blur-sm"
+                >
+                  <div>
+                    <p className="font-mono text-[9px] tracking-[0.18em] text-[#f0a17f] uppercase">
+                      {promotion.badgeText ?? "Акция"}
+                    </p>
+                    <h3 className="mt-3 text-xl leading-tight font-semibold tracking-[-0.04em]">
+                      {promotion.name}
+                    </h3>
+                    {promotion.description ? (
+                      <p className="mt-2 line-clamp-3 text-xs leading-5 text-white/58">
+                        {promotion.description}
+                      </p>
+                    ) : null}
+                  </div>
+                  <div>
+                    <p className="text-3xl font-semibold tracking-[-0.05em] text-white">
+                      {formatDiscount(
+                        promotion.discountType,
+                        promotion.discountValue,
+                      )}
+                    </p>
+                    <p className="mt-2 text-xs text-white/52">
+                      {promotion.promoCode
+                        ? `Промокод ${promotion.promoCode}`
+                        : "Без промокода"}
+                    </p>
+                  </div>
+                </article>
+              ))
+            ) : (
+              <div className="rounded-[24px] border border-dashed border-white/16 p-5 text-sm leading-6 text-white/58 md:col-span-3">
+                Выделите активную акцию галочкой «Показывать на витрине» — она
+                появится здесь и на публичном сайте.
+              </div>
+            )}
+          </div>
+        </div>
       </section>
 
       <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-6">

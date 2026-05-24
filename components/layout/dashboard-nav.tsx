@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   BadgePercent,
   Calculator,
+  FileText,
   FileStack,
   FolderTree,
   Layers3,
@@ -38,6 +39,7 @@ const iconMap = {
   "/admin/requests": FileStack,
   "/admin/cutting": Scissors,
   "/admin/promotions": BadgePercent,
+  "/admin/content": FileText,
   "/calculator": Calculator,
   "/account": LayoutDashboard,
   "/account/orders": ReceiptText,
