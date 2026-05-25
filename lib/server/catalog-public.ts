@@ -322,11 +322,41 @@ function mapBrand(
     description: brand.description ?? "",
     country: brand.country ?? "",
     logoUrl: brand.logoUrl ?? undefined,
+    homeBannerImages: parseBrandBannerImages(brand.homeBannerImageUrls),
     productCount: brand._count?.products ?? 0,
     highlight: brand.description ?? "",
     categorySlug: categorySlug ?? "",
     updatedAt: brand.updatedAt,
   };
+}
+
+function parseBrandBannerImages(value: string | null | undefined) {
+  if (!value) {
+    return undefined;
+  }
+
+  try {
+    const parsed = JSON.parse(value) as unknown;
+
+    if (Array.isArray(parsed)) {
+      const urls = parsed
+        .flatMap((item) => (typeof item === "string" ? [item.trim()] : []))
+        .filter(Boolean)
+        .slice(0, 4);
+
+      return urls.length > 0 ? urls : undefined;
+    }
+  } catch {
+    const urls = value
+      .split(/\r?\n/)
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .slice(0, 4);
+
+    return urls.length > 0 ? urls : undefined;
+  }
+
+  return undefined;
 }
 
 const FALLBACK_PUBLIC_CATEGORIES: CatalogCategory[] = [

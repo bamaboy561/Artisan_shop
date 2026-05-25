@@ -7,6 +7,8 @@ import {
   type FeaturedProduct,
 } from "@/features/catalog/data";
 import type { Brand } from "@/features/catalog/types";
+import { PromotionStatus, PromotionTargetType } from "@/generated/prisma";
+import { getDb, hasDatabaseUrl } from "@/lib/db";
 import {
   getPublicBrands,
   getPublicProducts,
@@ -37,10 +39,17 @@ export type BrandProfile = {
   productCount: number;
   country?: string;
   logoUrl?: string;
+  homeBannerImages?: string[];
+  promotedProductSlugs: string[];
   categorySlug?: string;
   catalogHref?: string;
   brandPageHref: string;
   updatedAt?: Date;
+};
+
+type PromotionLookup = {
+  productSlugs: Set<string>;
+  categorySlugs: Set<string>;
 };
 
 const statusLabelMap = {
@@ -162,22 +171,123 @@ function uniqueStrings(values: Array<string | null | undefined>) {
   return Array.from(new Set(values.filter(Boolean))) as string[];
 }
 
+const emptyPromotionLookup: PromotionLookup = {
+  productSlugs: new Set<string>(),
+  categorySlugs: new Set<string>(),
+};
+
+async function getActivePromotionLookup(): Promise<PromotionLookup> {
+  if (!hasDatabaseUrl()) {
+    return emptyPromotionLookup;
+  }
+
+  const now = new Date();
+
+  try {
+    const promotions = await getDb().promotion.findMany({
+      where: {
+        status: PromotionStatus.ACTIVE,
+        OR: [{ startsAt: null }, { startsAt: { lte: now } }],
+        AND: [{ OR: [{ endsAt: null }, { endsAt: { gte: now } }] }],
+      },
+      select: {
+        targetType: true,
+        products: {
+          select: {
+            product: { select: { slug: true } },
+          },
+        },
+        categories: {
+          select: {
+            category: { select: { slug: true } },
+          },
+        },
+      },
+    });
+
+    return promotions.reduce<PromotionLookup>(
+      (lookup, promotion) => {
+        if (promotion.targetType === PromotionTargetType.PRODUCT) {
+          promotion.products.forEach((item) => {
+            lookup.productSlugs.add(item.product.slug);
+          });
+        }
+
+        if (promotion.targetType === PromotionTargetType.CATEGORY) {
+          promotion.categories.forEach((item) => {
+            lookup.categorySlugs.add(item.category.slug);
+          });
+        }
+
+        return lookup;
+      },
+      {
+        productSlugs: new Set<string>(),
+        categorySlugs: new Set<string>(),
+      },
+    );
+  } catch (error) {
+    console.warn("Brand promotion lookup failed", error);
+    return emptyPromotionLookup;
+  }
+}
+
+function isPromotionalProduct(
+  product: FeaturedProduct,
+  promotionLookup: PromotionLookup,
+) {
+  return (
+    promotionLookup.productSlugs.has(product.slug) ||
+    promotionLookup.categorySlugs.has(product.categorySlug)
+  );
+}
+
+function prioritizePromotionalProducts(
+  products: FeaturedProduct[],
+  promotionLookup: PromotionLookup,
+) {
+  return [...products].sort((left, right) => {
+    const leftPromotional = isPromotionalProduct(left, promotionLookup);
+    const rightPromotional = isPromotionalProduct(right, promotionLookup);
+
+    if (leftPromotional === rightPromotional) {
+      return 0;
+    }
+
+    return leftPromotional ? -1 : 1;
+  });
+}
+
+function getPromotedProductSlugs(
+  products: FeaturedProduct[],
+  promotionLookup: PromotionLookup,
+) {
+  return products
+    .filter((product) => isPromotionalProduct(product, promotionLookup))
+    .map((product) => product.slug);
+}
+
 function buildBrandProfilesFrom(
   brands: Brand[],
   products: FeaturedProduct[],
+  promotionLookup: PromotionLookup = emptyPromotionLookup,
 ): BrandProfile[] {
-  const assignedProfiles = brandCatalogAssignments
-    .reduce<BrandProfile[]>((result, assignment) => {
+  const assignedProfiles = brandCatalogAssignments.reduce<BrandProfile[]>(
+    (result, assignment) => {
       const aliasSlugs = getBrandAliasSlugs(assignment.slug);
-      const activeBrand = brands.find(
-        (brand) => aliasSlugs.includes(normalizeBrandSlug(brand.slug)),
+      const activeBrand = brands.find((brand) =>
+        aliasSlugs.includes(normalizeBrandSlug(brand.slug)),
       );
-      const partnerBrand = partnerBrands.find(
-        (brand) => aliasSlugs.includes(normalizeBrandSlug(brand.slug)),
+      const partnerBrand = partnerBrands.find((brand) =>
+        aliasSlugs.includes(normalizeBrandSlug(brand.slug)),
       );
       const seed = brandProfileSeeds[assignment.slug];
-      const brandProducts = products.filter(
-        (product) => aliasSlugs.includes(normalizeBrandSlug(product.brandSlug)),
+      const rawBrandProducts = products.filter((product) =>
+        aliasSlugs.includes(normalizeBrandSlug(product.brandSlug)),
+      );
+      const brandProducts = prioritizePromotionalProducts(
+        rawBrandProducts,
+        promotionLookup,
       );
 
       if (!seed) {
@@ -211,6 +321,11 @@ function buildBrandProfilesFrom(
         productCount: brandProducts.length,
         country: activeBrand?.country,
         logoUrl: activeBrand?.logoUrl,
+        homeBannerImages: activeBrand?.homeBannerImages,
+        promotedProductSlugs: getPromotedProductSlugs(
+          rawBrandProducts,
+          promotionLookup,
+        ),
         categorySlug: activeBrand?.categorySlug,
         catalogHref: activeBrand?.categorySlug
           ? `/catalog/${activeBrand.categorySlug}?brand=${activeBrand.slug}`
@@ -220,7 +335,9 @@ function buildBrandProfilesFrom(
       });
 
       return result;
-    }, []);
+    },
+    [],
+  );
   const assignedSlugs = new Set(
     assignedProfiles.flatMap((profile) => getBrandAliasSlugs(profile.slug)),
   );
@@ -228,8 +345,12 @@ function buildBrandProfilesFrom(
     .filter((brand) => !assignedSlugs.has(normalizeBrandSlug(brand.slug)))
     .map<BrandProfile>((brand) => {
       const canonicalSlug = normalizeBrandSlug(brand.slug);
-      const brandProducts = products.filter(
+      const rawBrandProducts = products.filter(
         (product) => normalizeBrandSlug(product.brandSlug) === canonicalSlug,
+      );
+      const brandProducts = prioritizePromotionalProducts(
+        rawBrandProducts,
+        promotionLookup,
       );
       const categoryNames = uniqueStrings(
         brandProducts.map((product) => product.categoryName),
@@ -255,11 +376,18 @@ function buildBrandProfilesFrom(
         scenarios: ["Подбор товара", "Запрос цены", "Консультация менеджера"],
         subcategories: categoryNames.length > 0 ? categoryNames : ["Каталог"],
         previewLabels:
-          categoryNames.length > 0 ? categoryNames.slice(0, 5) : ["В подготовке"],
+          categoryNames.length > 0
+            ? categoryNames.slice(0, 5)
+            : ["В подготовке"],
         products: brandProducts,
         productCount: brandProducts.length,
         country: brand.country,
         logoUrl: brand.logoUrl,
+        homeBannerImages: brand.homeBannerImages,
+        promotedProductSlugs: getPromotedProductSlugs(
+          rawBrandProducts,
+          promotionLookup,
+        ),
         categorySlug: brand.categorySlug,
         catalogHref: brand.categorySlug
           ? `/catalog/${brand.categorySlug}?brand=${brand.slug}`
@@ -270,18 +398,18 @@ function buildBrandProfilesFrom(
     });
 
   return [...assignedProfiles, ...dynamicProfiles].sort(
-      (profileA, profileB) =>
-        getBrandDisplayIndex(profileA.slug) -
-        getBrandDisplayIndex(profileB.slug),
-    );
+    (profileA, profileB) =>
+      getBrandDisplayIndex(profileA.slug) - getBrandDisplayIndex(profileB.slug),
+  );
 }
 
 export async function getBrandProfiles(): Promise<BrandProfile[]> {
-  const [brands, products] = await Promise.all([
+  const [brands, products, promotionLookup] = await Promise.all([
     getPublicBrands(),
     getPublicProducts(),
+    getActivePromotionLookup(),
   ]);
-  return buildBrandProfilesFrom(brands, products);
+  return buildBrandProfilesFrom(brands, products, promotionLookup);
 }
 
 export async function getBrandProfileBySlug(

@@ -17,6 +17,30 @@ type EditBrandPageProps = {
   params: Promise<{ id: string }>;
 };
 
+function parseHomeBannerImageUrls(value: string | null) {
+  if (!value) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (Array.isArray(parsed)) {
+      return parsed
+        .flatMap((item) => (typeof item === "string" ? [item] : []))
+        .filter(Boolean)
+        .slice(0, 4);
+    }
+  } catch {
+    return value
+      .split(/\r?\n/)
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .slice(0, 4);
+  }
+
+  return [];
+}
+
 export default async function EditBrandPage({ params }: EditBrandPageProps) {
   if (!hasDatabaseUrl()) notFound();
 
@@ -36,6 +60,7 @@ export default async function EditBrandPage({ params }: EditBrandPageProps) {
   const logoStyle = brand.logoUrl
     ? { backgroundImage: `url(${brand.logoUrl})` }
     : undefined;
+  const bannerImages = parseHomeBannerImageUrls(brand.homeBannerImageUrls);
 
   return (
     <div className="space-y-4">
@@ -144,6 +169,34 @@ export default async function EditBrandPage({ params }: EditBrandPageProps) {
               placeholder="https://brand.com/logo.svg"
             />
           </label>
+
+          <div className="grid gap-3 rounded-[18px] border border-[color:var(--line)] bg-white/55 p-4">
+            <div>
+              <p className="font-mono text-[10px] tracking-[0.18em] text-[var(--accent)] uppercase">
+                Баннер на главной
+              </p>
+              <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
+                До 4 фото для большого брендового блока. Если поля пустые,
+                главная автоматически возьмет изображения товаров бренда.
+              </p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {[0, 1, 2, 3].map((index) => (
+                <label
+                  key={index}
+                  className="grid gap-2 text-sm text-[var(--foreground)]"
+                >
+                  Фото {index + 1}
+                  <Input
+                    name="homeBannerImageUrl"
+                    type="url"
+                    defaultValue={bannerImages[index] ?? ""}
+                    placeholder="https://site.com/banner.jpg"
+                  />
+                </label>
+              ))}
+            </div>
+          </div>
 
           <label className="grid gap-2 text-sm text-[var(--foreground)]">
             Описание

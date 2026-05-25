@@ -87,6 +87,33 @@ export default async function AdminBrandsPage() {
               </label>
             </div>
 
+            <div className="grid gap-3 rounded-[18px] border border-[color:var(--line)] bg-white/55 p-4">
+              <div>
+                <p className="font-mono text-[10px] tracking-[0.18em] text-[var(--accent)] uppercase">
+                  Баннер на главной
+                </p>
+                <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
+                  Можно добавить до 4 фото. Они соберутся в большой брендовый
+                  баннер на главной странице.
+                </p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {[1, 2, 3, 4].map((index) => (
+                  <label
+                    key={index}
+                    className="grid gap-2 text-sm text-[var(--foreground)]"
+                  >
+                    Фото {index}
+                    <Input
+                      name="homeBannerImageUrl"
+                      type="url"
+                      placeholder="https://site.com/banner.jpg"
+                    />
+                  </label>
+                ))}
+              </div>
+            </div>
+
             <label className="grid gap-2 text-sm text-[var(--foreground)]">
               Описание
               <Textarea
@@ -172,7 +199,9 @@ export default async function AdminBrandsPage() {
                             </a>
                           ) : null}
                           <span className="rounded-full border border-[color:var(--line)] bg-white px-3 py-1">
-                            {brand.logoUrl ? "Логотип добавлен" : "Без логотипа"}
+                            {brand.logoUrl
+                              ? "Логотип добавлен"
+                              : "Без логотипа"}
                           </span>
                         </div>
                       </div>

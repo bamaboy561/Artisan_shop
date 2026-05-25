@@ -16,6 +16,8 @@ export type BrandGalleryItem = {
   statusLabel?: string;
   tags?: string[];
   logoUrl?: string;
+  bannerImages?: string[];
+  promotedProductSlugs?: string[];
 };
 
 type BrandGalleryProps = {
@@ -25,6 +27,43 @@ type BrandGalleryProps = {
 
 function getPreviewProducts(products?: FeaturedProduct[]) {
   return (products ?? []).filter((product) => product.image).slice(0, 5);
+}
+
+function getHeroImages(item: BrandGalleryItem) {
+  const bannerImages = (item.bannerImages ?? [])
+    .filter(Boolean)
+    .slice(0, 4)
+    .map((src, index) => ({
+      src,
+      alt: `${item.name}: баннер ${index + 1}`,
+    }));
+
+  if (bannerImages.length > 0) {
+    return bannerImages;
+  }
+
+  return getPreviewProducts(item.products)
+    .slice(0, 4)
+    .map((product) => ({
+      src: product.image,
+      alt: `${item.name}: ${product.name}`,
+    }));
+}
+
+function getHeroImageClass(index: number, total: number) {
+  if (total === 1) {
+    return "col-span-2 row-span-2";
+  }
+
+  if (total === 2) {
+    return "row-span-2";
+  }
+
+  if (total === 3 && index === 0) {
+    return "row-span-2";
+  }
+
+  return "";
 }
 
 function isPlannedTone(item: BrandGalleryItem) {
@@ -127,10 +166,10 @@ function BrandHero({
   item: BrandGalleryItem;
   compact?: boolean;
 }) {
-  const heroProduct = getPreviewProducts(item.products)[0];
+  const heroImages = getHeroImages(item);
   const planned = isPlannedTone(item);
 
-  if (!heroProduct) {
+  if (heroImages.length === 0) {
     return <PlaceholderVisual item={item} compact={compact} />;
   }
 
@@ -143,14 +182,30 @@ function BrandHero({
           : "min-h-[46svh]",
       )}
     >
-      <ProductImage
-        src={heroProduct.image}
-        alt={`${item.name}: ${heroProduct.name}`}
-        fill
-        fallbackLabel={item.name}
-        className="object-cover transition duration-700 group-hover:scale-[1.025]"
-        sizes="100vw"
-      />
+      <div className="absolute inset-0 grid grid-cols-2 grid-rows-2 gap-1">
+        {heroImages.map((image, index) => (
+          <div
+            key={`${image.src}-${index}`}
+            className={cn(
+              "relative min-h-0 overflow-hidden",
+              getHeroImageClass(index, heroImages.length),
+            )}
+          >
+            <ProductImage
+              src={image.src}
+              alt={image.alt}
+              fill
+              fallbackLabel={item.name}
+              className="object-cover transition duration-700 group-hover:scale-[1.025]"
+              sizes={
+                heroImages.length === 1
+                  ? "100vw"
+                  : "(max-width: 1024px) 50vw, 40vw"
+              }
+            />
+          </div>
+        ))}
+      </div>
       <BrandLogoBadge item={item} />
       <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.02)_0%,rgba(0,0,0,0.16)_54%,rgba(0,0,0,0.72)_100%)]" />
       <div className="absolute inset-x-0 bottom-0 grid gap-4 p-3.5 text-white sm:gap-5 sm:p-7 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end lg:p-12">
@@ -196,6 +251,7 @@ function ProductRail({
 }) {
   const products = getPreviewProducts(item.products);
   const planned = isPlannedTone(item);
+  const promotedProductSlugs = new Set(item.promotedProductSlugs ?? []);
 
   if (products.length > 0) {
     return (
@@ -206,47 +262,64 @@ function ProductRail({
             compact ? "xl:grid-cols-5" : "lg:grid-cols-5",
           )}
         >
-          {products.map((product) => (
-            <Link
-              key={product.slug}
-              href={`/product/${product.slug}`}
-              className="group block"
-            >
-              <div
-                className={cn(
-                  "relative aspect-[4/5.2] overflow-hidden",
-                  planned
-                    ? "border border-[#151411]/8 bg-[#ebe6de]"
-                    : "bg-[#e2ded6]",
-                )}
+          {products.map((product) => {
+            const isPromotional = promotedProductSlugs.has(product.slug);
+
+            return (
+              <Link
+                key={product.slug}
+                href={`/product/${product.slug}`}
+                className="group block"
               >
-                <ProductImage
-                  src={product.image}
-                  alt={product.name}
-                  fill
-                  fallbackLabel={product.name}
-                  className="object-cover transition duration-500 group-hover:scale-[1.04]"
-                  sizes={compact ? "(max-width: 1024px) 50vw, 25vw" : "20vw"}
-                />
-              </div>
-              <p
-                className={cn(
-                  "mt-2 text-[13px] leading-5 font-medium sm:mt-2.5 sm:text-sm",
-                  planned ? "text-[#151411]/74" : "text-[#151411]",
-                )}
-              >
-                {product.name}
-              </p>
-              <p
-                className={cn(
-                  "mt-1 font-mono text-[10px] tracking-[0.14em] uppercase",
-                  planned ? "text-[#9a9389]" : "text-[#7b756d]",
-                )}
-              >
-                {planned ? "Скоро в каталоге" : product.action}
-              </p>
-            </Link>
-          ))}
+                <div
+                  className={cn(
+                    "relative aspect-[4/5.2] overflow-hidden",
+                    planned
+                      ? "border border-[#151411]/8 bg-[#ebe6de]"
+                      : "bg-[#e2ded6]",
+                  )}
+                >
+                  {isPromotional ? (
+                    <span className="absolute top-2 left-2 z-10 rounded-full bg-[#c96b43] px-2.5 py-1 font-mono text-[9px] tracking-[0.14em] text-white uppercase shadow-[0_10px_24px_rgba(0,0,0,0.16)]">
+                      Акция
+                    </span>
+                  ) : null}
+                  <ProductImage
+                    src={product.image}
+                    alt={product.name}
+                    fill
+                    fallbackLabel={product.name}
+                    className="object-cover transition duration-500 group-hover:scale-[1.04]"
+                    sizes={compact ? "(max-width: 1024px) 50vw, 25vw" : "20vw"}
+                  />
+                </div>
+                <p
+                  className={cn(
+                    "mt-2 text-[13px] leading-5 font-medium sm:mt-2.5 sm:text-sm",
+                    planned ? "text-[#151411]/74" : "text-[#151411]",
+                  )}
+                >
+                  {product.name}
+                </p>
+                <p
+                  className={cn(
+                    "mt-1 font-mono text-[10px] tracking-[0.14em] uppercase",
+                    isPromotional
+                      ? "text-[#c96b43]"
+                      : planned
+                        ? "text-[#9a9389]"
+                        : "text-[#7b756d]",
+                  )}
+                >
+                  {isPromotional
+                    ? "Акционное предложение"
+                    : planned
+                      ? "Скоро в каталоге"
+                      : product.action}
+                </p>
+              </Link>
+            );
+          })}
         </div>
       </div>
     );

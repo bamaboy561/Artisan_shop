@@ -208,6 +208,8 @@ export default async function HomePage() {
       statusLabel: profile.statusLabel,
       tags: profile.subcategories,
       logoUrl: profile.logoUrl,
+      bannerImages: profile.homeBannerImages,
+      promotedProductSlugs: profile.promotedProductSlugs,
     }));
 
   return (

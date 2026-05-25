@@ -231,38 +231,39 @@ model Category {
 }
 
 model Brand {
-  id          String    @id @default(cuid())
-  slug        String    @unique
-  name        String
-  description String?
-  country     String?
-  website     String?
-  logoUrl     String?
-  products    Product[]
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id                  String    @id @default(cuid())
+  slug                String    @unique
+  name                String
+  description         String?
+  country             String?
+  website             String?
+  logoUrl             String?
+  homeBannerImageUrls String?
+  products            Product[]
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 }
 
 model Product {
-  id                      String             @id @default(cuid())
-  slug                    String             @unique
-  sku                     String             @unique
+  id                      String              @id @default(cuid())
+  slug                    String              @unique
+  sku                     String              @unique
   name                    String
   summary                 String?
   description             String?
   categoryId              String
-  category                Category           @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  category                Category            @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   brandId                 String?
-  brand                   Brand?             @relation(fields: [brandId], references: [id], onDelete: SetNull)
-  status                  ProductStatus      @default(DRAFT)
-  orderMode               ProductOrderMode   @default(REQUEST_PRICE)
-  inventoryStatus         InventoryStatus    @default(ON_REQUEST)
+  brand                   Brand?              @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  status                  ProductStatus       @default(DRAFT)
+  orderMode               ProductOrderMode    @default(REQUEST_PRICE)
+  inventoryStatus         InventoryStatus     @default(ON_REQUEST)
   price                   Int?
   compareAtPrice          Int?
   stockQuantity           Int?
   format                  String?
   thicknessMm             Int?
-  isFeatured              Boolean            @default(false)
+  isFeatured              Boolean             @default(false)
   seoTitle                String?
   seoDescription          String?
   calculatorMaterialId    String?
@@ -275,8 +276,8 @@ model Product {
   favorites               Favorite[]
   requests                Request[]
   promotions              PromotionProduct[]
-  createdAt               DateTime           @default(now())
-  updatedAt               DateTime           @updatedAt
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
 
   @@index([categoryId, status])
   @@index([brandId, status])

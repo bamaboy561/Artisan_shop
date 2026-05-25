@@ -47,10 +47,7 @@ export type ProductBundleItem = {
 
 export type CalculatorMaterialId = "ldsp-16" | "mdf-16";
 
-export type CalculatorSheetPresetId =
-  | "2800x2070"
-  | "2750x1830"
-  | "2800x1220";
+export type CalculatorSheetPresetId = "2800x2070" | "2750x1830" | "2800x1220";
 
 export type CalculatorProductContext = {
   slug: string;
@@ -84,6 +81,7 @@ export type FeaturedProduct = {
   specifications: ProductSpecification[];
   isBundle: boolean;
   bundleItems: ProductBundleItem[];
+  isPromotional?: boolean;
   decorGroup?: string;
   decorGroupSlug?: string;
   searchText: string;
@@ -99,6 +97,7 @@ export type Brand = {
   description: string;
   country: string;
   logoUrl?: string;
+  homeBannerImages?: string[];
   productCount: number;
   highlight: string;
   categorySlug: string;

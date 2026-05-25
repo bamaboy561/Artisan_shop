@@ -155,6 +155,26 @@ function getStringList(formData: FormData, key: string) {
     .filter(Boolean);
 }
 
+function getOptionalUrlList(formData: FormData, key: string, limit = 4) {
+  return getStringList(formData, key)
+    .flatMap((value) => {
+      try {
+        const url = new URL(value);
+        return url.protocol === "http:" || url.protocol === "https:"
+          ? [url.toString()]
+          : [];
+      } catch {
+        return [];
+      }
+    })
+    .slice(0, limit);
+}
+
+function getOptionalJsonUrlList(formData: FormData, key: string, limit = 4) {
+  const urls = getOptionalUrlList(formData, key, limit);
+  return urls.length > 0 ? JSON.stringify(urls) : null;
+}
+
 const categoryDefaults: Record<
   CategoryKind,
   { indicator: string; scenario: string }
@@ -409,7 +429,10 @@ async function uploadProductImageFile(file: File, productSlug: string) {
   return blob.url;
 }
 
-async function resolveProductImageUrls(formData: FormData, productSlug: string) {
+async function resolveProductImageUrls(
+  formData: FormData,
+  productSlug: string,
+) {
   const urls: string[] = [];
 
   for (let index = 0; index < PRODUCT_IMAGE_SLOT_COUNT; index += 1) {
@@ -517,7 +540,10 @@ function getProductImportRedirect(params: {
 
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== "") {
-      searchParams.set(`import${key[0].toUpperCase()}${key.slice(1)}`, String(value));
+      searchParams.set(
+        `import${key[0].toUpperCase()}${key.slice(1)}`,
+        String(value),
+      );
     }
   });
 
@@ -607,10 +633,7 @@ function buildAdminOrderNumber(prefix = "A") {
   return `${prefix}-${datePart}-${randomPart}`;
 }
 
-async function syncOrderById(
-  orderId: string,
-  transition?: TransitionSnapshot,
-) {
+async function syncOrderById(orderId: string, transition?: TransitionSnapshot) {
   const order = await getOrderInboxItemById(orderId);
 
   if (!order) {
@@ -861,7 +884,10 @@ export async function createCategoryAction(formData: FormData) {
     Object.values(CategoryKind).find((item) => item === kindRaw) ??
     CategoryKind.OTHER;
   const db = getDb();
-  const slug = await getUniqueCategorySlug(db, getString(formData, "slug") || name);
+  const slug = await getUniqueCategorySlug(
+    db,
+    getString(formData, "slug") || name,
+  );
   const defaults = categoryDefaults[kind];
 
   await db.category.create({
@@ -873,7 +899,8 @@ export async function createCategoryAction(formData: FormData) {
       indicator: getOptionalString(formData, "indicator") ?? defaults.indicator,
       scenario: getOptionalString(formData, "scenario") ?? defaults.scenario,
       sortOrder:
-        getOptionalInt(formData, "sortOrder") ?? (await getNextCategorySortOrder(db)),
+        getOptionalInt(formData, "sortOrder") ??
+        (await getNextCategorySortOrder(db)),
     },
   });
 
@@ -1015,6 +1042,10 @@ export async function createBrandAction(formData: FormData) {
       country: getOptionalString(formData, "country"),
       website: getOptionalUrl(formData, "website"),
       logoUrl: getOptionalUrl(formData, "logoUrl"),
+      homeBannerImageUrls: getOptionalJsonUrlList(
+        formData,
+        "homeBannerImageUrl",
+      ),
       description: getOptionalString(formData, "description"),
     },
   });
@@ -1053,6 +1084,10 @@ export async function updateBrandAction(formData: FormData) {
       country: getOptionalString(formData, "country"),
       website: getOptionalUrl(formData, "website"),
       logoUrl: getOptionalUrl(formData, "logoUrl"),
+      homeBannerImageUrls: getOptionalJsonUrlList(
+        formData,
+        "homeBannerImageUrl",
+      ),
       description: getOptionalString(formData, "description"),
     },
   });
@@ -1120,7 +1155,10 @@ export async function createProductAction(formData: FormData) {
   const db = getDb();
   await ensureProductBundleItemsTable(db);
   const [category, brand] = await Promise.all([
-    db.category.findUnique({ where: { id: categoryId }, select: { name: true } }),
+    db.category.findUnique({
+      where: { id: categoryId },
+      select: { name: true },
+    }),
     brandId
       ? db.brand.findUnique({ where: { id: brandId }, select: { name: true } })
       : null,
@@ -1173,15 +1211,16 @@ export async function createProductAction(formData: FormData) {
           (item) => item === inventoryStatus,
         ) ?? InventoryStatus.ON_REQUEST,
       isFeatured: getString(formData, "isFeatured") === "on",
-      images: imageUrls.length > 0
-        ? {
-            create: imageUrls.map((imageUrl, index) => ({
-              url: imageUrl,
-              alt: name,
-              sortOrder: (index + 1) * 10,
-            })),
-          }
-        : undefined,
+      images:
+        imageUrls.length > 0
+          ? {
+              create: imageUrls.map((imageUrl, index) => ({
+                url: imageUrl,
+                alt: name,
+                sortOrder: (index + 1) * 10,
+              })),
+            }
+          : undefined,
       attributes:
         attributes.length > 0
           ? {
@@ -1311,7 +1350,10 @@ export async function updateProductDetailsAction(formData: FormData) {
       where: { id },
       select: { slug: true, sku: true },
     }),
-    db.category.findUnique({ where: { id: categoryId }, select: { name: true } }),
+    db.category.findUnique({
+      where: { id: categoryId },
+      select: { name: true },
+    }),
     brandId
       ? db.brand.findUnique({ where: { id: brandId }, select: { name: true } })
       : null,
@@ -1522,7 +1564,9 @@ export async function importProductsFromExcelAction(formData: FormData) {
       [normalizeImportLookup(item.slug), item],
     ]),
   );
-  const productBySku = new Map(existingProducts.map((item) => [item.sku, item]));
+  const productBySku = new Map(
+    existingProducts.map((item) => [item.sku, item]),
+  );
   const usedProductSlugs = new Set(existingProducts.map((item) => item.slug));
   const usedCategorySlugs = new Set(categories.map((item) => item.slug));
   const usedBrandSlugs = new Set(brands.map((item) => item.slug));
@@ -2250,7 +2294,8 @@ export async function createOrderFromRequestAction(formData: FormData) {
       entityId: createdOrder.id,
       eventType: "created",
       title: `Заказ создан из заявки ${request.number ?? request.id}`,
-      description: "Контакты, материал, комментарии и файлы перенесены из заявки.",
+      description:
+        "Контакты, материал, комментарии и файлы перенесены из заявки.",
       toStatus: OrderStatus.NEW,
       isVisibleToClient: true,
       actor,
@@ -2267,7 +2312,9 @@ export async function createOrderFromRequestAction(formData: FormData) {
     contactEmail: request.contactEmail,
     companyName: null,
     comment: request.message,
-    deliveryMethod: request.deliveryNeeded ? "Требует уточнения" : "Самовывоз / уточнить",
+    deliveryMethod: request.deliveryNeeded
+      ? "Требует уточнения"
+      : "Самовывоз / уточнить",
     total: request.estimatedBudget ?? 0,
     subtotal: request.estimatedBudget ?? 0,
     discountTotal: 0,
@@ -2604,7 +2651,8 @@ export async function createSalesFloorOrderAction(formData: FormData) {
   const quantities = formData.getAll("quantity");
   const receiptNumber = getOptionalString(formData, "receiptNumber");
   const managerComment = getOptionalString(formData, "comment");
-  const applyClientDiscount = getString(formData, "applyClientDiscount") === "on";
+  const applyClientDiscount =
+    getString(formData, "applyClientDiscount") === "on";
   const accrueLoyalty = getString(formData, "accrueLoyalty") === "on";
 
   if (!customerId || productIds.length === 0) {
@@ -2634,7 +2682,9 @@ export async function createSalesFloorOrderAction(formData: FormData) {
 
   const db = getDb();
   await ensureProductBundleItemsTable(db);
-  const uniqueProductIds = [...new Set(requestedItems.map((item) => item.productId))];
+  const uniqueProductIds = [
+    ...new Set(requestedItems.map((item) => item.productId)),
+  ];
   const [customer, products] = await Promise.all([
     db.user.findFirst({
       where: {
@@ -2944,7 +2994,8 @@ export async function updatePromotionAction(formData: FormData) {
       status:
         Object.values(PromotionStatus).find((item) => item === status) ??
         PromotionStatus.DRAFT,
-      promoCode: getOptionalString(formData, "promoCode")?.toUpperCase() ?? null,
+      promoCode:
+        getOptionalString(formData, "promoCode")?.toUpperCase() ?? null,
       badgeText: getOptionalString(formData, "badgeText"),
       isHighlighted: getString(formData, "isHighlighted") === "on",
     },
