@@ -8,6 +8,7 @@ import {
   HomeHeroCarousel,
   type HomeHeroSlide,
 } from "@/features/home/home-hero-carousel";
+import { HomeCatalogSearch } from "@/features/home/home-catalog-search";
 import {
   getCatalogMetrics,
   getPublicProducts,
@@ -65,6 +66,14 @@ export default async function HomePage() {
   ]);
 
   const fallbackImage = allProducts[0]?.image ?? fallbackVisuals.extravert;
+  const searchProducts = allProducts.map((product) => ({
+    slug: product.slug,
+    name: product.name,
+    sku: product.sku,
+    brand: product.brand,
+    categoryName: product.categoryName,
+    searchText: product.searchText,
+  }));
 
   const heroSlides: HomeHeroSlide[] = [
     {
@@ -204,6 +213,7 @@ export default async function HomePage() {
   return (
     <div className="bg-background">
       <HomeHeroCarousel slides={heroSlides} />
+      <HomeCatalogSearch products={searchProducts} />
 
       <section className="bg-background px-4 py-3.5 sm:px-8 lg:px-10">
         <div className="mx-auto grid max-w-[1500px] grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-4">
