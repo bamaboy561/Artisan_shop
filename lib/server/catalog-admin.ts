@@ -1,6 +1,8 @@
 import { getDb } from "@/lib/db";
 import { ensureBrandLogoColumn } from "@/lib/server/brand-schema";
+import { getEffectiveProductPrice } from "@/features/catalog/bundle-pricing";
 import { ProductStatus } from "@/generated/prisma";
+import { ensureProductBundleItemsTable } from "@/lib/server/product-bundle-schema";
 
 export async function getAdminCategories() {
   const db = getDb();
@@ -36,8 +38,9 @@ export async function getAdminBrands() {
 
 export async function getAdminProducts() {
   const db = getDb();
+  await ensureProductBundleItemsTable(db);
 
-  return db.product.findMany({
+  const products = await db.product.findMany({
     orderBy: [{ updatedAt: "desc" }, { name: "asc" }],
     include: {
       category: {
@@ -60,6 +63,16 @@ export async function getAdminProducts() {
           alt: true,
         },
       },
+      bundleItems: {
+        select: {
+          quantity: true,
+          componentProduct: {
+            select: {
+              price: true,
+            },
+          },
+        },
+      },
       _count: {
         select: {
           orderItems: true,
@@ -68,6 +81,11 @@ export async function getAdminProducts() {
       },
     },
   });
+
+  return products.map((product) => ({
+    ...product,
+    price: getEffectiveProductPrice(product),
+  }));
 }
 
 const DEFAULT_CALCULATOR_MATERIALS = [
@@ -83,6 +101,7 @@ const DEFAULT_CALCULATOR_SHEETS = [
 
 export async function getAdminProductFormOptions() {
   const db = getDb();
+  await ensureProductBundleItemsTable(db);
 
   const [
     categories,
@@ -132,6 +151,16 @@ export async function getAdminProductFormOptions() {
           sku: true,
           price: true,
           stockQuantity: true,
+          bundleItems: {
+            select: {
+              quantity: true,
+              componentProduct: {
+                select: {
+                  price: true,
+                },
+              },
+            },
+          },
           brand: { select: { name: true } },
           category: { select: { name: true } },
         },
@@ -153,7 +182,7 @@ export async function getAdminProductFormOptions() {
       id: product.id,
       name: product.name,
       sku: product.sku,
-      price: product.price,
+      price: getEffectiveProductPrice(product),
       stockQuantity: product.stockQuantity,
       brandName: product.brand?.name ?? "",
       categoryName: product.category.name,

@@ -340,7 +340,7 @@ function BundleCatalogPicker({
                 Как работает комплект
               </p>
               <div className="mt-2 grid gap-2 text-xs leading-5 text-[var(--muted)]">
-                <p>1. Создайте карточку комплекта и укажите цену комплекта.</p>
+                <p>1. Создайте карточку комплекта. Если поле «Цена» пустое, сайт сам посчитает сумму из состава.</p>
                 <p>2. Ниже добавьте реальные товары из каталога и количество.</p>
                 <p>
                   3. Клиент увидит один товар, а менеджер увидит полный состав.
@@ -429,8 +429,8 @@ function BundleCatalogPicker({
             </div>
 
             <div className="rounded-2xl border border-[color:var(--line)] bg-[#f8f5ef] p-3 text-xs leading-5 text-[var(--muted)]">
-              Сумма компонентов нужна только для проверки. Цена комплекта
-              задаётся отдельно в поле «Цена» выше.
+              Сумма компонентов теперь используется как цена комплекта для клиента,
+              если отдельная цена в поле «Цена» выше не указана.
             </div>
 
             {items.length > 0 ? (
@@ -834,6 +834,9 @@ export function NewProductForm({
               defaultValue={defaults?.imageUrls[0] ?? ""}
               className={inputClassName}
             />
+            <span className="text-xs leading-5 text-[var(--muted)]">
+              Для комплекта можно оставить пустым: цена рассчитается из выбранных товаров.
+            </span>
           </FieldLabel>
         </div>
 

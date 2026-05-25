@@ -1,8 +1,10 @@
 import { OrderStatus, RequestFileKind, RequestStatus } from "@/generated/prisma";
+import { getEffectiveProductPrice } from "@/features/catalog/bundle-pricing";
 
 import { verifySession } from "@/lib/auth/dal";
 import { getDb } from "@/lib/db";
 import { getClientOperationEvents } from "@/lib/server/operation-events";
+import { ensureProductBundleItemsTable } from "@/lib/server/product-bundle-schema";
 import { ensureTelegramUserColumns } from "@/lib/server/telegram-user-schema";
 
 const activeOrderStatuses = [
@@ -275,8 +277,9 @@ export async function getAccountRequests(userId: string) {
 
 export async function getAccountFavorites(userId: string) {
   const db = getDb();
+  await ensureProductBundleItemsTable(db);
 
-  return db.favorite.findMany({
+  const favorites = await db.favorite.findMany({
     where: { userId },
     orderBy: { createdAt: "desc" },
     select: {
@@ -288,6 +291,16 @@ export async function getAccountFavorites(userId: string) {
           name: true,
           sku: true,
           price: true,
+          bundleItems: {
+            select: {
+              quantity: true,
+              componentProduct: {
+                select: {
+                  price: true,
+                },
+              },
+            },
+          },
           orderMode: true,
           brand: {
             select: {
@@ -298,4 +311,12 @@ export async function getAccountFavorites(userId: string) {
       },
     },
   });
+
+  return favorites.map((favorite) => ({
+    ...favorite,
+    product: {
+      ...favorite.product,
+      price: getEffectiveProductPrice(favorite.product),
+    },
+  }));
 }

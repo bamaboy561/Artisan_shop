@@ -10,6 +10,7 @@ import type {
 import { getDb, hasDatabaseUrl } from "@/lib/db";
 import { ensureBrandLogoColumn } from "@/lib/server/brand-schema";
 import { ensureProductBundleItemsTable } from "@/lib/server/product-bundle-schema";
+import { getEffectiveProductPrice } from "@/features/catalog/bundle-pricing";
 import {
   getProductBundleInfo,
   isBundleAttributeName,
@@ -175,6 +176,7 @@ function mapCatalogBundleItems(
   const linkedItems = product.bundleItems.map((item) => {
     const component = item.componentProduct;
     const brandPrefix = component.brand?.name ? `${component.brand.name} ` : "";
+    const unitPrice = component.price ?? undefined;
 
     return {
       label: `${brandPrefix}${component.name} — ${item.quantity} шт.`,
@@ -184,7 +186,9 @@ function mapCatalogBundleItems(
       brand: component.brand?.name ?? undefined,
       image: component.images[0]?.url,
       quantity: item.quantity,
-      unitPrice: component.price ?? undefined,
+      unitPrice,
+      lineTotal:
+        typeof unitPrice === "number" ? unitPrice * item.quantity : undefined,
     };
   });
   const legacyInfo = getProductBundleInfo(product.attributes);
@@ -236,6 +240,10 @@ function mapProduct(product: PrismaProductWithRelations): FeaturedProduct {
   const decorGroup = getProductDecorGroup(product);
   const bundleInfo = getProductBundleInfo(product.attributes);
   const bundleItems = mapCatalogBundleItems(product);
+  const effectivePrice = getEffectiveProductPrice({
+    price: product.price,
+    bundleItems,
+  });
   const publicAttributes = product.attributes.filter(
     (attribute) => !isBundleAttributeName(attribute.name),
   );
@@ -249,7 +257,7 @@ function mapProduct(product: PrismaProductWithRelations): FeaturedProduct {
     categoryName: product.category.name,
     image: gallery[0] ?? "",
     gallery,
-    price: product.price ?? undefined,
+    price: effectivePrice ?? undefined,
     oldPrice: product.compareAtPrice ?? undefined,
     sku: product.sku,
     inStock,

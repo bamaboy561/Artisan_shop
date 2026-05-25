@@ -14,6 +14,7 @@ import {
   getProductBundleInfo,
   isBundleAttributeName,
 } from "@/features/catalog/bundles";
+import { getEffectiveProductPrice } from "@/features/catalog/bundle-pricing";
 import { requireAdminSession } from "@/lib/auth/dal";
 import { getDb, hasDatabaseUrl } from "@/lib/db";
 import { getAdminProductFormOptions } from "@/lib/server/catalog-admin";
@@ -92,6 +93,11 @@ export default async function EditProductPage({ params }: EditProductPageProps) 
           select: {
             componentProductId: true,
             quantity: true,
+            componentProduct: {
+              select: {
+                price: true,
+              },
+            },
           },
         },
         _count: {
@@ -108,6 +114,12 @@ export default async function EditProductPage({ params }: EditProductPageProps) 
   if (!product) notFound();
 
   const bundleInfo = getProductBundleInfo(product.attributes);
+  const effectivePrice = getEffectiveProductPrice(product);
+  const hasAutoBundlePrice =
+    product.bundleItems.length > 0 &&
+    (!product.price || product.price <= 0) &&
+    effectivePrice !== null &&
+    effectivePrice > 0;
   const publicAttributes = product.attributes.filter(
     (attribute) => !isBundleAttributeName(attribute.name),
   );
@@ -213,8 +225,13 @@ export default async function EditProductPage({ params }: EditProductPageProps) 
             Цена
           </p>
           <p className="mt-3 text-2xl font-semibold text-[var(--foreground)]">
-            {formatPrice(product.price)}
+            {formatPrice(effectivePrice)}
           </p>
+          {hasAutoBundlePrice ? (
+            <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
+              Автоматически из состава комплекта
+            </p>
+          ) : null}
         </div>
         <div className="surface-glow rounded-[20px] border border-[color:var(--line)] bg-white/90 p-4">
           <p className="font-mono text-[10px] tracking-[0.18em] text-[var(--muted)] uppercase">

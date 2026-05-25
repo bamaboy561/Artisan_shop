@@ -26,6 +26,7 @@ import {
   BUNDLE_MARKER_ATTRIBUTE_VALUE,
   isBundleAttributeName,
 } from "@/features/catalog/bundles";
+import { getEffectiveProductPrice } from "@/features/catalog/bundle-pricing";
 import {
   handleOrderUpdated,
   handleOrderCreated,
@@ -2632,6 +2633,7 @@ export async function createSalesFloorOrderAction(formData: FormData) {
   }
 
   const db = getDb();
+  await ensureProductBundleItemsTable(db);
   const uniqueProductIds = [...new Set(requestedItems.map((item) => item.productId))];
   const [customer, products] = await Promise.all([
     db.user.findFirst({
@@ -2661,13 +2663,23 @@ export async function createSalesFloorOrderAction(formData: FormData) {
       where: {
         id: { in: uniqueProductIds },
         status: ProductStatus.ACTIVE,
-        price: { not: null },
+        OR: [{ price: { not: null } }, { bundleItems: { some: {} } }],
       },
       select: {
         id: true,
         name: true,
         sku: true,
         price: true,
+        bundleItems: {
+          select: {
+            quantity: true,
+            componentProduct: {
+              select: {
+                price: true,
+              },
+            },
+          },
+        },
         brand: { select: { name: true } },
       },
     }),
@@ -2683,12 +2695,13 @@ export async function createSalesFloorOrderAction(formData: FormData) {
     : 0;
   const orderItems = requestedItems.flatMap((requestedItem) => {
     const product = productMap.get(requestedItem.productId);
+    const unitPrice = product ? getEffectiveProductPrice(product) : null;
 
-    if (!product?.price) {
+    if (!product || typeof unitPrice !== "number" || unitPrice <= 0) {
       return [];
     }
 
-    const lineSubtotal = product.price * requestedItem.quantity;
+    const lineSubtotal = unitPrice * requestedItem.quantity;
     const discountAmount = Math.round((lineSubtotal * discountPercent) / 100);
     const total = Math.max(0, lineSubtotal - discountAmount);
 
@@ -2696,7 +2709,7 @@ export async function createSalesFloorOrderAction(formData: FormData) {
       {
         productId: product.id,
         quantity: requestedItem.quantity,
-        unitPrice: product.price,
+        unitPrice,
         discountAmount,
         total,
         snapshotName: product.name,

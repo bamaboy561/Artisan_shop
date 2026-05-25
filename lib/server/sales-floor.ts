@@ -1,8 +1,11 @@
 import { ProductStatus, RoleCode } from "@/generated/prisma";
+import { getEffectiveProductPrice } from "@/features/catalog/bundle-pricing";
 import { getDb } from "@/lib/db";
+import { ensureProductBundleItemsTable } from "@/lib/server/product-bundle-schema";
 
 export async function getSalesFloorData() {
   const db = getDb();
+  await ensureProductBundleItemsTable(db);
 
   const [customers, products] = await Promise.all([
     db.user.findMany({
@@ -31,7 +34,7 @@ export async function getSalesFloorData() {
     db.product.findMany({
       where: {
         status: ProductStatus.ACTIVE,
-        price: { not: null },
+        OR: [{ price: { not: null } }, { bundleItems: { some: {} } }],
       },
       orderBy: [{ updatedAt: "desc" }, { name: "asc" }],
       take: 600,
@@ -41,6 +44,16 @@ export async function getSalesFloorData() {
         sku: true,
         price: true,
         stockQuantity: true,
+        bundleItems: {
+          select: {
+            quantity: true,
+            componentProduct: {
+              select: {
+                price: true,
+              },
+            },
+          },
+        },
         brand: {
           select: {
             name: true,
@@ -64,6 +77,11 @@ export async function getSalesFloorData() {
 
   return {
     customers,
-    products,
+    products: products
+      .map((product) => ({
+        ...product,
+        price: getEffectiveProductPrice(product),
+      }))
+      .filter((product) => typeof product.price === "number"),
   };
 }

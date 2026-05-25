@@ -8,6 +8,7 @@ import {
   OrderStatus,
   PromotionTargetType,
 } from "@/generated/prisma";
+import { getEffectiveProductPrice } from "@/features/catalog/bundle-pricing";
 import { getOptionalSession } from "@/lib/auth/dal";
 import { formatPrice } from "@/lib/commerce";
 import { getDb, hasDatabaseUrl } from "@/lib/db";
@@ -209,6 +210,16 @@ export async function submitCheckoutAction(
       name: true,
       sku: true,
       price: true,
+      bundleItems: {
+        select: {
+          quantity: true,
+          componentProduct: {
+            select: {
+              price: true,
+            },
+          },
+        },
+      },
       brand: {
         select: {
           name: true,
@@ -233,7 +244,9 @@ export async function submitCheckoutAction(
 
   const missingPrices = cartItems.some((item) => {
     const product = productMap.get(item.productSlug);
-    return typeof product?.price !== "number";
+    const unitPrice = product ? getEffectiveProductPrice(product) : null;
+
+    return typeof unitPrice !== "number" || unitPrice <= 0;
   });
 
   if (missingPrices) {
@@ -245,7 +258,7 @@ export async function submitCheckoutAction(
 
   const orderItems = cartItems.map((item) => {
     const product = productMap.get(item.productSlug);
-    const unitPrice = product?.price ?? 0;
+    const unitPrice = product ? (getEffectiveProductPrice(product) ?? 0) : 0;
     const lineSubtotal = unitPrice * item.quantity;
 
     return {
