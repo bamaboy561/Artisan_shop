@@ -1,4 +1,4 @@
-import { ProductStatus, RoleCode } from "@/generated/prisma";
+import { RoleCode } from "@/generated/prisma";
 import { getEffectiveProductPrice } from "@/features/catalog/bundle-pricing";
 import { getDb } from "@/lib/db";
 import { ensureProductBundleItemsTable } from "@/lib/server/product-bundle-schema";
@@ -32,12 +32,8 @@ export async function getSalesFloorData() {
       },
     }),
     db.product.findMany({
-      where: {
-        status: ProductStatus.ACTIVE,
-        OR: [{ price: { not: null } }, { bundleItems: { some: {} } }],
-      },
       orderBy: [{ updatedAt: "desc" }, { name: "asc" }],
-      take: 600,
+      take: 5000,
       select: {
         id: true,
         name: true,
@@ -77,11 +73,9 @@ export async function getSalesFloorData() {
 
   return {
     customers,
-    products: products
-      .map((product) => ({
-        ...product,
-        price: getEffectiveProductPrice(product),
-      }))
-      .filter((product) => typeof product.price === "number"),
+    products: products.map((product) => ({
+      ...product,
+      price: getEffectiveProductPrice(product),
+    })),
   };
 }

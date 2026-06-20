@@ -17,9 +17,7 @@ import { Input } from "@/components/ui/input";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { requireAdminSession } from "@/lib/auth/dal";
 import { hasDatabaseUrl, isDemoModeEnabled } from "@/lib/db";
-import {
-  getAdminManagers,
-} from "@/lib/server/operations-admin";
+import { getAdminManagers } from "@/lib/server/operations-admin";
 import { getRequestInbox } from "@/lib/server/request-inbox";
 import {
   activeRequestStatuses,
@@ -134,8 +132,12 @@ export default async function AdminRequestsPage({
   const activeRequests = requests.filter((request) =>
     activeRequestStatuses.has(request.status),
   );
-  const unassignedRequests = activeRequests.filter((request) => !request.managerId);
-  const requestsWithFiles = requests.filter((request) => request._count.files > 0);
+  const unassignedRequests = activeRequests.filter(
+    (request) => !request.managerId,
+  );
+  const requestsWithFiles = requests.filter(
+    (request) => request._count.files > 0,
+  );
   const cuttingRequests = requests.filter(
     (request) => request.type === RequestType.CUTTING_SERVICE,
   );
@@ -188,7 +190,8 @@ export default async function AdminRequestsPage({
     state.files !== "all"
       ? {
           key: "files",
-          label: state.files === "with-files" ? "Только с файлами" : "Без файлов",
+          label:
+            state.files === "with-files" ? "Только с файлами" : "Без файлов",
           href: getStateHref(state, { files: "all" }),
         }
       : null,
@@ -230,7 +233,9 @@ export default async function AdminRequestsPage({
     ),
     details: (
       <div className="space-y-2">
-        <p className="font-medium text-[var(--foreground)]">{request.subject}</p>
+        <p className="font-medium text-[var(--foreground)]">
+          {request.subject}
+        </p>
         <p className="text-xs text-[var(--muted)]">
           {request.product?.name ?? request.material ?? "Материал не указан"}
         </p>
@@ -387,7 +392,11 @@ export default async function AdminRequestsPage({
           </div>
         </div>
 
-        <Form action="/admin/requests" scroll={false} className="mt-6 grid gap-4 xl:grid-cols-5">
+        <Form
+          action="/admin/requests"
+          scroll={false}
+          className="mt-6 grid gap-4 xl:grid-cols-5"
+        >
           <label className="grid gap-2 xl:col-span-2">
             <span className="text-sm text-[var(--foreground)]">
               Поиск по номеру, клиенту, теме, материалу или SKU

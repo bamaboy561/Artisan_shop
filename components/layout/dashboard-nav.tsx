@@ -8,6 +8,7 @@ import {
   FileText,
   FileStack,
   FolderTree,
+  Gift,
   Layers3,
   LayoutDashboard,
   Package2,
@@ -34,6 +35,7 @@ const iconMap = {
   "/admin/brands": Layers3,
   "/admin/products": Package2,
   "/admin/users": Users2,
+  "/admin/loyalty": Gift,
   "/admin/orders": ReceiptText,
   "/admin/sales-floor": ShoppingBag,
   "/admin/requests": FileStack,
@@ -53,13 +55,7 @@ function isItemActive(pathname: string, href: string) {
     : pathname === href || pathname.startsWith(`${href}/`);
 }
 
-function AdminNavItem({
-  item,
-  pathname,
-}: {
-  item: NavItem;
-  pathname: string;
-}) {
+function AdminNavItem({ item, pathname }: { item: NavItem; pathname: string }) {
   const Icon = iconMap[item.href as keyof typeof iconMap] ?? LayoutDashboard;
   const active = isItemActive(pathname, item.href);
 
@@ -68,7 +64,7 @@ function AdminNavItem({
       href={item.href}
       title={item.description ?? item.label}
       className={cn(
-        "group flex h-10 shrink-0 items-center justify-between gap-3 rounded-lg px-3 text-[13px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 lg:w-full",
+        "group flex h-10 shrink-0 items-center justify-between gap-3 rounded-lg px-3 text-[13px] font-medium transition focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:outline-none lg:w-full",
         active
           ? "bg-[#a8492b] text-white shadow-[0_12px_26px_rgba(168,73,43,0.28)]"
           : "text-white/76 hover:bg-white/[0.075] hover:text-white",
@@ -116,7 +112,7 @@ function AccountNav({
               href={item.href}
               title={item.description ?? item.label}
               className={cn(
-                "group flex min-w-0 items-center gap-3 rounded-[18px] px-3 py-3 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#111111]",
+                "group flex min-w-0 items-center gap-3 rounded-[18px] px-3 py-3 transition focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#111111] focus-visible:outline-none",
                 active
                   ? "bg-white text-[#111111]"
                   : "text-white/76 hover:bg-white/[0.06] hover:text-white",
@@ -182,7 +178,7 @@ function AccountMobileNav({
             title={item.description ?? item.label}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "flex h-[58px] min-w-0 flex-col items-center justify-center gap-1 rounded-[16px] border px-1.5 text-center text-[9px] font-bold uppercase tracking-[0.08em] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70",
+              "flex h-[58px] min-w-0 flex-col items-center justify-center gap-1 rounded-[16px] border px-1.5 text-center text-[9px] font-bold tracking-[0.08em] uppercase transition focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:outline-none",
               active
                 ? "border-white bg-white text-[#111111] shadow-[0_8px_24px_rgba(255,255,255,0.08)]"
                 : "border-white/10 bg-white/[0.055] text-white/62 hover:border-white/25 hover:bg-white/[0.1] hover:text-white",

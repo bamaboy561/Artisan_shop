@@ -58,7 +58,9 @@ function formatPrice(value: number | null) {
   }).format(value)} сом`;
 }
 
-export default async function EditProductPage({ params }: EditProductPageProps) {
+export default async function EditProductPage({
+  params,
+}: EditProductPageProps) {
   if (!hasDatabaseUrl()) notFound();
 
   await requireAdminSession("/login?next=/admin/products");

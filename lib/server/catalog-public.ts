@@ -15,6 +15,10 @@ import {
   getProductBundleInfo,
   isBundleAttributeName,
 } from "@/features/catalog/bundles";
+import {
+  getBrandAliasSlugs,
+  normalizeBrandSlug,
+} from "@/features/catalog/data";
 import type {
   Brand,
   CalculatorMaterialId,
@@ -80,16 +84,240 @@ const PRODUCT_INCLUDE = {
   },
 };
 
+const CALCULATOR_MATERIAL_IDS: readonly CalculatorMaterialId[] = [
+  "ldsp-10",
+  "ldsp-16",
+  "ldsp-18",
+  "ldsp-22",
+  "ldsp-25",
+  "mdf-6",
+  "mdf-8",
+  "mdf-10",
+  "mdf-16",
+  "mdf-18",
+  "mdf-22",
+  "mdf-25",
+  "mdf-agt-18",
+  "mdf-agt-22",
+  "countertop-26",
+  "countertop-28",
+  "countertop-38",
+  "countertop-40",
+  "hpl-3",
+  "hpl-4",
+  "hpl-6",
+  "hpl-8",
+  "hpl-10",
+  "hpl-12",
+];
+
+const CALCULATOR_SHEET_PRESET_IDS: readonly CalculatorSheetPresetId[] = [
+  "2440x1220",
+  "2500x1250",
+  "2800x2070",
+  "2750x1830",
+  "2800x1220",
+  "3050x1220",
+  "3660x1830",
+  "4100x600",
+  "4100x1200",
+  "4200x600",
+  "4200x1200",
+  "3050x1300",
+  "3050x1320",
+  "3660x1320",
+  "4200x1320",
+];
+
 function isCalculatorMaterialId(value: string): value is CalculatorMaterialId {
-  return value === "ldsp-16" || value === "mdf-16";
+  return CALCULATOR_MATERIAL_IDS.includes(value as CalculatorMaterialId);
 }
 
 function isCalculatorSheetPresetId(
   value: string,
 ): value is CalculatorSheetPresetId {
-  return (
-    value === "2800x2070" || value === "2750x1830" || value === "2800x1220"
-  );
+  return CALCULATOR_SHEET_PRESET_IDS.includes(value as CalculatorSheetPresetId);
+}
+
+function inferThicknessMm(product: PrismaProductWithRelations) {
+  if (product.thicknessMm) {
+    return product.thicknessMm;
+  }
+
+  const text = [product.name, product.format].filter(Boolean).join(" ");
+  const matches = [...text.matchAll(/(\d{1,2})(?:[.,]\d+)?\s*(?:мм|mm)\b/giu)]
+    .map((match) => Number(match[1]))
+    .filter((value) => value >= 3 && value <= 60);
+
+  return matches.at(-1) ?? null;
+}
+
+function materialIdWithThickness(
+  prefix: string,
+  thicknessMm: number | null,
+  fallback: CalculatorMaterialId,
+) {
+  if (!thicknessMm) return fallback;
+
+  return `${prefix}-${thicknessMm}`;
+}
+
+function inferSheetIdFromFormat(format: string | null | undefined) {
+  const match = (format ?? "").match(/(\d{3,4})\s*(?:x|х|×|\*)\s*(\d{3,4})/iu);
+
+  if (!match) {
+    return undefined;
+  }
+
+  return `${match[1]}x${match[2]}`;
+}
+
+function applyManualThicknessToMaterialId(
+  materialId: CalculatorMaterialId,
+  thicknessMm: number | null,
+) {
+  if (materialId.startsWith("mdf-agt-")) {
+    const storedThickness = Number.parseInt(
+      materialId.replace("mdf-agt-", ""),
+      10,
+    );
+    const nextThickness = thicknessMm ?? storedThickness;
+
+    return `mdf-${nextThickness}` as CalculatorMaterialId;
+  }
+
+  if (!thicknessMm) return materialId;
+
+  if (materialId.startsWith("hpl-")) {
+    return `hpl-${thicknessMm}`;
+  }
+
+  if (materialId.startsWith("countertop-")) {
+    return `countertop-${thicknessMm}`;
+  }
+
+  return materialId;
+}
+
+function getProductFormatLabel(product: PrismaProductWithRelations) {
+  const format = product.format?.trim() ?? "";
+
+  if (!product.thicknessMm) {
+    return format;
+  }
+
+  const thicknessLabel = `${product.thicknessMm} мм`;
+  const hasThickness = new RegExp(
+    `\\b${product.thicknessMm}\\s*(?:мм|mm)\\b`,
+    "iu",
+  ).test(format);
+
+  if (!format) {
+    return thicknessLabel;
+  }
+
+  return hasThickness ? format : `${format}, ${thicknessLabel}`;
+}
+
+function inferCalculatorMaterialId(
+  product: PrismaProductWithRelations,
+): CalculatorMaterialId | undefined {
+  if (
+    product.calculatorMaterialId &&
+    isCalculatorMaterialId(product.calculatorMaterialId)
+  ) {
+    return applyManualThicknessToMaterialId(
+      product.calculatorMaterialId,
+      inferThicknessMm(product),
+    );
+  }
+
+  const searchText = buildSearchText([
+    product.name,
+    product.brand?.slug,
+    product.brand?.name,
+    product.category.slug,
+    product.category.name,
+    product.format,
+  ]);
+  const thicknessMm = inferThicknessMm(product);
+
+  if (
+    searchText.includes("agt") ||
+    searchText.includes("trendy") ||
+    searchText.includes("supramat")
+  ) {
+    return materialIdWithThickness("mdf", thicknessMm, "mdf-18");
+  }
+
+  if (searchText.includes("hpl")) {
+    return materialIdWithThickness("hpl", thicknessMm, "hpl-12");
+  }
+
+  if (searchText.includes("столеш")) {
+    return materialIdWithThickness("countertop", thicknessMm, "countertop-38");
+  }
+
+  if (searchText.includes("мдф") || searchText.includes("mdf")) {
+    return materialIdWithThickness("mdf", thicknessMm, "mdf-18");
+  }
+
+  if (
+    searchText.includes("лдсп") ||
+    searchText.includes("ldsp") ||
+    searchText.includes("extravert")
+  ) {
+    return materialIdWithThickness("ldsp", thicknessMm, "ldsp-16");
+  }
+
+  return undefined;
+}
+
+function inferCalculatorSheetPresetId(
+  product: PrismaProductWithRelations,
+  materialId?: CalculatorMaterialId,
+): CalculatorSheetPresetId | undefined {
+  if (
+    product.calculatorSheetPresetId &&
+    isCalculatorSheetPresetId(product.calculatorSheetPresetId)
+  ) {
+    return product.calculatorSheetPresetId;
+  }
+
+  const formatSheetId = inferSheetIdFromFormat(product.format);
+  if (formatSheetId) {
+    return formatSheetId;
+  }
+
+  switch (materialId) {
+    case "countertop-26":
+    case "countertop-28":
+    case "countertop-38":
+    case "countertop-40":
+      return "4100x600";
+    case "hpl-3":
+    case "hpl-4":
+    case "hpl-6":
+    case "hpl-8":
+    case "hpl-10":
+    case "hpl-12":
+      return "3050x1320";
+    case "ldsp-10":
+    case "ldsp-16":
+    case "ldsp-18":
+    case "ldsp-22":
+    case "ldsp-25":
+    case "mdf-6":
+    case "mdf-8":
+    case "mdf-10":
+    case "mdf-16":
+    case "mdf-18":
+    case "mdf-22":
+    case "mdf-25":
+      return "2800x2070";
+    default:
+      return undefined;
+  }
 }
 
 function buildSearchText(parts: Array<string | null | undefined>) {
@@ -207,6 +435,7 @@ function mapCatalogBundleItems(
 
 function mapProduct(product: PrismaProductWithRelations): FeaturedProduct {
   const gallery = product.images.map((image) => image.url);
+  const displayFormat = getProductFormatLabel(product);
   const inStock =
     product.inventoryStatus === "IN_STOCK" ||
     product.inventoryStatus === "LIMITED";
@@ -227,16 +456,11 @@ function mapProduct(product: PrismaProductWithRelations): FeaturedProduct {
           ? "Сейчас нет на складе. Возможна поставка под заказ."
           : "Наличие, формат партии и итоговая стоимость уточняются менеджером после запроса.";
 
-  const calculatorMaterialId =
-    product.calculatorMaterialId &&
-    isCalculatorMaterialId(product.calculatorMaterialId)
-      ? product.calculatorMaterialId
-      : undefined;
-  const sheetPresetId =
-    product.calculatorSheetPresetId &&
-    isCalculatorSheetPresetId(product.calculatorSheetPresetId)
-      ? product.calculatorSheetPresetId
-      : undefined;
+  const calculatorMaterialId = inferCalculatorMaterialId(product);
+  const sheetPresetId = inferCalculatorSheetPresetId(
+    product,
+    calculatorMaterialId,
+  );
   const decorGroup = getProductDecorGroup(product);
   const bundleInfo = getProductBundleInfo(product.attributes);
   const bundleItems = mapCatalogBundleItems(product);
@@ -252,7 +476,9 @@ function mapProduct(product: PrismaProductWithRelations): FeaturedProduct {
     slug: product.slug,
     name: product.name,
     brand: product.brand?.name ?? "",
-    brandSlug: product.brand?.slug ?? "",
+    brandSlug: product.brand?.slug
+      ? normalizeBrandSlug(product.brand.slug)
+      : "",
     categorySlug: product.category.slug,
     categoryName: product.category.name,
     image: gallery[0] ?? "",
@@ -261,7 +487,7 @@ function mapProduct(product: PrismaProductWithRelations): FeaturedProduct {
     oldPrice: product.compareAtPrice ?? undefined,
     sku: product.sku,
     inStock,
-    format: product.format ?? "",
+    format: displayFormat,
     summary: product.summary ?? "",
     description: product.description ?? "",
     seoTitle: product.seoTitle ?? undefined,
@@ -286,6 +512,7 @@ function mapProduct(product: PrismaProductWithRelations): FeaturedProduct {
       product.brand?.name,
       product.category.name,
       product.summary,
+      displayFormat,
       ...bundleItems.map((item) => item.label),
     ]),
     calculatorMaterialId,
@@ -317,7 +544,7 @@ function mapBrand(
   categorySlug: string | null,
 ): Brand {
   return {
-    slug: brand.slug,
+    slug: normalizeBrandSlug(brand.slug),
     name: brand.name,
     description: brand.description ?? "",
     country: brand.country ?? "",
@@ -400,6 +627,16 @@ const FALLBACK_PUBLIC_BRANDS: Brand[] = [
     productCount: 0,
     highlight: "МДФ панели Trendy и Supramat.",
     categorySlug: "mdf-panels",
+  },
+  {
+    slug: "albero",
+    name: "Albero",
+    description: "Премиальные МДФ панели для фасадов и интерьерных акцентов.",
+    country: "",
+    productCount: 0,
+    highlight: "Премиальный МДФ для выразительных мебельных проектов.",
+    categorySlug: "mdf-panels",
+    logoUrl: "/brands/albero-logo.png",
   },
   {
     slug: "swiss-krono",
@@ -577,10 +814,11 @@ export async function getPublicProductsByBrand(
   return withPublicDbFallback("getPublicProductsByBrand", [], async () => {
     const db = getDb();
     await ensureProductBundleItemsTable(db);
+    const brandSlugs = getBrandAliasSlugs(brandSlug);
     const products = await db.product.findMany({
       where: {
         status: ProductStatus.ACTIVE,
-        brand: { slug: brandSlug },
+        brand: { slug: { in: brandSlugs } },
       },
       orderBy: [{ isFeatured: "desc" }, { updatedAt: "desc" }],
       include: PRODUCT_INCLUDE,

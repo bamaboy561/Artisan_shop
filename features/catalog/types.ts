@@ -45,9 +45,9 @@ export type ProductBundleItem = {
   lineTotal?: number;
 };
 
-export type CalculatorMaterialId = "ldsp-16" | "mdf-16";
+export type CalculatorMaterialId = string;
 
-export type CalculatorSheetPresetId = "2800x2070" | "2750x1830" | "2800x1220";
+export type CalculatorSheetPresetId = string;
 
 export type CalculatorProductContext = {
   slug: string;

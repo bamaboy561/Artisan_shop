@@ -38,7 +38,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       lastModified: category.updatedAt ?? now,
       changeFrequency: "daily" as const,
       priority: 0.9,
-      images: category.coverImage ? [absoluteUrl(category.coverImage)] : undefined,
+      images: category.coverImage
+        ? [absoluteUrl(category.coverImage)]
+        : undefined,
     })),
     ...products.map((product) => ({
       url: canonicalUrl(`/product/${product.slug}`),
@@ -54,7 +56,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       url: canonicalUrl(`/brands/${brand.slug}`),
       lastModified: brand.updatedAt ?? now,
       changeFrequency:
-        brand.contentStatus === "active" ? ("weekly" as const) : ("monthly" as const),
+        brand.contentStatus === "active"
+          ? ("weekly" as const)
+          : ("monthly" as const),
       priority: brand.contentStatus === "active" ? 0.76 : 0.48,
       images: brand.logoUrl ? [absoluteUrl(brand.logoUrl)] : undefined,
     })),

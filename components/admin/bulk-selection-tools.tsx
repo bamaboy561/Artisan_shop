@@ -25,7 +25,9 @@ export function BulkSelectionTools({
       const checkboxes = readCheckboxes(checkboxSelector);
 
       setAvailableCount(checkboxes.length);
-      setSelectedCount(checkboxes.filter((checkbox) => checkbox.checked).length);
+      setSelectedCount(
+        checkboxes.filter((checkbox) => checkbox.checked).length,
+      );
     };
 
     syncState();

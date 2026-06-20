@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import {
   ArrowUpRight,
   BadgePercent,
@@ -20,11 +21,13 @@ import {
   getLoyaltyTierBenefits,
   getLoyaltyTierLabel,
   loyaltyTierOrder,
+  type LoyaltyProgramConfig,
 } from "@/lib/server/pricing";
 import { cn } from "@/lib/utils";
 
 type LoyaltyOverviewProps = {
   user: {
+    id: string;
     firstName: string | null;
     lastName: string | null;
     email: string;
@@ -36,13 +39,16 @@ type LoyaltyOverviewProps = {
     telegramNotifyOrders: boolean;
     telegramNotifyRequests: boolean;
     telegramNotifyLoyalty: boolean;
+    telegramNotifyPromotions: boolean;
     loyaltyTier: LoyaltyTier;
     loyaltyPointsBalance: number;
     loyaltyPointsLifetime: number;
+    currentMonthPurchaseTotal: number;
     personalDiscountPercent: number;
     roleName: string;
   };
   effectiveDiscount: number;
+  loyaltyConfig: LoyaltyProgramConfig;
   summary: {
     ordersCount: number;
     activeOrdersCount: number;
@@ -82,14 +88,22 @@ function getTierTone(tier: LoyaltyTier) {
 export function LoyaltyOverview({
   user,
   effectiveDiscount,
+  loyaltyConfig,
   summary,
   progress,
 }: LoyaltyOverviewProps) {
-  const currentBenefits = getLoyaltyTierBenefits(user.loyaltyTier);
+  const currentBenefits = getLoyaltyTierBenefits(
+    user.loyaltyTier,
+    loyaltyConfig,
+  );
   const displayName =
     [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email;
+  const clientQrPayload = `artisan-client:${user.id}`;
+  const clientQrUrl = `/api/qr?size=220&margin=3&data=${encodeURIComponent(
+    clientQrPayload,
+  )}`;
   const nextTierLabel = progress.nextTier
-    ? getLoyaltyTierLabel(progress.nextTier)
+    ? getLoyaltyTierLabel(progress.nextTier, loyaltyConfig)
     : "Максимальный статус";
 
   const stats = [
@@ -161,7 +175,7 @@ export function LoyaltyOverview({
                 tone={getTierTone(user.loyaltyTier)}
                 className="border-white/10 bg-white text-[#111111]"
               >
-                {getLoyaltyTierLabel(user.loyaltyTier)}
+                {getLoyaltyTierLabel(user.loyaltyTier, loyaltyConfig)}
               </StatusBadge>
               <span className="rounded-md border border-white/10 bg-white/[0.06] px-2 py-1 text-xs font-medium text-white/72">
                 Скидка {effectiveDiscount}%
@@ -173,7 +187,7 @@ export function LoyaltyOverview({
                 <p className="font-mono text-[10px] tracking-[0.22em] text-white/42 uppercase">
                   {displayName}
                 </p>
-                <h2 className="mt-2 text-[2.05rem] font-semibold leading-[0.95] tracking-[-0.055em] text-white sm:text-5xl">
+                <h2 className="mt-2 text-[2.05rem] leading-[0.95] font-semibold tracking-[-0.055em] text-white sm:text-5xl">
                   {formatNumber(user.loyaltyPointsBalance)}
                 </h2>
                 <p className="mt-2 text-sm text-white/58">
@@ -188,7 +202,8 @@ export function LoyaltyOverview({
                     <span className="text-[11px]">Кэшбэк</span>
                   </div>
                   <p className="mt-2 text-xl font-semibold">
-                    {currentBenefits.accrualPercent}%
+                    {currentBenefits.plateMaterialAccrualPercent}% /{" "}
+                    {currentBenefits.fittingsAccrualPercent}%
                   </p>
                 </div>
                 <div className="rounded-[18px] border border-white/10 bg-white/[0.06] p-3">
@@ -257,7 +272,11 @@ export function LoyaltyOverview({
                   <Link
                     key={action.href}
                     href={action.href}
-                    target={"external" in action && action.external ? "_blank" : undefined}
+                    target={
+                      "external" in action && action.external
+                        ? "_blank"
+                        : undefined
+                    }
                     className="group flex min-w-0 items-center justify-between gap-3 rounded-[18px] border border-white/10 bg-white/[0.065] p-3 transition hover:border-white/25 hover:bg-white/[0.1]"
                   >
                     <span className="flex min-w-0 items-center gap-3">
@@ -281,6 +300,28 @@ export function LoyaltyOverview({
                 );
               })}
             </div>
+
+            <div className="rounded-[18px] border border-white/10 bg-white p-3 text-[#111111]">
+              <div className="grid grid-cols-[82px_minmax(0,1fr)] items-center gap-3">
+                <Image
+                  src={clientQrUrl}
+                  alt="QR клиента Artisan"
+                  width={82}
+                  height={82}
+                  unoptimized
+                  className="rounded-xl border border-[#eee8de] bg-white"
+                />
+                <div className="min-w-0">
+                  <p className="font-mono text-[10px] tracking-[0.18em] text-[#9a5638] uppercase">
+                    QR клиента
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-[#5d574f]">
+                    Покажите менеджеру в зале для быстрого выбора профиля и
+                    начисления бонусов.
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </article>
@@ -297,7 +338,7 @@ export function LoyaltyOverview({
           </h3>
           <p className="mt-1 text-sm leading-6 text-[var(--muted)]">
             {user.telegramLinked
-              ? "Клиент получает обновления по заказам, заявкам на распил и бонусам прямо в Telegram."
+              ? "Клиент получает обновления по заказам, заявкам на распил, бонусам и акциям прямо в Telegram."
               : "После подключения клиент увидит кнопки «Мои заказы», «Мои заявки», «Баллы и скидка» без ручных команд."}
           </p>
         </div>
@@ -342,9 +383,10 @@ export function LoyaltyOverview({
 
       <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
         {loyaltyTierOrder.map((tier) => {
-          const benefits = getLoyaltyTierBenefits(tier);
+          const benefits = getLoyaltyTierBenefits(tier, loyaltyConfig);
           const isCurrent = tier === user.loyaltyTier;
-          const isUnlocked = user.loyaltyPointsLifetime >= benefits.threshold;
+          const isUnlocked =
+            user.currentMonthPurchaseTotal >= benefits.threshold;
           const isUpcoming = progress.nextTier === tier;
 
           return (
@@ -359,7 +401,7 @@ export function LoyaltyOverview({
             >
               <div className="flex items-center justify-between gap-3">
                 <StatusBadge tone={getTierTone(tier)}>
-                  {getLoyaltyTierLabel(tier)}
+                  {getLoyaltyTierLabel(tier, loyaltyConfig)}
                 </StatusBadge>
                 <span className="text-[10px] tracking-[0.14em] text-[var(--muted)] uppercase">
                   {benefits.threshold === 0
@@ -372,13 +414,13 @@ export function LoyaltyOverview({
                 <div>
                   <p className="text-xs text-[var(--muted)]">Скидка</p>
                   <p className="mt-1 text-xl font-semibold text-[var(--foreground)]">
-                    {benefits.baseDiscountPercent}%
+                    {benefits.plateMaterialAccrualPercent}%
                   </p>
                 </div>
                 <div>
                   <p className="text-xs text-[var(--muted)]">Баллы</p>
                   <p className="mt-1 text-xl font-semibold text-[var(--foreground)]">
-                    {benefits.accrualPercent}%
+                    {benefits.fittingsAccrualPercent}%
                   </p>
                 </div>
               </div>

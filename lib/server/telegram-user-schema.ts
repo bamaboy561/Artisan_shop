@@ -25,6 +25,9 @@ export function ensureTelegramUserColumns(db: DbClient) {
       'ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "telegramNotifyLoyalty" BOOLEAN NOT NULL DEFAULT true',
     );
     await db.$executeRawUnsafe(
+      'ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "telegramNotifyPromotions" BOOLEAN NOT NULL DEFAULT true',
+    );
+    await db.$executeRawUnsafe(
       'CREATE UNIQUE INDEX IF NOT EXISTS "User_telegramChatId_key" ON "User" ("telegramChatId")',
     );
   })().catch((error) => {

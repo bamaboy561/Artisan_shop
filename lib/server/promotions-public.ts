@@ -20,22 +20,20 @@ export type PublicPromotion = {
   hrefLabel: string;
 };
 
-function getPromotionHref(
-  promotion: {
-    targetType: PromotionTargetType;
-    products: Array<{
-      product: {
-        slug: string;
-        status: ProductStatus;
-      };
-    }>;
-    categories: Array<{
-      category: {
-        slug: string;
-      };
-    }>;
-  },
-) {
+function getPromotionHref(promotion: {
+  targetType: PromotionTargetType;
+  products: Array<{
+    product: {
+      slug: string;
+      status: ProductStatus;
+    };
+  }>;
+  categories: Array<{
+    category: {
+      slug: string;
+    };
+  }>;
+}) {
   const product = promotion.products.find(
     (item) => item.product.status === ProductStatus.ACTIVE,
   )?.product;

@@ -23,10 +23,16 @@ type TelegramMessagePayload = {
   }>;
 };
 
-export type TelegramThreadKey = NonNullable<TelegramMessagePayload["threadKey"]>;
+export type TelegramThreadKey = NonNullable<
+  TelegramMessagePayload["threadKey"]
+>;
 
 type OneCEventPayload = {
-  event: "request.created" | "request.updated" | "order.created" | "order.updated";
+  event:
+    | "request.created"
+    | "request.updated"
+    | "order.created"
+    | "order.updated";
   entityType: "request" | "order";
   entityId: string;
   payload: Record<string, unknown>;
@@ -107,7 +113,10 @@ type OrderIntegrationInput = {
 };
 
 const runtimeDirectory = path.join(process.cwd(), ".artisan-runtime");
-const integrationLogPath = path.join(runtimeDirectory, "integration-events.json");
+const integrationLogPath = path.join(
+  runtimeDirectory,
+  "integration-events.json",
+);
 
 const requestStatusLabels: Record<string, string> = {
   NEW: "Новая",
@@ -146,7 +155,10 @@ function isTelegramEnabled() {
 
 function getTelegramMissingEnv() {
   return [
-    ["TELEGRAM_NOTIFICATIONS_ENABLED", process.env.TELEGRAM_NOTIFICATIONS_ENABLED],
+    [
+      "TELEGRAM_NOTIFICATIONS_ENABLED",
+      process.env.TELEGRAM_NOTIFICATIONS_ENABLED,
+    ],
     ["TELEGRAM_BOT_TOKEN", process.env.TELEGRAM_BOT_TOKEN],
     ["TELEGRAM_CHAT_ID", process.env.TELEGRAM_CHAT_ID],
   ]
@@ -169,7 +181,9 @@ function getTelegramThreadId() {
   return parseTelegramThreadId(process.env.TELEGRAM_MESSAGE_THREAD_ID);
 }
 
-function getTypedTelegramThreadId(threadKey?: TelegramMessagePayload["threadKey"]) {
+function getTypedTelegramThreadId(
+  threadKey?: TelegramMessagePayload["threadKey"],
+) {
   const specificValue =
     threadKey === "cutting"
       ? process.env.TELEGRAM_CUTTING_THREAD_ID
@@ -312,7 +326,7 @@ function areManagersEqual(
 
 function buildMessengerLine(input: RequestIntegrationInput) {
   const channelLabel = input.messengerType
-    ? messengerTypeLabels[input.messengerType] ?? input.messengerType
+    ? (messengerTypeLabels[input.messengerType] ?? input.messengerType)
     : null;
 
   if (channelLabel && input.messengerHandle) {
@@ -331,7 +345,8 @@ function buildMessengerLine(input: RequestIntegrationInput) {
 }
 
 function isUrgentRequest(input: RequestIntegrationInput) {
-  const normalizedText = `${input.subject} ${input.message ?? ""}`.toLowerCase();
+  const normalizedText =
+    `${input.subject} ${input.message ?? ""}`.toLowerCase();
   return (
     normalizedText.includes("сроч") ||
     normalizedText.includes("urgent") ||
@@ -344,11 +359,15 @@ function isCuttingRequest(input: RequestIntegrationInput) {
     return true;
   }
 
-  const normalizedText = `${input.subject} ${input.message ?? ""}`.toLowerCase();
+  const normalizedText =
+    `${input.subject} ${input.message ?? ""}`.toLowerCase();
   return normalizedText.includes("распил");
 }
 
-function extractSummaryValue(message: string | null | undefined, label: string) {
+function extractSummaryValue(
+  message: string | null | undefined,
+  label: string,
+) {
   if (!message) {
     return null;
   }
@@ -437,7 +456,9 @@ function buildRequestTelegramMessage(
   };
 }
 
-function buildOrderTelegramMessage(input: OrderIntegrationInput): TelegramMessagePayload {
+function buildOrderTelegramMessage(
+  input: OrderIntegrationInput,
+): TelegramMessagePayload {
   return {
     title: `Новый заказ ${input.number ?? input.id}`,
     threadKey: "orders",
@@ -481,15 +502,18 @@ function buildRequestStatusTelegramMessage(
   const managerChanged =
     input.previousManager !== undefined &&
     !areManagersEqual(input.previousManager, input.manager);
-  const managerAssigned = !hasManager(input.previousManager) && hasManager(input.manager);
+  const managerAssigned =
+    !hasManager(input.previousManager) && hasManager(input.manager);
   const managerReassigned =
     hasManager(input.previousManager) &&
     hasManager(input.manager) &&
     !areManagersEqual(input.previousManager, input.manager);
-  const managerRemoved = hasManager(input.previousManager) && !hasManager(input.manager);
+  const managerRemoved =
+    hasManager(input.previousManager) && !hasManager(input.manager);
 
   if (
-    (input.previousStatus !== undefined || input.previousManager !== undefined) &&
+    (input.previousStatus !== undefined ||
+      input.previousManager !== undefined) &&
     !statusChanged &&
     !managerChanged
   ) {
@@ -545,15 +569,18 @@ function buildOrderStatusTelegramMessage(
   const managerChanged =
     input.previousManager !== undefined &&
     !areManagersEqual(input.previousManager, input.manager);
-  const managerAssigned = !hasManager(input.previousManager) && hasManager(input.manager);
+  const managerAssigned =
+    !hasManager(input.previousManager) && hasManager(input.manager);
   const managerReassigned =
     hasManager(input.previousManager) &&
     hasManager(input.manager) &&
     !areManagersEqual(input.previousManager, input.manager);
-  const managerRemoved = hasManager(input.previousManager) && !hasManager(input.manager);
+  const managerRemoved =
+    hasManager(input.previousManager) && !hasManager(input.manager);
 
   if (
-    (input.previousStatus !== undefined || input.previousManager !== undefined) &&
+    (input.previousStatus !== undefined ||
+      input.previousManager !== undefined) &&
     !statusChanged &&
     !managerChanged
   ) {
@@ -745,7 +772,9 @@ function buildClientOrderStatusMessage(input: OrderIntegrationInput) {
   };
 }
 
-export async function sendTelegramTestNotification(threadKey: TelegramThreadKey) {
+export async function sendTelegramTestNotification(
+  threadKey: TelegramThreadKey,
+) {
   const config = getTelegramConfigurationStatus();
 
   if (!config.enabled) {
@@ -925,14 +954,19 @@ function buildOrderPayload(input: OrderIntegrationInput) {
   };
 }
 
-export async function handleCuttingRequestCreated(input: RequestIntegrationInput) {
+export async function handleCuttingRequestCreated(
+  input: RequestIntegrationInput,
+) {
   const requestPayload = buildRequestPayload(input);
   const telegramPayload = buildRequestTelegramMessage(input);
   const clientPayload = buildClientRequestCreatedMessage(input);
 
   await Promise.all([
-    safelyRunIntegration("telegram", telegramPayload.title, requestPayload, () =>
-      sendTelegramMessage(telegramPayload),
+    safelyRunIntegration(
+      "telegram",
+      telegramPayload.title,
+      requestPayload,
+      () => sendTelegramMessage(telegramPayload),
     ),
     ...(input.userId
       ? [
@@ -1045,7 +1079,9 @@ export async function handleOrderCreated(input: OrderIntegrationInput) {
 export async function handleOrderUpdated(input: OrderIntegrationInput) {
   const orderPayload = buildOrderPayload(input);
   const telegramPayload = buildOrderStatusTelegramMessage(input);
-  const clientPayload = telegramPayload ? buildClientOrderStatusMessage(input) : null;
+  const clientPayload = telegramPayload
+    ? buildClientOrderStatusMessage(input)
+    : null;
 
   await Promise.all([
     ...(telegramPayload

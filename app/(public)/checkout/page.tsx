@@ -4,10 +4,10 @@ import { CheckoutForm } from "@/app/(public)/checkout/checkout-form";
 import { getOptionalSession } from "@/lib/auth/dal";
 import { getDb, hasDatabaseUrl } from "@/lib/db";
 import {
-  getEffectiveDiscountPercent,
   getLoyaltyTierBenefits,
   getLoyaltyTierLabel,
 } from "@/lib/server/pricing";
+import { getLoyaltyProgramConfig } from "@/lib/server/loyalty-settings";
 import { noIndexRobots } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
@@ -32,7 +32,7 @@ export default async function CheckoutPage() {
   const db = getDb();
   const session = await getOptionalSession();
 
-  const [deliveryMethods, customer] = await Promise.all([
+  const [deliveryMethods, customer, loyaltyConfig] = await Promise.all([
     db.deliveryMethod.findMany({
       where: { isActive: true },
       orderBy: [{ price: "asc" }, { createdAt: "asc" }],
@@ -57,6 +57,7 @@ export default async function CheckoutPage() {
           },
         })
       : Promise.resolve(null),
+    getLoyaltyProgramConfig(),
   ]);
 
   return (
@@ -73,11 +74,20 @@ export default async function CheckoutPage() {
                   .join(" ") || "",
               phone: customer.phone ?? "",
               companyName: customer.companyName ?? "",
-              loyaltyTierLabel: getLoyaltyTierLabel(customer.loyaltyTier),
+              loyaltyTierLabel: getLoyaltyTierLabel(
+                customer.loyaltyTier,
+                loyaltyConfig,
+              ),
               pointsBalance: customer.loyaltyPointsBalance,
-              discountPercent: getEffectiveDiscountPercent(customer),
-              accrualPercent: getLoyaltyTierBenefits(customer.loyaltyTier)
-                .accrualPercent,
+              maxRedeemPercent: loyaltyConfig.maxRedeemPercent,
+              plateMaterialAccrualPercent: getLoyaltyTierBenefits(
+                customer.loyaltyTier,
+                loyaltyConfig,
+              ).plateMaterialAccrualPercent,
+              fittingsAccrualPercent: getLoyaltyTierBenefits(
+                customer.loyaltyTier,
+                loyaltyConfig,
+              ).fittingsAccrualPercent,
             }
           : null
       }

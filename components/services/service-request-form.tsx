@@ -28,7 +28,13 @@ export function ServiceRequestForm() {
       title="Отправьте файл проекта."
       description="PDF, Excel или чертеж попадут в заявку вместе с материалом и контактами."
       actions={
-        <Button type="submit" form="service-request-form" variant="accent" className="w-full sm:w-auto" disabled={pending}>
+        <Button
+          type="submit"
+          form="service-request-form"
+          variant="accent"
+          className="w-full sm:w-auto"
+          disabled={pending}
+        >
           {pending ? "Отправляем..." : "Отправить заявку"}
         </Button>
       }
@@ -40,15 +46,27 @@ export function ServiceRequestForm() {
       >
         <div className="grid gap-3 sm:gap-4 md:grid-cols-2">
           <Input name="contactName" placeholder="Ваше имя" required />
-          <Input name="contactPhone" placeholder="Телефон" type="tel" required />
-          <Input name="contactEmail" placeholder="Email, если нужен ответ письмом" type="email" />
+          <Input
+            name="contactPhone"
+            placeholder="Телефон"
+            type="tel"
+            required
+          />
+          <Input
+            name="contactEmail"
+            placeholder="Email, если нужен ответ письмом"
+            type="email"
+          />
           <Select name="messengerType" defaultValue="">
             <option value="">Мессенджер</option>
             <option value="WHATSAPP">WhatsApp</option>
             <option value="TELEGRAM">Telegram</option>
             <option value="PHONE">Только звонок</option>
           </Select>
-          <Input name="messengerHandle" placeholder="@telegram или номер WhatsApp" />
+          <Input
+            name="messengerHandle"
+            placeholder="@telegram или номер WhatsApp"
+          />
           <Select name="material" defaultValue="" required>
             <option value="" disabled>
               Материал
@@ -98,7 +116,8 @@ export function ServiceRequestForm() {
                 {
                   value: "urgent",
                   label: "Срочная обработка",
-                  description: "Заявка будет отмечена как срочная для менеджера.",
+                  description:
+                    "Заявка будет отмечена как срочная для менеджера.",
                 },
               ]}
             />

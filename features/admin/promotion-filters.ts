@@ -147,14 +147,17 @@ export function parseAdminPromotionSearchParams(
       Object.values(PromotionStatus).find((item) => item === statusCandidate) ??
       "all",
     targetType:
-      Object.values(PromotionTargetType).find((item) => item === targetCandidate) ??
-      "all",
+      Object.values(PromotionTargetType).find(
+        (item) => item === targetCandidate,
+      ) ?? "all",
     highlighted: validHighlightedFilters.has(
       highlightedCandidate as AdminPromotionHighlightFilter,
     )
       ? (highlightedCandidate as AdminPromotionHighlightFilter)
       : "all",
-    promoCode: validCodeFilters.has(promoCodeCandidate as AdminPromotionCodeFilter)
+    promoCode: validCodeFilters.has(
+      promoCodeCandidate as AdminPromotionCodeFilter,
+    )
       ? (promoCodeCandidate as AdminPromotionCodeFilter)
       : "all",
     sort: validSorts.has(sortCandidate as AdminPromotionSort)

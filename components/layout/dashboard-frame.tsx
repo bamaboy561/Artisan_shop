@@ -60,7 +60,7 @@ function AdminFrame({
               A
             </span>
             <span>
-              <span className="block text-xl font-semibold leading-none">
+              <span className="block text-xl leading-none font-semibold">
                 Artisan
               </span>
               <span className="mt-1 block text-xs text-white/62">
@@ -69,7 +69,7 @@ function AdminFrame({
             </span>
           </Link>
 
-          <div className="mt-4 min-h-0 overflow-hidden lg:mt-6 lg:flex-1 lg:overflow-y-auto lg:pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="mt-4 min-h-0 overflow-hidden [scrollbar-width:none] lg:mt-6 lg:flex-1 lg:overflow-y-auto lg:pr-1 [&::-webkit-scrollbar]:hidden">
             <DashboardNav items={items} variant="admin" />
           </div>
 
@@ -184,7 +184,7 @@ function AccountFrame({
                 <p className="font-mono text-[8px] tracking-[0.2em] text-white/42 uppercase">
                   {eyebrow}
                 </p>
-                <h1 className="mt-1 truncate text-[1.25rem] font-semibold leading-none tracking-[-0.035em] text-white">
+                <h1 className="mt-1 truncate text-[1.25rem] leading-none font-semibold tracking-[-0.035em] text-white">
                   {title}
                 </h1>
               </div>
@@ -199,7 +199,7 @@ function AccountFrame({
           </div>
         </section>
 
-        <aside className="relative hidden min-w-0 max-w-full overflow-hidden rounded-[28px] border border-white/10 bg-[#111111] p-4 text-white shadow-[0_28px_80px_rgba(17,17,17,0.24)] xl:sticky xl:top-4 xl:flex xl:h-[calc(100vh-2rem)]">
+        <aside className="relative hidden max-w-full min-w-0 overflow-hidden rounded-[28px] border border-white/10 bg-[#111111] p-4 text-white shadow-[0_28px_80px_rgba(17,17,17,0.24)] xl:sticky xl:top-4 xl:flex xl:h-[calc(100vh-2rem)]">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(199,106,63,0.22),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.03),transparent_42%)]" />
 
           <div className="relative flex h-full min-w-0 flex-col gap-5">
@@ -207,7 +207,7 @@ function AccountFrame({
               <p className="font-mono text-[10px] tracking-[0.24em] text-white/38 uppercase">
                 {eyebrow}
               </p>
-              <h1 className="mt-3 max-w-full text-[1.65rem] font-semibold leading-[1.04] tracking-[-0.035em] break-words text-white 2xl:text-[1.85rem]">
+              <h1 className="mt-3 max-w-full text-[1.65rem] leading-[1.04] font-semibold tracking-[-0.035em] break-words text-white 2xl:text-[1.85rem]">
                 {title}
               </h1>
               <p className="mt-3 text-sm leading-6 break-words text-white/58">
@@ -225,7 +225,10 @@ function AccountFrame({
           </div>
         </aside>
 
-        <main id="main-content" className="min-w-0 space-y-3 overflow-x-clip xl:space-y-4">
+        <main
+          id="main-content"
+          className="min-w-0 space-y-3 overflow-x-clip xl:space-y-4"
+        >
           <section className="surface-glow hidden rounded-[24px] border border-[color:var(--line)] bg-white/92 px-5 py-4 shadow-[0_20px_56px_rgba(17,17,17,0.05)] xl:block">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div className="max-w-3xl">

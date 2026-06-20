@@ -391,6 +391,9 @@ export default async function AdminProductsPage({
                 Ошибки: {importSummary.errors}
               </span>
               <span className="rounded-full bg-white/70 px-3 py-1">
+                Предупреждения: {importSummary.warnings}
+              </span>
+              <span className="rounded-full bg-white/70 px-3 py-1">
                 Колонки: {importSummary.mapped}
               </span>
             </div>

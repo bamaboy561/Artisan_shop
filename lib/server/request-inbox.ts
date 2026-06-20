@@ -11,10 +11,7 @@ import { getDemoAdminSession } from "@/lib/auth/demo-access";
 import { getDb, hasDatabaseUrl, isDemoModeEnabled } from "@/lib/db";
 import type { AdminRequestItem } from "@/features/admin/operations-filters";
 
-type DemoRequestRecord = Omit<
-  AdminRequestItem,
-  "createdAt" | "updatedAt"
-> & {
+type DemoRequestRecord = Omit<AdminRequestItem, "createdAt" | "updatedAt"> & {
   createdAt: string;
   updatedAt: string;
   addressText?: string | null;
@@ -77,6 +74,15 @@ export type CuttingRequestSubmission = {
   addressText?: string | null;
   userId?: string | null;
   uploadedFiles?: File[];
+};
+
+export type ContactRequestSubmission = {
+  subject: string;
+  message: string;
+  contactName: string;
+  contactPhone: string;
+  contactEmail?: string | null;
+  userId?: string | null;
 };
 
 type CreatedCuttingRequestResult = {
@@ -261,11 +267,7 @@ async function readDemoRequests() {
 
 async function writeDemoRequests(requests: DemoRequestRecord[]) {
   await ensureRuntimeDirectory();
-  await writeFile(
-    demoRequestsPath,
-    JSON.stringify(requests, null, 2),
-    "utf8",
-  );
+  await writeFile(demoRequestsPath, JSON.stringify(requests, null, 2), "utf8");
 }
 
 function toAdminRequestItem(record: DemoRequestRecord): AdminRequestItem {
@@ -346,10 +348,30 @@ function isSameCuttingRequest(
   input: CuttingRequestSubmission,
 ) {
   return (
-    (request.type ?? RequestType.CUTTING_SERVICE) === RequestType.CUTTING_SERVICE &&
+    (request.type ?? RequestType.CUTTING_SERVICE) ===
+      RequestType.CUTTING_SERVICE &&
     request.contactPhone.trim() === input.contactPhone.trim() &&
     request.subject.trim() === input.subject.trim() &&
     (request.material ?? "").trim() === input.material.trim() &&
+    (request.message ?? "").trim() === input.message.trim() &&
+    (request.contactEmail ?? "").trim() === (input.contactEmail ?? "").trim()
+  );
+}
+
+function isSameContactRequest(
+  request: {
+    type?: RequestType;
+    contactPhone: string;
+    subject: string;
+    message?: string | null;
+    contactEmail?: string | null;
+  },
+  input: ContactRequestSubmission,
+) {
+  return (
+    (request.type ?? RequestType.CONSULTATION) === RequestType.CONSULTATION &&
+    request.contactPhone.trim() === input.contactPhone.trim() &&
+    request.subject.trim() === input.subject.trim() &&
     (request.message ?? "").trim() === input.message.trim() &&
     (request.contactEmail ?? "").trim() === (input.contactEmail ?? "").trim()
   );
@@ -405,7 +427,9 @@ export async function getRequestInbox() {
   const requests = await readDemoRequests();
   return requests
     .map(toAdminRequestItem)
-    .sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime());
+    .sort(
+      (left, right) => right.updatedAt.getTime() - left.updatedAt.getTime(),
+    );
 }
 
 export async function getRequestInboxItemById(id: string) {
@@ -454,7 +478,9 @@ export async function getRequestInboxItemById(id: string) {
   return request ? toAdminRequestItem(request) : null;
 }
 
-export async function getRequestDetailById(id: string): Promise<RequestDetailItem | null> {
+export async function getRequestDetailById(
+  id: string,
+): Promise<RequestDetailItem | null> {
   if (hasDatabaseUrl()) {
     const request = await getDb().request.findUnique({
       where: { id },
@@ -720,13 +746,123 @@ export async function createCuttingRequest(
   };
 }
 
-export async function updateRequestInboxItem(
-  input: {
-    id: string;
-    status: RequestStatus;
-    managerId?: string | null;
-  },
-) {
+export async function createContactRequest(
+  input: ContactRequestSubmission,
+): Promise<CreatedCuttingRequestResult> {
+  const duplicateWindowMs = 10 * 60 * 1000;
+
+  if (hasDatabaseUrl()) {
+    const db = getDb();
+    const duplicateRequest = await db.request.findFirst({
+      where: {
+        type: RequestType.CONSULTATION,
+        contactPhone: input.contactPhone.trim(),
+        subject: input.subject.trim(),
+        message: input.message.trim(),
+        contactEmail: input.contactEmail ?? null,
+      },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        number: true,
+        createdAt: true,
+      },
+    });
+
+    if (
+      duplicateRequest &&
+      isRecentRequest(duplicateRequest.createdAt, duplicateWindowMs)
+    ) {
+      return {
+        id: duplicateRequest.id,
+        number: duplicateRequest.number,
+        duplicate: true,
+      };
+    }
+
+    const existingNumbers = await db.request.findMany({
+      select: { number: true },
+      where: {
+        number: {
+          not: null,
+        },
+      },
+    });
+
+    const number = buildNextRequestNumber(
+      existingNumbers.flatMap((item) => (item.number ? [item.number] : [])),
+    );
+
+    return db.request.create({
+      data: {
+        number,
+        type: RequestType.CONSULTATION,
+        status: RequestStatus.NEW,
+        subject: input.subject,
+        message: input.message,
+        userId: input.userId ?? null,
+        contactName: input.contactName,
+        contactPhone: input.contactPhone,
+        contactEmail: input.contactEmail ?? null,
+        messengerType: input.contactEmail ? MessengerType.EMAIL : null,
+        messengerHandle: input.contactEmail ?? null,
+      },
+      select: {
+        id: true,
+        number: true,
+      },
+    });
+  }
+
+  const requests = await readDemoRequests();
+  const duplicateRequest = requests.find(
+    (request) =>
+      isSameContactRequest(request, input) &&
+      isRecentRequest(request.createdAt, duplicateWindowMs),
+  );
+
+  if (duplicateRequest) {
+    return {
+      id: duplicateRequest.id,
+      number: duplicateRequest.number,
+      duplicate: true,
+    };
+  }
+
+  const now = new Date().toISOString();
+  const number = buildNextRequestNumber(
+    requests.flatMap((item) => (item.number ? [item.number] : [])),
+  );
+
+  const created = createDemoRequestRecord({
+    id: `demo-${Date.now()}`,
+    number,
+    type: RequestType.CONSULTATION,
+    subject: input.subject,
+    message: input.message,
+    contactName: input.contactName,
+    contactPhone: input.contactPhone,
+    contactEmail: input.contactEmail ?? null,
+    messengerType: input.contactEmail ? MessengerType.EMAIL : null,
+    messengerHandle: input.contactEmail ?? null,
+    userId: input.userId ?? null,
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  await writeDemoRequests([created, ...requests]);
+
+  return {
+    id: created.id,
+    number: created.number,
+  };
+}
+
+export async function updateRequestInboxItem(input: {
+  id: string;
+  status: RequestStatus;
+  managerId?: string | null;
+}) {
   if (hasDatabaseUrl()) {
     await getDb().request.update({
       where: { id: input.id },
@@ -759,14 +895,12 @@ export async function updateRequestInboxItem(
   await writeDemoRequests(updated);
 }
 
-export async function bulkUpdateRequestInboxItems(
-  input: {
-    requestIds: string[];
-    status?: RequestStatus;
-    managerId?: string | null;
-    clearManager?: boolean;
-  },
-) {
+export async function bulkUpdateRequestInboxItems(input: {
+  requestIds: string[];
+  status?: RequestStatus;
+  managerId?: string | null;
+  clearManager?: boolean;
+}) {
   if (input.requestIds.length === 0) {
     return;
   }

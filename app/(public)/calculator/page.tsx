@@ -27,7 +27,9 @@ export default async function CalculatorPage({
   const resolvedSearchParams = await searchParams;
   const productSlug = getSearchParamValue(resolvedSearchParams.product);
   const [productContext, bundle] = await Promise.all([
-    productSlug ? getCalculatorContextBySlug(productSlug) : Promise.resolve(null),
+    productSlug
+      ? getCalculatorContextBySlug(productSlug)
+      : Promise.resolve(null),
     getCalculatorBundle(),
   ]);
 

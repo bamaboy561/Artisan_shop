@@ -118,7 +118,10 @@ export default async function AdminLaunchPage({
               className="grid gap-4 rounded-[22px] border border-[color:var(--line)] bg-white p-5 shadow-[0_18px_48px_rgba(17,17,17,0.04)] md:grid-cols-[44px_minmax(0,1fr)_auto] md:items-center"
             >
               <span className="flex size-11 items-center justify-center rounded-2xl border border-[color:var(--line)] bg-[var(--surface)]">
-                <Icon className={`size-5 ${meta.className}`} strokeWidth={1.8} />
+                <Icon
+                  className={`size-5 ${meta.className}`}
+                  strokeWidth={1.8}
+                />
               </span>
 
               <div className="min-w-0">
@@ -190,7 +193,7 @@ export default async function AdminLaunchPage({
             </strong>
             {telegramMessage ? <p className="mt-1">{telegramMessage}</p> : null}
             {telegramWebhookUrl ? (
-              <p className="mt-1 break-all text-xs">{telegramWebhookUrl}</p>
+              <p className="mt-1 text-xs break-all">{telegramWebhookUrl}</p>
             ) : null}
           </div>
         ) : null}

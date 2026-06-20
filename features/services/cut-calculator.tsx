@@ -46,10 +46,7 @@ type DetailRow = {
   orientationMode: OrientationMode;
 };
 
-type CalculatedDetailRow = Omit<
-  DetailRow,
-  "width" | "height" | "quantity"
-> & {
+type CalculatedDetailRow = Omit<DetailRow, "width" | "height" | "quantity"> & {
   width: number;
   height: number;
   quantity: number;
@@ -194,7 +191,8 @@ const orientationModeMeta: Record<
   },
   fixed: {
     label: "Как введено",
-    description: "Сохраняет ориентацию размеров. Удобно для текстуры и фасадов.",
+    description:
+      "Сохраняет ориентацию размеров. Удобно для текстуры и фасадов.",
   },
   rotated: {
     label: "Повернуть 90°",
@@ -306,12 +304,16 @@ function buildGibLabProjectXml({
   rows,
   basisSettings,
   sheetCount,
+  edgeThicknessMm,
+  edgeWidthMm,
 }: {
   material: MaterialOption;
   sheet: SheetFormat;
   rows: CalculatedDetailRow[];
   basisSettings: BasisMapSettings;
   sheetCount: number;
+  edgeThicknessMm: number;
+  edgeWidthMm: number;
 }) {
   const validRows = rows.filter(
     (row) => row.width > 0 && row.height > 0 && row.quantity > 0,
@@ -326,12 +328,13 @@ function buildGibLabProjectXml({
   const cutOperationId = 1;
   const edgeOperationId = 2;
   const availableSheetCount = Math.max(sheetCount + 2, 10);
-  const bandWidth = getBandWidthForGibLab(material);
+  const bandWidth = edgeWidthMm;
 
   const partEntries = validRows.map((row, index) => {
     const partId = index + 2;
     const geometry = getGibLabPartGeometry(row);
-    const hasEdging = material.edgeRatePerMeter > 0 && geometry.edgedSides.length > 0;
+    const hasEdging =
+      material.edgeRatePerMeter > 0 && geometry.edgedSides.length > 0;
     const edgeAttributes = hasEdging
       ? geometry.edgedSides
           .map(
@@ -368,7 +371,7 @@ function buildGibLabProjectXml({
 
   const edgeBlock =
     edgeOperationParts.length > 0
-      ? `\n\t<good id="${edgeToolGoodId}" typeId="tool.edgeline" />\n\t<good id="${bandGoodId}" typeId="band" name="${escapeXml(`Кромка 1 мм ${bandWidth}x1`)}" code="ARTISAN-EDGE-1MM" unit="м" cost="${material.edgeRatePerMeter.toFixed(2)}" t="1" w="${bandWidth}" />\n\t<operation id="${edgeOperationId}" typeId="EL" tool1="${edgeToolGoodId}">\n${edgeOperationParts}\n\t\t<material id="${bandGoodId}" />\n\t</operation>`
+      ? `\n\t<good id="${edgeToolGoodId}" typeId="tool.edgeline" />\n\t<good id="${bandGoodId}" typeId="band" name="${escapeXml(`Кромка ${edgeThicknessMm} мм ${bandWidth}x${edgeThicknessMm}`)}" code="${escapeXml(`ARTISAN-EDGE-${String(edgeThicknessMm).replace(".", "_")}MM`)}" unit="м" cost="${material.edgeRatePerMeter.toFixed(2)}" t="${edgeThicknessMm}" w="${bandWidth}" />\n\t<operation id="${edgeOperationId}" typeId="EL" tool1="${edgeToolGoodId}">\n${edgeOperationParts}\n\t\t<material id="${bandGoodId}" />\n\t</operation>`
       : "";
 
   return `<?xml version="1.0" encoding="UTF-8"?>\n<project currency="сом" version="1">\n${comments}\n\t<good id="${productGoodId}" typeId="product" count="1" name="Artisan Cut Project">\n${partEntries.map((part) => part.xml).join("\n")}\n\t</good>\n\t<good id="${cutToolGoodId}" typeId="tool.cutting" />\n\t<good id="${sheetMaterialGoodId}" typeId="sheet" name="${escapeXml(material.label)}" code="${escapeXml(`${material.id}-${sheet.id}`)}" unit="м2" cost="${material.pricePerSqM.toFixed(2)}">\n\t\t<part id="${sheetPartId}" l="${sheet.width}" w="${sheet.height}" count="${availableSheetCount}" usedCount="${Math.max(sheetCount, 0)}" />\n\t</good>\n\t<operation id="${cutOperationId}" typeId="CS" tool1="${cutToolGoodId}" cSizeMode="0">\n${cutOperationParts}\n\t\t<material id="${sheetMaterialGoodId}" />\n\t</operation>${edgeBlock}\n</project>\n`;
@@ -418,6 +421,34 @@ function parsePositive(value: string) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
 }
 
+function parseManualSize(value: string) {
+  const parsed = Number(value.trim().replace(",", "."));
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function formatManualSize(value: number) {
+  return Number.isInteger(value)
+    ? value.toFixed(0)
+    : value.toString().replace(".", ",");
+}
+
+function isManualSizingMaterial(material: MaterialOption | null | undefined) {
+  const materialId = material?.id.toLowerCase() ?? "";
+  return materialId.startsWith("countertop-") || materialId.startsWith("hpl-");
+}
+
+function getManualMaterialLabel(material: MaterialOption, thicknessMm: number) {
+  const baseLabel = material.label
+    .replace(/\s*\d+(?:[.,]\d+)?\s*(?:мм|mm)\b/i, "")
+    .trim();
+
+  return `${baseLabel || material.label} ${formatManualSize(thicknessMm)} мм`;
+}
+
+function getManualSheetLabel(width: number, height: number) {
+  return `${formatManualSize(width)} × ${formatManualSize(height)} мм`;
+}
+
 function normalizeEdgeSides(sides: EdgeSide[]) {
   return edgeSideOrder.filter((side) => sides.includes(side));
 }
@@ -443,12 +474,15 @@ function getEdgeMeters(
   return (totalMillimeters * quantity) / 1000;
 }
 
-function getReadableEdgeSelection(edgedSides: EdgeSide[]) {
+function getReadableEdgeSelection(
+  edgedSides: EdgeSide[],
+  edgeThicknessLabel: string,
+) {
   if (edgedSides.length === 0) {
-    return "Кромка 1 мм не выбрана";
+    return `Кромка ${edgeThicknessLabel} не выбрана`;
   }
 
-  return `Кромка 1 мм: ${normalizeEdgeSides(edgedSides)
+  return `Кромка ${edgeThicknessLabel}: ${normalizeEdgeSides(edgedSides)
     .map((side) => edgeSideMeta[side].label)
     .join(", ")}`;
 }
@@ -673,15 +707,13 @@ function buildCutMap(
     };
 
     const findBestPlacement = (piece: CutMapPiece) => {
-      let bestPlacement:
-        | {
-            rectIndex: number;
-            width: number;
-            height: number;
-            rotated: boolean;
-            score: number;
-          }
-        | null = null;
+      let bestPlacement: {
+        rectIndex: number;
+        width: number;
+        height: number;
+        rotated: boolean;
+        score: number;
+      } | null = null;
 
       for (const [rectIndex, rect] of freeRects.entries()) {
         for (const orientation of getOrientations(piece)) {
@@ -930,7 +962,8 @@ function buildCutMap(
       (sum, sheetState) => sum + sheetState.usedArea,
       0,
     );
-    const totalUsableArea = sheets.length * workingArea.width * workingArea.height;
+    const totalUsableArea =
+      sheets.length * workingArea.width * workingArea.height;
     const totalCutLength = sheets.reduce(
       (sum, sheetState) => sum + sheetState.cutLength,
       0,
@@ -947,7 +980,8 @@ function buildCutMap(
       sheets
         .map((sheetState) => sheetState.largestOffcut)
         .filter(
-          (item): item is NonNullable<CutMapSheet["largestOffcut"]> => item !== null,
+          (item): item is NonNullable<CutMapSheet["largestOffcut"]> =>
+            item !== null,
         )
         .sort((left, right) => right.area - left.area)[0] ?? null;
 
@@ -995,7 +1029,9 @@ function buildCutMap(
     }
 
     if (Math.abs(candidate.cutLength - bestResult.cutLength) > 0.5) {
-      return candidate.cutLength < bestResult.cutLength ? candidate : bestResult;
+      return candidate.cutLength < bestResult.cutLength
+        ? candidate
+        : bestResult;
     }
 
     if (candidate.rotatedPieces !== bestResult.rotatedPieces) {
@@ -1036,7 +1072,7 @@ function MetricTile({
       </p>
       <p
         className={cn(
-          "mt-1 break-words text-[13px] leading-5 font-semibold",
+          "mt-1 text-[13px] leading-5 font-semibold break-words",
           muted ? "text-[var(--foreground)]" : "text-white",
         )}
       >
@@ -1128,11 +1164,20 @@ function getCuttingRequestMaterialLabel({
   material: MaterialOption;
   sheet: SheetFormat;
 }) {
+  const usesPresetValues = Boolean(
+    activePreset &&
+    activePreset.materialId === material.id &&
+    activePreset.sheetPresetId === sheet.id,
+  );
+
   if (productContext) {
-    return `${productContext.brand} · ${productContext.name} · ${sheet.label}`;
+    const productLabel = `${productContext.brand} · ${productContext.name}`;
+    return usesPresetValues
+      ? `${productLabel} · ${sheet.label}`
+      : `${productLabel} · ${material.label} · ${sheet.label}`;
   }
 
-  if (activePreset) {
+  if (activePreset && usesPresetValues) {
     return `${activePreset.label} · ${sheet.label}`;
   }
 
@@ -1144,6 +1189,7 @@ function buildCuttingRequestMessage({
   activePreset,
   material,
   sheet,
+  edgeThicknessLabel,
   calculation,
   cutMap,
   estimate,
@@ -1154,6 +1200,7 @@ function buildCuttingRequestMessage({
   activePreset: CalculatorPreset | null;
   material: MaterialOption;
   sheet: SheetFormat;
+  edgeThicknessLabel: string;
   calculation: {
     totalPieces: number;
     totalAreaSqM: number;
@@ -1186,7 +1233,7 @@ function buildCuttingRequestMessage({
     `Площадь деталей: ${calculation.totalAreaSqM.toFixed(2)} м²`,
     `Рез по карте: ${(cutMap.cutLength / 1000).toFixed(1)} м`,
     `Контур деталей: ${calculation.totalContourCutMeters.toFixed(1)} м`,
-    `Кромка 1 мм: ${calculation.totalEdgeMeters.toFixed(1)} м`,
+    `Кромка ${edgeThicknessLabel}: ${calculation.totalEdgeMeters.toFixed(1)} м`,
     `Листов по карте: ${cutMap.sheets.length}`,
     `Размещено: ${cutMap.placedPieces} из ${cutMap.totalPieces}`,
     `КИМ: ${(cutMap.utilization * 100).toFixed(0)}%`,
@@ -1223,9 +1270,13 @@ export function CutCalculator({
   const fallbackSheet = sheets[0];
   const defaultPresetId = presets[0]?.id ?? null;
 
-  const [manualPresetId, setManualPresetId] = useState<CalculatorPresetId | null>(
-    defaultPresetId,
-  );
+  const [manualPresetId, setManualPresetId] =
+    useState<CalculatorPresetId | null>(defaultPresetId);
+  const [manualThicknessMm, setManualThicknessMm] = useState("");
+  const [manualSheetWidthMm, setManualSheetWidthMm] = useState("");
+  const [manualSheetHeightMm, setManualSheetHeightMm] = useState("");
+  const [edgeThicknessMm, setEdgeThicknessMm] = useState("1");
+  const [edgeWidthMm, setEdgeWidthMm] = useState("");
   const [details, setDetails] = useState<DetailRow[]>(createInitialRows);
   const [requestDraft, setRequestDraft] = useState<CuttingRequestDraft>(
     initialCuttingRequestDraft,
@@ -1240,16 +1291,65 @@ export function CutCalculator({
   const activePreset =
     lockedPreset ??
     (manualPresetId ? findPresetById(presets, manualPresetId) : null);
-  const material =
+  const baseMaterial =
     (activePreset
       ? materials.find((item) => item.id === activePreset.materialId)
       : null) ?? fallbackMaterial;
-  const sheet =
+  const baseSheet =
     (activePreset
       ? sheets.find((item) => item.id === activePreset.sheetPresetId)
       : null) ?? fallbackSheet;
+  const manualSizingAvailable = isManualSizingMaterial(baseMaterial);
+  const manualThicknessValue = manualSizingAvailable
+    ? parseManualSize(manualThicknessMm)
+    : null;
+  const manualSheetWidthValue = manualSizingAvailable
+    ? parseManualSize(manualSheetWidthMm)
+    : null;
+  const manualSheetHeightValue = manualSizingAvailable
+    ? parseManualSize(manualSheetHeightMm)
+    : null;
+  const manualSizingCustomized = Boolean(
+    manualThicknessValue || manualSheetWidthValue || manualSheetHeightValue,
+  );
+  const material = useMemo<MaterialOption>(() => {
+    if (!manualThicknessValue) {
+      return baseMaterial;
+    }
+
+    return {
+      ...baseMaterial,
+      id: `${baseMaterial.id}-manual-${formatManualSize(manualThicknessValue)}`,
+      label: getManualMaterialLabel(baseMaterial, manualThicknessValue),
+      thicknessMm: manualThicknessValue,
+    };
+  }, [baseMaterial, manualThicknessValue]);
+  const sheet = useMemo<SheetFormat>(() => {
+    const width = manualSheetWidthValue ?? baseSheet.width;
+    const height = manualSheetHeightValue ?? baseSheet.height;
+
+    if (!manualSheetWidthValue && !manualSheetHeightValue) {
+      return baseSheet;
+    }
+
+    return {
+      ...baseSheet,
+      id: `${baseSheet.id}-manual-${formatManualSize(width)}x${formatManualSize(
+        height,
+      )}`,
+      label: getManualSheetLabel(width, height),
+      width,
+      height,
+    };
+  }, [baseSheet, manualSheetHeightValue, manualSheetWidthValue]);
   const isProductMode = Boolean(lockedPreset && productContext);
   const edgingAvailable = material ? material.edgeRatePerMeter > 0 : false;
+  const edgeThicknessValue = parseManualSize(edgeThicknessMm) ?? 1;
+  const edgeWidthValue =
+    parseManualSize(edgeWidthMm) ?? getBandWidthForGibLab(material);
+  const edgeThicknessLabel = `${formatManualSize(edgeThicknessValue)} мм`;
+  const edgeWidthLabel = `${formatManualSize(edgeWidthValue)} мм`;
+  const edgeSizeLabel = `${edgeThicknessLabel} × ${edgeWidthLabel}`;
 
   const basisSettings = defaultBasisSettings;
 
@@ -1302,7 +1402,8 @@ export function CutCalculator({
   const estimate = useMemo(() => {
     const sheetCount = cutMap.sheets.length;
     const cutMeters = cutMap.cutLength / 1000;
-    const materialCost = sheetCount * calculation.sheetAreaSqM * material.pricePerSqM;
+    const materialCost =
+      sheetCount * calculation.sheetAreaSqM * material.pricePerSqM;
     const cuttingCost = cutMeters * material.cutRatePerMeter;
     const edgeCost = calculation.totalEdgeMeters * material.edgeRatePerMeter;
     const setupFee = calculation.totalPieces > 0 ? material.setupFee : 0;
@@ -1316,7 +1417,17 @@ export function CutCalculator({
       setupFee,
       totalEstimate: materialCost + cuttingCost + edgeCost + setupFee,
     };
-  }, [calculation.sheetAreaSqM, calculation.totalEdgeMeters, calculation.totalPieces, cutMap.cutLength, cutMap.sheets.length, material.cutRatePerMeter, material.edgeRatePerMeter, material.pricePerSqM, material.setupFee]);
+  }, [
+    calculation.sheetAreaSqM,
+    calculation.totalEdgeMeters,
+    calculation.totalPieces,
+    cutMap.cutLength,
+    cutMap.sheets.length,
+    material.cutRatePerMeter,
+    material.edgeRatePerMeter,
+    material.pricePerSqM,
+    material.setupFee,
+  ]);
 
   const workshopRows = useMemo<WorkshopRow[]>(() => {
     const placedEntries = cutMap.sheets.flatMap((cutSheet) =>
@@ -1343,7 +1454,8 @@ export function CutCalculator({
       );
       const sheetCountByIndex = rowPlacements.reduce<Record<number, number>>(
         (accumulator, entry) => {
-          accumulator[entry.sheetIndex] = (accumulator[entry.sheetIndex] ?? 0) + 1;
+          accumulator[entry.sheetIndex] =
+            (accumulator[entry.sheetIndex] ?? 0) + 1;
 
           return accumulator;
         },
@@ -1360,7 +1472,10 @@ export function CutCalculator({
       const sheetsLabel =
         sheetIndexes.length > 0
           ? sheetIndexes
-              .map((sheetIndex) => `Л${sheetIndex} ×${sheetCountByIndex[sheetIndex]}`)
+              .map(
+                (sheetIndex) =>
+                  `Л${sheetIndex} ×${sheetCountByIndex[sheetIndex]}`,
+              )
               .join(", ")
           : "Не разложено";
       const orientationLabel =
@@ -1404,15 +1519,15 @@ export function CutCalculator({
     }
 
     return edgingAvailable
-      ? `Кромка 1 мм · ${calculation.totalEdgeMeters.toFixed(1)} м`
-      : `Разметка кромки 1 мм · ${calculation.totalEdgeMeters.toFixed(1)} м`;
-  }, [calculation.totalEdgeMeters, edgingAvailable]);
+      ? `Кромка ${edgeSizeLabel} · ${calculation.totalEdgeMeters.toFixed(1)} м`
+      : `Разметка кромки ${edgeSizeLabel} · ${calculation.totalEdgeMeters.toFixed(1)} м`;
+  }, [calculation.totalEdgeMeters, edgeSizeLabel, edgingAvailable]);
 
   const requestPayload = useMemo<SubmitCuttingRequestInput>(
     () => ({
       subject: productContext
         ? `Распил: ${productContext.name}`
-        : activePreset
+        : activePreset && !manualSizingCustomized
           ? `Распил: ${activePreset.label}`
           : `Распил: ${material.label}`,
       message: buildCuttingRequestMessage({
@@ -1423,6 +1538,7 @@ export function CutCalculator({
         calculation,
         cutMap,
         estimate,
+        edgeThicknessLabel: edgeSizeLabel,
         workshopRows,
         comment: requestDraft.comment,
       }),
@@ -1445,8 +1561,10 @@ export function CutCalculator({
       calculation,
       cutMap,
       edgeOptionLabel,
+      edgeSizeLabel,
       estimate,
       material,
+      manualSizingCustomized,
       productContext,
       requestDraft.comment,
       requestDraft.contactEmail,
@@ -1470,6 +1588,8 @@ export function CutCalculator({
       rows: exportableRows,
       basisSettings,
       sheetCount: Math.max(cutMap.sheets.length, estimate.sheetCount, 0),
+      edgeThicknessMm: edgeThicknessValue,
+      edgeWidthMm: edgeWidthValue,
     });
     const blob = new Blob([projectXml], {
       type: "application/xml;charset=utf-8",
@@ -1528,6 +1648,25 @@ export function CutCalculator({
     }));
   };
 
+  const handlePresetChange = (presetId: string) => {
+    const nextPresetId = presetId || null;
+    const nextPreset = nextPresetId
+      ? findPresetById(presets, nextPresetId)
+      : null;
+    const nextMaterial =
+      (nextPreset
+        ? materials.find((item) => item.id === nextPreset.materialId)
+        : null) ?? fallbackMaterial;
+
+    setManualPresetId(nextPresetId);
+
+    if (!isManualSizingMaterial(nextMaterial)) {
+      setManualThicknessMm("");
+      setManualSheetWidthMm("");
+      setManualSheetHeightMm("");
+    }
+  };
+
   const removeRow = (id: string) => {
     setDetails((current) =>
       current.length === 1 ? current : current.filter((row) => row.id !== id),
@@ -1557,6 +1696,9 @@ export function CutCalculator({
     if (!lockedPreset) {
       setManualPresetId(defaultPresetId);
     }
+    setManualThicknessMm("");
+    setManualSheetWidthMm("");
+    setManualSheetHeightMm("");
     setDetails(createInitialRows());
     setRequestFeedback(null);
   };
@@ -1565,7 +1707,8 @@ export function CutCalculator({
     if (exportableRows.length === 0) {
       setRequestFeedback({
         tone: "error",
-        message: "Добавьте хотя бы одну деталь с размерами, чтобы отправить заявку.",
+        message:
+          "Добавьте хотя бы одну деталь с размерами, чтобы отправить заявку.",
       });
 
       return;
@@ -1580,10 +1723,7 @@ export function CutCalculator({
       return;
     }
 
-    if (
-      requestDraft.messengerType &&
-      !requestDraft.messengerHandle.trim()
-    ) {
+    if (requestDraft.messengerType && !requestDraft.messengerHandle.trim()) {
       setRequestFeedback({
         tone: "error",
         message: "Добавьте контакт для выбранного мессенджера.",
@@ -1632,7 +1772,7 @@ export function CutCalculator({
       icon: Scissors,
     },
     {
-      label: "Кромка 1 мм",
+      label: `Кромка ${edgeSizeLabel}`,
       value: `${calculation.totalEdgeMeters.toFixed(1)} м`,
       icon: Check,
     },
@@ -1676,10 +1816,7 @@ export function CutCalculator({
                   value={productContext.name}
                   detail={productContext.brand}
                 />
-                <ContextField
-                  label="Материал"
-                  value={activePreset?.label ?? material.label}
-                />
+                <ContextField label="Материал" value={material.label} />
                 <ContextField label="Формат листа" value={sheet.label} />
               </div>
             ) : (
@@ -1692,12 +1829,12 @@ export function CutCalculator({
                     className="h-9 min-w-0 text-[13px] sm:h-11 sm:text-sm"
                     value={manualPresetId ?? ""}
                     disabled={presets.length === 0}
-                    onChange={(event) =>
-                      setManualPresetId(event.target.value || null)
-                    }
+                    onChange={(event) => handlePresetChange(event.target.value)}
                   >
                     {presets.length === 0 ? (
-                      <option value="">Подбор появится после публикации товаров</option>
+                      <option value="">
+                        Подбор появится после публикации товаров
+                      </option>
                     ) : (
                       presets.map((preset) => (
                         <option key={preset.id} value={preset.id}>
@@ -1711,6 +1848,85 @@ export function CutCalculator({
                 <ContextField label="Формат листа" value={sheet.label} />
               </div>
             )}
+
+            {manualSizingAvailable ? (
+              <div className="mt-3 grid grid-cols-1 gap-2 border-t border-[#151411]/10 pt-3 sm:grid-cols-3 sm:gap-3">
+                <label className="grid min-w-0 gap-1.5 text-[12px] font-medium text-[var(--foreground)] sm:text-sm">
+                  Толщина материала, мм
+                  <Input
+                    className="h-9 text-[13px] sm:h-10 sm:text-sm"
+                    inputMode="decimal"
+                    placeholder={
+                      baseMaterial.thicknessMm
+                        ? formatManualSize(baseMaterial.thicknessMm)
+                        : "18"
+                    }
+                    value={manualThicknessMm}
+                    onChange={(event) =>
+                      setManualThicknessMm(event.target.value)
+                    }
+                  />
+                </label>
+
+                <label className="grid min-w-0 gap-1.5 text-[12px] font-medium text-[var(--foreground)] sm:text-sm">
+                  Длина листа, мм
+                  <Input
+                    className="h-9 text-[13px] sm:h-10 sm:text-sm"
+                    inputMode="numeric"
+                    placeholder={formatManualSize(baseSheet.width)}
+                    value={manualSheetWidthMm}
+                    onChange={(event) =>
+                      setManualSheetWidthMm(event.target.value)
+                    }
+                  />
+                </label>
+
+                <label className="grid min-w-0 gap-1.5 text-[12px] font-medium text-[var(--foreground)] sm:text-sm">
+                  Ширина листа, мм
+                  <Input
+                    className="h-9 text-[13px] sm:h-10 sm:text-sm"
+                    inputMode="numeric"
+                    placeholder={formatManualSize(baseSheet.height)}
+                    value={manualSheetHeightMm}
+                    onChange={(event) =>
+                      setManualSheetHeightMm(event.target.value)
+                    }
+                  />
+                </label>
+              </div>
+            ) : null}
+
+            <div className="mt-3 grid grid-cols-1 gap-2 border-t border-[#151411]/10 pt-3 sm:grid-cols-[minmax(0,150px)_minmax(0,150px)_minmax(0,1fr)] sm:gap-3">
+              <label className="grid min-w-0 gap-1.5 text-[12px] font-medium text-[var(--foreground)] sm:text-sm">
+                Толщина кромки, мм
+                <Input
+                  className="h-9 text-[13px] sm:h-10 sm:text-sm"
+                  inputMode="decimal"
+                  placeholder="0.8"
+                  value={edgeThicknessMm}
+                  disabled={!edgingAvailable}
+                  onChange={(event) => setEdgeThicknessMm(event.target.value)}
+                />
+              </label>
+              <label className="grid min-w-0 gap-1.5 text-[12px] font-medium text-[var(--foreground)] sm:text-sm">
+                Ширина кромки, мм
+                <Input
+                  className="h-9 text-[13px] sm:h-10 sm:text-sm"
+                  inputMode="decimal"
+                  placeholder={formatManualSize(
+                    getBandWidthForGibLab(material),
+                  )}
+                  value={edgeWidthMm}
+                  disabled={!edgingAvailable}
+                  onChange={(event) => setEdgeWidthMm(event.target.value)}
+                />
+              </label>
+              <div className="min-w-0 border border-[color:var(--line)] bg-white px-3 py-2 text-[11px] leading-4 text-[var(--muted)]">
+                {edgingAvailable
+                  ? `В заявке и расчете будет указана кромка ${edgeSizeLabel}.`
+                  : "Для выбранного материала кромка отмечается только как разметка."}
+              </div>
+            </div>
           </div>
 
           <div className="mt-3 space-y-2.5 xl:hidden">
@@ -1723,7 +1939,7 @@ export function CutCalculator({
                   <p className="truncate text-[9px] tracking-[0.12em] text-[var(--muted)] uppercase">
                     {card.label}
                   </p>
-                  <p className="mt-1 break-words text-[12px] font-semibold leading-4.5 text-[var(--foreground)]">
+                  <p className="mt-1 text-[12px] leading-4.5 font-semibold break-words text-[var(--foreground)]">
                     {card.value}
                   </p>
                 </div>
@@ -1755,6 +1971,7 @@ export function CutCalculator({
                 calculation.rows[0];
               const selectedEdgeLabel = getReadableEdgeSelection(
                 detail.edgedSides,
+                edgeSizeLabel,
               );
 
               return (
@@ -1785,7 +2002,8 @@ export function CutCalculator({
                         onClick={() => removeRow(detail.id)}
                         className={cn(
                           "inline-flex min-w-0 items-center justify-center gap-1.5 border border-[color:var(--line)] px-2 py-1.5 text-[11px] font-medium text-[var(--muted)] transition hover:border-[color:var(--line-strong)] hover:text-[var(--foreground)]",
-                          details.length === 1 && "cursor-not-allowed opacity-45",
+                          details.length === 1 &&
+                            "cursor-not-allowed opacity-45",
                         )}
                       >
                         <Trash2 className="size-3.5" />
@@ -1797,44 +2015,50 @@ export function CutCalculator({
                   <div className="mt-2.5 grid gap-2.5 xl:grid-cols-[minmax(0,1.32fr)_minmax(260px,0.68fr)] xl:items-start">
                     <div className="space-y-2.5">
                       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.2fr)_110px_110px_96px] xl:gap-2">
-                        <label className="min-w-0 grid gap-1.5 text-[11px] leading-[1.2] text-[var(--foreground)] sm:col-span-2 sm:text-sm xl:col-span-1">
+                        <label className="grid min-w-0 gap-1.5 text-[11px] leading-[1.2] text-[var(--foreground)] sm:col-span-2 sm:text-sm xl:col-span-1">
                           Название
                           <Input
                             className="h-9 text-[13px] sm:h-11 sm:text-sm"
                             value={detail.title}
                             onChange={(event) =>
-                              updateRow(detail.id, { title: event.target.value })
+                              updateRow(detail.id, {
+                                title: event.target.value,
+                              })
                             }
                             placeholder="Деталь"
                           />
                         </label>
-                        <label className="min-w-0 grid gap-1.5 text-[11px] leading-[1.2] text-[var(--foreground)] sm:text-sm">
+                        <label className="grid min-w-0 gap-1.5 text-[11px] leading-[1.2] text-[var(--foreground)] sm:text-sm">
                           Ширина, мм
                           <Input
                             className="h-9 text-[13px] sm:h-11 sm:text-sm"
                             value={detail.width}
                             onChange={(event) =>
-                              updateRow(detail.id, { width: event.target.value })
+                              updateRow(detail.id, {
+                                width: event.target.value,
+                              })
                             }
                             type="number"
                             min="0"
                             placeholder="560"
                           />
                         </label>
-                        <label className="min-w-0 grid gap-1.5 text-[11px] leading-[1.2] text-[var(--foreground)] sm:text-sm">
+                        <label className="grid min-w-0 gap-1.5 text-[11px] leading-[1.2] text-[var(--foreground)] sm:text-sm">
                           Высота, мм
                           <Input
                             className="h-9 text-[13px] sm:h-11 sm:text-sm"
                             value={detail.height}
                             onChange={(event) =>
-                              updateRow(detail.id, { height: event.target.value })
+                              updateRow(detail.id, {
+                                height: event.target.value,
+                              })
                             }
                             type="number"
                             min="0"
                             placeholder="420"
                           />
                         </label>
-                        <label className="min-w-0 grid gap-1.5 text-[11px] leading-[1.2] text-[var(--foreground)] sm:text-sm">
+                        <label className="grid min-w-0 gap-1.5 text-[11px] leading-[1.2] text-[var(--foreground)] sm:text-sm">
                           Кол-во
                           <Input
                             className="h-9 text-[13px] sm:h-11 sm:text-sm"
@@ -1856,13 +2080,15 @@ export function CutCalculator({
                             value={detail.orientationMode}
                             onChange={(event) =>
                               updateRow(detail.id, {
-                                orientationMode:
-                                  event.target.value as OrientationMode,
+                                orientationMode: event.target
+                                  .value as OrientationMode,
                               })
                             }
                           >
                             {(
-                              Object.keys(orientationModeMeta) as OrientationMode[]
+                              Object.keys(
+                                orientationModeMeta,
+                              ) as OrientationMode[]
                             ).map((mode) => (
                               <option key={mode} value={mode}>
                                 {orientationModeMeta[mode].label}
@@ -1882,15 +2108,20 @@ export function CutCalculator({
                               Кромка: {selectedEdgeLabel}
                             </span>
                             <span className="inline-flex min-h-7 items-center border border-[color:var(--line)] px-2 text-[11px] text-[var(--foreground)]">
-                              Режим: {getOrientationModeLabel(detail.orientationMode)}
+                              Режим:{" "}
+                              {getOrientationModeLabel(detail.orientationMode)}
                             </span>
                           </div>
                           <p className="mt-2 text-[11px] leading-4 text-[var(--muted)]">
-                            {orientationModeMeta[detail.orientationMode].description}
+                            {
+                              orientationModeMeta[detail.orientationMode]
+                                .description
+                            }
                           </p>
                           {!edgingAvailable ? (
                             <p className="mt-2 text-[11px] leading-4 text-[var(--muted)]">
-                              Для этого материала кромка 1 мм в расчёте не учитывается.
+                              Для этого материала кромка {edgeSizeLabel} в
+                              расчёте не учитывается.
                             </p>
                           ) : null}
                         </div>
@@ -1907,13 +2138,15 @@ export function CutCalculator({
                             muted
                           />
                           <MetricTile
-                            label="Кромка 1 мм"
+                            label={`Кромка ${edgeSizeLabel}`}
                             value={`${lineCalculation.edgeMeters.toFixed(1)} м`}
                             muted
                           />
                           <MetricTile
                             label="Ориентир по детали"
-                            value={formatPrice(Math.round(lineCalculation.lineTotal))}
+                            value={formatPrice(
+                              Math.round(lineCalculation.lineTotal),
+                            )}
                             muted
                           />
                         </div>
@@ -1950,7 +2183,8 @@ export function CutCalculator({
                         <div className="row-start-2 flex min-h-[96px] min-w-0 items-center justify-center overflow-hidden rounded-[14px] border-[3px] border-[var(--accent)]/85 bg-[#fbf8f1] px-2 text-center sm:min-h-[124px] sm:rounded-[20px] sm:px-3">
                           <div className="min-w-0">
                             <p className="truncate font-mono text-[9px] tracking-[0.12em] text-[var(--muted)] uppercase sm:text-[10px]">
-                              {lineCalculation.width || 0} × {lineCalculation.height || 0} мм
+                              {lineCalculation.width || 0} ×{" "}
+                              {lineCalculation.height || 0} мм
                             </p>
                             <p className="mt-1 truncate text-[0.95rem] font-semibold text-[var(--foreground)] sm:mt-1.5 sm:text-[1.35rem]">
                               {detail.title}
@@ -1983,7 +2217,7 @@ export function CutCalculator({
                         </div>
                       </div>
 
-                      <div className="mt-2 border-t border-[color:var(--line)] pt-2 space-y-1">
+                      <div className="mt-2 space-y-1 border-t border-[color:var(--line)] pt-2">
                         <div>
                           <p className="font-mono text-[10px] tracking-[0.14em] text-[var(--muted)] uppercase">
                             Выбрано
@@ -1992,14 +2226,16 @@ export function CutCalculator({
                             {selectedEdgeLabel}
                           </p>
                           <p className="mt-1 text-[11px] leading-4.5 text-[var(--muted)]">
-                            Ориентация: {getOrientationModeLabel(detail.orientationMode)}
+                            Ориентация:{" "}
+                            {getOrientationModeLabel(detail.orientationMode)}
                           </p>
                         </div>
 
                         {!edgingAvailable ? (
                           <p className="text-[11px] leading-4 text-[var(--muted)]">
-                            Для выбранного материала кромка 1 мм в этом расчете не
-                            учитывается, но разметку можно сохранить для заявки.
+                            Для выбранного материала кромка 1 мм в этом расчете
+                            не учитывается, но разметку можно сохранить для
+                            заявки.
                           </p>
                         ) : null}
                       </div>
@@ -2018,7 +2254,7 @@ export function CutCalculator({
                       muted
                     />
                     <MetricTile
-                      label="Кромка 1 мм"
+                      label={`Кромка ${edgeSizeLabel}`}
                       value={`${lineCalculation.edgeMeters.toFixed(1)} м`}
                       muted
                     />
@@ -2076,7 +2312,8 @@ export function CutCalculator({
               <div className="text-[11px] leading-4.5 text-[var(--muted)] sm:max-w-[14rem] sm:text-right">
                 <p>{requestPayload.material}</p>
                 <p className="mt-1">
-                  {exportableRows.length} поз. · {formatPrice(Math.round(estimate.totalEstimate))}
+                  {exportableRows.length} поз. ·{" "}
+                  {formatPrice(Math.round(estimate.totalEstimate))}
                 </p>
               </div>
             </div>
@@ -2159,7 +2396,8 @@ export function CutCalculator({
 
             <div className="mt-3 flex flex-col gap-2.5 border-t border-[color:var(--line)] pt-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="text-[11px] leading-4.5 text-[var(--muted)]">
-                В заявку уйдут карта, ведомость, кромка 1 мм и ориентир по стоимости.
+                В заявку уйдут карта, ведомость, кромка 1 мм и ориентир по
+                стоимости.
               </div>
               <Button
                 variant="accent"
@@ -2203,11 +2441,12 @@ export function CutCalculator({
                 <p className="mt-2 hidden text-[13px] leading-5 text-[var(--muted)] sm:block">
                   Карта строится по полосному гильотинному алгоритму: сначала
                   формируется полезное поле листа после торцовки, затем
-                  раскладываются полосы и поперечные резы с учетом ширины пропила.
+                  раскладываются полосы и поперечные резы с учетом ширины
+                  пропила.
                 </p>
               </div>
 
-              <div className="grid w-full min-w-0 grid-cols-1 gap-2 min-[380px]:grid-cols-2 sm:min-w-[250px] sm:w-auto sm:grid-cols-2 xl:grid-cols-3">
+              <div className="grid w-full min-w-0 grid-cols-1 gap-2 min-[380px]:grid-cols-2 sm:w-auto sm:min-w-[250px] sm:grid-cols-2 xl:grid-cols-3">
                 <MetricTile label="Формат листа" value={sheet.label} muted />
                 <MetricTile
                   label="Полезное поле"
@@ -2289,7 +2528,8 @@ export function CutCalculator({
                             </p>
                           </div>
                           <span className="inline-flex min-h-7 items-center border border-[color:var(--line)] px-2 font-mono text-[9px] tracking-[0.12em] text-[var(--foreground)] uppercase">
-                            {cutSheet.pieces.length} деталей · {fillRate.toFixed(0)}%
+                            {cutSheet.pieces.length} деталей ·{" "}
+                            {fillRate.toFixed(0)}%
                           </span>
                         </div>
 
@@ -2360,7 +2600,9 @@ export function CutCalculator({
                                           {piece.width} × {piece.height} мм
                                         </p>
                                         <p className="text-[8px] opacity-75 sm:text-[9px]">
-                                          {getOrientationModeLabel(piece.orientationMode)}
+                                          {getOrientationModeLabel(
+                                            piece.orientationMode,
+                                          )}
                                         </p>
                                         {piece.rotated ? (
                                           <p className="font-mono text-[8px] tracking-[0.1em] uppercase opacity-70 sm:text-[9px]">
@@ -2410,7 +2652,8 @@ export function CutCalculator({
                                 Полезные остатки листа
                               </p>
                               <span className="text-[11px] text-[var(--muted)]">
-                                {(cutSheet.offcutArea / 1_000_000).toFixed(2)} м² свободно
+                                {(cutSheet.offcutArea / 1_000_000).toFixed(2)}{" "}
+                                м² свободно
                               </span>
                             </div>
                             <div className="mt-2 flex flex-wrap gap-1.5 sm:gap-2">
@@ -2466,11 +2709,13 @@ export function CutCalculator({
                   Таблица деталей по фактической карте раскроя
                 </h3>
                 <p className="mt-2 hidden text-[13px] leading-5 text-[var(--muted)] sm:block">
-                  Здесь собраны размеры, кромка, ориентация и распределение по листам. Эту часть уже удобно сверять перед распилом и кромлением.
+                  Здесь собраны размеры, кромка, ориентация и распределение по
+                  листам. Эту часть уже удобно сверять перед распилом и
+                  кромлением.
                 </p>
               </div>
 
-              <div className="grid w-full min-w-0 grid-cols-1 gap-2 min-[380px]:grid-cols-2 sm:min-w-[220px] sm:w-auto sm:grid-cols-2">
+              <div className="grid w-full min-w-0 grid-cols-1 gap-2 min-[380px]:grid-cols-2 sm:w-auto sm:min-w-[220px] sm:grid-cols-2">
                 <MetricTile
                   label="Позиций"
                   value={`${workshopRows.length} шт.`}
@@ -2508,7 +2753,9 @@ export function CutCalculator({
                       <p className="font-mono text-[10px] tracking-[0.12em] uppercase">
                         Кромка
                       </p>
-                      <p className="mt-0.5 text-[var(--foreground)]">{row.edgeLabel}</p>
+                      <p className="mt-0.5 text-[var(--foreground)]">
+                        {row.edgeLabel}
+                      </p>
                     </div>
                     <div>
                       <p className="font-mono text-[10px] tracking-[0.12em] uppercase">
@@ -2522,7 +2769,9 @@ export function CutCalculator({
                       <p className="font-mono text-[10px] tracking-[0.12em] uppercase">
                         Листы
                       </p>
-                      <p className="mt-0.5 text-[var(--foreground)]">{row.sheetsLabel}</p>
+                      <p className="mt-0.5 text-[var(--foreground)]">
+                        {row.sheetsLabel}
+                      </p>
                     </div>
                   </div>
                 </article>
@@ -2605,7 +2854,8 @@ export function CutCalculator({
             Рабочая сводка по карте раскроя
           </h3>
           <p className="mt-2 text-[13px] leading-5 text-[#5f554c] sm:text-sm sm:leading-6">
-            Здесь собран только рабочий минимум: площадь, рез, листы, остатки и ориентир по стоимости.
+            Здесь собран только рабочий минимум: площадь, рез, листы, остатки и
+            ориентир по стоимости.
           </p>
 
           <div className="mt-4 grid gap-2 sm:mt-5 sm:grid-cols-2 sm:gap-2.5 xl:grid-cols-1">
@@ -2644,7 +2894,7 @@ export function CutCalculator({
               <span>{formatPrice(Math.round(estimate.cuttingCost))}</span>
             </div>
             <div className="flex items-center justify-between gap-3 text-sm text-[#5f554c]">
-              <span>Кромка 1 мм</span>
+              <span>Кромка {edgeSizeLabel}</span>
               <span>{formatPrice(Math.round(estimate.edgeCost))}</span>
             </div>
             <div className="flex items-center justify-between gap-3 text-sm text-[#5f554c]">
@@ -2656,7 +2906,6 @@ export function CutCalculator({
               <span>{formatPrice(Math.round(estimate.totalEstimate))}</span>
             </div>
           </div>
-
         </aside>
       </div>
     </section>

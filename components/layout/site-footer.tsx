@@ -86,9 +86,7 @@ export function SiteFooter() {
               </p>
             ) : null}
             {companyContacts.hours ? <p>{companyContacts.hours}</p> : null}
-            {companyContacts.address ? (
-              <p>{companyContacts.address}</p>
-            ) : null}
+            {companyContacts.address ? <p>{companyContacts.address}</p> : null}
           </div>
         </div>
       </Container>

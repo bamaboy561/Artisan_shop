@@ -43,7 +43,9 @@ export function getDemoAdminSession(): SessionPayload {
   const credentials = getDemoAdminCredentials();
 
   if (!credentials) {
-    throw new Error("Demo admin session is unavailable while demo mode is off.");
+    throw new Error(
+      "Demo admin session is unavailable while demo mode is off.",
+    );
   }
 
   return {

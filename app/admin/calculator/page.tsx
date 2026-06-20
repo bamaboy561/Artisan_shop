@@ -18,8 +18,56 @@ import { getDb, hasDatabaseUrl } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
+const REQUIRED_CALCULATOR_MATERIALS = [
+  {
+    slug: "ldsp-10",
+    label: "ЛДСП 10 мм",
+    pricePerSqM: 540,
+    cutRatePerMeter: 36,
+    edgeRatePerMeter: 26,
+    setupFee: 900,
+    thicknessMm: 10,
+    sortOrder: 8,
+  },
+  {
+    slug: "mdf-8",
+    label: "МДФ 8 мм",
+    pricePerSqM: 570,
+    cutRatePerMeter: 39,
+    edgeRatePerMeter: 20,
+    setupFee: 980,
+    thicknessMm: 8,
+    sortOrder: 17,
+  },
+  {
+    slug: "mdf-10",
+    label: "МДФ 10 мм",
+    pricePerSqM: 620,
+    cutRatePerMeter: 40,
+    edgeRatePerMeter: 24,
+    setupFee: 1000,
+    thicknessMm: 10,
+    sortOrder: 18,
+  },
+];
+
 async function getCalculatorAdminData() {
   const db = getDb();
+  await Promise.all(
+    REQUIRED_CALCULATOR_MATERIALS.map(async (material) => {
+      const existing = await db.calculatorMaterial.findUnique({
+        where: { slug: material.slug },
+        select: { id: true },
+      });
+
+      if (!existing) {
+        await db.calculatorMaterial.create({
+          data: { ...material, isActive: true },
+        });
+      }
+    }),
+  );
+
   const [materials, sheetFormats] = await Promise.all([
     db.calculatorMaterial.findMany({
       orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
@@ -269,7 +317,10 @@ export default async function AdminCalculatorPage() {
             descriptionClassName="text-sm leading-7"
           />
 
-          <form action={createCalculatorMaterialAction} className="mt-6 grid gap-3">
+          <form
+            action={createCalculatorMaterialAction}
+            className="mt-6 grid gap-3"
+          >
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="grid gap-1 text-sm text-[var(--foreground)]">
                 Slug

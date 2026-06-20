@@ -63,7 +63,9 @@ export async function getLaunchReadiness(): Promise<LaunchReadiness> {
   ];
 
   if (!databaseReady) {
-    const readyCount = checks.filter((check) => check.status === "ready").length;
+    const readyCount = checks.filter(
+      (check) => check.status === "ready",
+    ).length;
     const warningCount = checks.filter(
       (check) => check.status === "warning",
     ).length;
@@ -152,8 +154,7 @@ export async function getLaunchReadiness(): Promise<LaunchReadiness> {
         calculatorMaterials > 0 && sheetFormats > 0
           ? "Есть активные материалы, цены и форматы листов для расчета распила."
           : "Добавьте материалы и форматы листов, иначе расчет будет работать только на fallback-конфиге.",
-      status:
-        calculatorMaterials > 0 && sheetFormats > 0 ? "ready" : "warning",
+      status: calculatorMaterials > 0 && sheetFormats > 0 ? "ready" : "warning",
       href: "/admin/calculator",
       actionLabel: "Калькулятор",
       value: `${calculatorMaterials} мат. / ${sheetFormats} форм.`,
@@ -187,10 +188,12 @@ export async function getLaunchReadiness(): Promise<LaunchReadiness> {
   );
 
   const readyCount = checks.filter((check) => check.status === "ready").length;
-  const warningCount = checks.filter((check) => check.status === "warning")
-    .length;
-  const blockedCount = checks.filter((check) => check.status === "blocked")
-    .length;
+  const warningCount = checks.filter(
+    (check) => check.status === "warning",
+  ).length;
+  const blockedCount = checks.filter(
+    (check) => check.status === "blocked",
+  ).length;
 
   return {
     checks,

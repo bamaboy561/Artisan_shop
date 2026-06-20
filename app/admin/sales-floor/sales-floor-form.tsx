@@ -1,7 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Minus, Plus, Search, UserRound } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { BrowserQRCodeReader, type IScannerControls } from "@zxing/browser";
+import {
+  Camera,
+  Minus,
+  Plus,
+  QrCode,
+  Search,
+  UserRound,
+  X,
+} from "lucide-react";
 
 import { createSalesFloorOrderAction } from "@/app/admin/actions";
 import { AdminSubmitButton } from "@/components/admin/admin-submit-button";
@@ -50,6 +59,12 @@ function formatPrice(value: number) {
   }).format(value)} сом`;
 }
 
+function formatProductPrice(value: number | null) {
+  return typeof value === "number" && value > 0
+    ? formatPrice(value)
+    : "Цена не указана";
+}
+
 function getCustomerName(customer: CustomerOption) {
   return (
     [customer.firstName, customer.lastName].filter(Boolean).join(" ") ||
@@ -72,12 +87,7 @@ function getCustomerSearch(customer: CustomerOption) {
 }
 
 function getProductSearch(product: ProductOption) {
-  return [
-    product.name,
-    product.sku,
-    product.brand?.name,
-    product.category.name,
-  ]
+  return [product.name, product.sku, product.brand?.name, product.category.name]
     .filter(Boolean)
     .join(" ")
     .toLocaleLowerCase("ru-RU");
@@ -86,10 +96,16 @@ function getProductSearch(product: ProductOption) {
 export function SalesFloorForm({ customers, products }: SalesFloorFormProps) {
   const [customerQuery, setCustomerQuery] = useState("");
   const [productQuery, setProductQuery] = useState("");
+  const [qrValue, setQrValue] = useState("");
+  const [scannerActive, setScannerActive] = useState(false);
+  const [scannerMessage, setScannerMessage] = useState<string | null>(null);
   const [selectedCustomerId, setSelectedCustomerId] = useState(
     customers[0]?.id ?? "",
   );
+  const [redeemPointsInput, setRedeemPointsInput] = useState("");
   const [items, setItems] = useState<SelectedItem[]>([]);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const scannerControlsRef = useRef<IScannerControls | null>(null);
   const selectedProductIds = new Set(items.map((item) => item.productId));
   const selectedCustomer = customers.find(
     (customer) => customer.id === selectedCustomerId,
@@ -117,9 +133,96 @@ export function SalesFloorForm({ customers, products }: SalesFloorFormProps) {
     const product = productMap.get(item.productId);
     return sum + (product?.price ?? 0) * item.quantity;
   }, 0);
+  const requestedRedeemPoints = Math.max(
+    0,
+    Number.parseInt(redeemPointsInput || "0", 10) || 0,
+  );
+  const maxRedeemablePoints = selectedCustomer
+    ? Math.min(
+        selectedCustomer.loyaltyPointsBalance,
+        Math.floor(subtotal * 0.5),
+      )
+    : 0;
+  const redeemablePoints = selectedCustomer
+    ? Math.min(requestedRedeemPoints, maxRedeemablePoints)
+    : 0;
+  const total = Math.max(0, subtotal - redeemablePoints);
+
+  function selectCustomerByQr(rawValue: string) {
+    const value = rawValue.trim();
+    const customerId =
+      value.match(/^artisan-client:([a-z0-9_-]+)$/i)?.[1] ?? value;
+    const customer = customers.find(
+      (item) =>
+        item.id === customerId ||
+        item.email.toLocaleLowerCase("ru-RU") ===
+          value.toLocaleLowerCase("ru-RU") ||
+        item.phone === value,
+    );
+
+    setQrValue(value);
+
+    if (!customer) {
+      setScannerMessage("Клиент по QR не найден.");
+      return false;
+    }
+
+    setSelectedCustomerId(customer.id);
+    setCustomerQuery(getCustomerName(customer));
+    setScannerMessage("Клиент выбран по QR.");
+    return true;
+  }
+
+  function stopScanner() {
+    scannerControlsRef.current?.stop();
+    scannerControlsRef.current = null;
+    setScannerActive(false);
+  }
+
+  async function startScanner() {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setScannerMessage(
+        "Камера QR недоступна в этом браузере. Можно вставить код вручную.",
+      );
+      return;
+    }
+
+    try {
+      setScannerActive(true);
+      setScannerMessage("Наведите камеру на QR клиента.");
+      const reader = new BrowserQRCodeReader();
+      const controls = await reader.decodeFromVideoDevice(
+        undefined,
+        videoRef.current ?? undefined,
+        (result) => {
+          const value = result?.getText();
+
+          if (value && selectCustomerByQr(value)) {
+            stopScanner();
+          }
+        },
+      );
+
+      scannerControlsRef.current = controls;
+    } catch {
+      setScannerMessage("Не получилось открыть камеру для QR.");
+      stopScanner();
+    }
+  }
+
+  useEffect(() => {
+    return () => {
+      scannerControlsRef.current?.stop();
+      scannerControlsRef.current = null;
+    };
+  }, []);
 
   function addProduct(productId: string) {
     if (selectedProductIds.has(productId)) {
+      return;
+    }
+
+    if (!productMap.has(productId)) {
       return;
     }
 
@@ -141,7 +244,9 @@ export function SalesFloorForm({ customers, products }: SalesFloorFormProps) {
   }
 
   function removeProduct(productId: string) {
-    setItems((current) => current.filter((item) => item.productId !== productId));
+    setItems((current) =>
+      current.filter((item) => item.productId !== productId),
+    );
   }
 
   return (
@@ -217,6 +322,65 @@ export function SalesFloorForm({ customers, products }: SalesFloorFormProps) {
             );
           })}
         </div>
+
+        <div className="mt-4 rounded-2xl border border-[color:var(--line)] bg-[#faf8f4] p-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="font-mono text-[10px] tracking-[0.18em] text-[var(--accent)] uppercase">
+                QR клиента
+              </p>
+              <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
+                Сканируйте QR из кабинета или вставьте код вручную.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={scannerActive ? stopScanner : startScanner}
+              className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-[#111] text-white transition hover:bg-[#c65b3a]"
+              aria-label={
+                scannerActive ? "Остановить QR-сканер" : "Открыть QR-сканер"
+              }
+            >
+              {scannerActive ? (
+                <X className="size-4" />
+              ) : (
+                <Camera className="size-4" />
+              )}
+            </button>
+          </div>
+          <div className="mt-3 flex gap-2">
+            <div className="relative min-w-0 flex-1">
+              <QrCode className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-[var(--muted)]" />
+              <Input
+                value={qrValue}
+                onChange={(event) => setQrValue(event.target.value)}
+                placeholder="artisan-client:..."
+                className="h-10 pl-10"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => selectCustomerByQr(qrValue)}
+              className="h-10 rounded-xl border border-[color:var(--line-strong)] px-3 text-xs font-semibold transition hover:bg-white"
+            >
+              Найти
+            </button>
+          </div>
+          <video
+            ref={videoRef}
+            playsInline
+            muted
+            className={cn(
+              "mt-3 aspect-video w-full rounded-2xl bg-black object-cover",
+              !scannerActive && "hidden",
+            )}
+          />
+          {scannerMessage ? (
+            <p className="mt-2 text-xs leading-5 text-[var(--muted)]">
+              {scannerMessage}
+            </p>
+          ) : null}
+        </div>
       </section>
 
       <section className="rounded-[28px] border border-[color:var(--line)] bg-white p-4 shadow-[0_18px_50px_rgba(30,28,25,0.05)]">
@@ -248,34 +412,38 @@ export function SalesFloorForm({ customers, products }: SalesFloorFormProps) {
         </label>
 
         <div className="mt-4 grid max-h-[610px] gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
-          {productResults.map((product) => (
-            <button
-              key={product.id}
-              type="button"
-              onClick={() => addProduct(product.id)}
-              className="grid gap-3 rounded-2xl border border-[color:var(--line)] bg-[#faf8f4] p-2.5 text-left transition hover:border-[#c65b3a] hover:bg-white"
-            >
-              <div className="relative aspect-[1.25/1] overflow-hidden rounded-xl bg-[#eee8de]">
-                <ProductImage
-                  src={product.images[0]?.url}
-                  alt={product.name}
-                  fill
-                  sizes="180px"
-                  className="object-cover"
-                  fallbackLabel={product.brand?.name ?? "Artisan"}
-                />
-              </div>
-              <div className="min-w-0">
-                <p className="truncate font-semibold">{product.name}</p>
-                <p className="mt-1 truncate text-xs text-[var(--muted)]">
-                  {[product.brand?.name, product.sku].filter(Boolean).join(" · ")}
-                </p>
-                <p className="mt-2 text-lg font-semibold">
-                  {formatPrice(product.price ?? 0)}
-                </p>
-              </div>
-            </button>
-          ))}
+          {productResults.map((product) => {
+            return (
+              <button
+                key={product.id}
+                type="button"
+                onClick={() => addProduct(product.id)}
+                className="grid gap-3 rounded-2xl border border-[color:var(--line)] bg-[#faf8f4] p-2.5 text-left transition hover:border-[#c65b3a] hover:bg-white"
+              >
+                <div className="relative aspect-[1.25/1] overflow-hidden rounded-xl bg-[#eee8de]">
+                  <ProductImage
+                    src={product.images[0]?.url}
+                    alt={product.name}
+                    fill
+                    sizes="180px"
+                    className="object-cover"
+                    fallbackLabel={product.brand?.name ?? "Artisan"}
+                  />
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate font-semibold">{product.name}</p>
+                  <p className="mt-1 truncate text-xs text-[var(--muted)]">
+                    {[product.brand?.name, product.sku]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </p>
+                  <p className="mt-2 text-lg font-semibold">
+                    {formatProductPrice(product.price)}
+                  </p>
+                </div>
+              </button>
+            );
+          })}
         </div>
       </section>
 
@@ -284,7 +452,9 @@ export function SalesFloorForm({ customers, products }: SalesFloorFormProps) {
           Продажа
         </p>
         <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em]">
-          {selectedCustomer ? getCustomerName(selectedCustomer) : "Клиент не выбран"}
+          {selectedCustomer
+            ? getCustomerName(selectedCustomer)
+            : "Клиент не выбран"}
         </h2>
 
         <div className="mt-5 grid gap-2">
@@ -301,7 +471,11 @@ export function SalesFloorForm({ customers, products }: SalesFloorFormProps) {
                   key={item.productId}
                   className="rounded-2xl bg-white/[0.075] p-3"
                 >
-                  <input type="hidden" name="productId" value={item.productId} />
+                  <input
+                    type="hidden"
+                    name="productId"
+                    value={item.productId}
+                  />
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="truncate font-semibold">{product.name}</p>
@@ -374,9 +548,36 @@ export function SalesFloorForm({ customers, products }: SalesFloorFormProps) {
           <div className="flex items-center justify-between gap-4">
             <span className="text-sm text-white/50">Итого</span>
             <strong className="text-3xl tracking-[-0.05em]">
-              {formatPrice(subtotal)}
+              {formatPrice(total)}
             </strong>
           </div>
+          {selectedCustomer ? (
+            <div className="mt-3 rounded-2xl bg-white/[0.06] p-3">
+              <label className="grid gap-1.5 text-sm">
+                Списать бонусы
+                <Input
+                  name="redeemPoints"
+                  type="number"
+                  min="0"
+                  max={maxRedeemablePoints}
+                  value={redeemPointsInput}
+                  onChange={(event) =>
+                    setRedeemPointsInput(event.target.value)
+                  }
+                  placeholder="0"
+                  inputMode="numeric"
+                  className="h-11 border-white/10 bg-white/10 text-white placeholder:text-white/34"
+                />
+              </label>
+              <p className="mt-2 text-xs leading-5 text-white/48">
+                Баланс: {selectedCustomer.loyaltyPointsBalance} баллов. За эту
+                покупку можно списать до {formatPrice(maxRedeemablePoints)}.
+                {redeemablePoints > 0
+                  ? ` Применено: ${formatPrice(redeemablePoints)}.`
+                  : ""}
+              </p>
+            </div>
+          ) : null}
 
           <div className="mt-4 grid gap-3">
             <label className="grid gap-1.5 text-sm">
@@ -401,7 +602,7 @@ export function SalesFloorForm({ customers, products }: SalesFloorFormProps) {
               defaultChecked
               label="Применить скидку клиента"
               description="Учитывается уровень и персональная скидка."
-              className="rounded-2xl border border-white/10 bg-white/[0.06] px-3 py-3"
+              className="hidden"
             />
             <Checkbox
               name="accrueLoyalty"

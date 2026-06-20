@@ -1,8 +1,4 @@
-import {
-  OrderStatus,
-  RequestStatus,
-  RequestType,
-} from "@/generated/prisma";
+import { OrderStatus, RequestStatus, RequestType } from "@/generated/prisma";
 
 type SearchParamValue = string | string[] | undefined;
 type AdminSearchParams = Record<string, SearchParamValue>;

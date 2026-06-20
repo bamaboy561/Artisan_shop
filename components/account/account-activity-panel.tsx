@@ -141,13 +141,7 @@ function getRequestTone(status: RequestStatus) {
   return "neutral";
 }
 
-function PanelLink({
-  href,
-  children,
-}: {
-  href: string;
-  children: ReactNode;
-}) {
+function PanelLink({ href, children }: { href: string; children: ReactNode }) {
   return (
     <Link
       href={href}
@@ -344,8 +338,8 @@ export function AccountActivityPanel({
                 Как ускорить работу
               </h3>
               <p className="mt-1 text-sm leading-6 text-[var(--muted)]">
-                Оформляйте заявки через кабинет: менеджер увидит историю,
-                файлы, статусы и быстрее подготовит расчёт.
+                Оформляйте заявки через кабинет: менеджер увидит историю, файлы,
+                статусы и быстрее подготовит расчёт.
               </p>
             </div>
           </div>

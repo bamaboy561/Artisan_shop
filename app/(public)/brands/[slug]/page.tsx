@@ -115,7 +115,7 @@ function ProductVisual({
           className,
         )}
       >
-        <div className="absolute inset-0 opacity-[0.18] [background-image:linear-gradient(90deg,#151411_1px,transparent_1px),linear-gradient(#151411_1px,transparent_1px)] [background-size:42px_42px]" />
+        <div className="absolute inset-0 [background-image:linear-gradient(90deg,#151411_1px,transparent_1px),linear-gradient(#151411_1px,transparent_1px)] [background-size:42px_42px] opacity-[0.18]" />
       </div>
     );
   }
@@ -147,7 +147,9 @@ function BrandHeroVisual({
     <div className="grid min-h-[27rem] gap-3 bg-[#151411] p-3 text-white sm:min-h-[34rem] lg:min-h-[42rem] lg:grid-cols-[1.2fr_0.8fr]">
       <Link
         href={
-          heroProduct ? `/product/${heroProduct.slug}` : brand.catalogHref ?? "/brands"
+          heroProduct
+            ? `/product/${heroProduct.slug}`
+            : (brand.catalogHref ?? "/brands")
         }
         className="group relative min-h-[22rem] overflow-hidden lg:min-h-0"
       >
@@ -172,7 +174,7 @@ function BrandHeroVisual({
           href={
             secondProduct
               ? `/product/${secondProduct.slug}`
-              : brand.catalogHref ?? "/brands"
+              : (brand.catalogHref ?? "/brands")
           }
           className="group relative min-h-[12rem] overflow-hidden"
         >
@@ -292,7 +294,9 @@ export default async function BrandDetailPage({ params }: BrandPageProps) {
   }
 
   const previewProducts = brand.products.slice(0, 8);
-  const heroProducts = brand.products.filter((product) => product.image).slice(0, 3);
+  const heroProducts = brand.products
+    .filter((product) => product.image)
+    .slice(0, 3);
   const allProfiles = await getBrandProfiles();
   const relatedBrands = allProfiles
     .filter(
@@ -305,10 +309,17 @@ export default async function BrandDetailPage({ params }: BrandPageProps) {
   const primaryLabel = brand.catalogHref
     ? "Открыть каталог"
     : "Запросить консультацию";
-  const secondaryHref = brand.catalogHref ? "/services#service-request" : "/brands";
+  const secondaryHref = brand.catalogHref
+    ? "/services#service-request"
+    : "/brands";
   const secondaryLabel = brand.catalogHref
     ? "Подобрать под проект"
     : "Все бренды";
+  const brandStats = [
+    ["Позиции", `${brand.productCount}`],
+    ["Направление", brand.sectionName],
+    ["Сценарий", brand.catalogHref ? "Каталог" : "Консультация"],
+  ];
 
   return (
     <div className="bg-[#f4f0e8] text-[#151411]">
@@ -348,7 +359,7 @@ export default async function BrandDetailPage({ params }: BrandPageProps) {
 
                   <div>
                     <div className="mb-4 flex flex-wrap gap-2">
-                      {[brand.statusLabel, brand.sectionName, brand.country]
+                      {[brand.sectionName, brand.country]
                         .filter(Boolean)
                         .map((chip) => (
                           <span
@@ -392,12 +403,7 @@ export default async function BrandDetailPage({ params }: BrandPageProps) {
 
       <section className="px-4 py-6 sm:px-6 lg:px-8">
         <div className="mx-auto grid max-w-[1540px] gap-4 lg:grid-cols-4">
-          {[
-            ["Позиции", brand.productCount > 0 ? `${brand.productCount}` : "Скоро"],
-            ["Направление", brand.sectionName],
-            ["Статус", brand.statusLabel],
-            ["Сценарий", brand.catalogHref ? "Каталог" : "Консультация"],
-          ].map(([label, value]) => (
+          {brandStats.map(([label, value]) => (
             <article
               key={label}
               className="rounded-[26px] border border-[#151411]/10 bg-white/78 p-5"
@@ -453,8 +459,8 @@ export default async function BrandDetailPage({ params }: BrandPageProps) {
                 Подборка бренда.
               </h2>
               <p className="mt-3 max-w-[34rem] text-sm leading-7 text-[#6c665f]">
-                Самые заметные позиции бренда для быстрого перехода в карточку
-                и запроса цены.
+                Самые заметные позиции бренда для быстрого перехода в карточку и
+                запроса цены.
               </p>
             </div>
             {brand.catalogHref ? (

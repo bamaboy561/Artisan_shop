@@ -3,7 +3,7 @@ import type { NavItem } from "@/types/navigation";
 export const companyName = "Artisan";
 
 export const siteDescription =
-  "Artisan — ЛДСП, МДФ, мебельные панели, фурнитура, распил и проектные заявки в Бишкеке.";
+  "Artisan - ЛДСП, МДФ, мебельные панели, фурнитура, распил и проектные заявки в Бишкеке.";
 
 export const primaryNavigation: NavItem[] = [
   { href: "/catalog", label: "Каталог" },
@@ -28,12 +28,12 @@ export const accountNavigation: NavItem[] = [
   {
     href: "/account/requests",
     label: "Заявки",
-    description: "Расчёт, консультации и распил.",
+    description: "Расчет, консультации и распил.",
   },
   {
     href: "/account/favorites",
     label: "Избранное",
-    description: "Сохранённые товары и подборки.",
+    description: "Сохраненные товары и подборки.",
   },
 ];
 
@@ -60,8 +60,8 @@ export const adminNavigation: NavItem[] = [
   },
   {
     href: "/admin/requests",
-    label: "Запросы на расчёт",
-    description: "Расчёт и входящий поток.",
+    label: "Запросы на расчет",
+    description: "Расчет и входящий поток.",
   },
   {
     href: "/admin/cutting",
@@ -89,6 +89,11 @@ export const adminNavigation: NavItem[] = [
     description: "Уровни, скидки и баллы.",
   },
   {
+    href: "/admin/loyalty",
+    label: "Бонусы",
+    description: "Правила уровней, начисления и 1C.",
+  },
+  {
     href: "/admin/promotions",
     label: "Акции",
     description: "Промо и механики.",
@@ -110,16 +115,16 @@ export const companyContacts = {
   phoneTel: "+996552788188",
   email: "info@artisan.kg",
   address: "г. Бишкек, ул. Кулатова 3/1",
-  hours: "Пн–Пт 09:00–17:00",
+  hours: "Пн-Пт 09:00-17:00",
   whatsapp: "https://wa.me/996552788188",
   telegram: "",
 };
 
 export type CompanyBranchSchedule = {
-  // Days are 0–6 starting Sunday (matches Date.getDay()).
+  // Days are 0-6 starting Sunday (matches Date.getDay()).
   days: number[];
-  open: number; // hour (0–23, local Bishkek time)
-  close: number; // hour (0–23, local Bishkek time)
+  open: number; // hour (0-23, local Bishkek time)
+  close: number; // hour (0-23, local Bishkek time)
 };
 
 export type CompanyBranch = {
@@ -140,7 +145,7 @@ export const companyBranches: CompanyBranch[] = [
     slug: "main",
     name: "Главный филиал",
     address: "г. Бишкек, ул. Кулатова 3/1",
-    hours: "Пн–Пт 09:00–17:00",
+    hours: "Пн-Пт 09:00-17:00",
     mapUrl:
       "https://2gis.kg/bishkek/search/%D0%9A%D1%83%D0%BB%D0%B0%D1%82%D0%BE%D0%B2%D0%B0%203%2F1",
     schedule: [{ days: WEEKDAYS, open: 9, close: 17 }],
@@ -150,7 +155,7 @@ export const companyBranches: CompanyBranch[] = [
     slug: "stroypark",
     name: "Стройпарк",
     address: "г. Бишкек, ул. Кулатова 2",
-    hours: "Ежедневно 09:00–18:00",
+    hours: "Ежедневно 09:00-18:00",
     mapUrl:
       "https://2gis.kg/bishkek/search/%D0%9A%D1%83%D0%BB%D0%B0%D1%82%D0%BE%D0%B2%D0%B0%202",
     schedule: [{ days: ALL_DAYS, open: 9, close: 18 }],
@@ -160,7 +165,7 @@ export const companyBranches: CompanyBranch[] = [
     slug: "monolit",
     name: "Монолит",
     address: "г. Бишкек, ул. Льва Толстого 36к",
-    hours: "Ежедневно 09:00–18:00",
+    hours: "Ежедневно 09:00-18:00",
     mapUrl:
       "https://2gis.kg/bishkek/search/%D0%9B%D1%8C%D0%B2%D0%B0%20%D0%A2%D0%BE%D0%BB%D1%81%D1%82%D0%BE%D0%B3%D0%BE%2036%D0%BA",
     schedule: [{ days: ALL_DAYS, open: 9, close: 18 }],

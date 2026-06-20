@@ -38,7 +38,19 @@ const fallbackVisuals = {
   agt: "https://www.agtwood.com/medium/Product/Image/daf29e0f-9b7b-46e4-babd-eadb915deb80",
   cutting: "https://swisskrono.ru/ldsp_files/4080_347346_82c7bd10.jpg",
   fittings: "https://cheapollo.ru/statics/product/56567/6790b706620a4.jpg",
+  nuomi:
+    "https://nuomihome.com/wp-content/uploads/2023/06/Champagne-Rose-Series-Double-Layer-Lifting-Unit-2.jpg",
+  italiana:
+    "https://img.edilportale.com/product-thumbs/b_elefant-italiana-ferramenta-561898-rel93c39c1b.jpg",
+  hettich:
+    "https://images.unsplash.com/photo-1582582429416-47f57f66a8cf?auto=format&fit=crop&w=1200&q=80",
 };
+
+const homeBrandPriority = new Map([
+  ["italiana-ferramenta", 0],
+  ["nuomi", 1],
+  ["hettich", 2],
+]);
 
 function pickImage(images: Array<string | undefined>, fallback: string) {
   return images.find((image) => image && image.length > 0) ?? fallback;
@@ -50,6 +62,7 @@ export default async function HomePage() {
     extravertProducts,
     swissKronoProducts,
     agtProducts,
+    hettichProducts,
     ldspProducts,
     mdfProducts,
     allProducts,
@@ -59,6 +72,7 @@ export default async function HomePage() {
     getPublicProductsByBrand("extravert"),
     getPublicProductsByBrand("swiss-krono"),
     getPublicProductsByBrand("agt"),
+    getPublicProductsByBrand("hettich"),
     getPublicProductsByCategory("ldsp"),
     getPublicProductsByCategory("mdf-panels"),
     getPublicProducts(),
@@ -159,6 +173,12 @@ export default async function HomePage() {
     },
   ];
 
+  const italianaProfile = profiles.find(
+    (profile) => profile.slug === "italiana-ferramenta",
+  );
+  const nuomiProfile = profiles.find((profile) => profile.slug === "nuomi");
+  const hettichProfile = profiles.find((profile) => profile.slug === "hettich");
+
   const categoryTiles: CategoryTile[] = [
     {
       title: "Мебельные панели",
@@ -182,15 +202,59 @@ export default async function HomePage() {
       ),
     },
     {
+      title: "Hettich",
+      label: "Петли и направляющие",
+      href: "/brands/hettich",
+      image: pickImage(
+        [
+          hettichProfile?.homeBannerImages?.[0],
+          hettichProducts[0]?.image,
+          hettichProfile?.logoUrl,
+        ],
+        fallbackVisuals.hettich,
+      ),
+    },
+    {
       title: "Онлайн распил",
       label: "Расчет и заявка",
       href: "/calculator",
       image: pickImage([swissKronoProducts[4]?.image], fallbackVisuals.cutting),
     },
+    {
+      title: "Nuomi",
+      label: "Системы хранения",
+      href: "/brands/nuomi",
+      image: pickImage(
+        [
+          nuomiProfile?.homeBannerImages?.[0],
+          nuomiProfile?.products[0]?.image,
+          nuomiProfile?.logoUrl,
+        ],
+        fallbackVisuals.nuomi,
+      ),
+    },
+    {
+      title: "Italiana Ferramenta",
+      label: "Итальянская фурнитура",
+      href: "/brands/italiana-ferramenta",
+      image: pickImage(
+        [italianaProfile?.homeBannerImages?.[0], italianaProfile?.logoUrl],
+        fallbackVisuals.italiana,
+      ),
+    },
   ];
 
   const galleryItems = [...profiles]
     .sort((left, right) => {
+      const leftPriority =
+        homeBrandPriority.get(left.slug) ?? Number.POSITIVE_INFINITY;
+      const rightPriority =
+        homeBrandPriority.get(right.slug) ?? Number.POSITIVE_INFINITY;
+
+      if (leftPriority !== rightPriority) {
+        return leftPriority - rightPriority;
+      }
+
       if (left.contentStatus === right.contentStatus) {
         return 0;
       }
@@ -218,7 +282,7 @@ export default async function HomePage() {
       <HomeCatalogSearch products={searchProducts} />
 
       <section className="bg-background px-4 py-3.5 sm:px-8 lg:px-10">
-        <div className="mx-auto grid max-w-[1500px] grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-4">
+        <div className="mx-auto grid max-w-[1500px] grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3 xl:grid-cols-7">
           {categoryTiles.map((tile, index) => (
             <Link
               key={tile.href}

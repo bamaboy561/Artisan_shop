@@ -37,8 +37,8 @@ export default function TermsPage() {
 
           <h2 className="mt-6 text-lg font-semibold">3. Ответственность</h2>
           <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
-            Информация о ценах и наличии является ориентировочной. Точные условия
-            подтверждает менеджер при обработке заявки.
+            Информация о ценах и наличии является ориентировочной. Точные
+            условия подтверждает менеджер при обработке заявки.
           </p>
 
           <h2 className="mt-6 text-lg font-semibold">4. Связь</h2>

@@ -1,10 +1,11 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
+import { AddBundleItemButton } from "@/components/ecommerce/add-bundle-item-button";
 import { AddToCartButton } from "@/components/ecommerce/add-to-cart-button";
 import { FavoriteToggle } from "@/components/catalog/favorite-toggle";
-import { ProductImage } from "@/components/catalog/product-image";
+import { ProductGalleryViewer } from "@/components/catalog/product-gallery-viewer";
 import { StructuredData } from "@/components/seo/structured-data";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { ButtonLink } from "@/components/ui/button-link";
@@ -218,40 +219,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
       <section className="px-4 py-5 sm:px-8 sm:py-8 lg:px-10">
         <div className="mx-auto grid max-w-[1500px] min-w-0 gap-5 lg:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)] lg:gap-8">
-          <div className="min-w-0 space-y-3 sm:space-y-4">
-            <div className="relative aspect-[0.95] overflow-hidden bg-[#dad7cf] sm:aspect-[0.86]">
-              <ProductImage
-                src={product.image}
-                alt={product.name}
-                fill
-                priority
-                fallbackLabel="Нет фото"
-                className="object-cover"
-                sizes="(max-width: 1024px) 100vw, 58vw"
-              />
-            </div>
-
-            {gallery.length > 1 ? (
-              <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-                <div className="grid w-max grid-flow-col gap-3 sm:w-auto sm:grid-flow-row sm:grid-cols-2">
-                  {gallery.slice(1, 5).map((image, index) => (
-                    <div
-                      key={`${product.slug}-gallery-${index}`}
-                      className="relative aspect-square w-[8.25rem] overflow-hidden bg-[#dad7cf] sm:w-auto"
-                    >
-                      <ProductImage
-                        src={image}
-                        alt={`${product.name} - изображение ${index + 2}`}
-                        fill
-                        fallbackLabel="Нет фото"
-                        className="object-cover"
-                        sizes="(max-width: 1024px) 40vw, 28vw"
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : null}
+          <div className="min-w-0">
+            <ProductGalleryViewer images={gallery} productName={product.name} />
           </div>
 
           <aside className="min-w-0 lg:sticky lg:top-20 lg:self-start">
@@ -341,7 +310,15 @@ export default async function ProductPage({ params }: ProductPageProps) {
                   {product.bundleItems.length > 0 ? (
                     <ul className="mt-3 grid gap-2 text-sm text-[var(--foreground)]">
                       {product.bundleItems.slice(0, 4).map((item, index) => (
-                        <li key={`${product.slug}-bundle-aside-${index}`}>
+                        <li
+                          key={`${product.slug}-bundle-aside-${index}`}
+                          className="flex items-start gap-2"
+                        >
+                          <AddBundleItemButton
+                            productSlug={item.productSlug}
+                            quantity={item.quantity}
+                            className="mt-0.5 size-5 [&_svg]:size-3"
+                          />
                           {item.label}
                         </li>
                       ))}
@@ -412,7 +389,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                   Комплектация
                 </p>
                 <h2 className="mt-2 text-[1.45rem] leading-tight font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-[1.65rem]">
-                  Что входит в комплект
+                  Рекомендации к комплекту
                 </h2>
               </div>
               <p className="max-w-[32rem] text-sm leading-6 text-[var(--muted)]">
@@ -427,9 +404,16 @@ export default async function ProductPage({ params }: ProductPageProps) {
                   key={`${product.slug}-bundle-${index}`}
                   className="border border-[color:var(--line)] bg-[var(--surface-strong)] p-4"
                 >
-                  <p className="font-mono text-[10px] tracking-[0.18em] text-[var(--muted)] uppercase">
-                    {String(index + 1).padStart(2, "0")}
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <AddBundleItemButton
+                      productSlug={item.productSlug}
+                      quantity={item.quantity}
+                      className="size-7 [&_svg]:size-3.5"
+                    />
+                    <p className="font-mono text-[10px] tracking-[0.18em] text-[var(--muted)] uppercase">
+                      {String(index + 1).padStart(2, "0")}
+                    </p>
+                  </div>
                   <p className="mt-2 text-sm leading-6 text-[var(--foreground)]">
                     {item.label}
                   </p>

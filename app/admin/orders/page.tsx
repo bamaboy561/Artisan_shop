@@ -2,10 +2,7 @@ import Form from "next/form";
 import Link from "next/link";
 
 import { OrderStatus } from "@/generated/prisma";
-import {
-  bulkUpdateOrdersAction,
-  updateOrderAction,
-} from "@/app/admin/actions";
+import { bulkUpdateOrdersAction, updateOrderAction } from "@/app/admin/actions";
 import { AdminSubmitButton } from "@/components/admin/admin-submit-button";
 import { BulkSelectionTools } from "@/components/admin/bulk-selection-tools";
 import { MetricCard } from "@/components/admin/metric-card";
@@ -121,12 +118,21 @@ export default async function AdminOrdersPage({
 
   const parsedState = parseAdminOrderSearchParams(resolvedSearchParams);
   const state = sanitizeAdminOrderFilterState(parsedState, managers);
-  const filteredOrders = sortAdminOrders(filterAdminOrders(orders, state), state.sort);
+  const filteredOrders = sortAdminOrders(
+    filterAdminOrders(orders, state),
+    state.sort,
+  );
 
-  const activeOrders = orders.filter((order) => activeOrderStatuses.has(order.status));
+  const activeOrders = orders.filter((order) =>
+    activeOrderStatuses.has(order.status),
+  );
   const unassignedOrders = activeOrders.filter((order) => !order.managerId);
-  const deliveryOrders = orders.filter((order) => Boolean(order.deliveryMethodId));
-  const shippedOrders = orders.filter((order) => order.status === OrderStatus.SHIPPED);
+  const deliveryOrders = orders.filter((order) =>
+    Boolean(order.deliveryMethodId),
+  );
+  const shippedOrders = orders.filter(
+    (order) => order.status === OrderStatus.SHIPPED,
+  );
 
   const activeFilters = [
     state.q
@@ -198,6 +204,12 @@ export default async function AdminOrdersPage({
         <p className="text-xs text-[var(--muted)]">
           {formatDate(order.createdAt)} · {order._count.items} позиций
         </p>
+        <Link
+          href={`/admin/orders/${order.id}`}
+          className="inline-flex h-8 items-center justify-center border border-[color:var(--line-strong)] px-3 text-[11px] font-semibold tracking-[0.12em] text-[var(--foreground)] uppercase transition hover:border-[color:var(--foreground)] hover:bg-[var(--foreground)] hover:text-white"
+        >
+          Редактировать
+        </Link>
       </div>
     ),
     client: (
@@ -238,7 +250,9 @@ export default async function AdminOrdersPage({
             {orderStatusLabels[order.status]}
           </StatusBadge>
           <StatusBadge tone={order.managerId ? "neutral" : "warning"}>
-            {order.manager ? getManagerDisplayName(order.manager) : "Без менеджера"}
+            {order.manager
+              ? getManagerDisplayName(order.manager)
+              : "Без менеджера"}
           </StatusBadge>
         </div>
         <p className="text-xs text-[var(--muted)]">
@@ -249,7 +263,11 @@ export default async function AdminOrdersPage({
     manage: (
       <form action={updateOrderAction} className="grid gap-2">
         <input type="hidden" name="id" value={order.id} />
-        <Select name="status" defaultValue={order.status} className="h-9 text-xs">
+        <Select
+          name="status"
+          defaultValue={order.status}
+          className="h-9 text-xs"
+        >
           {Object.values(OrderStatus).map((status) => (
             <option key={status} value={status}>
               {orderStatusLabels[status]}
@@ -356,7 +374,11 @@ export default async function AdminOrdersPage({
           </div>
         </div>
 
-        <Form action="/admin/orders" scroll={false} className="mt-6 grid gap-4 xl:grid-cols-5">
+        <Form
+          action="/admin/orders"
+          scroll={false}
+          className="mt-6 grid gap-4 xl:grid-cols-5"
+        >
           <label className="grid gap-2 xl:col-span-2">
             <span className="text-sm text-[var(--foreground)]">
               Поиск по номеру, клиенту, телефону или промокоду

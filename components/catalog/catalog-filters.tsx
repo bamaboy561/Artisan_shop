@@ -89,7 +89,7 @@ function PresetButton({
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        "inline-flex h-8.5 items-center gap-2 border px-3 font-mono text-[10px] tracking-[0.12em] uppercase transition sm:h-9 disabled:cursor-not-allowed disabled:opacity-45",
+        "inline-flex h-8.5 items-center gap-2 border px-3 font-mono text-[10px] tracking-[0.12em] uppercase transition disabled:cursor-not-allowed disabled:opacity-45 sm:h-9",
         active
           ? "border-[var(--foreground)] bg-[var(--foreground)] text-white"
           : "border-[color:var(--line)] bg-white/88 text-[var(--foreground)] hover:border-[color:var(--foreground)]",
@@ -390,7 +390,7 @@ export function CatalogToolbar({
                 <p className="text-[12px] font-semibold text-[var(--foreground)]">
                   {resultCount} из {totalCount}
                 </p>
-                <p className="hidden mt-0.5 text-[10px] tracking-[0.02em] text-[var(--muted)]">
+                <p className="mt-0.5 hidden text-[10px] tracking-[0.02em] text-[var(--muted)]">
                   Товары каталога
                 </p>
               </div>
@@ -434,7 +434,9 @@ export function CatalogToolbar({
                   }}
                 >
                   <Filter className="size-4" />
-                  {activeChipCount > 0 ? `Фильтры ${activeChipCount}` : "Фильтры"}
+                  {activeChipCount > 0
+                    ? `Фильтры ${activeChipCount}`
+                    : "Фильтры"}
                 </Button>
 
                 <label className="block">
@@ -560,33 +562,33 @@ export function CatalogToolbar({
 
               <div className="-mx-3 overflow-x-auto px-3 pb-1 sm:mx-0 sm:px-0">
                 <div className="flex w-max gap-2 sm:w-auto sm:flex-wrap">
-                <PresetButton
-                  label="Все бренды"
-                  active={state.brands.length === 0}
-                  onClick={() =>
-                    pushState({
-                      ...state,
-                      brands: [],
-                      page: 1,
-                    })
-                  }
-                />
-                {brandPresets.map((preset) => (
                   <PresetButton
-                    key={preset.value}
-                    label={preset.label}
-                    count={preset.count}
-                    active={preset.active}
-                    disabled={!preset.active && preset.count === 0}
+                    label="Все бренды"
+                    active={state.brands.length === 0}
                     onClick={() =>
                       pushState({
                         ...state,
-                        brands: [preset.value],
+                        brands: [],
                         page: 1,
                       })
                     }
                   />
-                ))}
+                  {brandPresets.map((preset) => (
+                    <PresetButton
+                      key={preset.value}
+                      label={preset.label}
+                      count={preset.count}
+                      active={preset.active}
+                      disabled={!preset.active && preset.count === 0}
+                      onClick={() =>
+                        pushState({
+                          ...state,
+                          brands: [preset.value],
+                          page: 1,
+                        })
+                      }
+                    />
+                  ))}
                 </div>
               </div>
 
@@ -597,33 +599,33 @@ export function CatalogToolbar({
                   </p>
                   <div className="-mx-3 overflow-x-auto px-3 pb-1 sm:mx-0 sm:px-0">
                     <div className="flex w-max gap-2 sm:w-auto sm:flex-wrap">
-                  <PresetButton
-                    label="Все группы"
-                    active={state.groups.length === 0}
-                    onClick={() =>
-                      pushState({
-                        ...state,
-                        groups: [],
-                        page: 1,
-                      })
-                    }
-                  />
-                  {groupPresets.map((preset) => (
-                    <PresetButton
-                      key={preset.value}
-                      label={preset.label}
-                      count={preset.count}
-                      active={preset.active}
-                      disabled={!preset.active && preset.count === 0}
-                      onClick={() =>
-                        pushState({
-                          ...state,
-                          groups: [preset.value],
-                          page: 1,
-                        })
-                      }
-                    />
-                  ))}
+                      <PresetButton
+                        label="Все группы"
+                        active={state.groups.length === 0}
+                        onClick={() =>
+                          pushState({
+                            ...state,
+                            groups: [],
+                            page: 1,
+                          })
+                        }
+                      />
+                      {groupPresets.map((preset) => (
+                        <PresetButton
+                          key={preset.value}
+                          label={preset.label}
+                          count={preset.count}
+                          active={preset.active}
+                          disabled={!preset.active && preset.count === 0}
+                          onClick={() =>
+                            pushState({
+                              ...state,
+                              groups: [preset.value],
+                              page: 1,
+                            })
+                          }
+                        />
+                      ))}
                     </div>
                   </div>
                 </div>

@@ -77,129 +77,133 @@ export default async function AccountRequestsPage() {
     const canUploadFiles = requestUploadStatuses.has(request.status);
 
     return {
-    request: (
-      <div className="space-y-1">
-        <p className="font-semibold text-[var(--foreground)]">
-          {request.number ?? request.id.slice(0, 8)}
-        </p>
-        <p className="text-xs text-[var(--muted)]">
-          {formatDate(request.createdAt)}
-        </p>
-      </div>
-    ),
-    service: (
-      <div className="space-y-1">
-        <p>{request.subject}</p>
-        <p className="text-xs text-[var(--muted)]">
-          {requestTypeLabels[request.type]}
-        </p>
-      </div>
-    ),
-    clientFiles: (
-      <div className="space-y-3">
-        {clientFiles.length > 0 ? (
-          <div className="flex flex-wrap gap-2">
-            {clientFiles.map((file) => (
-              <a
-                key={file.id}
-                href={file.fileUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="rounded-full border border-[color:var(--line)] bg-white px-3 py-1 text-xs font-medium text-[var(--foreground)] transition hover:border-[color:var(--foreground)]"
-              >
-                {file.fileName}
-              </a>
-            ))}
-          </div>
-        ) : (
-          <p className="text-sm text-[var(--muted)]">Файлы не загружены.</p>
-        )}
-        {canUploadFiles ? (
-          <form
-            action={uploadAccountRequestFilesAction}
-            encType="multipart/form-data"
-            className="grid gap-2"
-          >
-            <input type="hidden" name="requestId" value={request.id} />
-            <Input
-              name="files"
-              type="file"
-              multiple
-              accept=".pdf,.xls,.xlsx,.csv,.zip,.rar,.jpg,.jpeg,.png,.webp,.dwg,.dxf"
-              className="h-auto py-2 text-xs"
-            />
-            <AdminSubmitButton
-              type="submit"
-              variant="secondary"
-              size="sm"
-              idleLabel="Добавить файл"
-              pendingLabel="Загружаем..."
-            />
-          </form>
-        ) : (
+      request: (
+        <div className="space-y-1">
+          <p className="font-semibold text-[var(--foreground)]">
+            {request.number ?? request.id.slice(0, 8)}
+          </p>
           <p className="text-xs text-[var(--muted)]">
-            Загрузка закрыта после завершения заявки.
+            {formatDate(request.createdAt)}
           </p>
-        )}
-      </div>
-    ),
-    status: (
-      <div className="space-y-2">
-        <StatusBadge tone="warning">{requestStatusLabels[request.status]}</StatusBadge>
-        <p className="text-xs text-[var(--muted)]">
-          Итог: {formatBudget(request.quotedTotal)}
-        </p>
-      </div>
-    ),
-    result: (
-      <div className="space-y-2">
-        {request.productionComment ? (
-          <p className="max-w-sm text-sm leading-6 text-[var(--foreground)]">
-            {request.productionComment}
+        </div>
+      ),
+      service: (
+        <div className="space-y-1">
+          <p>{request.subject}</p>
+          <p className="text-xs text-[var(--muted)]">
+            {requestTypeLabels[request.type]}
           </p>
-        ) : (
-          <p className="text-sm text-[var(--muted)]">Результат появится после расчета.</p>
-        )}
-        {resultFiles.length > 0 ? (
-          <div className="flex flex-wrap gap-2">
-            {resultFiles.map((file) => (
-              <a
-                key={file.id}
-                href={file.fileUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="rounded-full border border-[color:var(--line)] bg-white px-3 py-1 text-xs font-medium text-[var(--foreground)] transition hover:border-[color:var(--foreground)]"
-              >
-                {file.fileName}
-              </a>
-            ))}
-          </div>
-        ) : null}
-        {request.managerNotes.length > 0 ? (
-          <p className="text-xs leading-5 text-[var(--muted)]">
-            {request.managerNotes[0]?.body}
+        </div>
+      ),
+      clientFiles: (
+        <div className="space-y-3">
+          {clientFiles.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {clientFiles.map((file) => (
+                <a
+                  key={file.id}
+                  href={file.fileUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-full border border-[color:var(--line)] bg-white px-3 py-1 text-xs font-medium text-[var(--foreground)] transition hover:border-[color:var(--foreground)]"
+                >
+                  {file.fileName}
+                </a>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-[var(--muted)]">Файлы не загружены.</p>
+          )}
+          {canUploadFiles ? (
+            <form
+              action={uploadAccountRequestFilesAction}
+              encType="multipart/form-data"
+              className="grid gap-2"
+            >
+              <input type="hidden" name="requestId" value={request.id} />
+              <Input
+                name="files"
+                type="file"
+                multiple
+                accept=".pdf,.xls,.xlsx,.csv,.zip,.rar,.jpg,.jpeg,.png,.webp,.dwg,.dxf"
+                className="h-auto py-2 text-xs"
+              />
+              <AdminSubmitButton
+                type="submit"
+                variant="secondary"
+                size="sm"
+                idleLabel="Добавить файл"
+                pendingLabel="Загружаем..."
+              />
+            </form>
+          ) : (
+            <p className="text-xs text-[var(--muted)]">
+              Загрузка закрыта после завершения заявки.
+            </p>
+          )}
+        </div>
+      ),
+      status: (
+        <div className="space-y-2">
+          <StatusBadge tone="warning">
+            {requestStatusLabels[request.status]}
+          </StatusBadge>
+          <p className="text-xs text-[var(--muted)]">
+            Итог: {formatBudget(request.quotedTotal)}
           </p>
-        ) : null}
-      </div>
-    ),
-    history: (
-      <ClientOperationTimeline
-        events={request.history}
-        emptyMessage="История появится после обработки заявки."
-      />
-    ),
-    manager: (
-      <div className="space-y-1">
-        <p>
-          {[request.manager?.firstName, request.manager?.lastName]
-            .filter(Boolean)
-            .join(" ") || "Без менеджера"}
-        </p>
-        <p className="text-xs text-[var(--muted)]">
-          {request.manager?.email ?? "Назначение появится после обработки"}
-        </p>
-      </div>
-    ),
+        </div>
+      ),
+      result: (
+        <div className="space-y-2">
+          {request.productionComment ? (
+            <p className="max-w-sm text-sm leading-6 text-[var(--foreground)]">
+              {request.productionComment}
+            </p>
+          ) : (
+            <p className="text-sm text-[var(--muted)]">
+              Результат появится после расчета.
+            </p>
+          )}
+          {resultFiles.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {resultFiles.map((file) => (
+                <a
+                  key={file.id}
+                  href={file.fileUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-full border border-[color:var(--line)] bg-white px-3 py-1 text-xs font-medium text-[var(--foreground)] transition hover:border-[color:var(--foreground)]"
+                >
+                  {file.fileName}
+                </a>
+              ))}
+            </div>
+          ) : null}
+          {request.managerNotes.length > 0 ? (
+            <p className="text-xs leading-5 text-[var(--muted)]">
+              {request.managerNotes[0]?.body}
+            </p>
+          ) : null}
+        </div>
+      ),
+      history: (
+        <ClientOperationTimeline
+          events={request.history}
+          emptyMessage="История появится после обработки заявки."
+        />
+      ),
+      manager: (
+        <div className="space-y-1">
+          <p>
+            {[request.manager?.firstName, request.manager?.lastName]
+              .filter(Boolean)
+              .join(" ") || "Без менеджера"}
+          </p>
+          <p className="text-xs text-[var(--muted)]">
+            {request.manager?.email ?? "Назначение появится после обработки"}
+          </p>
+        </div>
+      ),
     };
   });
 

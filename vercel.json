@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/loyalty-monthly-review",
+      "schedule": "0 4 1 * *"
+    }
+  ]
+}

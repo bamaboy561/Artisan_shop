@@ -31,7 +31,7 @@ function getFirstSearchValue(
 ) {
   const value = searchParams[key];
 
-  return Array.isArray(value) ? value[0] ?? "" : value ?? "";
+  return Array.isArray(value) ? (value[0] ?? "") : (value ?? "");
 }
 
 function formatDate(date: Date) {
@@ -100,7 +100,8 @@ export default async function AdminCuttingPage({
     .trim()
     .toLocaleLowerCase("ru-RU");
   const statusFilter =
-    Object.values(RequestStatus).find((status) => status === statusParam) ?? "all";
+    Object.values(RequestStatus).find((status) => status === statusParam) ??
+    "all";
 
   const cuttingRequests = requests.filter(
     (request) => request.type === RequestType.CUTTING_SERVICE,
@@ -132,7 +133,9 @@ export default async function AdminCuttingPage({
   const activeRequests = cuttingRequests.filter((request) =>
     activeStatuses.has(request.status),
   );
-  const withFiles = cuttingRequests.filter((request) => request._count.files > 0);
+  const withFiles = cuttingRequests.filter(
+    (request) => request._count.files > 0,
+  );
   const inProduction = cuttingRequests.filter(
     (request) => request.status === RequestStatus.IN_PROGRESS,
   );
@@ -183,7 +186,11 @@ export default async function AdminCuttingPage({
       <form action={updateRequestAction} className="grid gap-2">
         <input type="hidden" name="id" value={request.id} />
         <input type="hidden" name="managerId" value={request.managerId ?? ""} />
-        <Select name="status" defaultValue={request.status} className="h-9 text-xs">
+        <Select
+          name="status"
+          defaultValue={request.status}
+          className="h-9 text-xs"
+        >
           <option value={RequestStatus.IN_REVIEW}>На расчете</option>
           <option value={RequestStatus.QUOTE_SENT}>КП отправлено</option>
           <option value={RequestStatus.IN_PROGRESS}>В производстве</option>
@@ -236,8 +243,15 @@ export default async function AdminCuttingPage({
       </section>
 
       <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-6">
-        <Form action="/admin/cutting" className="grid gap-3 md:grid-cols-[1fr_220px_auto]">
-          <Input name="q" defaultValue={query} placeholder="Поиск по клиенту, материалу или номеру" />
+        <Form
+          action="/admin/cutting"
+          className="grid gap-3 md:grid-cols-[1fr_220px_auto]"
+        >
+          <Input
+            name="q"
+            defaultValue={query}
+            placeholder="Поиск по клиенту, материалу или номеру"
+          />
           <Select name="status" defaultValue={statusFilter}>
             <option value="all">Все статусы</option>
             {Object.values(RequestStatus).map((status) => (

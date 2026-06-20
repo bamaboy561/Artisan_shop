@@ -67,7 +67,7 @@ function getHeroImageClass(index: number, total: number) {
 }
 
 function isPlannedTone(item: BrandGalleryItem) {
-  return item.tone === "planned";
+  return item.tone === "planned" && item.slug !== "italiana-ferramenta";
 }
 
 function BrandLogoBadge({ item }: { item: BrandGalleryItem }) {
@@ -170,7 +170,15 @@ function BrandHero({
   const planned = isPlannedTone(item);
 
   if (heroImages.length === 0) {
-    return <PlaceholderVisual item={item} compact={compact} />;
+    const placeholder = <PlaceholderVisual item={item} compact={compact} />;
+
+    return item.href ? (
+      <Link href={item.href} className="group block">
+        {placeholder}
+      </Link>
+    ) : (
+      placeholder
+    );
   }
 
   const hero = (
@@ -217,16 +225,9 @@ function BrandHero({
             {item.name}
           </h3>
         </div>
-        {item.href ? (
-          <span
-            className={cn(
-              "inline-flex h-11 w-fit items-center justify-center px-8 font-mono text-[11px] tracking-[0.16em] uppercase",
-              planned
-                ? "border border-white/24 bg-black/12 text-white/76"
-                : "border border-white/46 text-white",
-            )}
-          >
-            {planned ? "Скоро" : "Смотреть бренд"}
+        {item.href && !planned ? (
+          <span className="inline-flex h-11 w-fit items-center justify-center border border-white/46 px-8 font-mono text-[11px] tracking-[0.16em] text-white uppercase">
+            Смотреть бренд
           </span>
         ) : null}
       </div>
@@ -264,6 +265,11 @@ function ProductRail({
         >
           {products.map((product) => {
             const isPromotional = promotedProductSlugs.has(product.slug);
+            const productMetaLabel = isPromotional
+              ? "Акционное предложение"
+              : planned
+                ? null
+                : product.action;
 
             return (
               <Link
@@ -301,22 +307,16 @@ function ProductRail({
                 >
                   {product.name}
                 </p>
-                <p
-                  className={cn(
-                    "mt-1 font-mono text-[10px] tracking-[0.14em] uppercase",
-                    isPromotional
-                      ? "text-[#c96b43]"
-                      : planned
-                        ? "text-[#9a9389]"
-                        : "text-[#7b756d]",
-                  )}
-                >
-                  {isPromotional
-                    ? "Акционное предложение"
-                    : planned
-                      ? "Скоро в каталоге"
-                      : product.action}
-                </p>
+                {productMetaLabel ? (
+                  <p
+                    className={cn(
+                      "mt-1 font-mono text-[10px] tracking-[0.14em] uppercase",
+                      isPromotional ? "text-[#c96b43]" : "text-[#7b756d]",
+                    )}
+                  >
+                    {productMetaLabel}
+                  </p>
+                ) : null}
               </Link>
             );
           })}
@@ -359,7 +359,7 @@ function ProductRail({
 }
 
 function MetaRow({ item }: { item: BrandGalleryItem }) {
-  const chips = [item.statusLabel, ...(item.tags ?? [])].filter(Boolean);
+  const chips = (item.tags ?? []).filter(Boolean);
   const planned = isPlannedTone(item);
 
   if (chips.length === 0) {

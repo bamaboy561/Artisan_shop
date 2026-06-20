@@ -30,8 +30,9 @@ type CheckoutCustomer = {
   companyName: string;
   loyaltyTierLabel: string;
   pointsBalance: number;
-  discountPercent: number;
-  accrualPercent: number;
+  maxRedeemPercent: number;
+  plateMaterialAccrualPercent: number;
+  fittingsAccrualPercent: number;
 };
 
 type CheckoutFormProps = {
@@ -70,28 +71,27 @@ export function CheckoutForm({
 
   const selectedDeliveryPrice =
     deliveryMethods.find((item) => item.id === deliveryMethodId)?.price ?? 0;
-  const discountPercent = customer?.discountPercent ?? 0;
-  const discountTotal =
-    discountPercent > 0 ? Math.round((subtotal * discountPercent) / 100) : 0;
   const requestedRedeemPoints = Math.max(
     0,
     Number.parseInt(redeemPointsInput || "0", 10) || 0,
   );
-  const redeemablePoints = customer
+  const maxRedeemablePoints = customer
     ? Math.min(
-        requestedRedeemPoints,
         customer.pointsBalance,
-        Math.max(0, subtotal - discountTotal),
+        Math.floor((subtotal * customer.maxRedeemPercent) / 100),
       )
+    : 0;
+  const redeemablePoints = customer
+    ? Math.min(requestedRedeemPoints, maxRedeemablePoints)
     : 0;
   const total = Math.max(
     0,
-    subtotal - discountTotal - redeemablePoints + selectedDeliveryPrice,
+    subtotal - redeemablePoints + selectedDeliveryPrice,
   );
   const estimatedPoints = customer
     ? Math.floor(
-        (Math.max(0, subtotal - discountTotal - redeemablePoints) *
-          customer.accrualPercent) /
+        (Math.max(0, subtotal - redeemablePoints) *
+          customer.plateMaterialAccrualPercent) /
           100,
       )
     : 0;
@@ -209,16 +209,13 @@ export function CheckoutForm({
                 </label>
 
                 {customer ? (
-                  <label className="grid gap-2 text-sm text-[var(--foreground)]">
-                    Списать баллы
+                  <label className="grid gap-2 rounded-[20px] border border-[color:var(--line)] bg-[var(--surface)] px-4 py-4 text-sm text-[var(--foreground)]">
+                    <span className="font-semibold">Списать бонусы</span>
                     <Input
                       name="redeemPoints"
                       type="number"
                       min="0"
-                      max={Math.min(
-                        customer.pointsBalance,
-                        Math.max(0, subtotal - discountTotal),
-                      )}
+                      max={maxRedeemablePoints}
                       value={redeemPointsInput}
                       onChange={(event) =>
                         setRedeemPointsInput(event.target.value)
@@ -227,7 +224,9 @@ export function CheckoutForm({
                       inputMode="numeric"
                     />
                     <span className="text-xs leading-6 text-[var(--muted)]">
-                      Доступно {customer.pointsBalance} баллов. 1 балл = 1 сом.
+                      Доступно {customer.pointsBalance} баллов. За эту покупку
+                      можно списать до {formatPrice(maxRedeemablePoints)} (
+                      {customer.maxRedeemPercent}% суммы).
                     </span>
                   </label>
                 ) : (
@@ -292,25 +291,21 @@ export function CheckoutForm({
                 <span>{formatPrice(subtotal)}</span>
               </div>
               <div className="flex items-center justify-between gap-4">
-                <span className="text-[var(--muted)]">Персональная скидка</span>
-                <span>
-                  {discountPercent > 0 ? `-${formatPrice(discountTotal)}` : "—"}
-                </span>
-              </div>
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-[var(--muted)]">Списание баллов</span>
-                <span>
-                  {redeemablePoints > 0
-                    ? `-${formatPrice(redeemablePoints)}`
-                    : "—"}
-                </span>
-              </div>
-              <div className="flex items-center justify-between gap-4">
                 <span className="text-[var(--muted)]">Доставка</span>
                 <span>
                   {deliveryMethodId ? formatPrice(selectedDeliveryPrice) : "—"}
                 </span>
               </div>
+              {customer ? (
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-[var(--muted)]">Списание бонусов</span>
+                  <span>
+                    {redeemablePoints > 0
+                      ? `-${formatPrice(redeemablePoints)}`
+                      : "—"}
+                  </span>
+                </div>
+              ) : null}
             </div>
 
             <div className="mt-5 rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] px-4 py-4">
@@ -328,8 +323,12 @@ export function CheckoutForm({
                   Ваш уровень: {customer.loyaltyTierLabel}
                 </p>
                 <p className="mt-2 text-[var(--muted)]">
-                  Активная скидка: {customer.discountPercent}%. Баланс:{" "}
-                  {customer.pointsBalance} баллов.
+                  Баланс: {customer.pointsBalance} баллов. Начисление: плитные
+                  материалы {customer.plateMaterialAccrualPercent}%, фурнитура{" "}
+                  {customer.fittingsAccrualPercent}%.
+                  {maxRedeemablePoints > 0
+                    ? ` Сейчас можно списать до ${formatPrice(maxRedeemablePoints)}.`
+                    : ""}
                   {estimatedPoints > 0
                     ? ` После оформления начислим около ${estimatedPoints} баллов.`
                     : " Баллы начнут копиться после первого заказа."}

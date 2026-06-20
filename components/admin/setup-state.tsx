@@ -24,9 +24,9 @@ export function SetupState({ title, description, steps }: SetupStateProps) {
 
       {demoMode ? (
         <div className="mt-6 rounded-[24px] border border-[color:var(--line)] bg-[var(--surface)] px-5 py-4 text-sm leading-6 text-[var(--foreground)]">
-          Сейчас ты уже можешь войти в админку и проверить shell, навигацию и интерфейсы.
-          Живые данные, сохранение изменений и операционная логика включатся после
-          подключения PostgreSQL.
+          Сейчас ты уже можешь войти в админку и проверить shell, навигацию и
+          интерфейсы. Живые данные, сохранение изменений и операционная логика
+          включатся после подключения PostgreSQL.
         </div>
       ) : null}
 

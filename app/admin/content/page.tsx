@@ -74,7 +74,11 @@ function PageEditor({ page }: { page: SitePage }) {
             </h3>
             <p className="text-xs text-[var(--muted)]">/{page.slug}</p>
           </div>
-          <Select name="status" defaultValue={page.status} className="h-9 w-40 text-xs">
+          <Select
+            name="status"
+            defaultValue={page.status}
+            className="h-9 w-40 text-xs"
+          >
             {Object.values(PageStatus).map((status) => (
               <option key={status} value={status}>
                 {pageStatusLabels[status]}
@@ -332,7 +336,9 @@ export default async function AdminContentPage() {
 
   const { pages, banners } = await getAdminContentOverview();
   const activeBanners = banners.filter((banner) => banner.isActive);
-  const publishedPages = pages.filter((page) => page.status === PageStatus.PUBLISHED);
+  const publishedPages = pages.filter(
+    (page) => page.status === PageStatus.PUBLISHED,
+  );
 
   return (
     <div className="space-y-5">
@@ -425,7 +431,10 @@ export default async function AdminContentPage() {
               </label>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
-              <Select name="placement" defaultValue={BannerPlacement.HOME_SECONDARY}>
+              <Select
+                name="placement"
+                defaultValue={BannerPlacement.HOME_SECONDARY}
+              >
                 {Object.values(BannerPlacement).map((placement) => (
                   <option key={placement} value={placement}>
                     {bannerPlacementLabels[placement]}

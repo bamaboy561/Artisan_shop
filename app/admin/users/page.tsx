@@ -1,3 +1,6 @@
+import Link from "next/link";
+import Image from "next/image";
+
 import { LoyaltyTier } from "@/generated/prisma";
 import { MetricCard } from "@/components/admin/metric-card";
 import { SetupState } from "@/components/admin/setup-state";
@@ -11,13 +14,18 @@ import { requireAdminSession } from "@/lib/auth/dal";
 import { hasDatabaseUrl } from "@/lib/db";
 import {
   adjustUserLoyaltyPointsAction,
+  approveLoyaltyTransactionAction,
+  cancelLoyaltyTransactionAction,
+  updateLoyaltyProgramSettingsAction,
   updateUserLoyaltyAction,
 } from "@/app/admin/actions";
 import {
   getEffectiveDiscountPercent,
   getLoyaltyTierBenefits,
   getLoyaltyTierLabel,
+  loyaltyTierOrder,
 } from "@/lib/server/pricing";
+import { getLoyaltyProgramConfig } from "@/lib/server/loyalty-settings";
 import { getAdminUsers } from "@/lib/server/users-admin";
 
 export const dynamic = "force-dynamic";
@@ -61,7 +69,10 @@ export default async function AdminUsersPage() {
 
   await requireAdminSession("/login?next=/admin/users");
 
-  const users = await getAdminUsers();
+  const [users, loyaltyConfig] = await Promise.all([
+    getAdminUsers(),
+    getLoyaltyProgramConfig(),
+  ]);
 
   const vipUsers = users.filter((user) => vipTiers.has(user.loyaltyTier));
 
@@ -71,32 +82,52 @@ export default async function AdminUsersPage() {
   );
 
   const activeDiscounts = users.filter(
-    (user) => getEffectiveDiscountPercent(user) > 0,
+    (user) => getEffectiveDiscountPercent(user, loyaltyConfig) > 0,
   );
 
   const rows = users.map((user) => {
-    const tierBenefits = getLoyaltyTierBenefits(user.loyaltyTier);
-    const effectiveDiscount = getEffectiveDiscountPercent(user);
+    const clientQrUrl = `/api/qr?size=96&margin=2&data=${encodeURIComponent(
+      `artisan-client:${user.id}`,
+    )}`;
+    const tierBenefits = getLoyaltyTierBenefits(
+      user.loyaltyTier,
+      loyaltyConfig,
+    );
+    const effectiveDiscount = getEffectiveDiscountPercent(user, loyaltyConfig);
+    const pendingPoints = user.loyaltyTransactions.reduce(
+      (sum, transaction) => sum + transaction.points,
+      0,
+    );
 
     return {
       client: (
-        <div className="space-y-1">
-          <p className="font-semibold text-[var(--foreground)]">
-            {[user.firstName, user.lastName].filter(Boolean).join(" ") ||
-              user.email}
-          </p>
-          <p className="text-xs text-[var(--muted)]">
-            {user.companyName ?? user.email}
-          </p>
-          {user.phone ? (
-            <p className="text-xs text-[var(--muted)]">{user.phone}</p>
-          ) : null}
+        <div className="grid grid-cols-[54px_minmax(0,1fr)] items-start gap-3">
+          <Image
+            src={clientQrUrl}
+            alt="QR клиента"
+            width={54}
+            height={54}
+            unoptimized
+            className="rounded-xl border border-[color:var(--line)] bg-white p-1"
+          />
+          <div className="min-w-0 space-y-1">
+            <p className="font-semibold text-[var(--foreground)]">
+              {[user.firstName, user.lastName].filter(Boolean).join(" ") ||
+                user.email}
+            </p>
+            <p className="text-xs text-[var(--muted)]">
+              {user.companyName ?? user.email}
+            </p>
+            {user.phone ? (
+              <p className="text-xs text-[var(--muted)]">{user.phone}</p>
+            ) : null}
+          </div>
         </div>
       ),
       profile: (
         <div className="flex flex-wrap gap-2">
           <StatusBadge tone={getTierTone(user.loyaltyTier)}>
-            {getLoyaltyTierLabel(user.loyaltyTier)}
+            {getLoyaltyTierLabel(user.loyaltyTier, loyaltyConfig)}
           </StatusBadge>
           <StatusBadge tone="neutral">{user.role.name}</StatusBadge>
         </div>
@@ -114,6 +145,11 @@ export default async function AdminUsersPage() {
           <p className="text-xs text-[var(--muted)]">
             Накоплено: {formatNumber(user.loyaltyPointsLifetime)} баллов
           </p>
+          {pendingPoints > 0 ? (
+            <p className="text-xs font-semibold text-[var(--accent)]">
+              Ожидает подтверждения: {formatNumber(pendingPoints)}
+            </p>
+          ) : null}
         </div>
       ),
       activity: (
@@ -124,6 +160,14 @@ export default async function AdminUsersPage() {
           </p>
           <p className="text-xs text-[var(--muted)]">
             Операции по баллам: {user._count.loyaltyTransactions}
+          </p>
+          <p className="text-xs text-[var(--muted)]">
+            Telegram:{" "}
+            {user.telegramChatId
+              ? user.telegramUsername
+                ? `@${user.telegramUsername}`
+                : "подключен"
+              : "не подключен"}
           </p>
         </div>
       ),
@@ -137,7 +181,7 @@ export default async function AdminUsersPage() {
             <Select name="loyaltyTier" defaultValue={user.loyaltyTier}>
               {Object.values(LoyaltyTier).map((tier) => (
                 <option key={tier} value={tier}>
-                  {getLoyaltyTierLabel(tier)}
+                  {getLoyaltyTierLabel(tier, loyaltyConfig)}
                 </option>
               ))}
             </Select>
@@ -145,7 +189,7 @@ export default async function AdminUsersPage() {
               name="personalDiscountPercent"
               type="number"
               min="0"
-              max="25"
+              max={loyaltyConfig.maxTotalDiscountPercent}
               defaultValue={user.personalDiscountPercent}
               placeholder="Персональная скидка"
             />
@@ -170,6 +214,46 @@ export default async function AdminUsersPage() {
               Начислить или списать
             </Button>
           </form>
+
+          {user.loyaltyTransactions.length > 0 ? (
+            <div className="grid gap-2 rounded-2xl border border-[color:var(--line)] bg-[#fff8f3] p-3">
+              <p className="text-xs font-semibold text-[var(--foreground)]">
+                Ожидают подтверждения
+              </p>
+              {user.loyaltyTransactions.slice(0, 3).map((transaction) => (
+                <div
+                  key={transaction.id}
+                  className="flex items-center justify-between gap-2"
+                >
+                  <span className="text-xs text-[var(--muted)]">
+                    +{formatNumber(transaction.points)}
+                  </span>
+                  <div className="flex gap-1">
+                    <form action={approveLoyaltyTransactionAction}>
+                      <input
+                        type="hidden"
+                        name="transactionId"
+                        value={transaction.id}
+                      />
+                      <Button type="submit" variant="accent" size="sm">
+                        OK
+                      </Button>
+                    </form>
+                    <form action={cancelLoyaltyTransactionAction}>
+                      <input
+                        type="hidden"
+                        name="transactionId"
+                        value={transaction.id}
+                      />
+                      <Button type="submit" variant="secondary" size="sm">
+                        X
+                      </Button>
+                    </form>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
         </div>
       ),
     };
@@ -202,6 +286,120 @@ export default async function AdminUsersPage() {
           value={formatNumber(outstandingPoints)}
           detail={`${activeDiscounts.length} клиентов уже имеют активную скидку`}
         />
+      </section>
+
+      <section className="surface-glow rounded-[24px] border border-[color:var(--line)] bg-white/86 p-5 sm:p-6">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="font-mono text-[10px] tracking-[0.24em] text-[var(--accent)] uppercase">
+              Правила бонусов
+            </p>
+            <h2 className="mt-2 text-xl font-semibold text-[var(--foreground)]">
+              Настройка процентов, уровней и лимитов
+            </h2>
+            <p className="mt-1 max-w-3xl text-sm leading-6 text-[var(--muted)]">
+              Эти значения влияют на checkout, личный кабинет и Telegram-ответы
+              клиента. 1 балл = 1 сом скидки.
+            </p>
+          </div>
+          <Link
+            href="/admin/loyalty"
+            className="inline-flex h-10 items-center justify-center rounded-xl border border-[color:var(--line-strong)] px-4 font-mono text-[10px] font-semibold tracking-[0.14em] text-[var(--foreground)] uppercase transition hover:border-[color:var(--foreground)] hover:bg-[var(--foreground)] hover:text-white"
+          >
+            Сводка бонусов
+          </Link>
+        </div>
+
+        <form
+          action={updateLoyaltyProgramSettingsAction}
+          className="mt-5 grid gap-4"
+        >
+          <div className="grid gap-3 md:grid-cols-2">
+            <label className="grid gap-2 text-sm text-[var(--foreground)]">
+              Максимальная суммарная скидка, %
+              <Input
+                name="maxTotalDiscountPercent"
+                type="number"
+                min="0"
+                max="50"
+                defaultValue={loyaltyConfig.maxTotalDiscountPercent}
+              />
+            </label>
+            <label className="grid gap-2 text-sm text-[var(--foreground)]">
+              Максимум списания баллами от заказа, %
+              <Input
+                name="maxRedeemPercent"
+                type="number"
+                min="0"
+                max="100"
+                defaultValue={loyaltyConfig.maxRedeemPercent}
+              />
+            </label>
+          </div>
+
+          <div className="grid gap-3 xl:grid-cols-4">
+            {loyaltyTierOrder.map((tier) => {
+              const benefits = loyaltyConfig.tiers[tier];
+
+              return (
+                <fieldset
+                  key={tier}
+                  className="rounded-[20px] border border-[color:var(--line)] bg-[var(--surface)] p-4"
+                >
+                  <legend className="px-1 text-sm font-semibold text-[var(--foreground)]">
+                    {getLoyaltyTierLabel(tier, loyaltyConfig)}
+                  </legend>
+                  <div className="mt-3 grid gap-3">
+                    <label className="grid gap-1.5 text-xs text-[var(--muted)]">
+                      Название уровня
+                      <Input
+                        name={`${tier}.label`}
+                        defaultValue={benefits.label}
+                        className="h-10"
+                      />
+                    </label>
+                    <label className="grid gap-1.5 text-xs text-[var(--muted)]">
+                      Порог накопленных баллов
+                      <Input
+                        name={`${tier}.threshold`}
+                        type="number"
+                        min="0"
+                        defaultValue={benefits.threshold}
+                        className="h-10"
+                      />
+                    </label>
+                    <label className="grid gap-1.5 text-xs text-[var(--muted)]">
+                      Скидка уровня, %
+                      <Input
+                        name={`${tier}.plateMaterialAccrualPercent`}
+                        type="number"
+                        min="0"
+                        max="50"
+                        defaultValue={benefits.plateMaterialAccrualPercent}
+                        className="h-10"
+                      />
+                    </label>
+                    <label className="grid gap-1.5 text-xs text-[var(--muted)]">
+                      Начисление бонусов, %
+                      <Input
+                        name={`${tier}.fittingsAccrualPercent`}
+                        type="number"
+                        min="0"
+                        max="50"
+                        defaultValue={benefits.fittingsAccrualPercent}
+                        className="h-10"
+                      />
+                    </label>
+                  </div>
+                </fieldset>
+              );
+            })}
+          </div>
+
+          <Button type="submit" variant="accent" className="w-full sm:w-auto">
+            Сохранить правила бонусов
+          </Button>
+        </form>
       </section>
 
       <DataTable

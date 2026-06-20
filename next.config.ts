@@ -4,7 +4,7 @@ const nextConfig: NextConfig = {
   output: "standalone",
   experimental: {
     serverActions: {
-      bodySizeLimit: "20mb",
+      bodySizeLimit: "100mb",
     },
   },
   images: {
@@ -18,6 +18,7 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "nuomihome.com" },
       { protocol: "https", hostname: "www.nuomihome.com" },
       { protocol: "https", hostname: "shop.hettich.com" },
+      { protocol: "https", hostname: "img.edilportale.com" },
       { protocol: "https", hostname: "cheapollo.ru" },
       { protocol: "https", hostname: "www.cheapollo.ru" },
       { protocol: "https", hostname: "**.public.blob.vercel-storage.com" },

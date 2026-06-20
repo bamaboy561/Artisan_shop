@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import {
+  LoyaltyTransactionStatus,
   LoyaltyTransactionType,
   OrderStatus,
   PromotionTargetType,
@@ -13,13 +14,12 @@ import { getOptionalSession } from "@/lib/auth/dal";
 import { formatPrice } from "@/lib/commerce";
 import { getDb, hasDatabaseUrl } from "@/lib/db";
 import { handleOrderCreated } from "@/lib/server/commercial-integrations";
+import { getLoyaltyProgramConfig } from "@/lib/server/loyalty-settings";
 import { logOperationEvent } from "@/lib/server/operation-events";
 import type { CheckoutFormState } from "@/app/(public)/checkout/types";
 import {
   applyPromotion,
-  estimateLoyaltyPoints,
-  getEffectiveDiscountPercent,
-  getLoyaltyTierForLifetimePoints,
+  estimateLoyaltyPointsForLines,
   getRedeemableLoyaltyPoints,
   isPromotionActive,
 } from "@/lib/server/pricing";
@@ -115,8 +115,7 @@ export async function submitCheckoutAction(
 
     if (!parsedCartItems.success || parsedCartItems.data.length === 0) {
       return {
-        message:
-          "Корзина пуста. Добавьте товары перед оформлением заказа.",
+        message: "Корзина пуста. Добавьте товары перед оформлением заказа.",
       };
     }
 
@@ -131,9 +130,10 @@ export async function submitCheckoutAction(
   const db = getDb();
   const session = await getOptionalSession();
   const normalizedPromoCode = normalizePromoCode(parsed.data.promoCode);
-  const requestedRedeemPoints = parsed.data.redeemPoints
-    ? Number.parseInt(parsed.data.redeemPoints, 10)
-    : 0;
+  const requestedRedeemPoints = Math.max(
+    0,
+    Number.parseInt(parsed.data.redeemPoints || "0", 10) || 0,
+  );
 
   const [deliveryMethod, user, promotion] = await Promise.all([
     parsed.data.deliveryMethodId
@@ -225,6 +225,11 @@ export async function submitCheckoutAction(
           name: true,
         },
       },
+      category: {
+        select: {
+          kind: true,
+        },
+      },
     },
   });
 
@@ -242,20 +247,6 @@ export async function submitCheckoutAction(
     };
   }
 
-  const missingPrices = cartItems.some((item) => {
-    const product = productMap.get(item.productSlug);
-    const unitPrice = product ? getEffectiveProductPrice(product) : null;
-
-    return typeof unitPrice !== "number" || unitPrice <= 0;
-  });
-
-  if (missingPrices) {
-    return {
-      message:
-        "У одного из товаров сейчас нет цены. Проверьте корзину или свяжитесь с менеджером.",
-    };
-  }
-
   const orderItems = cartItems.map((item) => {
     const product = productMap.get(item.productSlug);
     const unitPrice = product ? (getEffectiveProductPrice(product) ?? 0) : 0;
@@ -270,20 +261,20 @@ export async function submitCheckoutAction(
       snapshotName: product?.name ?? item.productSlug,
       snapshotSku: product?.sku ?? null,
       snapshotBrand: product?.brand?.name ?? null,
+      categoryKind: product?.category.kind ?? null,
       lineSubtotal,
     };
   });
 
   if (orderItems.length === 0) {
     return {
-      message:
-        "Корзина пуста. Добавьте товары перед оформлением заказа.",
+      message: "Корзина пуста. Добавьте товары перед оформлением заказа.",
     };
   }
 
+  const loyaltyConfig = await getLoyaltyProgramConfig();
   const subtotal = orderItems.reduce((sum, item) => sum + item.lineSubtotal, 0);
-  const discountPercent = user ? getEffectiveDiscountPercent(user) : 0;
-  const personalDiscountTotal = Math.round((subtotal * discountPercent) / 100);
+  const personalDiscountTotal = 0;
   const subtotalAfterPersonalDiscount = Math.max(
     0,
     subtotal - personalDiscountTotal,
@@ -299,8 +290,7 @@ export async function submitCheckoutAction(
 
     if (!isPromotionActive(promotion)) {
       return {
-        message:
-          "Промокод сейчас недоступен или срок его действия уже истек.",
+        message: "Промокод сейчас недоступен или срок его действия уже истек.",
       };
     }
 
@@ -332,6 +322,7 @@ export async function submitCheckoutAction(
         requestedRedeemPoints,
         user.loyaltyPointsBalance,
         subtotalAfterPromotion,
+        loyaltyConfig,
       )
     : 0;
   const discountTotal = personalDiscountTotal + promotionDiscountTotal;
@@ -340,10 +331,19 @@ export async function submitCheckoutAction(
     0,
     subtotalAfterPromotion - loyaltyRedemptionTotal + deliveryTotal,
   );
+  const accrualBase = Math.max(
+    0,
+    subtotalAfterPromotion - loyaltyRedemptionTotal,
+  );
+  const accrualRatio = subtotal > 0 ? accrualBase / subtotal : 0;
   const awardedPoints = user
-    ? estimateLoyaltyPoints(
-        Math.max(0, subtotalAfterPromotion - loyaltyRedemptionTotal),
+    ? estimateLoyaltyPointsForLines(
+        orderItems.map((item) => ({
+          total: item.lineSubtotal * accrualRatio,
+          categoryKind: item.categoryKind,
+        })),
         user.loyaltyTier,
+        loyaltyConfig,
       )
     : 0;
 
@@ -434,17 +434,15 @@ export async function submitCheckoutAction(
           0,
           user.loyaltyPointsBalance - loyaltyRedemptionTotal,
         );
-        const nextBalance = balanceAfterRedemption + awardedPoints;
-        const nextLifetime = user.loyaltyPointsLifetime + awardedPoints;
 
-        await tx.user.update({
-          where: { id: user.id },
-          data: {
-            loyaltyPointsBalance: nextBalance,
-            loyaltyPointsLifetime: nextLifetime,
-            loyaltyTier: getLoyaltyTierForLifetimePoints(nextLifetime),
-          },
-        });
+        if (loyaltyRedemptionTotal > 0) {
+          await tx.user.update({
+            where: { id: user.id },
+            data: {
+              loyaltyPointsBalance: balanceAfterRedemption,
+            },
+          });
+        }
 
         if (loyaltyRedemptionTotal > 0) {
           await tx.loyaltyTransaction.create({
@@ -452,6 +450,8 @@ export async function submitCheckoutAction(
               userId: user.id,
               orderId: order.id,
               type: LoyaltyTransactionType.REDEMPTION,
+              status: LoyaltyTransactionStatus.APPROVED,
+              approvedAt: new Date(),
               points: -loyaltyRedemptionTotal,
               balanceAfter: balanceAfterRedemption,
               title: "Списание баллов",
@@ -466,10 +466,11 @@ export async function submitCheckoutAction(
               userId: user.id,
               orderId: order.id,
               type: LoyaltyTransactionType.ORDER_ACCRUAL,
+              status: LoyaltyTransactionStatus.PENDING,
               points: awardedPoints,
-              balanceAfter: nextBalance,
-              title: "Баллы за заказ",
-              description: `Начисление после оформления заказа ${order.number ?? order.id}.`,
+              balanceAfter: balanceAfterRedemption,
+              title: "Баллы ожидают подтверждения",
+              description: `Начисление за заказ ${order.number ?? order.id} будет добавлено после подтверждения менеджером.`,
             },
           });
         }
@@ -509,7 +510,8 @@ export async function submitCheckoutAction(
       status: OrderStatus.NEW,
       contactName: parsed.data.name,
       contactPhone: parsed.data.phone,
-      contactEmail: normalizeOptionalText(parsed.data.email) ?? user?.email ?? null,
+      contactEmail:
+        normalizeOptionalText(parsed.data.email) ?? user?.email ?? null,
       companyName: normalizeOptionalText(parsed.data.companyName),
       comment: commentParts.length > 0 ? commentParts.join("\n") : null,
       deliveryMethod: deliveryMethod?.name ?? null,
@@ -550,4 +552,3 @@ export async function submitCheckoutAction(
     redirectTo: `/checkout/success?${redirectTo.toString()}`,
   };
 }
-

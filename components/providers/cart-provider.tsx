@@ -22,7 +22,8 @@ type CartContextValue = {
   items: CartItem[];
   itemCount: number;
   subtotal: number;
-  addItem: (productSlug: string, quantity?: number) => void;
+  addItem: (productSlug: string, quantity?: number) => boolean;
+  canAddItem: (productSlug?: string) => boolean;
   removeItem: (productSlug: string) => void;
   updateQuantity: (productSlug: string, quantity: number) => void;
   clearCart: () => void;
@@ -57,11 +58,25 @@ export function CartProvider({
   children: ReactNode;
   products: FeaturedProduct[];
 }) {
-  const [items, setItems] = useState<CartItem[]>(readInitialCart);
+  const [items, setItems] = useState<CartItem[]>([]);
+  const [isHydrated, setIsHydrated] = useState(false);
 
   useEffect(() => {
+    const timerId = window.setTimeout(() => {
+      setItems(readInitialCart());
+      setIsHydrated(true);
+    }, 0);
+
+    return () => window.clearTimeout(timerId);
+  }, []);
+
+  useEffect(() => {
+    if (!isHydrated) {
+      return;
+    }
+
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
-  }, [items]);
+  }, [isHydrated, items]);
 
   const value = useMemo<CartContextValue>(() => {
     const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
@@ -78,15 +93,15 @@ export function CartProvider({
       itemCount,
       subtotal,
       addItem: (productSlug, quantity = 1) => {
+        const found = products.find((item) => item.slug === productSlug);
+
+        if (!found) {
+          return false;
+        }
+
+        const safeQuantity = Math.max(1, Math.floor(quantity || 1));
+
         setItems((prev) => {
-          const found = products.find(
-            (item) => item.slug === productSlug,
-          );
-
-          if (!found || typeof found.price !== "number") {
-            return prev;
-          }
-
           const existing = prev.find(
             (item) => item.productSlug === productSlug,
           );
@@ -94,13 +109,22 @@ export function CartProvider({
           if (existing) {
             return prev.map((item) =>
               item.productSlug === productSlug
-                ? { ...item, quantity: item.quantity + quantity }
+                ? { ...item, quantity: item.quantity + safeQuantity }
                 : item,
             );
           }
 
-          return [...prev, { productSlug, quantity }];
+          return [...prev, { productSlug, quantity: safeQuantity }];
         });
+
+        return true;
+      },
+      canAddItem: (productSlug) => {
+        if (!productSlug) {
+          return false;
+        }
+
+        return products.some((item) => item.slug === productSlug);
       },
       removeItem: (productSlug) => {
         setItems((prev) =>

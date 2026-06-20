@@ -19,6 +19,7 @@ import type {
 
 export const brandDisplayOrder = [
   "agt",
+  "albero",
   "swiss-krono",
   "emaks",
   "samet",
@@ -32,10 +33,16 @@ export const brandDisplayOrder = [
 export const brandSlugAliases: Record<string, string> = {
   emmax: "emaks",
   "italiana ferramenta": "italiana-ferramenta",
+  "italiana-ferramenta": "italiana-ferramenta",
+  "italiano ferramenta": "italiana-ferramenta",
+  "italiano-ferramenta": "italiana-ferramenta",
 };
 
 export function normalizeBrandSlug(slug: string) {
-  const normalized = slug.trim().toLocaleLowerCase("ru-RU").replace(/\s+/g, "-");
+  const normalized = slug
+    .trim()
+    .toLocaleLowerCase("ru-RU")
+    .replace(/\s+/g, "-");
 
   return brandSlugAliases[slug] ?? brandSlugAliases[normalized] ?? normalized;
 }
@@ -94,6 +101,14 @@ export const brandCatalogAssignments: BrandCatalogAssignment[] = [
     contentStatus: "active",
   },
   {
+    slug: "albero",
+    name: "Albero",
+    sectionSlug: "mdf-panels",
+    sectionName: "МДФ панели",
+    subcategories: ["Премиальный МДФ", "Фасадные панели", "Интерьерные панели"],
+    contentStatus: "active",
+  },
+  {
     slug: "swiss-krono",
     name: "Swiss Krono",
     sectionSlug: "furniture-panels",
@@ -139,7 +154,7 @@ export const brandCatalogAssignments: BrandCatalogAssignment[] = [
     sectionSlug: "furniture-fittings",
     sectionName: "Фурнитура",
     subcategories: ["Петли", "Направляющие", "Системы"],
-    contentStatus: "planned",
+    contentStatus: "active",
   },
   {
     slug: "nuomi",
@@ -147,7 +162,7 @@ export const brandCatalogAssignments: BrandCatalogAssignment[] = [
     sectionSlug: "organization",
     sectionName: "Организация пространства",
     subcategories: ["Хранение", "Кухня", "Гардероб"],
-    contentStatus: "planned",
+    contentStatus: "active",
   },
   {
     slug: "italiana-ferramenta",
@@ -155,7 +170,7 @@ export const brandCatalogAssignments: BrandCatalogAssignment[] = [
     sectionSlug: "furniture-fittings",
     sectionName: "Фурнитура",
     subcategories: ["Крепеж", "Подвесы", "Системы"],
-    contentStatus: "planned",
+    contentStatus: "active",
   },
 ];
 
@@ -208,12 +223,18 @@ export const partnerBrands: PartnerBrand[] = [
       "Итальянская фурнитура и комплектующие для аккуратной сборки мебели.",
     previewLabels: ["Крепеж", "Подвесы", "Системы"],
   },
+  {
+    slug: "albero",
+    name: "Albero",
+    label: "Премиальный МДФ",
+    description:
+      "Премиальные МДФ панели для выразительных фасадов, интерьерных акцентов и проектов с высоким требованием к поверхности.",
+    previewLabels: ["Премиальный МДФ", "Фасады", "Интерьерные панели"],
+  },
 ];
 
 export const brandNames = [...brandCatalogAssignments]
-  .sort(
-    (a, b) => getBrandDisplayIndex(a.slug) - getBrandDisplayIndex(b.slug),
-  )
+  .sort((a, b) => getBrandDisplayIndex(a.slug) - getBrandDisplayIndex(b.slug))
   .map((brand) => brand.name);
 
 export function getBrandDisplayIndex(slug: string) {

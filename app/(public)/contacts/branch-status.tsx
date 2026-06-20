@@ -16,7 +16,10 @@ function getBishkekNow(): { day: number; minutes: number } {
   };
 }
 
-function isOpen(schedule: CompanyBranchSchedule[], now: { day: number; minutes: number }) {
+function isOpen(
+  schedule: CompanyBranchSchedule[],
+  now: { day: number; minutes: number },
+) {
   return schedule.some(
     (slot) =>
       slot.days.includes(now.day) &&

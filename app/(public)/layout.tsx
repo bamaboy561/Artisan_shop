@@ -19,7 +19,7 @@ export default async function PublicLayout({
 
   return (
     <CartProvider products={products}>
-      <div className="min-h-screen overflow-x-clip bg-background">
+      <div className="bg-background min-h-screen overflow-x-clip">
         <SiteHeader />
         <PromotionExperience promotions={promotions} />
         <main

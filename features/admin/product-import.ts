@@ -55,7 +55,7 @@ type ImportField =
   | "orderMode"
   | "inventoryStatus";
 
-const MAX_IMPORT_ROWS = 5000;
+const MAX_IMPORT_ROWS = 20000;
 
 const fieldLabels: Record<ImportField, string> = {
   name: "Название",
@@ -83,18 +83,34 @@ const aliases: Record<ImportField, string[]> = {
     "товар",
     "название",
     "полное наименование",
+    "наименование товара",
     "name",
     "product",
+    "title",
   ],
   sku: [
     "артикул",
     "sku",
     "код",
+    "код 1с",
+    "код 1c",
     "код товара",
     "код номенклатуры",
+    "номенклатура код",
+    "номенклатура.код",
     "внутренний код",
+    "идентификатор",
+    "id",
     "article",
     "vendor code",
+    "erp code",
+    "item no",
+    "item number",
+    "item code",
+    "model",
+    "model no",
+    "barcode",
+    "штрихкод",
   ],
   slug: ["slug", "url", "адрес страницы", "ссылка", "чпу"],
   categoryName: [
@@ -103,16 +119,31 @@ const aliases: Record<ImportField, string[]> = {
     "группа номенклатуры",
     "раздел",
     "тип товара",
+    "вид номенклатуры",
     "category",
   ],
-  brandName: ["бренд", "производитель", "марка", "brand", "manufacturer"],
+  brandName: [
+    "бренд",
+    "производитель",
+    "марка",
+    "торговая марка",
+    "brand",
+    "manufacturer",
+  ],
   price: [
     "цена",
     "цена продажи",
     "розничная цена",
     "цена розница",
+    "розница",
+    "цена сайта",
+    "цена интернет магазина",
+    "цена интернет-магазина",
+    "цена с ндс",
+    "цена номенклатуры",
     "прайс",
     "price",
+    "retail price",
   ],
   compareAtPrice: [
     "старая цена",
@@ -123,16 +154,48 @@ const aliases: Record<ImportField, string[]> = {
   ],
   stockQuantity: [
     "остаток",
+    "остатки",
     "остаток на складе",
+    "остаток по складу",
+    "остаток на конец",
+    "конечный остаток",
+    "свободный остаток",
+    "доступный остаток",
     "количество",
     "кол во",
+    "кол-во",
     "количество остаток",
     "доступно",
+    "в наличии",
+    "на складе",
+    "склад",
     "stock",
     "qty",
+    "quantity",
+    "on hand",
+    "available",
+    "available stock",
+    "available quantity",
   ],
-  format: ["формат", "размер", "размер листа", "лист", "format"],
-  thicknessMm: ["толщина", "толщина мм", "толщина, мм", "thickness"],
+  format: [
+    "формат",
+    "размер",
+    "размер листа",
+    "формат листа",
+    "габарит",
+    "габариты",
+    "лист",
+    "format",
+    "size",
+  ],
+  thicknessMm: [
+    "толщина",
+    "толщина мм",
+    "толщина, мм",
+    "толщина листа",
+    "толщина плиты",
+    "thickness",
+  ],
   imageUrl: [
     "фото",
     "изображение",
@@ -152,11 +215,20 @@ const aliases: Record<ImportField, string[]> = {
   description: ["описание", "полное описание", "description"],
   status: ["статус", "публикация", "status"],
   orderMode: ["сценарий заказа", "режим заказа", "тип продажи", "order mode"],
-  inventoryStatus: ["наличие", "статус наличия", "inventory", "availability"],
+  inventoryStatus: [
+    "наличие",
+    "статус наличия",
+    "доступность",
+    "inventory",
+    "availability",
+  ],
 };
 
 const normalizedAliases = Object.entries(aliases).flatMap(([field, names]) =>
-  names.map((name) => ({ field: field as ImportField, name: normalizeKey(name) })),
+  names.map((name) => ({
+    field: field as ImportField,
+    name: normalizeKey(name),
+  })),
 );
 
 export function slugifyImportValue(value: string) {
@@ -225,14 +297,37 @@ function cellToString(value: unknown) {
 }
 
 function parseNumber(value: unknown) {
-  const normalized = cellToString(value)
+  const raw = cellToString(value)
     .replace(/\s+/g, "")
-    .replace(/[^\d,.\-]/g, "")
-    .replace(",", ".");
+    .replace(/[^\d,.\-]/g, "");
 
-  if (!normalized) {
+  if (!raw) {
     return null;
   }
+
+  const sign = raw.startsWith("-") ? "-" : "";
+  const unsigned = raw.replace(/^-/, "");
+  const separatorCount = (unsigned.match(/[,.]/g) ?? []).length;
+  const lastComma = unsigned.lastIndexOf(",");
+  const lastDot = unsigned.lastIndexOf(".");
+  const lastSeparator = Math.max(lastComma, lastDot);
+  const normalized =
+    lastSeparator >= 0
+      ? (() => {
+          const integerPart = unsigned
+            .slice(0, lastSeparator)
+            .replace(/[,.]/g, "");
+          const decimalPart = unsigned
+            .slice(lastSeparator + 1)
+            .replace(/[,.]/g, "");
+
+          if (separatorCount === 1 && decimalPart.length === 3) {
+            return `${sign}${integerPart}${decimalPart}`;
+          }
+
+          return `${sign}${integerPart || "0"}${decimalPart ? `.${decimalPart}` : ""}`;
+        })()
+      : `${sign}${unsigned}`;
 
   const parsed = Number.parseFloat(normalized);
 
@@ -251,7 +346,9 @@ function matchField(header: string) {
     return null;
   }
 
-  const exact = normalizedAliases.find((item) => item.name === normalizedHeader);
+  const exact = normalizedAliases.find(
+    (item) => item.name === normalizedHeader,
+  );
   if (exact) {
     return exact.field;
   }
@@ -272,7 +369,17 @@ function parseStatus(value: unknown) {
     return null;
   }
 
-  if (["active", "опубликован", "опубликовано", "да", "true", "1"].includes(normalized)) {
+  if (
+    [
+      "active",
+      "опубликован",
+      "опубликовано",
+      "активен",
+      "да",
+      "true",
+      "1",
+    ].includes(normalized)
+  ) {
     return ProductStatus.ACTIVE;
   }
 
@@ -280,7 +387,11 @@ function parseStatus(value: unknown) {
     return ProductStatus.ARCHIVED;
   }
 
-  if (["draft", "черновик", "нет", "false", "0"].includes(normalized)) {
+  if (
+    ["draft", "черновик", "не опубликован", "нет", "false", "0"].includes(
+      normalized,
+    )
+  ) {
     return ProductStatus.DRAFT;
   }
 
@@ -369,9 +480,22 @@ function getCell(
   row: unknown[],
   columnMap: Map<ImportField, number>,
   field: ImportField,
+  fieldColumns?: Map<ImportField, number[]>,
 ) {
-  const index = columnMap.get(field);
-  return index === undefined ? "" : row[index];
+  const indexes =
+    fieldColumns?.get(field) ??
+    (columnMap.has(field) ? [columnMap.get(field) as number] : []);
+  const firstIndex = indexes[0];
+
+  for (const index of indexes) {
+    const value = row[index];
+
+    if (cellToString(value)) {
+      return value;
+    }
+  }
+
+  return firstIndex === undefined ? "" : row[firstIndex];
 }
 
 export async function parseProductImportFile(
@@ -399,13 +523,18 @@ export async function parseProductImportFile(
     defval: "",
     raw: false,
   });
-  const nonEmptyRows = matrix.filter((row) =>
-    row.some((cell) => cellToString(cell).length > 0),
+  const nonEmptyRows = matrix
+    .map((row, index) => ({ row, index }))
+    .filter(({ row }) => row.some((cell) => cellToString(cell).length > 0));
+  const headerIndex = findHeaderRow(nonEmptyRows.map(({ row }) => row));
+  const headerEntry = nonEmptyRows[headerIndex];
+  const headers = headerEntry?.row ?? [];
+  const dataRows = nonEmptyRows.slice(
+    headerIndex + 1,
+    headerIndex + 1 + MAX_IMPORT_ROWS,
   );
-  const headerIndex = findHeaderRow(nonEmptyRows);
-  const headers = nonEmptyRows[headerIndex] ?? [];
-  const dataRows = nonEmptyRows.slice(headerIndex + 1, headerIndex + 1 + MAX_IMPORT_ROWS);
   const columnMap = new Map<ImportField, number>();
+  const fieldColumns = new Map<ImportField, number[]>();
   const mappedColumns: ProductImportParseResult["mappedColumns"] = [];
   const attributeColumns: Array<{ index: number; name: string }> = [];
 
@@ -413,9 +542,14 @@ export async function parseProductImportFile(
     const source = cellToString(header);
     const field = matchField(source);
 
-    if (field && !columnMap.has(field)) {
-      columnMap.set(field, index);
-      mappedColumns.push({ source, target: fieldLabels[field] });
+    if (field) {
+      fieldColumns.set(field, [...(fieldColumns.get(field) ?? []), index]);
+
+      if (!columnMap.has(field)) {
+        columnMap.set(field, index);
+        mappedColumns.push({ source, target: fieldLabels[field] });
+      }
+
       return;
     }
 
@@ -423,6 +557,22 @@ export async function parseProductImportFile(
       attributeColumns.push({ index, name: source });
     }
   });
+
+  if (!columnMap.has("name") && columnMap.has("description")) {
+    const descriptionIndex = columnMap.get("description");
+
+    if (descriptionIndex !== undefined) {
+      columnMap.set("name", descriptionIndex);
+      fieldColumns.set("name", [
+        ...(fieldColumns.get("name") ?? []),
+        descriptionIndex,
+      ]);
+      mappedColumns.push({
+        source: cellToString(headers[descriptionIndex]),
+        target: fieldLabels.name,
+      });
+    }
+  }
 
   const warnings: string[] = [];
   if (!columnMap.has("name")) {
@@ -435,10 +585,13 @@ export async function parseProductImportFile(
     warnings.push(`Импорт ограничен первыми ${MAX_IMPORT_ROWS} строками.`);
   }
 
-  const rows = dataRows
-    .map((row, rowIndex) => {
-      const name = cellToString(getCell(row, columnMap, "name"));
-      const sku = cellToString(getCell(row, columnMap, "sku"));
+  let carriedName = "";
+  const parsedRows = dataRows.map(({ row, index }) => {
+      const rawName = cellToString(
+        getCell(row, columnMap, "name", fieldColumns),
+      );
+      const sku = cellToString(getCell(row, columnMap, "sku", fieldColumns));
+      const name = rawName || (sku ? carriedName : "");
       const attributes = attributeColumns
         .map((column, index) => ({
           name: column.name,
@@ -450,37 +603,92 @@ export async function parseProductImportFile(
           name: attributeName,
           value,
         }));
+      const price = parseNumber(getCell(row, columnMap, "price", fieldColumns));
+      const compareAtPrice = parseNumber(
+        getCell(row, columnMap, "compareAtPrice", fieldColumns),
+      );
+      const stockQuantity = parseInteger(
+        getCell(row, columnMap, "stockQuantity", fieldColumns),
+      );
+      const format =
+        cellToString(getCell(row, columnMap, "format", fieldColumns)) || null;
+      const thicknessMm = parseInteger(
+        getCell(row, columnMap, "thicknessMm", fieldColumns),
+      );
+      const imageUrl =
+        cellToString(getCell(row, columnMap, "imageUrl", fieldColumns)) || null;
+
+      if (rawName) {
+        carriedName = rawName;
+      }
 
       return {
-        rowNumber: headerIndex + rowIndex + 2,
+        rowNumber: index + 1,
         name,
         sku,
-        slug: cellToString(getCell(row, columnMap, "slug")) || null,
+        slug:
+          cellToString(getCell(row, columnMap, "slug", fieldColumns)) || null,
         categoryName:
-          cellToString(getCell(row, columnMap, "categoryName")) || null,
-        brandName: cellToString(getCell(row, columnMap, "brandName")) || null,
-        price: parseNumber(getCell(row, columnMap, "price")),
-        compareAtPrice: parseNumber(getCell(row, columnMap, "compareAtPrice")),
-        stockQuantity: parseInteger(getCell(row, columnMap, "stockQuantity")),
-        format: cellToString(getCell(row, columnMap, "format")) || null,
-        thicknessMm: parseInteger(getCell(row, columnMap, "thicknessMm")),
-        imageUrl: cellToString(getCell(row, columnMap, "imageUrl")) || null,
-        summary: cellToString(getCell(row, columnMap, "summary")) || null,
-        description: cellToString(getCell(row, columnMap, "description")) || null,
-        status: parseStatus(getCell(row, columnMap, "status")),
-        orderMode: parseOrderMode(getCell(row, columnMap, "orderMode")),
+          cellToString(getCell(row, columnMap, "categoryName", fieldColumns)) ||
+          null,
+        brandName:
+          cellToString(getCell(row, columnMap, "brandName", fieldColumns)) ||
+          null,
+        price,
+        compareAtPrice,
+        stockQuantity,
+        format,
+        thicknessMm,
+        imageUrl,
+        summary:
+          cellToString(getCell(row, columnMap, "summary", fieldColumns)) ||
+          null,
+        description:
+          cellToString(getCell(row, columnMap, "description", fieldColumns)) ||
+          null,
+        status: parseStatus(getCell(row, columnMap, "status", fieldColumns)),
+        orderMode: parseOrderMode(
+          getCell(row, columnMap, "orderMode", fieldColumns),
+        ),
         inventoryStatus: parseInventoryStatus(
-          getCell(row, columnMap, "inventoryStatus"),
+          getCell(row, columnMap, "inventoryStatus", fieldColumns),
         ),
         attributes,
       } satisfies ProductImportRow;
-    })
-    .filter((row) => row.name || row.sku);
+    });
+  const rows = parsedRows.filter((row) => {
+      const hasIdentity = row.name || row.sku;
+      const hasProductData =
+        row.sku ||
+        row.categoryName ||
+        row.brandName ||
+        row.price !== null ||
+        row.compareAtPrice !== null ||
+        row.stockQuantity !== null ||
+        row.format ||
+        row.thicknessMm !== null ||
+        row.imageUrl ||
+        row.summary ||
+        row.description ||
+        row.status ||
+        row.orderMode ||
+        row.inventoryStatus ||
+        row.attributes.length > 0;
+
+      return hasIdentity && hasProductData;
+    });
+
+  const ignoredRows = parsedRows.length - rows.length;
+  if (ignoredRows > 0) {
+    warnings.push(
+      `Не распознано строк: ${ignoredRows}. Проверьте, что в них есть название или SKU и хотя бы одно поле для импорта.`,
+    );
+  }
 
   return {
     fileName: file.name,
     sheetName,
-    headerRowNumber: headerIndex + 1,
+    headerRowNumber: (headerEntry?.index ?? 0) + 1,
     totalRows: rows.length,
     rows,
     mappedColumns,

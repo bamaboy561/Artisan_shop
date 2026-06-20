@@ -46,8 +46,7 @@ export async function submitCuttingRequestAction(
   if (!subject || !message || !contactName || !contactPhone || !material) {
     return {
       ok: false,
-      message:
-        "Заполните контактные данные и добавьте хотя бы одну деталь.",
+      message: "Заполните контактные данные и добавьте хотя бы одну деталь.",
     };
   }
 

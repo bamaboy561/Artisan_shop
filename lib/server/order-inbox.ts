@@ -8,6 +8,7 @@ import { getDb, hasDatabaseUrl, isDemoModeEnabled } from "@/lib/db";
 import type { RequestDetailItem } from "@/lib/server/request-inbox";
 
 type DemoOrderLine = {
+  id?: string | null;
   name: string;
   sku?: string | null;
   brand?: string | null;
@@ -257,10 +258,14 @@ export async function getOrderInbox() {
 
   return (await readDemoOrders())
     .map(toAdminOrderItem)
-    .sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime());
+    .sort(
+      (left, right) => right.updatedAt.getTime() - left.updatedAt.getTime(),
+    );
 }
 
-export async function getOrderInboxItemById(id: string): Promise<OrderDetailItem | null> {
+export async function getOrderInboxItemById(
+  id: string,
+): Promise<OrderDetailItem | null> {
   if (hasDatabaseUrl()) {
     const order = await getDb().order.findUnique({
       where: { id },
@@ -309,6 +314,7 @@ export async function getOrderInboxItemById(id: string): Promise<OrderDetailItem
         },
         items: {
           select: {
+            id: true,
             snapshotName: true,
             snapshotSku: true,
             snapshotBrand: true,
@@ -347,6 +353,7 @@ export async function getOrderInboxItemById(id: string): Promise<OrderDetailItem
         createdAt: note.createdAt.toISOString(),
       })),
       items: order.items.map((item) => ({
+        id: item.id,
         name: item.snapshotName,
         sku: item.snapshotSku,
         brand: item.snapshotBrand,

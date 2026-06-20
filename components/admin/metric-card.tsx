@@ -29,7 +29,7 @@ export function MetricCard({
         <span className={cn("size-2 rounded-full", toneMap[tone])} />
       </div>
 
-      <p className="mt-4 text-[1.95rem] font-semibold leading-none text-[var(--foreground)]">
+      <p className="mt-4 text-[1.95rem] leading-none font-semibold text-[var(--foreground)]">
         {value}
       </p>
       <p className="mt-2 text-xs leading-5 text-[var(--muted)]">{detail}</p>

@@ -19,6 +19,8 @@ type BrandProfileSeed = {
   overview: string;
   strengths: string[];
   scenarios: string[];
+  logoUrl?: string;
+  homeBannerImages?: string[];
 };
 
 export type BrandProfile = {
@@ -54,7 +56,7 @@ type PromotionLookup = {
 
 const statusLabelMap = {
   active: "Уже в каталоге",
-  planned: "Наполнение в работе",
+  planned: "",
 } as const;
 
 const brandProfileSeeds: Record<string, BrandProfileSeed> = {
@@ -97,6 +99,22 @@ const brandProfileSeeds: Record<string, BrandProfileSeed> = {
       "Выбор коллекции",
       "Подбор под цвет проекта",
       "Запрос цены и консультация",
+    ],
+  },
+  albero: {
+    headline: "Премиальный МДФ для фасадов и интерьерных акцентов.",
+    overview:
+      "Albero в Artisan — это премиальная линия МДФ для проектов, где важны чистая поверхность, глубокий цвет и аккуратная подача готовой мебели.",
+    logoUrl: "/brands/albero-logo.png",
+    strengths: [
+      "Премиальный МДФ",
+      "Фасадные и интерьерные панели",
+      "Акцент на выразительной поверхности",
+    ],
+    scenarios: [
+      "Подбор панелей под премиальный проект",
+      "Согласование декора и фактуры",
+      "Запрос цены и наличия у менеджера",
     ],
   },
   emaks: {
@@ -153,6 +171,13 @@ const brandProfileSeeds: Record<string, BrandProfileSeed> = {
       "Зоны хранения",
       "Подбор под проект",
     ],
+    logoUrl: "https://nuomishop.ru/static/images/general/logo.webp",
+    homeBannerImages: [
+      "https://nuomihome.com/wp-content/uploads/2023/06/Champagne-Rose-Series-Double-Layer-Lifting-Unit-2.jpg",
+      "https://sc04.alicdn.com/kf/H5615419cf8ec4f84858811921420ca31a/231014926/H5615419cf8ec4f84858811921420ca31a.jpg",
+      "https://www.shkaffcity.ru/media/gallery/nuomi/nuomi-(13).jpg",
+      "https://nuomishop.ru/image/cache/catalog/products/Kitchen/magic_corner/right_shampan-1200x1045.png",
+    ],
   },
   "italiana-ferramenta": {
     headline: "Итальянская фурнитура для аккуратных и сложных проектов.",
@@ -163,6 +188,11 @@ const brandProfileSeeds: Record<string, BrandProfileSeed> = {
       "Премиальные интерьеры",
       "Комплектация дизайнерской мебели",
       "Согласование с проектной командой",
+    ],
+    logoUrl:
+      "https://img.edilportale.com/product-thumbs/h_elefant-italiana-ferramenta-561898-rel93c39c1b.jpg",
+    homeBannerImages: [
+      "https://img.edilportale.com/product-thumbs/b_elefant-italiana-ferramenta-561898-rel93c39c1b.jpg",
     ],
   },
 };
@@ -320,8 +350,12 @@ function buildBrandProfilesFrom(
         products: brandProducts,
         productCount: brandProducts.length,
         country: activeBrand?.country,
-        logoUrl: activeBrand?.logoUrl,
-        homeBannerImages: activeBrand?.homeBannerImages,
+        logoUrl: activeBrand?.logoUrl ?? seed.logoUrl,
+        homeBannerImages:
+          activeBrand?.homeBannerImages &&
+          activeBrand.homeBannerImages.length > 0
+            ? activeBrand.homeBannerImages
+            : seed.homeBannerImages,
         promotedProductSlugs: getPromotedProductSlugs(
           rawBrandProducts,
           promotionLookup,

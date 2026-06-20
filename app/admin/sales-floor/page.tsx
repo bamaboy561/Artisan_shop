@@ -14,7 +14,8 @@ type SalesFloorPageProps = {
 
 const errorMessages: Record<string, string> = {
   empty: "Выберите клиента и хотя бы один товар.",
-  "not-found": "Клиент или товары не найдены. Обновите страницу и попробуйте еще раз.",
+  "not-found":
+    "Клиент или товары не найдены. Обновите страницу и попробуйте еще раз.",
 };
 
 function getErrorMessage(

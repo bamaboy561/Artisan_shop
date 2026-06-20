@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { deleteCategoryAction, updateCategoryAction } from "@/app/admin/actions";
+import {
+  deleteCategoryAction,
+  updateCategoryAction,
+} from "@/app/admin/actions";
 import { AdminSubmitButton } from "@/components/admin/admin-submit-button";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -223,8 +226,8 @@ export default async function EditCategoryPage({
                 каталог понятнее для клиента и менеджера.
               </p>
               <p>
-                Если в категории уже есть товары, удаление блокируется, чтобы
-                не сломать каталог.
+                Если в категории уже есть товары, удаление блокируется, чтобы не
+                сломать каталог.
               </p>
             </div>
           </aside>

@@ -6,6 +6,7 @@ import {
   DiscountType,
   InventoryStatus,
   LoyaltyTier,
+  LoyaltyTransactionStatus,
   LoyaltyTransactionType,
   OrderStatus,
   PageStatus,
@@ -40,18 +41,23 @@ import {
   requestStatusLabels,
 } from "@/features/admin/operations-filters";
 import { requireAdminSession } from "@/lib/auth/dal";
+import { canDeleteOrders } from "@/lib/auth/roles";
 import { hasDatabaseUrl, getDb } from "@/lib/db";
 import { ensureBrandLogoColumn } from "@/lib/server/brand-schema";
 import { logOperationEvent } from "@/lib/server/operation-events";
 import { ensureProductBundleItemsTable } from "@/lib/server/product-bundle-schema";
 import {
-  estimateLoyaltyPoints,
-  getEffectiveDiscountPercent,
-  getLoyaltyTierForLifetimePoints,
+  estimateLoyaltyPointsForLines,
+  getRedeemableLoyaltyPoints,
 } from "@/lib/server/pricing";
+import {
+  getLoyaltyProgramConfig,
+  saveLoyaltyProgramConfig,
+} from "@/lib/server/loyalty-settings";
 import {
   configureTelegramWebhook,
   sendTelegramDirectMessage,
+  sendTelegramPromotionBroadcast,
 } from "@/lib/server/telegram-bot";
 import {
   bulkUpdateOrderInboxItems,
@@ -153,6 +159,35 @@ function getStringList(formData: FormData, key: string) {
     .getAll(key)
     .flatMap((value) => (typeof value === "string" ? [value.trim()] : []))
     .filter(Boolean);
+}
+
+const orderReceiptPrefix = "Кассовый чек:";
+
+function removeOrderReceiptLine(comment: string | null) {
+  return (comment ?? "")
+    .split(/\r?\n/)
+    .filter(
+      (line) =>
+        !line
+          .trim()
+          .toLocaleLowerCase("ru-RU")
+          .startsWith(orderReceiptPrefix.toLocaleLowerCase("ru-RU")),
+    )
+    .join("\n")
+    .trim();
+}
+
+function buildOrderCommentWithReceipt(
+  comment: string | null,
+  receiptNumber: string | null,
+) {
+  const body = removeOrderReceiptLine(comment);
+  const lines = [
+    receiptNumber ? `${orderReceiptPrefix} ${receiptNumber}` : "",
+    body,
+  ].filter(Boolean);
+
+  return lines.length > 0 ? lines.join("\n") : null;
 }
 
 function getOptionalUrlList(formData: FormData, key: string, limit = 4) {
@@ -457,7 +492,7 @@ async function resolveProductImageUrls(
   return [...new Set(urls)].slice(0, PRODUCT_IMAGE_SLOT_COUNT);
 }
 
-const PRODUCT_IMPORT_MAX_FILE_SIZE = 10 * 1024 * 1024;
+const PRODUCT_IMPORT_MAX_FILE_SIZE = 100 * 1024 * 1024;
 
 function getValidImportImageUrl(value: string | null) {
   if (!value) {
@@ -486,6 +521,27 @@ function normalizeImportLookup(value: string) {
     .replace(/[^\p{L}\p{N}]+/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function normalizeImportSkuKey(value: string) {
+  return value
+    .trim()
+    .toLocaleLowerCase("ru-RU")
+    .replace(/\u00a0/g, " ")
+    .replace(/\s+/g, "")
+    .replace(/[–—−]/g, "-")
+    .replace(/,0+$/, "")
+    .replace(/\.0+$/, "");
+}
+
+function inferCalculatorSheetPresetFromFormat(format: string | null) {
+  const match = (format ?? "").match(/(\d{3,4})\s*(?:x|х|×|\*)\s*(\d{3,4})/iu);
+
+  if (!match) {
+    return null;
+  }
+
+  return `${match[1]}x${match[2]}`;
 }
 
 function makeUniqueImportSlug(baseValue: string, usedSlugs: Set<string>) {
@@ -519,7 +575,8 @@ function inferImportCategoryKind(name: string) {
     normalized.includes("мдф") ||
     normalized.includes("панел") ||
     normalized.includes("столеш") ||
-    normalized.includes("кром")
+    normalized.includes("кром") ||
+    normalized.includes("hpl")
   ) {
     return CategoryKind.PLATE;
   }
@@ -548,6 +605,28 @@ function getProductImportRedirect(params: {
   });
 
   return `/admin/products?${searchParams.toString()}`;
+}
+
+function addImportNote(notes: string[], note: string) {
+  if (notes.length < 5) {
+    notes.push(note);
+    return 0;
+  }
+
+  return 1;
+}
+
+function getImportMessageWithNotes(notes: string[], hiddenCount: number) {
+  if (notes.length === 0) {
+    return undefined;
+  }
+
+  return [
+    notes.join(" "),
+    hiddenCount > 0 ? `Еще ${hiddenCount} строк с замечаниями.` : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 }
 
 function getInventoryStatusFromStock(
@@ -607,6 +686,7 @@ function revalidateAdminContent() {
 function revalidateAdminUsers() {
   revalidatePath("/admin");
   revalidatePath("/admin/users");
+  revalidatePath("/admin/loyalty");
   revalidatePath("/account");
   revalidatePath("/account/orders");
   revalidatePath("/account/requests");
@@ -707,6 +787,150 @@ async function syncRequestById(
 
 async function ensureAdminAccess() {
   return requireAdminSession("/login?next=/admin");
+}
+
+async function reverseOrderLoyaltyIfCanceled(params: {
+  orderId: string;
+  previousStatus?: OrderStatus | null;
+  nextStatus: OrderStatus;
+  actor?: Awaited<ReturnType<typeof ensureAdminAccess>> | null;
+}) {
+  if (!hasDatabaseUrl()) {
+    return false;
+  }
+
+  if (
+    params.nextStatus !== OrderStatus.CANCELED ||
+    params.previousStatus === OrderStatus.CANCELED
+  ) {
+    return false;
+  }
+
+  const db = getDb();
+  const now = new Date();
+
+  const result = await db.$transaction(async (tx) => {
+    const order = await tx.order.findUnique({
+      where: { id: params.orderId },
+      select: {
+        userId: true,
+        number: true,
+        loyaltyTransactions: {
+          where: {
+            status: {
+              in: [
+                LoyaltyTransactionStatus.APPROVED,
+                LoyaltyTransactionStatus.PENDING,
+              ],
+            },
+          },
+          select: {
+            id: true,
+            status: true,
+            points: true,
+          },
+        },
+      },
+    });
+
+    if (!order || order.loyaltyTransactions.length === 0) {
+      return null;
+    }
+
+    const approvedTransactions = order.loyaltyTransactions.filter(
+      (transaction) => transaction.status === LoyaltyTransactionStatus.APPROVED,
+    );
+    const balanceDelta = approvedTransactions.reduce(
+      (sum, transaction) => sum + transaction.points,
+      0,
+    );
+    const lifetimeDelta = approvedTransactions.reduce(
+      (sum, transaction) =>
+        transaction.points > 0 ? sum + transaction.points : sum,
+      0,
+    );
+
+    if (order.userId && approvedTransactions.length > 0) {
+      const customer = await tx.user.findUnique({
+        where: { id: order.userId },
+        select: {
+          loyaltyPointsBalance: true,
+          loyaltyPointsLifetime: true,
+        },
+      });
+
+      if (customer) {
+        const nextBalance = Math.max(
+          0,
+          customer.loyaltyPointsBalance - balanceDelta,
+        );
+        const nextLifetime = Math.max(
+          0,
+          customer.loyaltyPointsLifetime - lifetimeDelta,
+        );
+
+        await tx.user.update({
+          where: { id: order.userId },
+          data: {
+            loyaltyPointsBalance: nextBalance,
+            loyaltyPointsLifetime: nextLifetime,
+          },
+        });
+      }
+    }
+
+    await tx.loyaltyTransaction.updateMany({
+      where: {
+        orderId: params.orderId,
+        status: {
+          in: [
+            LoyaltyTransactionStatus.APPROVED,
+            LoyaltyTransactionStatus.PENDING,
+          ],
+        },
+      },
+      data: {
+        status: LoyaltyTransactionStatus.CANCELED,
+        canceledAt: now,
+        canceledById: params.actor?.userId ?? null,
+      },
+    });
+
+    return {
+      number: order.number,
+      balanceDelta,
+      lifetimeDelta,
+      transactionsCount: order.loyaltyTransactions.length,
+    };
+  });
+
+  if (!result) {
+    return false;
+  }
+
+  await logOperationEvent({
+    entityType: "order",
+    entityId: params.orderId,
+    eventType: "system",
+    title: "Бонусы по отмененному заказу пересчитаны",
+    description: [
+      `Заказ ${result.number ?? params.orderId} отменен.`,
+      result.balanceDelta !== 0
+        ? `Баланс клиента изменен на ${-result.balanceDelta} баллов.`
+        : "",
+      result.lifetimeDelta > 0
+        ? `Накопленные баллы уменьшены на ${result.lifetimeDelta}.`
+        : "",
+      `Операций отменено: ${result.transactionsCount}.`,
+    ]
+      .filter(Boolean)
+      .join(" "),
+    isVisibleToClient: true,
+    actor: params.actor ?? null,
+  });
+
+  revalidateAdminUsers();
+  return true;
 }
 
 export async function sendTelegramTestAction(formData: FormData) {
@@ -1483,7 +1707,7 @@ export async function importProductsFromExcelAction(formData: FormData) {
   if (file.size > PRODUCT_IMPORT_MAX_FILE_SIZE) {
     redirect(
       getProductImportRedirect({
-        message: "Файл больше 10 МБ",
+        message: "Файл больше 100 МБ",
         errors: 1,
       }),
     );
@@ -1546,7 +1770,7 @@ export async function importProductsFromExcelAction(formData: FormData) {
       select: { id: true, name: true, slug: true },
     }),
     db.product.findMany({
-      select: { id: true, sku: true, slug: true },
+      select: { id: true, sku: true, slug: true, name: true },
     }),
   ]);
 
@@ -1565,29 +1789,95 @@ export async function importProductsFromExcelAction(formData: FormData) {
     ]),
   );
   const productBySku = new Map(
-    existingProducts.map((item) => [item.sku, item]),
+    existingProducts.map((item) => [normalizeImportSkuKey(item.sku), item]),
+  );
+  const productsByName = new Map<string, typeof existingProducts>();
+  existingProducts.forEach((item) => {
+    const key = normalizeImportLookup(item.name);
+    const items = productsByName.get(key) ?? [];
+    items.push(item);
+    productsByName.set(key, items);
+  });
+  const productByUniqueName = new Map(
+    [...productsByName.entries()]
+      .filter(([, items]) => items.length === 1)
+      .map(([key, items]) => [key, items[0]]),
   );
   const usedProductSlugs = new Set(existingProducts.map((item) => item.slug));
   const usedCategorySlugs = new Set(categories.map((item) => item.slug));
   const usedBrandSlugs = new Set(brands.map((item) => item.slug));
+  let fallbackImportCategoryId =
+    categoryByLookup.get(normalizeImportLookup("Импорт"))?.id ??
+    categoryByLookup.get("import")?.id ??
+    null;
+
+  async function ensureFallbackImportCategory() {
+    if (fallbackImportCategoryId) {
+      return fallbackImportCategoryId;
+    }
+
+    const category = await db.category.create({
+      data: {
+        name: "Импорт",
+        slug: makeUniqueImportSlug("Импорт", usedCategorySlugs),
+        kind: CategoryKind.OTHER,
+        sortOrder: 1000,
+      },
+      select: { id: true, name: true, slug: true },
+    });
+
+    categoryById.set(category.id, category);
+    categoryByLookup.set(normalizeImportLookup(category.name), category);
+    categoryByLookup.set(normalizeImportLookup(category.slug), category);
+    fallbackImportCategoryId = category.id;
+    return category.id;
+  }
 
   let created = 0;
   let updated = 0;
   let skipped = 0;
   let errors = 0;
+  let generatedSkus = 0;
+  let fallbackCategories = 0;
+  let hiddenImportNotes = 0;
+  const importNotes: string[] = [];
 
   for (const row of parsed.rows) {
     try {
-      if (!row.name || !row.sku) {
+      const rowSku = row.sku.trim();
+      const skuKey = normalizeImportSkuKey(rowSku);
+      const existingProduct =
+        (skuKey ? productBySku.get(skuKey) : undefined) ??
+        (!skuKey && row.name
+          ? productByUniqueName.get(normalizeImportLookup(row.name))
+          : undefined);
+      const productName = row.name || existingProduct?.name || "";
+
+      if (!productName) {
         skipped += 1;
+        hiddenImportNotes += addImportNote(
+          importNotes,
+          `Строка ${row.rowNumber}: нет названия товара.`,
+        );
         continue;
       }
 
-      const existingProduct = productBySku.get(row.sku);
-
       if (existingProduct && !updateExisting) {
         skipped += 1;
+        hiddenImportNotes += addImportNote(
+          importNotes,
+          `Строка ${row.rowNumber}: товар уже есть, обновление выключено.`,
+        );
         continue;
+      }
+
+      let productSku = rowSku || existingProduct?.sku || "";
+      if (!productSku) {
+        productSku = await getUniqueProductSku(
+          db,
+          `${row.categoryName ?? ""} ${row.brandName ?? ""} ${productName}`,
+        );
+        generatedSkus += 1;
       }
 
       let categoryId =
@@ -1626,8 +1916,8 @@ export async function importProductsFromExcelAction(formData: FormData) {
       }
 
       if (!existingProduct && !categoryId) {
-        skipped += 1;
-        continue;
+        categoryId = await ensureFallbackImportCategory();
+        fallbackCategories += 1;
       }
 
       let brandId =
@@ -1655,6 +1945,9 @@ export async function importProductsFromExcelAction(formData: FormData) {
       }
 
       const imageUrl = getValidImportImageUrl(row.imageUrl);
+      const rowCalculatorSheetPresetId =
+        defaultCalculatorSheetPresetId ??
+        inferCalculatorSheetPresetFromFormat(row.format);
       const attributeCreates = row.attributes.map((attribute, index) => ({
         name: attribute.name,
         value: attribute.value,
@@ -1663,10 +1956,13 @@ export async function importProductsFromExcelAction(formData: FormData) {
 
       if (existingProduct) {
         const updateData: Prisma.ProductUpdateInput = {
-          name: row.name,
           orderMode: row.orderMode ?? defaultOrderMode,
           inventoryStatus: row.inventoryStatus ?? defaultInventoryStatus,
         };
+
+        if (row.name) {
+          updateData.name = row.name;
+        }
 
         if (moveUpdatedToDraft) {
           updateData.status = ProductStatus.DRAFT;
@@ -1692,8 +1988,8 @@ export async function importProductsFromExcelAction(formData: FormData) {
         if (defaultCalculatorMaterialId) {
           updateData.calculatorMaterialId = defaultCalculatorMaterialId;
         }
-        if (defaultCalculatorSheetPresetId) {
-          updateData.calculatorSheetPresetId = defaultCalculatorSheetPresetId;
+        if (rowCalculatorSheetPresetId) {
+          updateData.calculatorSheetPresetId = rowCalculatorSheetPresetId;
         }
         if (imageUrl) {
           updateData.images = {
@@ -1717,13 +2013,13 @@ export async function importProductsFromExcelAction(formData: FormData) {
       }
 
       const productSlug = makeUniqueImportSlug(
-        row.slug ?? `${row.brandName ?? ""} ${row.name} ${row.sku}`,
+        row.slug ?? `${row.brandName ?? ""} ${productName} ${productSku}`,
         usedProductSlugs,
       );
       const createData: Prisma.ProductCreateInput = {
-        name: row.name,
+        name: productName,
         slug: productSlug,
-        sku: row.sku,
+        sku: productSku,
         category: { connect: { id: categoryId as string } },
         brand: brandId ? { connect: { id: brandId } } : undefined,
         price: row.price,
@@ -1737,7 +2033,7 @@ export async function importProductsFromExcelAction(formData: FormData) {
         orderMode: row.orderMode ?? defaultOrderMode,
         inventoryStatus: row.inventoryStatus ?? defaultInventoryStatus,
         calculatorMaterialId: defaultCalculatorMaterialId,
-        calculatorSheetPresetId: defaultCalculatorSheetPresetId,
+        calculatorSheetPresetId: rowCalculatorSheetPresetId,
         images: imageUrl
           ? {
               create: [{ url: imageUrl, alt: row.name, sortOrder: 10 }],
@@ -1753,11 +2049,37 @@ export async function importProductsFromExcelAction(formData: FormData) {
         data: createData,
         select: { id: true, sku: true, slug: true },
       });
-      productBySku.set(product.sku, product);
+      productBySku.set(normalizeImportSkuKey(product.sku), {
+        ...product,
+        name: productName,
+      });
       created += 1;
-    } catch {
+    } catch (error) {
       errors += 1;
+      hiddenImportNotes += addImportNote(
+        importNotes,
+        `Строка ${row.rowNumber}: ошибка сохранения.`,
+      );
+
+      console.error("[product-import]", {
+        row: row.rowNumber,
+        error: error instanceof Error ? error.message : error,
+      });
     }
+  }
+
+  if (generatedSkus > 0) {
+    addImportNote(
+      importNotes,
+      `Для строк без артикула создано SKU: ${generatedSkus}.`,
+    );
+  }
+
+  if (fallbackCategories > 0) {
+    addImportNote(
+      importNotes,
+      `Без категории перенесено в раздел "Импорт": ${fallbackCategories}.`,
+    );
   }
 
   revalidateAdminCatalog();
@@ -1769,6 +2091,7 @@ export async function importProductsFromExcelAction(formData: FormData) {
       errors,
       warnings: parsed.warnings.length,
       mapped: parsed.mappedColumns.length,
+      message: getImportMessageWithNotes(importNotes, hiddenImportNotes),
     }),
   );
 }
@@ -1794,7 +2117,7 @@ export async function updateProductStockFromExcelAction(formData: FormData) {
   if (file.size > PRODUCT_IMPORT_MAX_FILE_SIZE) {
     redirect(
       getProductImportRedirect({
-        message: "Файл больше 10 МБ",
+        message: "Файл больше 100 МБ",
         errors: 1,
       }),
     );
@@ -1838,26 +2161,48 @@ export async function updateProductStockFromExcelAction(formData: FormData) {
 
   const db = getDb();
   const existingProducts = await db.product.findMany({
-    select: { id: true, sku: true },
+    select: { id: true, sku: true, name: true },
   });
   const productBySku = new Map(
     existingProducts.map((product) => [
-      product.sku.trim().toLocaleLowerCase("ru-RU"),
+      normalizeImportSkuKey(product.sku),
       product,
     ]),
+  );
+  const productsByName = new Map<string, typeof existingProducts>();
+  existingProducts.forEach((product) => {
+    const key = normalizeImportLookup(product.name);
+    const items = productsByName.get(key) ?? [];
+    items.push(product);
+    productsByName.set(key, items);
+  });
+  const productByUniqueName = new Map(
+    [...productsByName.entries()]
+      .filter(([, items]) => items.length === 1)
+      .map(([key, items]) => [key, items[0]]),
   );
 
   let updated = 0;
   let skipped = 0;
   let errors = 0;
+  let hiddenImportNotes = 0;
+  const importNotes: string[] = [];
 
   for (const row of parsed.rows) {
     try {
-      const skuKey = row.sku.trim().toLocaleLowerCase("ru-RU");
-      const product = productBySku.get(skuKey);
+      const skuKey = normalizeImportSkuKey(row.sku);
+      const product =
+        (skuKey ? productBySku.get(skuKey) : undefined) ??
+        (!skuKey && row.name
+          ? productByUniqueName.get(normalizeImportLookup(row.name))
+          : undefined);
 
-      if (!skuKey || !product) {
+      if (!product) {
         skipped += 1;
+        hiddenImportNotes += addImportNote(
+          importNotes,
+          `Строка ${row.rowNumber}: товар не найден по SKU${row.name ? " или названию" : ""}.`,
+        );
         continue;
       }
 
@@ -1887,6 +2232,10 @@ export async function updateProductStockFromExcelAction(formData: FormData) {
 
       if (Object.keys(updateData).length === 0) {
         skipped += 1;
+        hiddenImportNotes += addImportNote(
+          importNotes,
+          `Строка ${row.rowNumber}: нет выбранных полей с данными для обновления.`,
+        );
         continue;
       }
 
@@ -1895,20 +2244,31 @@ export async function updateProductStockFromExcelAction(formData: FormData) {
         data: updateData,
       });
       updated += 1;
-    } catch {
+    } catch (error) {
       errors += 1;
+      hiddenImportNotes += addImportNote(
+        importNotes,
+        `Строка ${row.rowNumber}: ошибка обновления.`,
+      );
+
+      console.error("[product-stock-import]", {
+        row: row.rowNumber,
+        error: error instanceof Error ? error.message : error,
+      });
     }
   }
 
   revalidateAdminCatalog();
   redirect(
     getProductImportRedirect({
-      message: "Цены и остатки обновлены",
       updated,
       skipped,
       errors,
       warnings: parsed.warnings.length,
       mapped: parsed.mappedColumns.length,
+      message:
+        getImportMessageWithNotes(importNotes, hiddenImportNotes) ??
+        "Цены и остатки обновлены",
     }),
   );
 }
@@ -1995,17 +2355,24 @@ export async function updateOrderAction(formData: FormData) {
     return;
   }
 
+  const nextStatus =
+    Object.values(OrderStatus).find((item) => item === status) ??
+    OrderStatus.NEW;
   const previousOrder = await getOrderInboxItemById(id);
 
   await updateOrderInboxItem({
     id,
-    status:
-      Object.values(OrderStatus).find((item) => item === status) ??
-      OrderStatus.NEW,
+    status: nextStatus,
     managerId: getOptionalString(formData, "managerId"),
   });
 
   const currentOrder = await getOrderInboxItemById(id);
+  await reverseOrderLoyaltyIfCanceled({
+    orderId: id,
+    previousStatus: previousOrder?.status ?? null,
+    nextStatus: currentOrder?.status ?? nextStatus,
+    actor,
+  });
 
   await logOrderTransition({
     orderId: id,
@@ -2035,6 +2402,377 @@ export async function updateOrderAction(formData: FormData) {
   );
 
   revalidateAdminOperations();
+}
+
+export async function updateOrderDetailsAction(formData: FormData) {
+  if (!hasDatabaseUrl()) {
+    return;
+  }
+
+  const actor = await ensureAdminAccess();
+  const orderId = getString(formData, "orderId");
+  const contactName = getString(formData, "contactName");
+  const contactPhone = getString(formData, "contactPhone");
+
+  if (!orderId || !contactName || !contactPhone) {
+    return;
+  }
+
+  const previousOrder = await getOrderInboxItemById(orderId);
+
+  await getDb().order.update({
+    where: { id: orderId },
+    data: {
+      contactName,
+      contactPhone,
+      contactEmail: getOptionalString(formData, "contactEmail"),
+      companyName: getOptionalString(formData, "companyName"),
+      comment: buildOrderCommentWithReceipt(
+        getOptionalString(formData, "comment"),
+        getOptionalString(formData, "receiptNumber"),
+      ),
+    },
+  });
+
+  await logOperationEvent({
+    entityType: "order",
+    entityId: orderId,
+    eventType: "system",
+    title: "Данные заказа обновлены",
+    description:
+      "Менеджер изменил контактные данные клиента, компанию или комментарий к заказу.",
+    actor,
+  });
+
+  await syncOrderById(
+    orderId,
+    previousOrder
+      ? {
+          previousStatus: previousOrder.status,
+          previousManager: previousOrder.manager,
+        }
+      : undefined,
+  );
+
+  revalidateAdminOperations();
+  revalidatePath(`/admin/orders/${orderId}`);
+}
+
+export async function updateOrderItemsAction(formData: FormData) {
+  if (!hasDatabaseUrl()) {
+    return;
+  }
+
+  const actor = await ensureAdminAccess();
+  const orderId = getString(formData, "orderId");
+
+  if (!orderId) {
+    return;
+  }
+
+  const itemIds = getStringList(formData, "itemId");
+  const removeItemIds = new Set(getStringList(formData, "removeItemId"));
+  const names = formData
+    .getAll("itemName")
+    .map((value) => (typeof value === "string" ? value : ""));
+  const quantities = formData.getAll("itemQuantity");
+  const unitPrices = formData.getAll("itemUnitPrice");
+  const newProductId = getOptionalString(formData, "newProductId");
+  const newItemName = getOptionalString(formData, "newItemName");
+  const newItemQuantity = Math.max(
+    1,
+    Math.min(9999, getOptionalInt(formData, "newItemQuantity") ?? 1),
+  );
+  const newItemUnitPrice = getOptionalInt(formData, "newItemUnitPrice");
+
+  if (itemIds.length === 0 && !newProductId && !newItemName) {
+    return;
+  }
+
+  const previousOrder = await getOrderInboxItemById(orderId);
+  const db = getDb();
+
+  await db.$transaction(async (tx) => {
+    const [order, currentItems, newProduct] = await Promise.all([
+      tx.order.findUnique({
+        where: { id: orderId },
+        select: {
+          promotionDiscountTotal: true,
+          loyaltyRedemptionTotal: true,
+          deliveryTotal: true,
+        },
+      }),
+      tx.orderItem.findMany({
+        where: { orderId, id: { in: itemIds } },
+        select: {
+          id: true,
+          discountAmount: true,
+        },
+      }),
+      newProductId
+        ? tx.product.findFirst({
+            where: {
+              id: newProductId,
+              status: { not: ProductStatus.ARCHIVED },
+            },
+            select: {
+              id: true,
+              name: true,
+              sku: true,
+              price: true,
+              bundleItems: {
+                select: {
+                  quantity: true,
+                  componentProduct: {
+                    select: {
+                      price: true,
+                    },
+                  },
+                },
+              },
+              brand: { select: { name: true } },
+            },
+          })
+        : Promise.resolve(null),
+    ]);
+
+    if (!order) {
+      return;
+    }
+
+    const currentItemMap = new Map(currentItems.map((item) => [item.id, item]));
+    const nextItems = itemIds.flatMap((itemId, index) => {
+      if (removeItemIds.has(itemId)) {
+        return [];
+      }
+
+      const currentItem = currentItemMap.get(itemId);
+      const name = names[index]?.trim();
+      const rawQuantity = quantities[index];
+      const rawUnitPrice = unitPrices[index];
+      const quantity =
+        typeof rawQuantity === "string"
+          ? Math.max(1, Math.min(9999, Number.parseInt(rawQuantity, 10) || 1))
+          : 1;
+      const unitPrice =
+        typeof rawUnitPrice === "string"
+          ? Math.max(0, Number.parseInt(rawUnitPrice, 10) || 0)
+          : 0;
+
+      if (!currentItem || !name) {
+        return [];
+      }
+
+      const discountAmount = Math.min(
+        currentItem.discountAmount,
+        unitPrice * quantity,
+      );
+
+      return [
+        {
+          id: itemId,
+          name,
+          quantity,
+          unitPrice,
+          discountAmount,
+          total: Math.max(0, unitPrice * quantity - discountAmount),
+        },
+      ];
+    });
+
+    if (removeItemIds.size > 0) {
+      await tx.orderItem.deleteMany({
+        where: {
+          orderId,
+          id: { in: [...removeItemIds] },
+        },
+      });
+    }
+
+    await Promise.all(
+      nextItems.map((item) =>
+        tx.orderItem.update({
+          where: { id: item.id },
+          data: {
+            snapshotName: item.name,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            discountAmount: item.discountAmount,
+            total: item.total,
+          },
+        }),
+      ),
+    );
+
+    const newProductPrice = newProduct
+      ? (getEffectiveProductPrice(newProduct) ?? 0)
+      : null;
+    const newSnapshotName = newItemName ?? newProduct?.name ?? null;
+
+    if (newSnapshotName && (newProduct || newItemName)) {
+      const unitPrice = Math.max(
+        0,
+        newItemUnitPrice ?? newProductPrice ?? 0,
+      );
+
+      await tx.orderItem.create({
+        data: {
+          orderId,
+          productId: newProduct?.id ?? null,
+          quantity: newItemQuantity,
+          unitPrice,
+          discountAmount: 0,
+          total: unitPrice * newItemQuantity,
+          snapshotName: newSnapshotName,
+          snapshotSku: newProduct?.sku ?? null,
+          snapshotBrand: newProduct?.brand?.name ?? null,
+        },
+      });
+    }
+
+    const finalItems = await tx.orderItem.findMany({
+      where: { orderId },
+      select: {
+        quantity: true,
+        unitPrice: true,
+        discountAmount: true,
+      },
+    });
+    const subtotal = finalItems.reduce(
+      (sum, item) => sum + item.unitPrice * item.quantity,
+      0,
+    );
+    const discountTotal = finalItems.reduce(
+      (sum, item) => sum + item.discountAmount,
+      0,
+    );
+    const total = Math.max(
+      0,
+      subtotal -
+        discountTotal -
+        order.promotionDiscountTotal -
+        order.loyaltyRedemptionTotal +
+        order.deliveryTotal,
+    );
+
+    await tx.order.update({
+      where: { id: orderId },
+      data: {
+        subtotal,
+        discountTotal,
+        total,
+      },
+    });
+  });
+
+  await logOperationEvent({
+    entityType: "order",
+    entityId: orderId,
+    eventType: "system",
+    title: "Обновлен состав заказа",
+    description:
+      "Менеджер изменил позиции, количество, цену или состав заказа.",
+    actor,
+  });
+
+  await syncOrderById(
+    orderId,
+    previousOrder
+      ? {
+          previousStatus: previousOrder.status,
+          previousManager: previousOrder.manager,
+        }
+      : undefined,
+  );
+
+  revalidateAdminOperations();
+  revalidatePath(`/admin/orders/${orderId}`);
+}
+
+export async function deleteOrderAction(formData: FormData) {
+  if (!hasDatabaseUrl()) {
+    return;
+  }
+
+  const actor = await ensureAdminAccess();
+
+  if (!canDeleteOrders(actor.roleCode)) {
+    return;
+  }
+
+  const orderId = getString(formData, "orderId");
+  const confirmation = getString(formData, "confirmDeleteOrder");
+
+  if (!orderId || confirmation !== "DELETE") {
+    return;
+  }
+
+  const db = getDb();
+
+  await db.$transaction(async (tx) => {
+    const order = await tx.order.findUnique({
+      where: { id: orderId },
+      select: {
+        userId: true,
+        loyaltyTransactions: {
+          where: { status: LoyaltyTransactionStatus.APPROVED },
+          select: { points: true },
+        },
+      },
+    });
+
+    if (!order) {
+      return;
+    }
+
+    if (order.userId && order.loyaltyTransactions.length > 0) {
+      const balanceDelta = order.loyaltyTransactions.reduce(
+        (sum, transaction) => sum + transaction.points,
+        0,
+      );
+      const lifetimeDelta = order.loyaltyTransactions.reduce(
+        (sum, transaction) =>
+          transaction.points > 0 ? sum + transaction.points : sum,
+        0,
+      );
+      const customer = await tx.user.findUnique({
+        where: { id: order.userId },
+        select: {
+          loyaltyPointsBalance: true,
+          loyaltyPointsLifetime: true,
+        },
+      });
+
+      if (customer) {
+        const nextBalance = Math.max(
+          0,
+          customer.loyaltyPointsBalance - balanceDelta,
+        );
+        const nextLifetime = Math.max(
+          0,
+          customer.loyaltyPointsLifetime - lifetimeDelta,
+        );
+
+        await tx.user.update({
+          where: { id: order.userId },
+          data: {
+            loyaltyPointsBalance: nextBalance,
+            loyaltyPointsLifetime: nextLifetime,
+          },
+        });
+      }
+    }
+
+    await tx.loyaltyTransaction.deleteMany({ where: { orderId } });
+    await tx.operationEvent.deleteMany({
+      where: { entityType: "order", entityId: orderId },
+    });
+    await tx.order.delete({ where: { id: orderId } });
+  });
+
+  revalidateAdminOperations();
+  revalidateAdminUsers();
+  redirect("/admin/orders");
 }
 
 export async function addOrderManagerNoteAction(formData: FormData) {
@@ -2092,6 +2830,14 @@ export async function updateOrderFulfillmentAction(formData: FormData) {
   });
 
   const currentOrder = await getOrderInboxItemById(orderId);
+  if (currentOrder?.status) {
+    await reverseOrderLoyaltyIfCanceled({
+      orderId,
+      previousStatus: previousOrder?.status ?? null,
+      nextStatus: currentOrder.status,
+      actor,
+    });
+  }
 
   await Promise.all([
     logOperationEvent({
@@ -2223,6 +2969,15 @@ export async function bulkUpdateOrdersAction(formData: FormData) {
     orderIds.map(async (orderId) => {
       const currentOrder = await getOrderInboxItemById(orderId);
       const previous = previousOrderMap.get(orderId);
+
+      if (currentOrder?.status) {
+        await reverseOrderLoyaltyIfCanceled({
+          orderId,
+          previousStatus: previous?.previousStatus as OrderStatus | undefined,
+          nextStatus: currentOrder.status,
+          actor,
+        });
+      }
 
       await logOrderTransition({
         orderId,
@@ -2651,9 +3406,8 @@ export async function createSalesFloorOrderAction(formData: FormData) {
   const quantities = formData.getAll("quantity");
   const receiptNumber = getOptionalString(formData, "receiptNumber");
   const managerComment = getOptionalString(formData, "comment");
-  const applyClientDiscount =
-    getString(formData, "applyClientDiscount") === "on";
   const accrueLoyalty = getString(formData, "accrueLoyalty") === "on";
+  const requestedRedeemPoints = getOptionalInt(formData, "redeemPoints") ?? 0;
 
   if (!customerId || productIds.length === 0) {
     redirect("/admin/sales-floor?error=empty");
@@ -2712,8 +3466,6 @@ export async function createSalesFloorOrderAction(formData: FormData) {
     db.product.findMany({
       where: {
         id: { in: uniqueProductIds },
-        status: ProductStatus.ACTIVE,
-        OR: [{ price: { not: null } }, { bundleItems: { some: {} } }],
       },
       select: {
         id: true,
@@ -2731,6 +3483,7 @@ export async function createSalesFloorOrderAction(formData: FormData) {
           },
         },
         brand: { select: { name: true } },
+        category: { select: { kind: true } },
       },
     }),
   ]);
@@ -2739,15 +3492,14 @@ export async function createSalesFloorOrderAction(formData: FormData) {
     redirect("/admin/sales-floor?error=not-found");
   }
 
+  const loyaltyConfig = await getLoyaltyProgramConfig();
   const productMap = new Map(products.map((product) => [product.id, product]));
-  const discountPercent = applyClientDiscount
-    ? getEffectiveDiscountPercent(customer)
-    : 0;
+  const discountPercent = 0;
   const orderItems = requestedItems.flatMap((requestedItem) => {
     const product = productMap.get(requestedItem.productId);
-    const unitPrice = product ? getEffectiveProductPrice(product) : null;
+    const unitPrice = product ? (getEffectiveProductPrice(product) ?? 0) : null;
 
-    if (!product || typeof unitPrice !== "number" || unitPrice <= 0) {
+    if (!product || typeof unitPrice !== "number") {
       return [];
     }
 
@@ -2765,6 +3517,7 @@ export async function createSalesFloorOrderAction(formData: FormData) {
         snapshotName: product.name,
         snapshotSku: product.sku,
         snapshotBrand: product.brand?.name ?? null,
+        categoryKind: product.category.kind,
       },
     ];
   });
@@ -2781,9 +3534,27 @@ export async function createSalesFloorOrderAction(formData: FormData) {
     (sum, item) => sum + item.discountAmount,
     0,
   );
-  const total = Math.max(0, subtotal - discountTotal);
+  const subtotalAfterDiscount = Math.max(0, subtotal - discountTotal);
+  const loyaltyRedemptionTotal = getRedeemableLoyaltyPoints(
+    requestedRedeemPoints,
+    customer.loyaltyPointsBalance,
+    subtotalAfterDiscount,
+    loyaltyConfig,
+  );
+  const total = Math.max(0, subtotalAfterDiscount - loyaltyRedemptionTotal);
+  const accrualRatio =
+    subtotalAfterDiscount > 0
+      ? (subtotalAfterDiscount - loyaltyRedemptionTotal) / subtotalAfterDiscount
+      : 0;
   const awardedPoints = accrueLoyalty
-    ? estimateLoyaltyPoints(total, customer.loyaltyTier)
+    ? estimateLoyaltyPointsForLines(
+        orderItems.map((item) => ({
+          total: item.total * accrualRatio,
+          categoryKind: item.categoryKind,
+        })),
+        customer.loyaltyTier,
+        loyaltyConfig,
+      )
     : 0;
   const customerName =
     [customer.firstName, customer.lastName].filter(Boolean).join(" ") ||
@@ -2793,6 +3564,9 @@ export async function createSalesFloorOrderAction(formData: FormData) {
     "Продажа в зале",
     receiptNumber ? `Кассовый чек: ${receiptNumber}` : "",
     discountPercent > 0 ? `Скидка клиента: ${discountPercent}%` : "",
+    loyaltyRedemptionTotal > 0
+      ? `Списано бонусов: ${loyaltyRedemptionTotal}`
+      : "",
     awardedPoints > 0 ? `Начислено бонусов: ${awardedPoints}` : "",
     managerComment,
   ].filter(Boolean);
@@ -2812,6 +3586,7 @@ export async function createSalesFloorOrderAction(formData: FormData) {
         comment: commentParts.join("\n"),
         subtotal,
         discountTotal,
+        loyaltyRedemptionTotal,
         total,
         items: {
           create: orderItems.map((item) => ({
@@ -2833,8 +3608,12 @@ export async function createSalesFloorOrderAction(formData: FormData) {
       },
     });
 
-    if (awardedPoints > 0) {
-      const nextBalance = customer.loyaltyPointsBalance + awardedPoints;
+    if (awardedPoints > 0 || loyaltyRedemptionTotal > 0) {
+      const balanceAfterRedemption = Math.max(
+        0,
+        customer.loyaltyPointsBalance - loyaltyRedemptionTotal,
+      );
+      const nextBalance = balanceAfterRedemption + awardedPoints;
       const nextLifetime = customer.loyaltyPointsLifetime + awardedPoints;
 
       await tx.user.update({
@@ -2842,21 +3621,42 @@ export async function createSalesFloorOrderAction(formData: FormData) {
         data: {
           loyaltyPointsBalance: nextBalance,
           loyaltyPointsLifetime: nextLifetime,
-          loyaltyTier: getLoyaltyTierForLifetimePoints(nextLifetime),
         },
       });
 
-      await tx.loyaltyTransaction.create({
-        data: {
-          userId: customer.id,
-          orderId: order.id,
-          type: LoyaltyTransactionType.ORDER_ACCRUAL,
-          points: awardedPoints,
-          balanceAfter: nextBalance,
-          title: "Бонусы за покупку в зале",
-          description: `Начисление по продаже ${order.number ?? order.id}.`,
-        },
-      });
+      if (loyaltyRedemptionTotal > 0) {
+        await tx.loyaltyTransaction.create({
+          data: {
+            userId: customer.id,
+            orderId: order.id,
+            type: LoyaltyTransactionType.REDEMPTION,
+            status: LoyaltyTransactionStatus.APPROVED,
+            approvedAt: new Date(),
+            approvedById: actor.userId,
+            points: -loyaltyRedemptionTotal,
+            balanceAfter: balanceAfterRedemption,
+            title: "Списание баллов",
+            description: `Списание бонусов по продаже ${order.number ?? order.id}.`,
+          },
+        });
+      }
+
+      if (awardedPoints > 0) {
+        await tx.loyaltyTransaction.create({
+          data: {
+            userId: customer.id,
+            orderId: order.id,
+            type: LoyaltyTransactionType.ORDER_ACCRUAL,
+            status: LoyaltyTransactionStatus.APPROVED,
+            approvedAt: new Date(),
+            approvedById: actor.userId,
+            points: awardedPoints,
+            balanceAfter: nextBalance,
+            title: "Бонусы за покупку в зале",
+            description: `Начисление по продаже ${order.number ?? order.id}.`,
+          },
+        });
+      }
     }
 
     return order;
@@ -3002,6 +3802,45 @@ export async function updatePromotionAction(formData: FormData) {
   });
 
   revalidateAdminPromotions();
+}
+
+export async function sendPromotionTelegramBroadcastAction(formData: FormData) {
+  if (!hasDatabaseUrl()) {
+    return;
+  }
+
+  await ensureAdminAccess();
+
+  const id = getString(formData, "id");
+  const searchParams = new URLSearchParams();
+
+  if (!id) {
+    searchParams.set("telegramPromo", "error");
+    searchParams.set("telegramMessage", "Акция не выбрана.");
+  } else {
+    try {
+      const result = await sendTelegramPromotionBroadcast(id);
+
+      searchParams.set(
+        "telegramPromo",
+        result.ok ? "ok" : result.sent > 0 ? "partial" : "error",
+      );
+      searchParams.set("telegramMessage", result.message);
+      searchParams.set("telegramSent", String(result.sent));
+      searchParams.set("telegramFailed", String(result.failed));
+    } catch (error) {
+      searchParams.set("telegramPromo", "error");
+      searchParams.set(
+        "telegramMessage",
+        error instanceof Error
+          ? error.message
+          : "Telegram вернул неизвестную ошибку.",
+      );
+    }
+  }
+
+  revalidateAdminPromotions();
+  redirect(`/admin/promotions?${searchParams.toString()}`);
 }
 
 export async function bulkUpdatePromotionsAction(formData: FormData) {
@@ -3280,6 +4119,60 @@ export async function deleteBannerAction(formData: FormData) {
   revalidateAdminContent();
 }
 
+export async function updateLoyaltyProgramSettingsAction(formData: FormData) {
+  if (!hasDatabaseUrl()) {
+    return;
+  }
+
+  await ensureAdminAccess();
+
+  const currentConfig = await getLoyaltyProgramConfig();
+  await saveLoyaltyProgramConfig({
+    maxTotalDiscountPercent: 0,
+    maxRedeemPercent: 50,
+    tiers: Object.fromEntries(
+      Object.values(LoyaltyTier).map((tier) => {
+        const currentTier = currentConfig.tiers[tier];
+        const plateMaterialAccrualPercent =
+          getOptionalInt(formData, `${tier}.plateMaterialAccrualPercent`) ??
+          getOptionalInt(formData, `${tier}.accrualPercent`) ??
+          currentTier.plateMaterialAccrualPercent;
+        const fittingsAccrualPercent =
+          getOptionalInt(formData, `${tier}.fittingsAccrualPercent`) ??
+          currentTier.fittingsAccrualPercent;
+
+        return [
+          tier,
+          {
+            label:
+              getOptionalString(formData, `${tier}.label`) ?? currentTier.label,
+            threshold:
+              getOptionalInt(formData, `${tier}.threshold`) ??
+              currentTier.threshold,
+            baseDiscountPercent: 0,
+            accrualPercent: plateMaterialAccrualPercent,
+            plateMaterialAccrualPercent,
+            fittingsAccrualPercent,
+          },
+        ];
+      }),
+    ) as Record<
+      LoyaltyTier,
+      {
+        label: string;
+        threshold: number;
+        baseDiscountPercent: number;
+        accrualPercent: number;
+        plateMaterialAccrualPercent: number;
+        fittingsAccrualPercent: number;
+      }
+    >,
+  });
+
+  revalidateAdminUsers();
+  revalidatePath("/checkout");
+}
+
 export async function updateUserLoyaltyAction(formData: FormData) {
   if (!hasDatabaseUrl()) {
     return;
@@ -3298,13 +4191,18 @@ export async function updateUserLoyaltyAction(formData: FormData) {
     return;
   }
 
+  const loyaltyConfig = await getLoyaltyProgramConfig();
+
   await getDb().user.update({
     where: { id },
     data: {
       loyaltyTier:
         Object.values(LoyaltyTier).find((item) => item === loyaltyTier) ??
         LoyaltyTier.BRONZE,
-      personalDiscountPercent: Math.min(25, personalDiscountPercent),
+      personalDiscountPercent: Math.min(
+        loyaltyConfig.maxTotalDiscountPercent,
+        personalDiscountPercent,
+      ),
     },
   });
 
@@ -3316,7 +4214,7 @@ export async function adjustUserLoyaltyPointsAction(formData: FormData) {
     return;
   }
 
-  await ensureAdminAccess();
+  const session = await ensureAdminAccess();
 
   const id = getString(formData, "id");
   const pointsDelta = getOptionalInt(formData, "pointsDelta");
@@ -3343,6 +4241,7 @@ export async function adjustUserLoyaltyPointsAction(formData: FormData) {
 
   const nextBalance = Math.max(0, user.loyaltyPointsBalance + pointsDelta);
   const appliedDelta = nextBalance - user.loyaltyPointsBalance;
+  const nextLifetime = user.loyaltyPointsLifetime + Math.max(0, appliedDelta);
 
   if (appliedDelta === 0) {
     return;
@@ -3353,14 +4252,16 @@ export async function adjustUserLoyaltyPointsAction(formData: FormData) {
       where: { id },
       data: {
         loyaltyPointsBalance: nextBalance,
-        loyaltyPointsLifetime:
-          user.loyaltyPointsLifetime + Math.max(0, appliedDelta),
+        loyaltyPointsLifetime: nextLifetime,
       },
     }),
     db.loyaltyTransaction.create({
       data: {
         userId: id,
         type: LoyaltyTransactionType.MANUAL_ADJUSTMENT,
+        status: LoyaltyTransactionStatus.APPROVED,
+        approvedAt: new Date(),
+        approvedById: session.userId,
         points: appliedDelta,
         balanceAfter: nextBalance,
         title,
@@ -3390,6 +4291,141 @@ export async function adjustUserLoyaltyPointsAction(formData: FormData) {
     });
   } catch (error) {
     console.error("[telegram:loyalty]", error);
+  }
+
+  revalidateAdminUsers();
+}
+
+export async function approveLoyaltyTransactionAction(formData: FormData) {
+  if (!hasDatabaseUrl()) {
+    return;
+  }
+
+  const session = await ensureAdminAccess();
+  const transactionId = getString(formData, "transactionId");
+
+  if (!transactionId) {
+    return;
+  }
+
+  const db = getDb();
+  const result = await db.$transaction(async (tx) => {
+    const transaction = await tx.loyaltyTransaction.findUnique({
+      where: { id: transactionId },
+      select: {
+        id: true,
+        userId: true,
+        status: true,
+        points: true,
+        user: {
+          select: {
+            loyaltyPointsBalance: true,
+            loyaltyPointsLifetime: true,
+          },
+        },
+      },
+    });
+
+    if (
+      !transaction ||
+      transaction.status !== LoyaltyTransactionStatus.PENDING ||
+      transaction.points <= 0
+    ) {
+      return null;
+    }
+
+    const nextBalance =
+      transaction.user.loyaltyPointsBalance + transaction.points;
+    const nextLifetime =
+      transaction.user.loyaltyPointsLifetime + transaction.points;
+
+    await tx.user.update({
+      where: { id: transaction.userId },
+      data: {
+        loyaltyPointsBalance: nextBalance,
+        loyaltyPointsLifetime: nextLifetime,
+      },
+    });
+
+    await tx.loyaltyTransaction.update({
+      where: { id: transaction.id },
+      data: {
+        status: LoyaltyTransactionStatus.APPROVED,
+        balanceAfter: nextBalance,
+        approvedAt: new Date(),
+        approvedById: session.userId,
+      },
+    });
+
+    return {
+      userId: transaction.userId,
+      points: transaction.points,
+      nextBalance,
+    };
+  });
+
+  if (result) {
+    try {
+      await sendTelegramDirectMessage(result.userId, {
+        title: "Бонусы подтверждены",
+        category: "loyalty",
+        lines: [
+          `Начислено: +${result.points}`,
+          `Баланс: ${result.nextBalance} баллов`,
+        ],
+        actions: [{ text: "Открыть бонусы", url: "/account" }],
+      });
+    } catch (error) {
+      console.error("[telegram:loyalty:approve]", error);
+    }
+
+    revalidateAdminUsers();
+  }
+}
+
+export async function cancelLoyaltyTransactionAction(formData: FormData) {
+  if (!hasDatabaseUrl()) {
+    return;
+  }
+
+  const session = await ensureAdminAccess();
+  const transactionId = getString(formData, "transactionId");
+
+  if (!transactionId) {
+    return;
+  }
+
+  const transaction = await getDb().loyaltyTransaction.findUnique({
+    where: { id: transactionId },
+    select: {
+      userId: true,
+      status: true,
+      points: true,
+    },
+  });
+
+  if (!transaction || transaction.status !== LoyaltyTransactionStatus.PENDING) {
+    return;
+  }
+
+  await getDb().loyaltyTransaction.update({
+    where: { id: transactionId },
+    data: {
+      status: LoyaltyTransactionStatus.CANCELED,
+      canceledAt: new Date(),
+      canceledById: session.userId,
+    },
+  });
+
+  try {
+    await sendTelegramDirectMessage(transaction.userId, {
+      title: "Бонусы отменены",
+      category: "loyalty",
+      lines: [`Операция на ${transaction.points} баллов отменена.`],
+      actions: [{ text: "Открыть бонусы", url: "/account" }],
+    });
+  } catch (error) {
+    console.error("[telegram:loyalty:cancel]", error);
   }
 
   revalidateAdminUsers();

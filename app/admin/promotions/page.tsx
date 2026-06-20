@@ -10,6 +10,7 @@ import {
   bulkUpdatePromotionsAction,
   createPromotionAction,
   deletePromotionAction,
+  sendPromotionTelegramBroadcastAction,
   updatePromotionAction,
 } from "@/app/admin/actions";
 import { AdminSubmitButton } from "@/components/admin/admin-submit-button";
@@ -135,6 +136,14 @@ function getStateHref(
   });
 }
 
+function getSearchValue(
+  searchParams: Record<string, string | string[] | undefined>,
+  key: string,
+) {
+  const value = searchParams[key];
+  return Array.isArray(value) ? (value[0] ?? "") : (value ?? "");
+}
+
 export default async function AdminPromotionsPage({
   searchParams,
 }: AdminPromotionsPageProps) {
@@ -160,6 +169,11 @@ export default async function AdminPromotionsPage({
     searchParams,
   ]);
 
+  const telegramPromo = getSearchValue(resolvedSearchParams, "telegramPromo");
+  const telegramMessage = getSearchValue(
+    resolvedSearchParams,
+    "telegramMessage",
+  );
   const state = parseAdminPromotionSearchParams(resolvedSearchParams);
   const filteredPromotions = sortAdminPromotions(
     filterAdminPromotions(promotions, state),
@@ -172,7 +186,9 @@ export default async function AdminPromotionsPage({
   const highlightedPromotions = promotions.filter(
     (promotion) => promotion.isHighlighted,
   );
-  const codePromotions = promotions.filter((promotion) => Boolean(promotion.promoCode));
+  const codePromotions = promotions.filter((promotion) =>
+    Boolean(promotion.promoCode),
+  );
   const orderPromotions = promotions.filter(
     (promotion) => promotion.targetType === PromotionTargetType.ORDER,
   );
@@ -214,9 +230,7 @@ export default async function AdminPromotionsPage({
       ? {
           key: "promoCode",
           label:
-            state.promoCode === "with-code"
-              ? "С промокодом"
-              : "Без промокода",
+            state.promoCode === "with-code" ? "С промокодом" : "Без промокода",
           href: getStateHref(state, { promoCode: "all" }),
         }
       : null,
@@ -316,7 +330,11 @@ export default async function AdminPromotionsPage({
       manage: (
         <form action={updatePromotionAction} className="grid gap-2">
           <input type="hidden" name="id" value={promotion.id} />
-          <Select name="status" defaultValue={promotion.status} className="h-9 text-xs">
+          <Select
+            name="status"
+            defaultValue={promotion.status}
+            className="h-9 text-xs"
+          >
             {Object.values(PromotionStatus).map((status) => (
               <option key={status} value={status}>
                 {promotionStatusLabels[status]}
@@ -351,6 +369,15 @@ export default async function AdminPromotionsPage({
               idleLabel="Сохранить"
               pendingLabel="Сохраняем..."
             />
+            <AdminSubmitButton
+              type="submit"
+              formAction={sendPromotionTelegramBroadcastAction}
+              variant="accent"
+              size="sm"
+              disabled={promotion.status !== PromotionStatus.ACTIVE}
+              idleLabel="Telegram промо"
+              pendingLabel="Рассылаем..."
+            />
             <button
               type="submit"
               formAction={deletePromotionAction}
@@ -374,6 +401,31 @@ export default async function AdminPromotionsPage({
           descriptionClassName="max-w-3xl text-sm leading-7"
         />
       </section>
+
+      {telegramPromo ? (
+        <section className="overflow-hidden rounded-[24px] border border-[#f0a17f]/45 bg-[#fff7f1] p-5 shadow-[0_16px_48px_rgba(198,91,58,0.12)]">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="font-mono text-[10px] tracking-[0.22em] text-[#c65b3a] uppercase">
+                Telegram промо
+              </p>
+              <p className="mt-2 text-base font-semibold text-[var(--foreground)]">
+                Рассылка по клиентам
+              </p>
+              <p className="mt-1 text-sm leading-6 text-[var(--muted)]">
+                {telegramMessage || "Статус рассылки обновлен."}
+              </p>
+            </div>
+            <StatusBadge tone={telegramPromo === "ok" ? "success" : "warning"}>
+              {telegramPromo === "ok"
+                ? "Готово"
+                : telegramPromo === "partial"
+                  ? "Частично"
+                  : "Ошибка"}
+            </StatusBadge>
+          </div>
+        </section>
+      ) : null}
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard
@@ -469,8 +521,9 @@ export default async function AdminPromotionsPage({
               Быстрый срез по промо-механикам
             </h3>
             <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-              Можно быстро выделить только активные промо, только акции с промокодом
-              или только витринные предложения, чтобы команда не терялась в списке.
+              Можно быстро выделить только активные промо, только акции с
+              промокодом или только витринные предложения, чтобы команда не
+              терялась в списке.
             </p>
           </div>
 
@@ -496,7 +549,9 @@ export default async function AdminPromotionsPage({
               С промокодом
             </Link>
             <Link
-              href={getStateHref(state, { targetType: PromotionTargetType.ORDER })}
+              href={getStateHref(state, {
+                targetType: PromotionTargetType.ORDER,
+              })}
               className="rounded-full border border-[color:var(--line)] bg-[var(--surface)] px-3 py-1.5 text-[11px] font-semibold tracking-[0.14em] text-[var(--muted)] uppercase transition hover:border-[color:var(--line-strong)]"
             >
               По заказу
@@ -504,7 +559,11 @@ export default async function AdminPromotionsPage({
           </div>
         </div>
 
-        <Form action="/admin/promotions" scroll={false} className="mt-6 grid gap-4 xl:grid-cols-6">
+        <Form
+          action="/admin/promotions"
+          scroll={false}
+          className="mt-6 grid gap-4 xl:grid-cols-6"
+        >
           <label className="grid gap-2 xl:col-span-2">
             <span className="text-sm text-[var(--foreground)]">
               Поиск по названию, slug, промокоду и целям
@@ -583,7 +642,8 @@ export default async function AdminPromotionsPage({
               Сбросить всё
             </Link>
             <span className="text-sm text-[var(--muted)]">
-              Найдено {filteredPromotions.length} из {promotions.length} кампаний
+              Найдено {filteredPromotions.length} из {promotions.length}{" "}
+              кампаний
             </span>
           </div>
         </Form>
@@ -779,8 +839,9 @@ export default async function AdminPromotionsPage({
                   Работа с текущей выборкой
                 </h3>
                 <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-                  Выделите нужные кампании в таблице и быстро переведите их в активные,
-                  архивные, очистите промокоды или снимите выделение на витрине.
+                  Выделите нужные кампании в таблице и быстро переведите их в
+                  активные, архивные, очистите промокоды или снимите выделение
+                  на витрине.
                 </p>
               </div>
 

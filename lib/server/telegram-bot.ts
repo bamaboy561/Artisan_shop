@@ -2,14 +2,25 @@ import "server-only";
 
 import crypto from "node:crypto";
 
-import { OrderStatus, RequestStatus } from "@/generated/prisma";
+import {
+  DiscountType,
+  NotificationChannel,
+  NotificationStatus,
+  OrderStatus,
+  ProductStatus,
+  PromotionStatus,
+  PromotionTargetType,
+  type Prisma,
+  RequestStatus,
+} from "@/generated/prisma";
 import { formatPrice } from "@/lib/commerce";
 import { getDb, hasDatabaseUrl } from "@/lib/db";
 import { absoluteUrl, getSiteUrl } from "@/lib/seo";
 import {
-  getEffectiveDiscountPercent,
+  getLoyaltyTierBenefits,
   getLoyaltyTierLabel,
 } from "@/lib/server/pricing";
+import { getLoyaltyProgramConfig } from "@/lib/server/loyalty-settings";
 import { ensureTelegramUserColumns } from "@/lib/server/telegram-user-schema";
 
 type TelegramKeyboardButton = {
@@ -65,7 +76,7 @@ type TelegramUpdate = {
   };
 };
 
-type TelegramDirectCategory = "orders" | "requests" | "loyalty";
+type TelegramDirectCategory = "orders" | "requests" | "loyalty" | "promotions";
 
 type TelegramDirectPayload = {
   title: string;
@@ -174,8 +185,9 @@ function buildMenuKeyboard(): TelegramReplyMarkup {
   return {
     keyboard: [
       [{ text: "Мои заказы" }, { text: "Мои заявки" }],
-      [{ text: "Баллы и скидка" }, { text: "Открыть кабинет" }],
-      [{ text: "Каталог" }, { text: "Помощь" }],
+      [{ text: "Акции" }, { text: "Баллы и скидка" }],
+      [{ text: "Открыть кабинет" }, { text: "Каталог" }],
+      [{ text: "Помощь" }],
     ],
     resize_keyboard: true,
     is_persistent: true,
@@ -191,7 +203,9 @@ function buildInlineKeyboard(actions?: TelegramInlineButton[]) {
     inline_keyboard: actions.map((action) => [
       {
         text: action.text,
-        url: action.url.startsWith("http") ? action.url : absoluteUrl(action.url),
+        url: action.url.startsWith("http")
+          ? action.url
+          : absoluteUrl(action.url),
       },
     ]),
   };
@@ -211,16 +225,19 @@ async function sendTelegramApi<T>(
     throw new Error("TELEGRAM_BOT_TOKEN is not configured.");
   }
 
-  const response = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
+  const response = await fetch(
+    `https://api.telegram.org/bot${token}/${method}`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
     },
-    body: JSON.stringify(payload),
-  });
-  const json = (await response.json().catch(() => null)) as
-    | TelegramApiResponse<T>
-    | null;
+  );
+  const json = (await response
+    .json()
+    .catch(() => null)) as TelegramApiResponse<T> | null;
 
   if (!response.ok || !json?.ok) {
     throw new Error(
@@ -235,6 +252,7 @@ export async function sendBotMessage(
   chatId: string | number,
   text: string,
   options: {
+    parseMode?: "HTML";
     replyMarkup?: TelegramReplyMarkup;
   } = {},
 ) {
@@ -242,8 +260,16 @@ export async function sendBotMessage(
     chat_id: chatId,
     text,
     disable_web_page_preview: true,
+    ...(options.parseMode ? { parse_mode: options.parseMode } : {}),
     ...(options.replyMarkup ? { reply_markup: options.replyMarkup } : {}),
   });
+}
+
+function escapeTelegramHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
 }
 
 function normalizeTelegramCommand(value: string) {
@@ -291,6 +317,7 @@ async function getLinkedUserByChatId(chatId: string) {
       telegramNotifyOrders: true,
       telegramNotifyRequests: true,
       telegramNotifyLoyalty: true,
+      telegramNotifyPromotions: true,
     },
   });
 }
@@ -340,6 +367,7 @@ async function linkTelegramAccount(
         telegramNotifyOrders: true,
         telegramNotifyRequests: true,
         telegramNotifyLoyalty: true,
+        telegramNotifyPromotions: true,
       },
     }),
   ]);
@@ -363,9 +391,13 @@ async function replyWithOrders(chatId: string, userId: string) {
   });
 
   if (orders.length === 0) {
-    await sendBotMessage(chatId, "Заказов пока нет. Когда заказ появится, я пришлю статус сюда.", {
-      replyMarkup: buildMenuKeyboard(),
-    });
+    await sendBotMessage(
+      chatId,
+      "Заказов пока нет. Когда заказ появится, я пришлю статус сюда.",
+      {
+        replyMarkup: buildMenuKeyboard(),
+      },
+    );
     return;
   }
 
@@ -400,9 +432,13 @@ async function replyWithRequests(chatId: string, userId: string) {
   });
 
   if (requests.length === 0) {
-    await sendBotMessage(chatId, "Заявок пока нет. Заявка на распил появится здесь после отправки формы.", {
-      replyMarkup: buildMenuKeyboard(),
-    });
+    await sendBotMessage(
+      chatId,
+      "Заявок пока нет. Заявка на распил появится здесь после отправки формы.",
+      {
+        replyMarkup: buildMenuKeyboard(),
+      },
+    );
     return;
   }
 
@@ -414,24 +450,29 @@ async function replyWithRequests(chatId: string, userId: string) {
     "",
   ]);
 
-  await sendBotMessage(chatId, ["Последние заявки:", "", ...lines.filter(Boolean)].join("\n"), {
-    replyMarkup: buildActionMarkup([
-      { text: "Открыть заявки", url: absoluteUrl("/account/requests") },
-    ]),
-  });
+  await sendBotMessage(
+    chatId,
+    ["Последние заявки:", "", ...lines.filter(Boolean)].join("\n"),
+    {
+      replyMarkup: buildActionMarkup([
+        { text: "Открыть заявки", url: absoluteUrl("/account/requests") },
+      ]),
+    },
+  );
 }
 
 async function replyWithLoyalty(
   chatId: string,
   user: NonNullable<Awaited<ReturnType<typeof getLinkedUserByChatId>>>,
 ) {
-  const discount = getEffectiveDiscountPercent(user);
+  const loyaltyConfig = await getLoyaltyProgramConfig();
+  const benefits = getLoyaltyTierBenefits(user.loyaltyTier, loyaltyConfig);
   const lines = [
     `Клиент: ${getUserDisplayName(user)}`,
-    `Уровень: ${getLoyaltyTierLabel(user.loyaltyTier)}`,
+    `Уровень: ${getLoyaltyTierLabel(user.loyaltyTier, loyaltyConfig)}`,
     `Баланс: ${user.loyaltyPointsBalance} баллов`,
     `Накоплено: ${user.loyaltyPointsLifetime} баллов`,
-    `Скидка: ${discount}%`,
+    `Начисление: плитные материалы ${benefits.plateMaterialAccrualPercent}%, фурнитура ${benefits.fittingsAccrualPercent}%`,
     "",
     "Баллы начисляются после подтверждения менеджером и сразу видны в кабинете.",
   ];
@@ -441,6 +482,347 @@ async function replyWithLoyalty(
       { text: "Открыть кабинет", url: absoluteUrl("/account") },
     ]),
   });
+}
+
+function formatPromotionOffer(params: {
+  discountType: DiscountType;
+  discountValue: number;
+}) {
+  if (params.discountType === DiscountType.FIXED_AMOUNT) {
+    return `-${formatPrice(params.discountValue)}`;
+  }
+
+  if (params.discountType === DiscountType.FIXED_PRICE) {
+    return `Цена ${formatPrice(params.discountValue)}`;
+  }
+
+  return `-${params.discountValue}%`;
+}
+
+function getPromotionHref(promotion: {
+  targetType: PromotionTargetType;
+  products: Array<{ product: { slug: string; status: ProductStatus } }>;
+  categories: Array<{ category: { slug: string } }>;
+}) {
+  const product = promotion.products.find(
+    (item) => item.product.status === ProductStatus.ACTIVE,
+  )?.product;
+
+  if (promotion.targetType === PromotionTargetType.PRODUCT && product) {
+    return `/product/${product.slug}`;
+  }
+
+  const category = promotion.categories[0]?.category;
+
+  if (promotion.targetType === PromotionTargetType.CATEGORY && category) {
+    return `/catalog/${category.slug}`;
+  }
+
+  return "/catalog";
+}
+
+async function replyWithPromotions(chatId: string) {
+  const now = new Date();
+  const promotions = await getDb().promotion.findMany({
+    where: {
+      status: PromotionStatus.ACTIVE,
+      OR: [{ startsAt: null }, { startsAt: { lte: now } }],
+      AND: [{ OR: [{ endsAt: null }, { endsAt: { gte: now } }] }],
+    },
+    orderBy: [
+      { isHighlighted: "desc" },
+      { endsAt: "asc" },
+      { updatedAt: "desc" },
+    ],
+    take: 5,
+    select: {
+      name: true,
+      description: true,
+      badgeText: true,
+      promoCode: true,
+      discountType: true,
+      discountValue: true,
+      endsAt: true,
+      targetType: true,
+      products: {
+        take: 1,
+        select: {
+          product: {
+            select: {
+              slug: true,
+              status: true,
+            },
+          },
+        },
+      },
+      categories: {
+        take: 1,
+        select: {
+          category: {
+            select: {
+              slug: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (promotions.length === 0) {
+    await sendBotMessage(
+      chatId,
+      "Активных акций сейчас нет. Когда появится новое предложение, я пришлю уведомление сюда.",
+      { replyMarkup: buildMenuKeyboard() },
+    );
+    return;
+  }
+
+  const lines = promotions.flatMap((promotion) => [
+    `${promotion.badgeText ?? "Акция"} · ${formatPromotionOffer(promotion)}`,
+    promotion.name,
+    promotion.promoCode ? `Промокод: ${promotion.promoCode}` : "",
+    promotion.endsAt
+      ? `До ${new Intl.DateTimeFormat("ru-RU", {
+          day: "2-digit",
+          month: "long",
+        }).format(promotion.endsAt)}`
+      : "",
+    "",
+  ]);
+
+  await sendBotMessage(
+    chatId,
+    ["Актуальные акции Artisan:", "", ...lines.filter(Boolean)].join("\n"),
+    {
+      replyMarkup: buildActionMarkup(
+        promotions.slice(0, 3).map((promotion) => ({
+          text: promotion.badgeText ?? "Смотреть акцию",
+          url: absoluteUrl(getPromotionHref(promotion)),
+        })),
+      ),
+    },
+  );
+}
+
+function isPromotionLive(params: {
+  status: PromotionStatus;
+  startsAt: Date | null;
+  endsAt: Date | null;
+}) {
+  const now = new Date();
+
+  return (
+    params.status === PromotionStatus.ACTIVE &&
+    (!params.startsAt || params.startsAt <= now) &&
+    (!params.endsAt || params.endsAt >= now)
+  );
+}
+
+function formatPromotionDate(date: Date) {
+  return new Intl.DateTimeFormat("ru-RU", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  }).format(date);
+}
+
+export async function sendTelegramPromotionBroadcast(promotionId: string) {
+  if (!promotionId || !hasDatabaseUrl()) {
+    return {
+      ok: false,
+      sent: 0,
+      failed: 0,
+      skipped: 0,
+      message: "База данных недоступна.",
+    };
+  }
+
+  if (!isTelegramBotConfigured()) {
+    return {
+      ok: false,
+      sent: 0,
+      failed: 0,
+      skipped: 0,
+      message: "TELEGRAM_BOT_TOKEN не настроен.",
+    };
+  }
+
+  const db = getDb();
+  await ensureTelegramUserColumns(db);
+
+  const promotion = await db.promotion.findUnique({
+    where: { id: promotionId },
+    select: {
+      id: true,
+      slug: true,
+      name: true,
+      description: true,
+      status: true,
+      badgeText: true,
+      promoCode: true,
+      discountType: true,
+      discountValue: true,
+      minOrderTotal: true,
+      startsAt: true,
+      endsAt: true,
+      targetType: true,
+      products: {
+        take: 1,
+        select: {
+          product: {
+            select: {
+              slug: true,
+              status: true,
+            },
+          },
+        },
+      },
+      categories: {
+        take: 1,
+        select: {
+          category: {
+            select: {
+              slug: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!promotion) {
+    return {
+      ok: false,
+      sent: 0,
+      failed: 0,
+      skipped: 0,
+      message: "Акция не найдена.",
+    };
+  }
+
+  if (!isPromotionLive(promotion)) {
+    return {
+      ok: false,
+      sent: 0,
+      failed: 0,
+      skipped: 0,
+      message: "Рассылка доступна только для активной акции в текущем периоде.",
+    };
+  }
+
+  const [eligibleUsers, linkedCount] = await Promise.all([
+    db.user.findMany({
+      where: {
+        isActive: true,
+        telegramChatId: { not: null },
+        telegramNotifyPromotions: true,
+      },
+      select: {
+        id: true,
+        telegramChatId: true,
+      },
+      orderBy: { createdAt: "asc" },
+    }),
+    db.user.count({
+      where: {
+        isActive: true,
+        telegramChatId: { not: null },
+      },
+    }),
+  ]);
+
+  const title = `Artisan · ${promotion.badgeText ?? "акция"}: ${promotion.name}`;
+  const href = absoluteUrl(getPromotionHref(promotion));
+  const lines = [
+    `🎁 <b>${escapeTelegramHtml(formatPromotionOffer(promotion))}</b>`,
+    promotion.description
+      ? `✨ ${escapeTelegramHtml(promotion.description)}`
+      : "",
+    promotion.promoCode
+      ? `🏷 Промокод: <code>${escapeTelegramHtml(promotion.promoCode)}</code>`
+      : "",
+    promotion.minOrderTotal
+      ? `🛒 Для заказов от <b>${escapeTelegramHtml(formatPrice(promotion.minOrderTotal))}</b>`
+      : "",
+    promotion.endsAt
+      ? `⏳ Действует до ${escapeTelegramHtml(formatPromotionDate(promotion.endsAt))}`
+      : "",
+    "Нажмите кнопку ниже, чтобы посмотреть детали на сайте.",
+  ].filter(Boolean);
+  const text = [
+    `🔥 <b>Artisan · ${escapeTelegramHtml(promotion.badgeText ?? "акция")}</b>`,
+    `<b>${escapeTelegramHtml(promotion.name)}</b>`,
+    "",
+    ...lines,
+  ].join("\n");
+  const payload = {
+    source: "admin.promotions.telegramBroadcast",
+    promotionId: promotion.id,
+    promotionSlug: promotion.slug,
+    href,
+  };
+
+  let sent = 0;
+  let failed = 0;
+
+  for (const user of eligibleUsers) {
+    try {
+      await sendBotMessage(user.telegramChatId!, text, {
+        parseMode: "HTML",
+        replyMarkup: buildActionMarkup([
+          { text: "🔥 Смотреть акцию", url: href },
+        ]),
+      });
+      sent += 1;
+
+      await db.notification
+        .create({
+          data: {
+            userId: user.id,
+            channel: NotificationChannel.TELEGRAM,
+            status: NotificationStatus.SENT,
+            title,
+            message: text,
+            payload: payload as Prisma.InputJsonValue,
+            sentAt: new Date(),
+          },
+        })
+        .catch((error) => console.error("[telegram:promotion-log]", error));
+    } catch (error) {
+      failed += 1;
+
+      await db.notification
+        .create({
+          data: {
+            userId: user.id,
+            channel: NotificationChannel.TELEGRAM,
+            status: NotificationStatus.FAILED,
+            title,
+            message: error instanceof Error ? error.message : String(error),
+            payload: {
+              ...payload,
+              error: error instanceof Error ? error.message : String(error),
+            } as Prisma.InputJsonValue,
+          },
+        })
+        .catch((logError) =>
+          console.error("[telegram:promotion-log-failed]", logError),
+        );
+    }
+  }
+
+  const skipped = Math.max(0, linkedCount - eligibleUsers.length);
+
+  return {
+    ok: failed === 0,
+    sent,
+    failed,
+    skipped,
+    message:
+      eligibleUsers.length === 0
+        ? "Нет клиентов с подключенным Telegram для промо-рассылки."
+        : `Отправлено: ${sent}. Ошибок: ${failed}. Отключили промо: ${skipped}.`,
+  };
 }
 
 async function replyWithHelp(chatId: string, linked: boolean) {
@@ -526,7 +908,11 @@ export async function handleTelegramUpdate(update: TelegramUpdate) {
     return;
   }
 
-  if (normalizedText === "/start" || normalizedText === "помощь" || normalizedText === "/help") {
+  if (
+    normalizedText === "/start" ||
+    normalizedText === "помощь" ||
+    normalizedText === "/help"
+  ) {
     await replyWithHelp(chatId, true);
     return;
   }
@@ -547,6 +933,11 @@ export async function handleTelegramUpdate(update: TelegramUpdate) {
     normalizedText === "/bonuses"
   ) {
     await replyWithLoyalty(chatId, linkedUser);
+    return;
+  }
+
+  if (normalizedText === "акции" || normalizedText === "/promotions") {
+    await replyWithPromotions(chatId);
     return;
   }
 
@@ -591,6 +982,7 @@ export async function sendTelegramDirectMessage(
       telegramNotifyOrders: true,
       telegramNotifyRequests: true,
       telegramNotifyLoyalty: true,
+      telegramNotifyPromotions: true,
     },
   });
 
@@ -607,6 +999,10 @@ export async function sendTelegramDirectMessage(
   }
 
   if (payload.category === "loyalty" && !user.telegramNotifyLoyalty) {
+    return false;
+  }
+
+  if (payload.category === "promotions" && !user.telegramNotifyPromotions) {
     return false;
   }
 
@@ -636,6 +1032,7 @@ export async function configureTelegramWebhook() {
     commands: [
       { command: "orders", description: "Мои заказы" },
       { command: "requests", description: "Мои заявки" },
+      { command: "promotions", description: "Акции" },
       { command: "bonus", description: "Баллы и скидка" },
       { command: "account", description: "Личный кабинет" },
       { command: "catalog", description: "Каталог" },

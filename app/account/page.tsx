@@ -4,6 +4,11 @@ import { LoyaltyOverview } from "@/components/account/loyalty-overview";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { hasDatabaseUrl } from "@/lib/db";
 import { getAccountSummary, getAccountUser } from "@/lib/server/account-data";
+import { getLoyaltyProgramConfig } from "@/lib/server/loyalty-settings";
+import {
+  getCurrentLoyaltyReviewPeriod,
+  getUserLoyaltyPurchaseTotal,
+} from "@/lib/server/loyalty-monthly-review";
 import {
   getEffectiveDiscountPercent,
   getLoyaltyProgress,
@@ -42,17 +47,25 @@ export default async function AccountPage() {
     );
   }
 
-  const summary = await getAccountSummary(user.id);
-  const effectiveDiscount = getEffectiveDiscountPercent(user);
+  const currentLoyaltyPeriod = getCurrentLoyaltyReviewPeriod();
+  const [summary, loyaltyConfig, currentMonthPurchaseTotal] =
+    await Promise.all([
+    getAccountSummary(user.id),
+    getLoyaltyProgramConfig(),
+    getUserLoyaltyPurchaseTotal(user.id, currentLoyaltyPeriod),
+  ]);
+  const effectiveDiscount = getEffectiveDiscountPercent(user, loyaltyConfig);
   const progress = getLoyaltyProgress(
-    user.loyaltyPointsLifetime,
+    currentMonthPurchaseTotal,
     user.loyaltyTier,
+    loyaltyConfig,
   );
 
   return (
     <div className="space-y-3 sm:space-y-4">
       <LoyaltyOverview
         user={{
+          id: user.id,
           firstName: user.firstName,
           lastName: user.lastName,
           email: user.email,
@@ -64,13 +77,16 @@ export default async function AccountPage() {
           telegramNotifyOrders: user.telegramNotifyOrders,
           telegramNotifyRequests: user.telegramNotifyRequests,
           telegramNotifyLoyalty: user.telegramNotifyLoyalty,
+          telegramNotifyPromotions: user.telegramNotifyPromotions,
           loyaltyTier: user.loyaltyTier,
           loyaltyPointsBalance: user.loyaltyPointsBalance,
           loyaltyPointsLifetime: user.loyaltyPointsLifetime,
+          currentMonthPurchaseTotal,
           personalDiscountPercent: user.personalDiscountPercent,
           roleName: user.role.name,
         }}
         effectiveDiscount={effectiveDiscount}
+        loyaltyConfig={loyaltyConfig}
         summary={{
           ordersCount: summary.ordersCount,
           activeOrdersCount: summary.activeOrdersCount,

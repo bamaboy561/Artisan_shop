@@ -32,8 +32,7 @@ const categoryPresets: Record<
   [CategoryKind.FITTINGS]: {
     indicator: "Фурнитура",
     scenario: "Покупка онлайн или запрос наличия",
-    summary:
-      "Комплектующие для мебели, кухни, шкафов и систем хранения.",
+    summary: "Комплектующие для мебели, кухни, шкафов и систем хранения.",
   },
   [CategoryKind.OTHER]: {
     indicator: "Каталог",

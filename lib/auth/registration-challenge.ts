@@ -7,8 +7,7 @@ import { EncryptJWT, jwtDecrypt } from "jose";
 import { cookies } from "next/headers";
 import { z } from "zod";
 
-export const registrationChallengeCookieName =
-  "artisan-registration-challenge";
+export const registrationChallengeCookieName = "artisan-registration-challenge";
 export const registrationChallengeTtlMs = 10 * 60 * 1000;
 export const maxRegistrationChallengeAttempts = 5;
 
@@ -25,9 +24,7 @@ const registrationChallengeSchema = z.object({
   next: z.string().optional(),
 });
 
-export type RegistrationChallenge = z.infer<
-  typeof registrationChallengeSchema
->;
+export type RegistrationChallenge = z.infer<typeof registrationChallengeSchema>;
 
 export type RegistrationChallengeInput = Omit<
   RegistrationChallenge,

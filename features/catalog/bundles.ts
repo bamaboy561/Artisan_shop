@@ -11,12 +11,7 @@ export const BUNDLE_MARKER_ATTRIBUTE_NAME = "Тип товара";
 export const BUNDLE_MARKER_ATTRIBUTE_VALUE = "Комплект";
 export const BUNDLE_ITEM_ATTRIBUTE_NAME = "Состав комплекта";
 
-const markerNames = new Set([
-  "тип товара",
-  "комплект",
-  "kit",
-  "bundle",
-]);
+const markerNames = new Set(["тип товара", "комплект", "kit", "bundle"]);
 
 const itemNames = new Set([
   "состав комплекта",

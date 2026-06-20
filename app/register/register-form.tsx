@@ -157,7 +157,9 @@ export function RegisterForm({ next }: RegisterFormProps) {
       )}
 
       {state.message ? (
-        <p className={`rounded-2xl border px-4 py-3 text-sm ${feedbackClassName}`}>
+        <p
+          className={`rounded-2xl border px-4 py-3 text-sm ${feedbackClassName}`}
+        >
           {state.message}
         </p>
       ) : null}

@@ -35,14 +35,26 @@ export const requestWorkflowSteps = [
 
 export const requestQuickTransitions: Record<
   RequestStatus,
-  Array<{ status: RequestStatus; label: string; intent?: "accent" | "secondary" }>
+  Array<{
+    status: RequestStatus;
+    label: string;
+    intent?: "accent" | "secondary";
+  }>
 > = {
   [RequestStatus.NEW]: [
-    { status: RequestStatus.IN_REVIEW, label: "Взять на расчет", intent: "accent" },
+    {
+      status: RequestStatus.IN_REVIEW,
+      label: "Взять на расчет",
+      intent: "accent",
+    },
     { status: RequestStatus.CANCELED, label: "Отменить", intent: "secondary" },
   ],
   [RequestStatus.IN_REVIEW]: [
-    { status: RequestStatus.QUOTE_SENT, label: "КП отправлено", intent: "accent" },
+    {
+      status: RequestStatus.QUOTE_SENT,
+      label: "КП отправлено",
+      intent: "accent",
+    },
     {
       status: RequestStatus.WAITING_FOR_CLIENT,
       label: "Запросить уточнение",
@@ -50,19 +62,39 @@ export const requestQuickTransitions: Record<
     },
   ],
   [RequestStatus.QUOTE_SENT]: [
-    { status: RequestStatus.WAITING_FOR_CLIENT, label: "Ждем клиента", intent: "secondary" },
-    { status: RequestStatus.IN_PROGRESS, label: "Клиент подтвердил", intent: "accent" },
+    {
+      status: RequestStatus.WAITING_FOR_CLIENT,
+      label: "Ждем клиента",
+      intent: "secondary",
+    },
+    {
+      status: RequestStatus.IN_PROGRESS,
+      label: "Клиент подтвердил",
+      intent: "accent",
+    },
   ],
   [RequestStatus.WAITING_FOR_CLIENT]: [
-    { status: RequestStatus.IN_REVIEW, label: "Вернуть на расчет", intent: "secondary" },
+    {
+      status: RequestStatus.IN_REVIEW,
+      label: "Вернуть на расчет",
+      intent: "secondary",
+    },
     { status: RequestStatus.IN_PROGRESS, label: "В работу", intent: "accent" },
   ],
   [RequestStatus.IN_PROGRESS]: [
-    { status: RequestStatus.COMPLETED, label: "Завершить заявку", intent: "accent" },
+    {
+      status: RequestStatus.COMPLETED,
+      label: "Завершить заявку",
+      intent: "accent",
+    },
   ],
   [RequestStatus.COMPLETED]: [],
   [RequestStatus.CANCELED]: [
-    { status: RequestStatus.IN_REVIEW, label: "Вернуть в работу", intent: "secondary" },
+    {
+      status: RequestStatus.IN_REVIEW,
+      label: "Вернуть в работу",
+      intent: "secondary",
+    },
   ],
 };
 
@@ -108,10 +140,18 @@ export const orderQuickTransitions: Record<
     { status: OrderStatus.CANCELED, label: "Отменить", intent: "secondary" },
   ],
   [OrderStatus.CONFIRMED]: [
-    { status: OrderStatus.IN_PRODUCTION, label: "В производство", intent: "accent" },
+    {
+      status: OrderStatus.IN_PRODUCTION,
+      label: "В производство",
+      intent: "accent",
+    },
   ],
   [OrderStatus.IN_PRODUCTION]: [
-    { status: OrderStatus.READY_FOR_PICKUP, label: "Готов к выдаче", intent: "accent" },
+    {
+      status: OrderStatus.READY_FOR_PICKUP,
+      label: "Готов к выдаче",
+      intent: "accent",
+    },
   ],
   [OrderStatus.READY_FOR_PICKUP]: [
     { status: OrderStatus.SHIPPED, label: "Отгружен", intent: "accent" },
@@ -122,6 +162,10 @@ export const orderQuickTransitions: Record<
   ],
   [OrderStatus.COMPLETED]: [],
   [OrderStatus.CANCELED]: [
-    { status: OrderStatus.CONFIRMED, label: "Вернуть заказ", intent: "secondary" },
+    {
+      status: OrderStatus.CONFIRMED,
+      label: "Вернуть заказ",
+      intent: "secondary",
+    },
   ],
 };

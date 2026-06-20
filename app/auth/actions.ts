@@ -40,9 +40,7 @@ const registerDetailsSchema = z
     phone: z.string().trim().optional().default(""),
     companyName: z.string().trim().optional().default(""),
     email: z.email("Введите корректный email").trim(),
-    password: z
-      .string()
-      .min(8, "Пароль должен содержать минимум 8 символов"),
+    password: z.string().min(8, "Пароль должен содержать минимум 8 символов"),
     confirmPassword: z.string().min(8, "Подтвердите пароль"),
     next: z.string().optional(),
   })
@@ -97,8 +95,7 @@ export async function signInAction(
   if (!validated.success) {
     return {
       message:
-        validated.error.issues[0]?.message ??
-        "Проверьте корректность данных.",
+        validated.error.issues[0]?.message ?? "Проверьте корректность данных.",
     };
   }
 
@@ -301,8 +298,7 @@ export async function registerAction(
       return {
         step: "details",
         tone: "error",
-        message:
-          "Email не совпадает с активным кодом. Заполните форму заново.",
+        message: "Email не совпадает с активным кодом. Заполните форму заново.",
       };
     }
 

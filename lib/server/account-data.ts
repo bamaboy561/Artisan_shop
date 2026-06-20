@@ -1,4 +1,8 @@
-import { OrderStatus, RequestFileKind, RequestStatus } from "@/generated/prisma";
+import {
+  OrderStatus,
+  RequestFileKind,
+  RequestStatus,
+} from "@/generated/prisma";
 import { getEffectiveProductPrice } from "@/features/catalog/bundle-pricing";
 
 import { verifySession } from "@/lib/auth/dal";
@@ -42,6 +46,7 @@ export async function getAccountUser() {
       telegramNotifyOrders: true,
       telegramNotifyRequests: true,
       telegramNotifyLoyalty: true,
+      telegramNotifyPromotions: true,
       loyaltyTier: true,
       loyaltyPointsBalance: true,
       loyaltyPointsLifetime: true,

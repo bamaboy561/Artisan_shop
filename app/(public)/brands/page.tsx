@@ -8,7 +8,7 @@ import { createSeoMetadata, canonicalUrl } from "@/lib/seo";
 export const metadata: Metadata = createSeoMetadata({
   title: "Бренды мебельных материалов и фурнитуры",
   description:
-    "Все бренды Artisan: EXTRAVERT, SWISS KRONO, AGT, Hettich, Samet, Slotex и другие — логотипы, описания и переход в каталог.",
+    "Все бренды Artisan: EXTRAVERT, SWISS KRONO, AGT, Albero, Hettich, Samet, Slotex и другие — логотипы, описания и переход в каталог.",
   path: "/brands",
 });
 
@@ -49,7 +49,7 @@ function BrandCard({ profile }: { profile: BrandProfile }) {
           <div
             className={
               profile.logoUrl
-                ? "h-full w-full bg-center bg-no-repeat [background-size:82%_auto] sm:[background-size:76%_auto]"
+                ? "h-full w-full [background-size:82%_auto] bg-center bg-no-repeat sm:[background-size:76%_auto]"
                 : "flex h-full w-full items-center justify-center text-[3.6rem] leading-none font-semibold tracking-[-0.06em] text-[#151411] sm:text-[4.7rem]"
             }
             style={logoStyle}

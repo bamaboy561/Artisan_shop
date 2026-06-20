@@ -1,13 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type ComponentType, type SVGProps } from "react";
+import {
+  useEffect,
+  useState,
+  type ComponentType,
+  type FormEvent,
+  type KeyboardEvent,
+  type SVGProps,
+} from "react";
 import { usePathname } from "next/navigation";
 import {
   Calculator,
   Home,
   LayoutGrid,
   Menu,
+  Search,
   Shapes,
   ShoppingCart,
   UserRound,
@@ -30,7 +38,7 @@ type MobileNavItem = {
 const mobileDockNavigation: MobileNavItem[] = [
   { href: "/", label: "Главная", icon: Home },
   { href: "/catalog", label: "Каталог", icon: LayoutGrid },
-  { href: "/calculator", label: "Раскрой", icon: Calculator },
+  { href: "/calculator", label: "Распил", icon: Calculator },
   { href: "/brands", label: "Бренды", icon: Shapes },
   { href: "/account", label: "Кабинет", icon: UserRound },
 ];
@@ -43,13 +51,45 @@ function isActivePath(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-function MobileBottomDock({
-  pathname,
+function catalogSearchHref(query: string) {
+  const params = new URLSearchParams();
+  const normalizedQuery = query.trim();
+
+  if (normalizedQuery) {
+    params.set("q", normalizedQuery);
+  }
+
+  const queryString = params.toString();
+  return queryString ? `/catalog?${queryString}` : "/catalog";
+}
+
+function HeaderNavLink({
+  href,
+  label,
+  isHeroMode,
 }: {
-  pathname: string;
+  href: string;
+  label: string;
+  isHeroMode: boolean;
 }) {
   return (
-    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[color:var(--line)]/70 bg-[color:color-mix(in_srgb,var(--surface-strong)_92%,white)]/95 backdrop-blur-xl lg:hidden">
+    <Link
+      href={href}
+      className={cn(
+        "font-mono text-[9px] tracking-[0.12em] whitespace-nowrap uppercase transition 2xl:text-[10px] 2xl:tracking-[0.16em]",
+        isHeroMode
+          ? "text-white/68 hover:text-white"
+          : "text-[var(--muted)] hover:text-[var(--foreground)]",
+      )}
+    >
+      {label}
+    </Link>
+  );
+}
+
+function MobileBottomDock({ pathname }: { pathname: string }) {
+  return (
+    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[color:var(--line)]/70 bg-[color:color-mix(in_srgb,var(--surface-strong)_92%,white)]/95 backdrop-blur-xl xl:hidden">
       <nav
         aria-label="Мобильная навигация"
         className="mx-auto flex w-full max-w-[26rem] items-end justify-between gap-1 px-2 pt-1.5 pb-[calc(0.45rem+env(safe-area-inset-bottom))]"
@@ -69,8 +109,8 @@ function MobileBottomDock({
                   : "text-[var(--muted)] hover:bg-[var(--surface)] hover:text-[var(--foreground)]",
               )}
             >
-              <Icon className="size-[17px]" />
-              <span className="truncate font-mono text-[8px] tracking-[0.1em] uppercase">
+              <Icon className="size-[17px] shrink-0" />
+              <span className="max-w-full truncate font-mono text-[8px] tracking-[0.1em] uppercase">
                 {item.label}
               </span>
             </Link>
@@ -81,12 +121,75 @@ function MobileBottomDock({
   );
 }
 
+function HeaderSearchForm({ isHeroMode }: { isHeroMode: boolean }) {
+  const [query, setQuery] = useState("");
+
+  function navigateToCatalog() {
+    window.location.href = catalogSearchHref(query);
+  }
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    navigateToCatalog();
+  }
+
+  function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key !== "Enter") {
+      return;
+    }
+
+    event.preventDefault();
+    navigateToCatalog();
+  }
+
+  return (
+    <form
+      action="/catalog"
+      method="get"
+      onSubmit={handleSubmit}
+      className={cn(
+        "flex h-10 min-w-0 items-center overflow-hidden rounded-[6px] border transition",
+        isHeroMode
+          ? "border-white/24 bg-white/10 text-white"
+          : "border-[color:var(--line)] bg-white/78 text-[var(--foreground)]",
+      )}
+    >
+      <input
+        name="q"
+        type="search"
+        placeholder="Поиск"
+        value={query}
+        onChange={(event) => setQuery(event.target.value)}
+        onKeyDown={handleKeyDown}
+        className={cn(
+          "h-full min-w-0 flex-1 bg-transparent px-3 text-sm outline-none placeholder:text-current/48",
+          isHeroMode ? "text-white" : "text-[var(--foreground)]",
+        )}
+      />
+      <button
+        type="button"
+        onClick={navigateToCatalog}
+        className={cn(
+          "inline-flex h-full w-10 shrink-0 items-center justify-center border-l transition",
+          isHeroMode
+            ? "border-white/18 hover:bg-white/12"
+            : "border-[color:var(--line)] hover:bg-[var(--surface)]",
+        )}
+        aria-label="Найти"
+      >
+        <Search className="size-4" />
+      </button>
+    </form>
+  );
+}
+
 export function SiteHeader() {
   const pathname = usePathname() || "/";
   const { itemCount } = useCart();
   const isHome = pathname === "/";
   const [isHomeScrolled, setIsHomeScrolled] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
 
   useEffect(() => {
     if (!isHome) {
@@ -119,7 +222,7 @@ export function SiteHeader() {
   }, [isMenuOpen]);
 
   const isScrolled = !isHome || isHomeScrolled;
-  const isHeroMode = isHome && !isScrolled && !isMenuOpen;
+  const isHeroMode = isHome && !isScrolled && !isMenuOpen && !isSearchOpen;
 
   return (
     <>
@@ -131,63 +234,62 @@ export function SiteHeader() {
             : "border-b border-[color:var(--line)]/80 bg-[color:color-mix(in_srgb,var(--surface-strong)_95%,white)]/92 text-[var(--foreground)] backdrop-blur-xl",
         )}
       >
-        <div className="relative mx-auto flex h-16 w-full max-w-[1600px] items-center justify-between gap-4 px-4 sm:px-8 lg:h-14 lg:px-10">
-          <nav className="hidden flex-1 items-center gap-7 lg:flex">
+        <div className="mx-auto grid h-16 w-full max-w-[1600px] grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 sm:px-8 xl:h-14 xl:grid-cols-[auto_minmax(8rem,1fr)_auto] xl:gap-5 xl:px-10">
+          <nav className="hidden min-w-0 items-center gap-4 xl:flex 2xl:gap-6">
             {primaryNavigationLeft.map((item) => (
-              <Link
+              <HeaderNavLink
                 key={item.href}
                 href={item.href}
-                className={cn(
-                  "font-mono text-[10px] tracking-[0.18em] uppercase transition",
-                  isHeroMode
-                    ? "text-white/62 hover:text-white"
-                    : "text-[var(--muted)] hover:text-[var(--foreground)]",
-                )}
-              >
-                {item.label}
-              </Link>
+                label={item.label}
+                isHeroMode={isHeroMode}
+              />
             ))}
           </nav>
 
           <Link
             href="/"
-            className="absolute left-1/2 hidden -translate-x-1/2 px-3 py-1.5 text-[14px] font-black tracking-[0.16em] uppercase lg:block"
+            className={cn(
+              "inline-flex min-w-0 items-center gap-2 rounded-[6px] py-1.5 pr-2 xl:justify-center xl:px-3",
+              isHeroMode ? "text-white" : "text-[var(--foreground)]",
+            )}
           >
             <span
               className={cn(
-                "transition",
-                isHeroMode ? "text-white" : "text-[var(--foreground)]",
+                "flex size-8 shrink-0 items-center justify-center rounded-full text-[12px] font-black tracking-[0.14em] xl:hidden",
+                isHeroMode
+                  ? "bg-white text-[#151411]"
+                  : "bg-[#151411] text-white",
               )}
             >
+              A
+            </span>
+            <span className="max-w-[54vw] truncate text-[13px] font-black tracking-[0.12em] uppercase sm:max-w-[24rem] xl:max-w-[14rem] xl:text-[14px] xl:tracking-[0.16em] 2xl:max-w-none">
               {companyName}
             </span>
           </Link>
 
-          <div className="hidden flex-1 items-center justify-end gap-7 lg:flex">
-            <nav className="flex items-center gap-7">
+          <div className="hidden min-w-0 items-center justify-end gap-3 xl:flex 2xl:gap-5">
+            <nav className="flex min-w-0 items-center justify-end gap-4 2xl:gap-6">
               {primaryNavigationRight.map((item) => (
-                <Link
+                <HeaderNavLink
                   key={item.href}
                   href={item.href}
-                  className={cn(
-                    "font-mono text-[10px] tracking-[0.18em] uppercase transition",
-                    isHeroMode
-                      ? "text-white/62 hover:text-white"
-                      : "text-[var(--muted)] hover:text-[var(--foreground)]",
-                  )}
-                >
-                  {item.label}
-                </Link>
+                  label={item.label}
+                  isHeroMode={isHeroMode}
+                />
               ))}
             </nav>
 
-            <div className="flex items-center gap-1">
+            <div className="flex min-w-0 shrink-0 items-center gap-2">
+              <div className="w-[10rem] 2xl:w-[16rem]">
+                <HeaderSearchForm isHeroMode={isHeroMode} />
+              </div>
               <Link
                 href="/account"
                 className={cn(
-                  "font-mono text-[10px] tracking-[0.16em] uppercase transition",
+                  "font-mono text-[9px] tracking-[0.12em] whitespace-nowrap uppercase transition 2xl:text-[10px] 2xl:tracking-[0.16em]",
                   isHeroMode
-                    ? "text-white/62 hover:text-white"
+                    ? "text-white/68 hover:text-white"
                     : "text-[var(--muted)] hover:text-[var(--foreground)]",
                 )}
               >
@@ -196,8 +298,10 @@ export function SiteHeader() {
               <Link
                 href="/cart"
                 className={cn(
-                  "relative rounded-full p-2 transition",
-                  isHeroMode ? "hover:bg-white/10" : "hover:bg-[var(--surface)]",
+                  "relative shrink-0 rounded-full p-2 transition",
+                  isHeroMode
+                    ? "hover:bg-white/10"
+                    : "hover:bg-[var(--surface)]",
                 )}
                 aria-label="Корзина"
               >
@@ -216,31 +320,27 @@ export function SiteHeader() {
             </div>
           </div>
 
-          <div className="flex flex-1 items-center gap-3 lg:hidden">
-            <Link
-              href="/"
+          <div className="flex items-center justify-end gap-1.5 xl:hidden">
+            <button
+              type="button"
+              onClick={() => {
+                setIsSearchOpen((current) => !current);
+                setIsMenuOpen(false);
+              }}
               className={cn(
-                "inline-flex items-center gap-2 rounded-full px-2 py-1.5",
-                isHeroMode ? "text-white" : "text-[var(--foreground)]",
+                "rounded-full p-2.5 transition",
+                isHeroMode ? "hover:bg-white/10" : "hover:bg-[var(--surface)]",
               )}
+              aria-label="Открыть поиск"
             >
-              <span
+              <Search
                 className={cn(
-                  "flex size-8 items-center justify-center rounded-full text-[12px] font-black tracking-[0.14em]",
-                  isHeroMode
-                    ? "bg-white text-[#151411]"
-                    : "bg-[#151411] text-white",
+                  "size-[18px]",
+                  isHeroMode ? "text-white" : "text-[var(--foreground)]",
                 )}
-              >
-                A
-              </span>
-              <span className="text-[13px] font-black tracking-[0.12em] uppercase">
-                {companyName}
-              </span>
-            </Link>
-          </div>
+              />
+            </button>
 
-          <div className="flex items-center gap-2 lg:hidden">
             <Link
               href="/cart"
               className={cn(
@@ -264,7 +364,10 @@ export function SiteHeader() {
 
             <button
               type="button"
-              onClick={() => setIsMenuOpen(true)}
+              onClick={() => {
+                setIsMenuOpen(true);
+                setIsSearchOpen(false);
+              }}
               className={cn(
                 "rounded-full p-2.5 transition",
                 isHeroMode ? "hover:bg-white/10" : "hover:bg-[var(--surface)]",
@@ -280,10 +383,18 @@ export function SiteHeader() {
             </button>
           </div>
         </div>
+
+        {isSearchOpen ? (
+          <div className="border-t border-[color:var(--line)]/70 px-4 pb-3 sm:px-8 xl:hidden">
+            <div className="mx-auto max-w-[1600px]">
+              <HeaderSearchForm isHeroMode={isHeroMode} />
+            </div>
+          </div>
+        ) : null}
       </header>
 
       {isMenuOpen ? (
-        <div className="fixed inset-0 z-[70] bg-black/38 backdrop-blur-sm lg:hidden">
+        <div className="fixed inset-0 z-[70] bg-black/38 backdrop-blur-sm xl:hidden">
           <div
             className="absolute inset-x-0 bottom-0 rounded-t-[2rem] border-t border-[color:var(--line)] bg-[#f6f2eb] px-5 pt-5 shadow-[0_-28px_90px_rgba(12,18,24,0.18)]"
             style={{

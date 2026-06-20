@@ -4,8 +4,11 @@ import { notFound } from "next/navigation";
 import { OrderStatus } from "@/generated/prisma";
 import {
   addOrderManagerNoteAction,
+  deleteOrderAction,
   updateOrderAction,
+  updateOrderDetailsAction,
   updateOrderFulfillmentAction,
+  updateOrderItemsAction,
 } from "@/app/admin/actions";
 import { AdminSubmitButton } from "@/components/admin/admin-submit-button";
 import { OperationTimeline } from "@/components/admin/operation-timeline";
@@ -15,6 +18,8 @@ import { Select } from "@/components/ui/select";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { Textarea } from "@/components/ui/textarea";
 import { requireAdminSession } from "@/lib/auth/dal";
+import { canDeleteOrders } from "@/lib/auth/roles";
+import { getAdminProductFormOptions } from "@/lib/server/catalog-admin";
 import { getOrderInboxItemById } from "@/lib/server/order-inbox";
 import { getOperationEvents } from "@/lib/server/operation-events";
 import { getAdminManagers } from "@/lib/server/operations-admin";
@@ -67,6 +72,35 @@ function formatInputDate(value: Date | string | null) {
   }
 
   return date.toISOString().slice(0, 10);
+}
+
+const orderReceiptPrefix = "Кассовый чек:";
+
+function getOrderReceiptNumber(comment: string | null) {
+  const line = (comment ?? "")
+    .split(/\r?\n/)
+    .find((item) =>
+      item
+        .trim()
+        .toLocaleLowerCase("ru-RU")
+        .startsWith(orderReceiptPrefix.toLocaleLowerCase("ru-RU")),
+    );
+
+  return line ? line.trim().slice(orderReceiptPrefix.length).trim() : "";
+}
+
+function getOrderCommentWithoutReceipt(comment: string | null) {
+  return (comment ?? "")
+    .split(/\r?\n/)
+    .filter(
+      (line) =>
+        !line
+          .trim()
+          .toLocaleLowerCase("ru-RU")
+          .startsWith(orderReceiptPrefix.toLocaleLowerCase("ru-RU")),
+    )
+    .join("\n")
+    .trim();
 }
 
 function getStatusTone(status: OrderStatus) {
@@ -135,13 +169,14 @@ function OrderWorkflowTrail({ status }: { status: OrderStatus }) {
 export default async function AdminOrderDetailPage({
   params,
 }: AdminOrderDetailPageProps) {
-  await requireAdminSession("/login?next=/admin/orders");
+  const session = await requireAdminSession("/login?next=/admin/orders");
 
   const { id } = await params;
-  const [order, managers, events] = await Promise.all([
+  const [order, managers, events, productFormOptions] = await Promise.all([
     getOrderInboxItemById(id),
     getAdminManagers().catch(() => []),
     getOperationEvents("order", id),
+    getAdminProductFormOptions(),
   ]);
 
   if (!order) {
@@ -149,6 +184,10 @@ export default async function AdminOrderDetailPage({
   }
 
   const managerNotes = order.managerNotes ?? [];
+  const canDeleteOrder = canDeleteOrders(session.roleCode);
+  const receiptNumber = getOrderReceiptNumber(order.comment);
+  const editableOrderComment = getOrderCommentWithoutReceipt(order.comment);
+  const productOptions = productFormOptions.bundleProductOptions;
 
   return (
     <div className="space-y-5">
@@ -229,12 +268,14 @@ export default async function AdminOrderDetailPage({
                   {order.deliveryMethod?.name ?? "Самовывоз / уточнить"}
                 </p>
                 <p className="mt-1 text-sm text-[var(--muted)]">
-                  {order.companyName ?? order.user?.companyName ?? "Частный клиент"}
+                  {order.companyName ??
+                    order.user?.companyName ??
+                    "Частный клиент"}
                 </p>
               </div>
             </div>
 
-            <div className="mt-5 grid gap-3 md:grid-cols-3">
+            <div className="mt-5 grid gap-3 md:grid-cols-4">
               <div className="rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] p-4">
                 <p className="text-xs tracking-[0.16em] text-[var(--muted)] uppercase">
                   План готовности
@@ -259,6 +300,14 @@ export default async function AdminOrderDetailPage({
                   {formatOptionalDate(order.completedAt)}
                 </p>
               </div>
+              <div className="rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] p-4">
+                <p className="text-xs tracking-[0.16em] text-[var(--muted)] uppercase">
+                  Кассовый чек
+                </p>
+                <p className="mt-2 text-sm font-medium text-[var(--foreground)]">
+                  {receiptNumber || "Не указан"}
+                </p>
+              </div>
             </div>
 
             {order.fulfillmentComment ? (
@@ -266,7 +315,7 @@ export default async function AdminOrderDetailPage({
                 <p className="text-xs tracking-[0.16em] text-[var(--muted)] uppercase">
                   Комментарий выдачи
                 </p>
-                <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[var(--foreground)]">
+                <p className="mt-2 text-sm leading-6 whitespace-pre-wrap text-[var(--foreground)]">
                   {order.fulfillmentComment}
                 </p>
               </div>
@@ -285,6 +334,77 @@ export default async function AdminOrderDetailPage({
                 </Link>
               </div>
             ) : null}
+          </section>
+
+          <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-6">
+            <h2 className="text-lg font-semibold text-[var(--foreground)]">
+              Редактирование заказа
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
+              Менеджер может изменить контактные данные клиента и комментарий к
+              заказу без пересоздания заказа.
+            </p>
+            <form
+              action={updateOrderDetailsAction}
+              className="mt-5 grid gap-3 md:grid-cols-2"
+            >
+              <input type="hidden" name="orderId" value={order.id} />
+              <label className="grid gap-2 text-sm font-medium text-[var(--foreground)]">
+                Клиент
+                <Input
+                  name="contactName"
+                  defaultValue={order.contactName}
+                  required
+                />
+              </label>
+              <label className="grid gap-2 text-sm font-medium text-[var(--foreground)]">
+                Телефон
+                <Input
+                  name="contactPhone"
+                  defaultValue={order.contactPhone}
+                  required
+                />
+              </label>
+              <label className="grid gap-2 text-sm font-medium text-[var(--foreground)]">
+                Email
+                <Input
+                  name="contactEmail"
+                  type="email"
+                  defaultValue={order.contactEmail ?? ""}
+                />
+              </label>
+              <label className="grid gap-2 text-sm font-medium text-[var(--foreground)]">
+                Компания
+                <Input
+                  name="companyName"
+                  defaultValue={order.companyName ?? ""}
+                />
+              </label>
+              <label className="grid gap-2 text-sm font-medium text-[var(--foreground)] md:col-span-2">
+                Кассовый чек
+                <Input
+                  name="receiptNumber"
+                  defaultValue={receiptNumber}
+                  placeholder="Номер кассового чека"
+                />
+              </label>
+              <label className="grid gap-2 text-sm font-medium text-[var(--foreground)] md:col-span-2">
+                Комментарий к заказу
+                <Textarea
+                  name="comment"
+                  defaultValue={editableOrderComment}
+                  rows={4}
+                />
+              </label>
+              <AdminSubmitButton
+                type="submit"
+                variant="secondary"
+                size="sm"
+                className="md:col-span-2"
+                idleLabel="Сохранить заказ"
+                pendingLabel="Сохраняем..."
+              />
+            </form>
           </section>
 
           <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-6">
@@ -317,8 +437,12 @@ export default async function AdminOrderDetailPage({
                 Статус после сохранения
                 <Select name="status" defaultValue="">
                   <option value="">Не менять статус</option>
-                  <option value={OrderStatus.IN_PRODUCTION}>В производстве</option>
-                  <option value={OrderStatus.READY_FOR_PICKUP}>Готов к выдаче</option>
+                  <option value={OrderStatus.IN_PRODUCTION}>
+                    В производстве
+                  </option>
+                  <option value={OrderStatus.READY_FOR_PICKUP}>
+                    Готов к выдаче
+                  </option>
                   <option value={OrderStatus.SHIPPED}>Отгружен</option>
                   <option value={OrderStatus.COMPLETED}>Завершен</option>
                 </Select>
@@ -338,30 +462,132 @@ export default async function AdminOrderDetailPage({
             <h2 className="text-lg font-semibold text-[var(--foreground)]">
               Состав заказа
             </h2>
-            <div className="mt-5 divide-y divide-[color:var(--line)] border-y border-[color:var(--line)]">
-              {order.items.map((item, index) => (
-                <div
-                  key={`${item.name}-${index}`}
-                  className="grid gap-3 py-4 md:grid-cols-[minmax(0,1fr)_90px_120px]"
-                >
-                  <div className="min-w-0">
-                    <p className="font-medium text-[var(--foreground)]">
-                      {item.name}
-                    </p>
-                    <p className="mt-1 text-xs text-[var(--muted)]">
-                      {[item.sku, item.brand].filter(Boolean).join(" · ") ||
-                        "Без артикула"}
-                    </p>
+            <form
+              action={updateOrderItemsAction}
+              className="mt-5 space-y-4"
+            >
+              <input type="hidden" name="orderId" value={order.id} />
+              <div className="divide-y divide-[color:var(--line)] border-y border-[color:var(--line)]">
+                {order.items.map((item) => (
+                  <div
+                    key={item.id}
+                    className="grid gap-3 py-4 md:grid-cols-[minmax(0,1fr)_96px_140px_120px_118px_96px]"
+                  >
+                    <input type="hidden" name="itemId" value={item.id ?? ""} />
+                    <div className="min-w-0">
+                      <p className="mb-1 text-xs text-[var(--muted)]">
+                        Название
+                      </p>
+                      <Input
+                        name="itemName"
+                        defaultValue={item.name}
+                        className="h-10 font-medium"
+                      />
+                      <p className="mt-1 text-xs text-[var(--muted)]">
+                        {[item.sku, item.brand].filter(Boolean).join(" · ") ||
+                          "Без артикула"}
+                      </p>
+                    </div>
+                    <label className="grid gap-1 text-xs text-[var(--muted)]">
+                      Кол-во
+                      <Input
+                        name="itemQuantity"
+                        type="number"
+                        min="1"
+                        max="9999"
+                        defaultValue={item.quantity}
+                        className="h-10"
+                      />
+                    </label>
+                    <label className="grid gap-1 text-xs text-[var(--muted)]">
+                      Цена
+                      <Input
+                        name="itemUnitPrice"
+                        type="number"
+                        min="0"
+                        defaultValue={item.unitPrice}
+                        className="h-10"
+                      />
+                    </label>
+                    <div>
+                      <p className="mb-3 text-xs text-[var(--muted)]">Сумма</p>
+                      <p className="font-medium text-[var(--foreground)] md:text-right">
+                        {formatCurrency(item.total)}
+                      </p>
+                    </div>
+                    <label className="flex items-center gap-2 self-end text-sm font-medium text-rose-700">
+                      <input
+                        type="checkbox"
+                        name="removeItemId"
+                        value={item.id ?? ""}
+                        className="size-4"
+                      />
+                      Удалить
+                    </label>
                   </div>
-                  <p className="text-sm text-[var(--muted)]">
-                    {item.quantity} шт.
-                  </p>
-                  <p className="font-medium text-[var(--foreground)] md:text-right">
-                    {formatCurrency(item.total)}
-                  </p>
+                ))}
+              </div>
+
+              <div className="rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] p-4">
+                <h3 className="text-sm font-semibold text-[var(--foreground)]">
+                  Добавить позицию
+                </h3>
+                <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_90px_130px]">
+                  <label className="grid gap-2 text-sm font-medium text-[var(--foreground)]">
+                    Товар из каталога
+                    <Select name="newProductId" defaultValue="">
+                      <option value="">Не выбран</option>
+                      {productOptions.map((product) => (
+                        <option key={product.id} value={product.id}>
+                          {[product.name, product.sku, product.brandName]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </option>
+                      ))}
+                    </Select>
+                  </label>
+                  <label className="grid gap-2 text-sm font-medium text-[var(--foreground)]">
+                    Или название вручную
+                    <Input
+                      name="newItemName"
+                      placeholder="Например: услуга или доп. позиция"
+                    />
+                  </label>
+                  <label className="grid gap-2 text-sm font-medium text-[var(--foreground)]">
+                    Кол-во
+                    <Input
+                      name="newItemQuantity"
+                      type="number"
+                      min="1"
+                      max="9999"
+                      defaultValue={1}
+                    />
+                  </label>
+                  <label className="grid gap-2 text-sm font-medium text-[var(--foreground)]">
+                    Цена
+                    <Input
+                      name="newItemUnitPrice"
+                      type="number"
+                      min="0"
+                      placeholder="Из товара"
+                    />
+                  </label>
                 </div>
-              ))}
-            </div>
+                <p className="mt-2 text-xs leading-5 text-[var(--muted)]">
+                  Если выбран товар и цена не указана, подтянется текущая цена
+                  товара из каталога. Для ручной позиции укажите название и
+                  цену.
+                </p>
+              </div>
+              <AdminSubmitButton
+                type="submit"
+                variant="secondary"
+                size="sm"
+                className="mt-4"
+                idleLabel="Сохранить состав"
+                pendingLabel="Сохраняем..."
+              />
+            </form>
           </section>
 
           {order.comment ? (
@@ -369,7 +595,7 @@ export default async function AdminOrderDetailPage({
               <h2 className="text-lg font-semibold text-[var(--foreground)]">
                 Комментарий к заказу
               </h2>
-              <pre className="mt-4 whitespace-pre-wrap text-sm leading-7 text-[var(--foreground)]">
+              <pre className="mt-4 text-sm leading-7 whitespace-pre-wrap text-[var(--foreground)]">
                 {order.comment}
               </pre>
             </section>
@@ -430,6 +656,31 @@ export default async function AdminOrderDetailPage({
               />
             </form>
 
+            {canDeleteOrder ? (
+              <form
+                action={deleteOrderAction}
+                className="mt-5 grid gap-3 border-t border-red-200 pt-5"
+              >
+                <input type="hidden" name="orderId" value={order.id} />
+                <label className="grid gap-2 text-sm font-medium text-red-900">
+                  Удаление заказа
+                  <Input
+                    name="confirmDeleteOrder"
+                    placeholder="Введите DELETE"
+                    className="h-10 border-red-200 bg-red-50"
+                  />
+                </label>
+                <AdminSubmitButton
+                  type="submit"
+                  variant="secondary"
+                  size="sm"
+                  idleLabel="Удалить заказ"
+                  pendingLabel="Удаляем..."
+                  className="border-red-300 text-red-900 hover:border-red-900 hover:bg-red-900"
+                />
+              </form>
+            ) : null}
+
             {orderQuickTransitions[order.status].length > 0 ? (
               <div className="mt-5 border-t border-[color:var(--line)] pt-5">
                 <p className="font-mono text-[10px] tracking-[0.2em] text-[var(--muted)] uppercase">
@@ -452,7 +703,9 @@ export default async function AdminOrderDetailPage({
                       <AdminSubmitButton
                         type="submit"
                         variant={
-                          transition.intent === "accent" ? "accent" : "secondary"
+                          transition.intent === "accent"
+                            ? "accent"
+                            : "secondary"
                         }
                         size="sm"
                         className="w-full justify-center"
@@ -470,7 +723,10 @@ export default async function AdminOrderDetailPage({
             <h2 className="text-lg font-semibold text-[var(--foreground)]">
               Заметки по заказу
             </h2>
-            <form action={addOrderManagerNoteAction} className="mt-5 grid gap-3">
+            <form
+              action={addOrderManagerNoteAction}
+              className="mt-5 grid gap-3"
+            >
               <input type="hidden" name="orderId" value={order.id} />
               <Textarea
                 name="body"
@@ -504,13 +760,16 @@ export default async function AdminOrderDetailPage({
                   >
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <p className="text-xs text-[var(--muted)]">
-                        {note.authorName ?? "Менеджер"} · {formatDate(note.createdAt)}
+                        {note.authorName ?? "Менеджер"} ·{" "}
+                        {formatDate(note.createdAt)}
                       </p>
-                      <StatusBadge tone={note.isVisibleToClient ? "success" : "neutral"}>
+                      <StatusBadge
+                        tone={note.isVisibleToClient ? "success" : "neutral"}
+                      >
                         {note.isVisibleToClient ? "Клиент видит" : "Внутренне"}
                       </StatusBadge>
                     </div>
-                    <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-[var(--foreground)]">
+                    <p className="mt-3 text-sm leading-6 whitespace-pre-wrap text-[var(--foreground)]">
                       {note.body}
                     </p>
                   </article>

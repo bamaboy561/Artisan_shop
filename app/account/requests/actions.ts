@@ -2,10 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import {
-  RequestFileKind,
-  RequestStatus,
-} from "@/generated/prisma";
+import { RequestFileKind, RequestStatus } from "@/generated/prisma";
 import { verifySession } from "@/lib/auth/dal";
 import { getDb, hasDatabaseUrl } from "@/lib/db";
 import { logOperationEvent } from "@/lib/server/operation-events";

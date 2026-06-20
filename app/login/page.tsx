@@ -75,7 +75,8 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
               </div>
             </div>
             <p className="mt-4 text-sm leading-6 text-[var(--muted)]">
-              После входа откроется <span className="font-semibold">/admin</span>.
+              После входа откроется{" "}
+              <span className="font-semibold">/admin</span>.
             </p>
           </div>
         ) : null}

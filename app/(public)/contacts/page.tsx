@@ -1,6 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowUpRight, Clock, Mail, MapPin, MessageCircle, Phone } from "lucide-react";
+import {
+  ArrowUpRight,
+  Clock,
+  Mail,
+  MapPin,
+  MessageCircle,
+  Phone,
+} from "lucide-react";
 
 import { BranchStatus } from "@/app/(public)/contacts/branch-status";
 import { ContactForm } from "@/app/(public)/contacts/contact-form";
@@ -29,7 +36,7 @@ export default function ContactsPage() {
       <StructuredData data={organizationJsonLd()} />
       <section className="relative overflow-hidden border-b border-[color:var(--line)] bg-gradient-to-b from-[#f6f1e7] via-[#efeadf] to-[#f1eee8]">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[var(--foreground)]/12 to-transparent" />
-        <div className="pointer-events-none absolute inset-0 opacity-[0.035] [background-image:radial-gradient(circle_at_1px_1px,#151411_1px,transparent_0)] [background-size:18px_18px]" />
+        <div className="pointer-events-none absolute inset-0 [background-image:radial-gradient(circle_at_1px_1px,#151411_1px,transparent_0)] [background-size:18px_18px] opacity-[0.035]" />
 
         <div className="relative mx-auto flex max-w-[1500px] flex-col gap-7 px-4 pt-12 pb-10 sm:gap-10 sm:px-8 sm:pt-20 sm:pb-14 lg:flex-row lg:items-end lg:justify-between lg:gap-12 lg:px-10 lg:pt-24 lg:pb-16">
           <div className="max-w-[42rem]">
@@ -40,7 +47,8 @@ export default function ContactsPage() {
               Свяжитесь с Artisan.
             </h1>
             <p className="mt-4 max-w-[36rem] text-[14px] leading-[1.7] text-[var(--muted)] sm:mt-5 sm:text-[15px]">
-              Подберём материалы, согласуем распил и комплектацию проекта. Отвечаем по телефону, в WhatsApp и на встречах в наших филиалах.
+              Подберём материалы, согласуем распил и комплектацию проекта.
+              Отвечаем по телефону, в WhatsApp и на встречах в наших филиалах.
             </p>
           </div>
 
@@ -131,7 +139,8 @@ export default function ContactsPage() {
               </h2>
             </div>
             <p className="max-w-[28rem] text-[13px] leading-6 text-[var(--muted)] sm:text-[14px]">
-              Заходите за консультацией, образцами или забрать готовый заказ. Каждая точка открывается в 2GIS одним кликом.
+              Заходите за консультацией, образцами или забрать готовый заказ.
+              Каждая точка открывается в 2GIS одним кликом.
             </p>
           </div>
 
@@ -145,7 +154,7 @@ export default function ContactsPage() {
                 referrerPolicy="no-referrer-when-downgrade"
               />
             </div>
-            <div className="pointer-events-none absolute inset-0 mix-blend-multiply [background-image:linear-gradient(180deg,rgba(245,239,225,0.18)_0%,rgba(245,239,225,0)_24%,rgba(245,239,225,0)_72%,rgba(21,20,17,0.06)_100%)]" />
+            <div className="pointer-events-none absolute inset-0 [background-image:linear-gradient(180deg,rgba(245,239,225,0.18)_0%,rgba(245,239,225,0)_24%,rgba(245,239,225,0)_72%,rgba(21,20,17,0.06)_100%)] mix-blend-multiply" />
 
             <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-wrap items-end justify-between gap-3 bg-gradient-to-t from-white/95 via-white/80 to-transparent p-4 sm:p-5">
               <div className="pointer-events-auto">
@@ -153,7 +162,8 @@ export default function ContactsPage() {
                   Карта Бишкека
                 </p>
                 <p className="mt-1.5 text-[13px] leading-5 text-[var(--foreground)] sm:text-[14px]">
-                  Все три точки — в шаговой доступности друг от друга, в районе Кулатова и Льва Толстого.
+                  Все три точки — в шаговой доступности друг от друга, в районе
+                  Кулатова и Льва Толстого.
                 </p>
               </div>
               <Link
@@ -176,7 +186,7 @@ export default function ContactsPage() {
               >
                 <span
                   aria-hidden
-                  className="pointer-events-none absolute -top-4 -right-2 select-none font-serif text-[7.5rem] leading-none font-light tracking-[-0.06em] text-[var(--foreground)]/[0.045] transition group-hover:text-[var(--foreground)]/[0.07] sm:-top-5 sm:-right-3 sm:text-[9rem]"
+                  className="pointer-events-none absolute -top-4 -right-2 font-serif text-[7.5rem] leading-none font-light tracking-[-0.06em] text-[var(--foreground)]/[0.045] transition select-none group-hover:text-[var(--foreground)]/[0.07] sm:-top-5 sm:-right-3 sm:text-[9rem]"
                 >
                   {String(index + 1).padStart(2, "0")}
                 </span>
@@ -239,7 +249,8 @@ export default function ContactsPage() {
                 Темы обращения
               </p>
               <p className="mt-2 text-[13px] leading-6 text-[var(--muted)]">
-                Подскажите задачу — менеджер подберёт подходящий маршрут и материалы.
+                Подскажите задачу — менеджер подберёт подходящий маршрут и
+                материалы.
               </p>
               <div className="mt-5 grid gap-0 border border-[color:var(--line)]">
                 {contactTopics.map((topic, index) => (

@@ -26,7 +26,12 @@ export function AddToCartButton({
       className={cn(className)}
       disabled={disabled}
       onClick={() => {
-        addItem(productSlug, 1);
+        const wasAdded = addItem(productSlug, 1);
+
+        if (!wasAdded) {
+          return;
+        }
+
         setAdded(true);
         window.setTimeout(() => setAdded(false), 1500);
       }}

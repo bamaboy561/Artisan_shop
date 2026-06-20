@@ -42,8 +42,6 @@ const inventoryLabels: Record<InventoryStatus, string> = {
   [InventoryStatus.ON_REQUEST]: "Под запрос",
 };
 
-const THICKNESS_OPTIONS = [8, 10, 12, 16, 18, 22, 25];
-
 type CategoryOption = { id: string; name: string; kind: CategoryKind };
 type BrandOption = { id: string; name: string };
 type SlugLabelOption = { slug: string; label: string };
@@ -188,6 +186,48 @@ function formatBundlePrice(value: number | null) {
   return `${new Intl.NumberFormat("ru-RU", {
     maximumFractionDigits: 0,
   }).format(value)} сом`;
+}
+
+function parseSheetDimensions(format: string | null | undefined) {
+  const match = (format ?? "").match(/(\d{3,4})\s*(?:x|х|×|\*)\s*(\d{3,4})/iu);
+
+  if (!match) {
+    return null;
+  }
+
+  return {
+    length: match[1],
+    width: match[2],
+  };
+}
+
+function getSheetPresetIdFromDimensions(
+  dimensions: ReturnType<typeof parseSheetDimensions>,
+) {
+  if (!dimensions) {
+    return "";
+  }
+
+  return `${dimensions.length}x${dimensions.width}`;
+}
+
+function buildSheetFormatLabel(length: string, width: string) {
+  if (!length || !width) {
+    return "";
+  }
+
+  return `${length} × ${width} мм`;
+}
+
+function buildSheetFormat(length: string, width: string) {
+  const normalizedLength = length.trim();
+  const normalizedWidth = width.trim();
+
+  if (!normalizedLength || !normalizedWidth) {
+    return "";
+  }
+
+  return buildSheetFormatLabel(normalizedLength, normalizedWidth);
 }
 
 function BundleCatalogPicker({
@@ -340,8 +380,13 @@ function BundleCatalogPicker({
                 Как работает комплект
               </p>
               <div className="mt-2 grid gap-2 text-xs leading-5 text-[var(--muted)]">
-                <p>1. Создайте карточку комплекта. Если поле «Цена» пустое, сайт сам посчитает сумму из состава.</p>
-                <p>2. Ниже добавьте реальные товары из каталога и количество.</p>
+                <p>
+                  1. Создайте карточку комплекта. Если поле «Цена» пустое, сайт
+                  сам посчитает сумму из состава.
+                </p>
+                <p>
+                  2. Ниже добавьте реальные товары из каталога и количество.
+                </p>
                 <p>
                   3. Клиент увидит один товар, а менеджер увидит полный состав.
                 </p>
@@ -371,11 +416,7 @@ function BundleCatalogPicker({
                       {product.name}
                     </span>
                     <span className="text-xs leading-5 text-[var(--muted)]">
-                      {[
-                        product.brandName,
-                        product.sku,
-                        product.categoryName,
-                      ]
+                      {[product.brandName, product.sku, product.categoryName]
                         .filter(Boolean)
                         .join(" · ")}
                     </span>
@@ -429,8 +470,8 @@ function BundleCatalogPicker({
             </div>
 
             <div className="rounded-2xl border border-[color:var(--line)] bg-[#f8f5ef] p-3 text-xs leading-5 text-[var(--muted)]">
-              Сумма компонентов теперь используется как цена комплекта для клиента,
-              если отдельная цена в поле «Цена» выше не указана.
+              Сумма компонентов теперь используется как цена комплекта для
+              клиента, если отдельная цена в поле «Цена» выше не указана.
             </div>
 
             {items.length > 0 ? (
@@ -530,6 +571,16 @@ export function NewProductForm({
   const [name, setName] = useState(defaults?.name ?? "");
   const [categoryId, setCategoryId] = useState(defaults?.categoryId ?? "");
   const [brandId, setBrandId] = useState(defaults?.brandId ?? "");
+  const defaultSheetDimensions = parseSheetDimensions(defaults?.format);
+  const defaultSheetPresetId = getSheetPresetIdFromDimensions(
+    defaultSheetDimensions,
+  );
+  const [sheetLengthMm, setSheetLengthMm] = useState(
+    defaultSheetDimensions?.length ?? "",
+  );
+  const [sheetWidthMm, setSheetWidthMm] = useState(
+    defaultSheetDimensions?.width ?? "",
+  );
   const selectedCategory = categories.find((item) => item.id === categoryId);
   const selectedBrand = brands.find((item) => item.id === brandId);
   const productIdentity = [selectedBrand?.name, selectedCategory?.name, name]
@@ -547,6 +598,22 @@ export function NewProductForm({
   const detailsGridClassName = compact
     ? "grid gap-2.5 sm:grid-cols-2"
     : "grid gap-3 lg:grid-cols-2";
+  const sheetFormatValue = buildSheetFormat(sheetLengthMm, sheetWidthMm);
+  const calculatorSheetOptions = [...calculatorSheetFormats];
+  if (
+    defaultSheetPresetId &&
+    !calculatorSheetOptions.some((format) => format.slug === defaultSheetPresetId)
+  ) {
+    calculatorSheetOptions.unshift({
+      slug: defaultSheetPresetId,
+      label: `${buildSheetFormatLabel(
+        defaultSheetDimensions?.length ?? "",
+        defaultSheetDimensions?.width ?? "",
+      )} · из карточки товара`,
+    });
+  }
+  const calculatorSheetDefaultValue =
+    defaults?.calculatorSheetPresetId ?? defaultSheetPresetId;
 
   return (
     <form
@@ -711,30 +778,42 @@ export function NewProductForm({
       {showPlateFields ? (
         <CompactPanel title="Плитный материал">
           <div className={plateGridClassName}>
+            <input type="hidden" name="format" value={sheetFormatValue} />
+
             <FieldLabel>
-              Формат листа
+              Длина листа, мм
               <Input
-                name="format"
-                placeholder="2800 x 2070 мм"
-                defaultValue={defaults?.format ?? ""}
+                inputMode="numeric"
+                placeholder="4100"
+                value={sheetLengthMm}
+                onChange={(event) => setSheetLengthMm(event.target.value)}
                 className={inputClassName}
               />
             </FieldLabel>
 
             <FieldLabel>
-              Толщина
-              <Select
+              Ширина листа, мм
+              <Input
+                inputMode="numeric"
+                placeholder="1200"
+                value={sheetWidthMm}
+                onChange={(event) => setSheetWidthMm(event.target.value)}
+                className={inputClassName}
+              />
+            </FieldLabel>
+
+            <FieldLabel>
+              Толщина, мм
+              <Input
                 name="thicknessMm"
+                type="number"
+                min="1"
+                step="1"
+                inputMode="numeric"
+                placeholder="38"
                 defaultValue={defaults?.thicknessMm?.toString() ?? ""}
                 className={inputClassName}
-              >
-                <option value="">Не указана</option>
-                {THICKNESS_OPTIONS.map((value) => (
-                  <option key={value} value={value}>
-                    {value} мм
-                  </option>
-                ))}
-              </Select>
+              />
             </FieldLabel>
 
             <FieldLabel>
@@ -757,11 +836,11 @@ export function NewProductForm({
               Формат калькулятора
               <Select
                 name="calculatorSheetPresetId"
-                defaultValue={defaults?.calculatorSheetPresetId ?? ""}
+                defaultValue={calculatorSheetDefaultValue}
                 className={inputClassName}
               >
                 <option value="">Авто / не задан</option>
-                {calculatorSheetFormats.map((format) => (
+                {calculatorSheetOptions.map((format) => (
                   <option key={format.slug} value={format.slug}>
                     {format.label}
                   </option>
@@ -835,7 +914,8 @@ export function NewProductForm({
               className={inputClassName}
             />
             <span className="text-xs leading-5 text-[var(--muted)]">
-              Для комплекта можно оставить пустым: цена рассчитается из выбранных товаров.
+              Для комплекта можно оставить пустым: цена рассчитается из
+              выбранных товаров.
             </span>
           </FieldLabel>
         </div>

@@ -173,6 +173,14 @@ const brands = [
     website: "https://www.swisskrono.com",
   },
   {
+    slug: "albero",
+    name: "Albero",
+    description:
+      "Премиальные МДФ панели для выразительных фасадов, интерьерных акцентов и проектов с высоким требованием к поверхности.",
+    country: "",
+    logoUrl: "/brands/albero-logo.png",
+  },
+  {
     slug: "hettich",
     name: "Hettich",
     description:

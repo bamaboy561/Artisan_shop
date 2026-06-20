@@ -29,7 +29,7 @@ import { collectionJsonLd, createSeoMetadata } from "@/lib/seo";
 export const metadata: Metadata = createSeoMetadata({
   title: "Каталог ЛДСП, МДФ, панелей и мебельной фурнитуры",
   description:
-    "Каталог Artisan в Бишкеке: ЛДСП, МДФ панели, мебельные декоры, кромка и фурнитура. EXTRAVERT, SWISS KRONO, AGT, фильтры и запрос цены.",
+    "Каталог Artisan в Бишкеке: ЛДСП, МДФ панели, мебельные декоры, кромка и фурнитура. EXTRAVERT, SWISS KRONO, AGT, Albero, фильтры и запрос цены.",
   path: "/catalog",
 });
 
@@ -213,12 +213,12 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
                     Каталог в работе
                   </span>
                   <h2 className="mt-5 text-[1.7rem] leading-[1.05] font-semibold tracking-[-0.035em] text-[var(--foreground)] sm:text-[2.1rem]">
-                    Материалы скоро появятся в каталоге.
+                    Материалы подготавливаются к публикации.
                   </h2>
                   <p className="mt-4 text-[14px] leading-[1.65] text-[var(--muted)] sm:text-[15px]">
-                    Команда наполняет витрину коллекциями, форматами и ценами.
-                    Если нужно подобрать материал прямо сейчас — напишите
-                    менеджеру или оставьте заявку на расчёт.
+                    Команда готовит витрину с коллекциями, форматами и ценами.
+                    Если нужно подобрать материал сейчас — напишите менеджеру
+                    или оставьте заявку на расчёт.
                   </p>
                   <div className="mt-7 flex flex-col items-center justify-center gap-3 sm:flex-row">
                     <Link

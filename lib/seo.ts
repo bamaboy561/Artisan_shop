@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 
-import type { CatalogCategory, FeaturedProduct } from "@/features/catalog/types";
+import type {
+  CatalogCategory,
+  FeaturedProduct,
+} from "@/features/catalog/types";
 import {
   type CompanyBranch,
   companyBranches,
@@ -247,8 +250,7 @@ export function organizationJsonLd(): JsonLdData {
           streetAddress: companyBranch.address,
           addressCountry: "KG",
         },
-        openingHoursSpecification:
-          openingHoursSpecification(companyBranch),
+        openingHoursSpecification: openingHoursSpecification(companyBranch),
         hasMap: companyBranch.mapUrl,
         areaServed: {
           "@type": "City",
@@ -282,7 +284,9 @@ export function productJsonLd(product: FeaturedProduct): JsonLdData {
     product.description || product.summary,
     `${product.name} ${product.brand}`.trim(),
   );
-  const images = (product.gallery.length > 0 ? product.gallery : [product.image])
+  const images = (
+    product.gallery.length > 0 ? product.gallery : [product.image]
+  )
     .filter(Boolean)
     .map((image) => absoluteUrl(image));
   const data: JsonLdData = {

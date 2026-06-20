@@ -13,7 +13,10 @@ const serviceRequestSchema = z.object({
   contactName: z.string().trim().min(2, "Укажите имя для заявки."),
   contactPhone: z.string().trim().min(6, "Укажите телефон для связи."),
   contactEmail: z
-    .union([z.string().trim().email("Укажите корректный email."), z.literal("")])
+    .union([
+      z.string().trim().email("Укажите корректный email."),
+      z.literal(""),
+    ])
     .optional()
     .default(""),
   messengerType: z.string().trim().optional().default(""),
@@ -107,8 +110,7 @@ export async function submitServiceRequestAction(
   if (!validated.success) {
     return {
       message:
-        validated.error.issues[0]?.message ??
-        "Проверьте корректность данных.",
+        validated.error.issues[0]?.message ?? "Проверьте корректность данных.",
     };
   }
 
@@ -128,7 +130,9 @@ export async function submitServiceRequestAction(
     };
   }
 
-  const unsupportedFile = files.find((file) => !hasAllowedFileExtension(file.name));
+  const unsupportedFile = files.find(
+    (file) => !hasAllowedFileExtension(file.name),
+  );
 
   if (unsupportedFile) {
     return {

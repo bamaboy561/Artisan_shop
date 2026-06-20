@@ -142,7 +142,9 @@ export default async function AdminRequestDetailPage({
   const canCreateOrder =
     request.status !== RequestStatus.CANCELED && linkedOrders.length === 0;
   const clientFiles = request.files.filter(
-    (file) => (file.kind ?? RequestFileKind.CLIENT_UPLOAD) === RequestFileKind.CLIENT_UPLOAD,
+    (file) =>
+      (file.kind ?? RequestFileKind.CLIENT_UPLOAD) ===
+      RequestFileKind.CLIENT_UPLOAD,
   );
   const resultFiles = request.files.filter(
     (file) => file.kind === RequestFileKind.MANAGER_RESULT,
@@ -253,7 +255,7 @@ export default async function AdminRequestDetailPage({
                 <p className="text-xs tracking-[0.16em] text-[var(--muted)] uppercase">
                   Комментарий и расчет
                 </p>
-                <pre className="mt-3 whitespace-pre-wrap text-sm leading-7 text-[var(--foreground)]">
+                <pre className="mt-3 text-sm leading-7 whitespace-pre-wrap text-[var(--foreground)]">
                   {request.message}
                 </pre>
               </div>
@@ -296,8 +298,8 @@ export default async function AdminRequestDetailPage({
               </div>
             ) : (
               <p className="mt-5 text-sm text-[var(--muted)]">
-                Клиент не приложил файл. Менеджер может работать по текстовым параметрам
-                или запросить вложение дополнительно.
+                Клиент не приложил файл. Менеджер может работать по текстовым
+                параметрам или запросить вложение дополнительно.
               </p>
             )}
           </section>
@@ -309,11 +311,14 @@ export default async function AdminRequestDetailPage({
                   Результат распила
                 </h2>
                 <p className="mt-1 text-sm text-[var(--muted)]">
-                  Карта раскроя, ведомость, PDF/Excel или файл Giblab для клиента.
+                  Карта раскроя, ведомость, PDF/Excel или файл Giblab для
+                  клиента.
                 </p>
               </div>
               {request.quotedTotal ? (
-                <StatusBadge tone="accent">{formatBudget(request.quotedTotal)}</StatusBadge>
+                <StatusBadge tone="accent">
+                  {formatBudget(request.quotedTotal)}
+                </StatusBadge>
               ) : null}
             </div>
 
@@ -345,7 +350,9 @@ export default async function AdminRequestDetailPage({
                 Статус после сохранения
                 <Select name="status" defaultValue="">
                   <option value="">Не менять статус</option>
-                  <option value={RequestStatus.QUOTE_SENT}>КП отправлено</option>
+                  <option value={RequestStatus.QUOTE_SENT}>
+                    КП отправлено
+                  </option>
                   <option value={RequestStatus.IN_PROGRESS}>В работе</option>
                   <option value={RequestStatus.COMPLETED}>Завершена</option>
                 </Select>
@@ -424,7 +431,9 @@ export default async function AdminRequestDetailPage({
                       · {formatDate(file.createdAt)}
                     </span>
                     {file.note ? (
-                      <span className="text-xs text-[var(--muted)]">{file.note}</span>
+                      <span className="text-xs text-[var(--muted)]">
+                        {file.note}
+                      </span>
                     ) : null}
                   </a>
                 ))}
@@ -504,7 +513,9 @@ export default async function AdminRequestDetailPage({
                       <AdminSubmitButton
                         type="submit"
                         variant={
-                          transition.intent === "accent" ? "accent" : "secondary"
+                          transition.intent === "accent"
+                            ? "accent"
+                            : "secondary"
                         }
                         size="sm"
                         className="w-full justify-center"
@@ -522,7 +533,10 @@ export default async function AdminRequestDetailPage({
             <h2 className="text-lg font-semibold text-[var(--foreground)]">
               Заметки менеджера
             </h2>
-            <form action={addRequestManagerNoteAction} className="mt-5 grid gap-3">
+            <form
+              action={addRequestManagerNoteAction}
+              className="mt-5 grid gap-3"
+            >
               <input type="hidden" name="requestId" value={request.id} />
               <Textarea
                 name="body"
@@ -556,13 +570,16 @@ export default async function AdminRequestDetailPage({
                   >
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <p className="text-xs text-[var(--muted)]">
-                        {note.authorName ?? "Менеджер"} · {formatDate(note.createdAt)}
+                        {note.authorName ?? "Менеджер"} ·{" "}
+                        {formatDate(note.createdAt)}
                       </p>
-                      <StatusBadge tone={note.isVisibleToClient ? "success" : "neutral"}>
+                      <StatusBadge
+                        tone={note.isVisibleToClient ? "success" : "neutral"}
+                      >
                         {note.isVisibleToClient ? "Клиент видит" : "Внутренне"}
                       </StatusBadge>
                     </div>
-                    <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-[var(--foreground)]">
+                    <p className="mt-3 text-sm leading-6 whitespace-pre-wrap text-[var(--foreground)]">
                       {note.body}
                     </p>
                   </article>
@@ -580,8 +597,9 @@ export default async function AdminRequestDetailPage({
               Перевод в заказ
             </h2>
             <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
-              После расчета и подтверждения можно автоматически создать заказ. Контакты,
-              материал, комментарий и ссылки на файлы будут перенесены в заказ.
+              После расчета и подтверждения можно автоматически создать заказ.
+              Контакты, материал, комментарий и ссылки на файлы будут перенесены
+              в заказ.
             </p>
 
             {linkedOrders.length > 0 ? (
@@ -597,8 +615,9 @@ export default async function AdminRequestDetailPage({
                     </span>
                     <span className="text-xs text-[var(--muted)]">
                       {typeof order.status === "string"
-                        ? orderStatusLabels[order.status as keyof typeof orderStatusLabels] ??
-                          order.status
+                        ? (orderStatusLabels[
+                            order.status as keyof typeof orderStatusLabels
+                          ] ?? order.status)
                         : "В работе"}
                     </span>
                   </Link>
