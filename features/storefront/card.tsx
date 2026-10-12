@@ -7,6 +7,28 @@ import type { FeaturedProduct } from "@/features/catalog/types";
 import { formatPrice } from "@/lib/commerce";
 import s from "./storefront.module.css";
 
+// «2800 × 2070 мм, 16 мм» → площадь листа в м², чтобы сравнивать форматы.
+function sheetArea(format: string) {
+  const match = format.match(/(\d{3,4})\s*[×xх*]\s*(\d{3,4})/i);
+  if (!match) return null;
+  const area = (Number(match[1]) * Number(match[2])) / 1_000_000;
+  return area >= 1 ? area : null;
+}
+
+function formatChips(format: string) {
+  return (
+    format
+      .split(",")
+      .map((part) => part.trim())
+      // У размера листа «мм» убираем, у толщины оставляем: «2800 × 2070», «16 мм».
+      .map((part) =>
+        /\d\s*[×xх*]\s*\d/i.test(part) ? part.replace(/\s*мм$/, "") : part,
+      )
+      .filter(Boolean)
+      .slice(0, 3)
+  );
+}
+
 export function StorefrontCard({
   product,
   isFavorite = false,
@@ -18,6 +40,9 @@ export function StorefrontCard({
   next?: string;
   eager?: boolean;
 }) {
+  const hoverImage = product.gallery.find((image) => image !== product.image);
+  const area = sheetArea(product.format);
+  const chips = formatChips(product.format);
   return (
     <article className={s.productCard} data-product={product.slug}>
       <div className={s.productVisual}>
@@ -30,8 +55,18 @@ export function StorefrontCard({
             sizes="(max-width: 600px) 50vw, (max-width: 1150px) 40vw, 28vw"
             loading={eager ? "eager" : undefined}
             fetchPriority={eager ? "high" : undefined}
-            className={s.contain}
+            className={area ? s.cover : s.contain}
           />
+          {hoverImage && (
+            <ProductImage
+              src={hoverImage}
+              alt=""
+              fallbackLabel={product.name}
+              fill
+              sizes="(max-width: 600px) 50vw, (max-width: 1150px) 40vw, 28vw"
+              className={`${area ? s.cover : s.contain} ${s.hoverImage}`}
+            />
+          )}
         </Link>
         <FavoriteToggle
           productSlug={product.slug}
@@ -49,11 +84,13 @@ export function StorefrontCard({
         <h3>
           <Link href={`/product/${product.slug}`}>{product.name}</Link>
         </h3>
-        <p className={s.productFormat}>
-          {product.format}
-          <br />
-          Артикул: {product.sku}
-        </p>
+        <div className={s.specChips}>
+          {chips.map((chip) => (
+            <span key={chip}>{chip}</span>
+          ))}
+          {area && <span>{area.toFixed(2).replace(".", ",")} м²</span>}
+        </div>
+        <p className={s.productFormat}>Арт. {product.sku}</p>
         <div className={s.productBottom}>
           <div>
             <strong>
@@ -67,6 +104,11 @@ export function StorefrontCard({
                   {formatPrice(product.oldPrice)}
                 </del>
               )}
+            {area && typeof product.price === "number" && (
+              <span className={s.unitPrice}>
+                {formatPrice(Math.round(product.price / area))}/м²
+              </span>
+            )}
           </div>
           {product.purchaseMode === "cart" &&
           typeof product.price === "number" ? (

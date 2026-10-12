@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ChevronLeft, ChevronRight, Maximize2 } from "lucide-react";
 import { ProductImage } from "@/components/catalog/product-image";
 import { AddToCartButton } from "@/components/ecommerce/add-to-cart-button";
 import { useCart } from "@/components/providers/cart-provider";
 import { MAX_CART_ITEM_QUANTITY } from "@/features/cart/state";
+import { formatPrice } from "@/lib/commerce";
 import { Quantity, StorefrontDialog } from "./controls";
 import s from "./storefront.module.css";
 
@@ -142,12 +143,26 @@ export function ProductPurchase({
   slug,
   stock,
   inStock,
+  price,
 }: {
   slug: string;
   stock: number | null;
   inStock: boolean;
+  price?: number;
 }) {
   const [quantity, setQuantity] = useState(1);
+  const buyRowRef = useRef<HTMLDivElement>(null);
+  // Пока основная кнопка не видна, на телефоне снизу висит панель покупки.
+  const [buyRowVisible, setBuyRowVisible] = useState(true);
+  useEffect(() => {
+    const node = buyRowRef.current;
+    if (!node || typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver(([entry]) =>
+      setBuyRowVisible(entry.isIntersecting),
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
   const { items } = useCart();
   const inCart = items.find((item) => item.productSlug === slug)?.quantity ?? 0;
   const remaining = Math.max(
@@ -157,7 +172,7 @@ export function ProductPurchase({
   const value = Math.max(1, Math.min(quantity, remaining));
   return (
     <>
-      <div className={s.buyRow}>
+      <div className={s.buyRow} ref={buyRowRef}>
         <Quantity
           value={value}
           max={Math.max(1, remaining)}
@@ -171,6 +186,26 @@ export function ProductPurchase({
         />
       </div>
       {inCart > 0 && <p className={s.inCart}>В корзине: {inCart}</p>}
+      {typeof price === "number" && (
+        <div
+          className={s.stickyBuy}
+          data-hidden={buyRowVisible}
+          inert={buyRowVisible}
+        >
+          <div>
+            <strong>{formatPrice(price * value)}</strong>
+            <small>
+              {value} шт. × {formatPrice(price)}
+            </small>
+          </div>
+          <AddToCartButton
+            productSlug={slug}
+            quantity={value}
+            disabled={!inStock || remaining < 1}
+            className={s.purchaseButton}
+          />
+        </div>
+      )}
     </>
   );
 }
