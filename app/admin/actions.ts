@@ -2801,6 +2801,72 @@ export async function bulkUpdateProductsAction(formData: FormData) {
         data: { orderMode: ProductOrderMode.SERVICE },
       });
       break;
+    case "price-percent": {
+      // Изменение цены на процент: +10 дороже на 10%, -5 дешевле на 5%.
+      const percent = getOptionalFloat(formData, "pricePercent");
+
+      if (!percent || percent < -90 || percent > 300) {
+        return;
+      }
+
+      const priced = await db.product.findMany({
+        where: { id: { in: productIds }, price: { not: null } },
+        select: { id: true, price: true },
+      });
+
+      await db.$transaction(
+        priced.map((product) =>
+          db.product.update({
+            where: { id: product.id },
+            data: {
+              price: Math.max(
+                0,
+                Math.round(((product.price ?? 0) * (100 + percent)) / 100),
+              ),
+            },
+          }),
+        ),
+      );
+      break;
+    }
+    case "set-category": {
+      const categoryId = getString(formData, "bulkCategoryId");
+      const category = categoryId
+        ? await db.category.findUnique({
+            where: { id: categoryId },
+            select: { id: true },
+          })
+        : null;
+
+      if (!category) {
+        return;
+      }
+
+      await db.product.updateMany({
+        where: { id: { in: productIds } },
+        data: { categoryId: category.id },
+      });
+      break;
+    }
+    case "set-brand": {
+      const brandId = getString(formData, "bulkBrandId");
+      const brand = brandId
+        ? await db.brand.findUnique({
+            where: { id: brandId },
+            select: { id: true },
+          })
+        : null;
+
+      if (!brand) {
+        return;
+      }
+
+      await db.product.updateMany({
+        where: { id: { in: productIds } },
+        data: { brandId: brand.id },
+      });
+      break;
+    }
     default:
       return;
   }

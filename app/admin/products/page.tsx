@@ -77,6 +77,9 @@ const bulkActionOptions = [
   { value: "set-cart", label: "Режим: в корзину" },
   { value: "set-request-price", label: "Режим: запрос цены" },
   { value: "set-service", label: "Режим: сервисная заявка" },
+  { value: "price-percent", label: "Изменить цену на процент" },
+  { value: "set-category", label: "Перенести в категорию" },
+  { value: "set-brand", label: "Сменить бренд" },
 ] as const;
 
 function formatPrice(value: number | null) {
@@ -718,7 +721,7 @@ export default async function AdminProductsPage({
             <form
               id="bulk-products-form"
               action={bulkUpdateProductsAction}
-              className="grid min-w-0 gap-2 lg:grid-cols-[minmax(0,1fr)_auto]"
+              className="grid min-w-0 gap-2 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,0.7fr)_minmax(0,1fr)_minmax(0,1fr)_auto]"
             >
               <Select name="bulkAction" defaultValue="" className="h-9 sm:h-9">
                 <option value="" disabled>
@@ -727,6 +730,42 @@ export default async function AdminProductsPage({
                 {bulkActionOptions.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
+                  </option>
+                ))}
+              </Select>
+              <Input
+                name="pricePercent"
+                type="number"
+                step="0.1"
+                min="-90"
+                max="300"
+                placeholder="Цена, % (напр. 5 или -10)"
+                aria-label="На сколько процентов изменить цену"
+                className="h-9"
+              />
+              <Select
+                name="bulkCategoryId"
+                defaultValue=""
+                aria-label="Категория для переноса"
+                className="h-9 sm:h-9"
+              >
+                <option value="">Категория для переноса</option>
+                {categories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </Select>
+              <Select
+                name="bulkBrandId"
+                defaultValue=""
+                aria-label="Бренд для замены"
+                className="h-9 sm:h-9"
+              >
+                <option value="">Бренд для замены</option>
+                {brands.map((brand) => (
+                  <option key={brand.id} value={brand.id}>
+                    {brand.name}
                   </option>
                 ))}
               </Select>
