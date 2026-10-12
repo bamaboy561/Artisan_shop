@@ -362,28 +362,35 @@ export function categoryDescription(category: CatalogCategory) {
 }
 
 // Search engines demote titles that are bare keyword lists
-// ("ЛДСП, бишкек, дешево, скидки, ..."), so such admin values fall back
-// to the generated text.
+// ("ЛДСП, бишкек, дешево, скидки, ...") or overlong, so such admin values
+// fall back to the generated text. A real sentence with commas is kept.
 function isKeywordList(value: string) {
-  return value.length > 90 || (value.match(/,/g)?.length ?? 0) >= 3;
+  return (value.match(/,/g)?.length ?? 0) >= 3 && !/[.!?](\s|$)/u.test(value);
 }
 
-function usableSeoText(value?: string | null) {
+function usableSeoTitle(value?: string | null) {
+  const trimmed = value?.trim();
+  return trimmed && trimmed.length <= 90 && !isKeywordList(trimmed)
+    ? trimmed
+    : "";
+}
+
+function usableSeoDescription(value?: string | null) {
   const trimmed = value?.trim();
   return trimmed && !isKeywordList(trimmed) ? trimmed : "";
 }
 
 export function categorySeoTitle(category: CatalogCategory) {
   return (
-    usableSeoText(category.seoTitle) ||
+    usableSeoTitle(category.seoTitle) ||
     `${category.name} в Бишкеке — каталог, наличие и распил`
   );
 }
 
 export function categorySeoDescription(category: CatalogCategory) {
-  const seoDescription = usableSeoText(category.seoDescription);
+  const seoDescription = usableSeoDescription(category.seoDescription);
   const description =
-    seoDescription && seoDescription !== usableSeoText(category.seoTitle)
+    seoDescription && seoDescription !== usableSeoTitle(category.seoTitle)
       ? normalizeText(seoDescription, "")
       : `${normalizeText(category.summary || category.description, `${category.name}: материалы Artisan, подбор, наличие и запрос цены.`)} Подбор, консультация, заказ и услуги распила в ${localMarket}.`;
 
@@ -398,7 +405,7 @@ export function productDescription(product: FeaturedProduct) {
 }
 
 export function productSeoTitle(product: FeaturedProduct) {
-  const seoTitle = usableSeoText(product.seoTitle);
+  const seoTitle = usableSeoTitle(product.seoTitle);
 
   if (seoTitle) {
     return seoTitle;
@@ -412,7 +419,7 @@ export function productSeoTitle(product: FeaturedProduct) {
 }
 
 export function productSeoDescription(product: FeaturedProduct) {
-  const seoDescription = usableSeoText(product.seoDescription);
+  const seoDescription = usableSeoDescription(product.seoDescription);
 
   if (seoDescription) {
     return truncateText(seoDescription);

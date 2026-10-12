@@ -1011,6 +1011,32 @@ export async function getFeaturedProducts(
   });
 }
 
+export async function getPromotionalProducts(
+  limit = 4,
+): Promise<FeaturedProduct[]> {
+  return withPublicDbFallback("getPromotionalProducts", [], async () => {
+    const db = getDb();
+    await ensureProductBundleItemsTable(db);
+    const products = await db.product.findMany({
+      where: {
+        status: ProductStatus.ACTIVE,
+        OR: [
+          { promotions: { some: {} } },
+          { category: { promotions: { some: {} } } },
+        ],
+      },
+      orderBy: [{ isFeatured: "desc" }, { updatedAt: "desc" }],
+      take: limit * 6,
+      include: PRODUCT_INCLUDE,
+    });
+
+    return products
+      .map(mapProduct)
+      .filter((product) => product.isPromotional && product.inStock)
+      .slice(0, limit);
+  });
+}
+
 export async function getCatalogMetrics() {
   return withPublicDbFallback(
     "getCatalogMetrics",

@@ -1,11 +1,21 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, ArrowUpRight, Drill, Ruler, Scissors } from "lucide-react";
+import {
+  ArrowRight,
+  ArrowUpRight,
+  Drill,
+  Gift,
+  MapPin,
+  Ruler,
+  Scissors,
+  Wallet,
+} from "lucide-react";
 import { ProductImage } from "@/components/catalog/product-image";
 import { getBrandProfiles } from "@/features/brands/data";
 import {
   getPublicCategories,
   getFeaturedProducts,
+  getPromotionalProducts,
 } from "@/lib/server/catalog-public";
 import { getCurrentFavoriteProductSlugs } from "@/lib/server/favorites";
 import { companyContacts } from "@/lib/site-config";
@@ -14,18 +24,74 @@ import { StorefrontCard } from "./card";
 import s from "./storefront.module.css";
 
 export async function StorefrontHome() {
-  const [categories, featured, brands, favorites] = await Promise.all([
-    getPublicCategories(),
-    getFeaturedProducts(4),
-    getBrandProfiles(),
-    getCurrentFavoriteProductSlugs(),
-  ]);
+  const [categories, featured, promotional, brands, favorites] =
+    await Promise.all([
+      getPublicCategories(),
+      getFeaturedProducts(4),
+      getPromotionalProducts(4),
+      getBrandProfiles(),
+      getCurrentFavoriteProductSlugs(),
+    ]);
   const products = featured.length
     ? featured
     : brands.flatMap((brand) => brand.products.slice(0, 1)).slice(0, 4);
   return (
     <>
       <StorefrontHero />
+      <ul
+        className={`${s.container} ${s.trustStrip}`}
+        aria-label="Почему Artisan"
+      >
+        <li>
+          <Wallet size={20} />
+          <span>
+            <strong>Оплата при получении</strong>
+            Без предоплаты на сайте
+          </span>
+        </li>
+        <li>
+          <Scissors size={20} />
+          <span>
+            <strong>Распил и кромление</strong>
+            По вашим размерам
+          </span>
+        </li>
+        <li>
+          <MapPin size={20} />
+          <span>
+            <strong>Самовывоз</strong>
+            {companyContacts.address.replace(/^г\. /, "")}
+          </span>
+        </li>
+        <li>
+          <Gift size={20} />
+          <span>
+            <strong>Бонусы</strong>
+            Баллы за каждую покупку
+          </span>
+        </li>
+      </ul>
+      {promotional.length > 0 && (
+        <section className={`${s.section} ${s.container}`}>
+          <div className={s.sectionHeading}>
+            <div>
+              <p className={s.eyebrow}>Выгодно сейчас</p>
+              <h2>Акции</h2>
+            </div>
+          </div>
+          <div className={s.homeProducts}>
+            {promotional.map((product, index) => (
+              <StorefrontCard
+                key={product.slug}
+                product={product}
+                eager={index < 2}
+                isFavorite={favorites.has(product.slug)}
+                next="/"
+              />
+            ))}
+          </div>
+        </section>
+      )}
       <section className={`${s.section} ${s.container}`}>
         <div className={s.sectionHeading}>
           <div>
@@ -50,6 +116,7 @@ export async function StorefrontHome() {
                   fallbackLabel={category.name}
                   fill
                   sizes="(max-width: 600px) 50vw, 25vw"
+                  loading={index < 4 ? "eager" : undefined}
                   className={s.cover}
                 />
                 <span>{String(index + 1).padStart(2, "0")}</span>
