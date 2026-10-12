@@ -198,6 +198,14 @@ export const purchaseTerms = {
     "За покупки начисляются бонусные баллы, ими можно оплатить часть следующего заказа.",
 };
 
+// Цены работ для заявок, собранных на сайте, и обычные цены для сравнения.
+export const cuttingSitePrices = {
+  sheet: 300,
+  sheetRegular: 350,
+  edge: 28,
+  edgeRegular: 35,
+};
+
 // Стимул за раскрой, оформленный через сайт. null скрывает плашку.
 export const cuttingSiteIncentive: {
   badge: string;

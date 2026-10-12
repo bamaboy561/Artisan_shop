@@ -19,6 +19,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+import { SalesChart } from "@/components/admin/sales-chart";
 import { ExecutiveReportActions } from "@/components/admin/executive-report-actions";
 import { SetupState } from "@/components/admin/setup-state";
 import { StatusBadge } from "@/components/admin/status-badge";
@@ -825,6 +826,13 @@ export default async function AdminPage({
             value={`${formatNumber(executiveReport.breakdown.revenueByBrand.length)} / ${formatNumber(executiveReport.breakdown.soldProducts.length)}`}
             detail={`${formatNumber(executiveReport.sales.itemsSold)} ед. продано за период`}
             icon={Box}
+          />
+        </div>
+
+        <div className="mt-5">
+          <SalesChart
+            days={executiveReport.breakdown.dailySales}
+            brands={executiveReport.breakdown.revenueByBrand}
           />
         </div>
 

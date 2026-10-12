@@ -558,6 +558,31 @@ function buildReportFromRecords({
     }))
     .sort((left, right) => right.revenue - left.revenue);
   const topProducts = soldProducts.slice(0, 6);
+  // Выручка по дням периода; длинные произвольные диапазоны на график не выводим.
+  const dailyMap = new Map<string, { revenue: number; orders: number }>();
+
+  for (
+    let day = new Date(period.start);
+    day < period.end && dailyMap.size < 92;
+    day = addDays(day, 1)
+  ) {
+    dailyMap.set(formatReportDateInput(day), { revenue: 0, orders: 0 });
+  }
+
+  for (const order of paidOrders) {
+    const bucket = dailyMap.get(formatReportDateInput(order.createdAt));
+
+    if (bucket) {
+      bucket.revenue += order.total;
+      bucket.orders += 1;
+    }
+  }
+
+  const dailySales = [...dailyMap.entries()].map(([date, value]) => ({
+    date,
+    ...value,
+  }));
+
   const revenueByBrand = [...brandMap.values()]
     .map((brand) => ({
       name: brand.name,
@@ -750,6 +775,7 @@ function buildReportFromRecords({
       ordersByStatus,
       requestsByStatus,
       requestsByType,
+      dailySales,
       revenueByBrand,
       revenueByCategory,
       soldProducts,
