@@ -38,6 +38,8 @@ function promotionValue(promotion: PublicPromotion) {
   if (promotion.badgeText) return promotion.badgeText;
   if (promotion.discountType === "PERCENT")
     return `−${promotion.discountValue}%`;
+  if (promotion.discountType === "FIXED_PRICE")
+    return `${promotion.discountValue} с`;
   return `−${promotion.discountValue} с`;
 }
 
