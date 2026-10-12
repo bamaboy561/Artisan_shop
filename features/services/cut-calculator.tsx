@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 
 import {
   Calculator,
@@ -8,11 +8,13 @@ import {
   Copy,
   FileDown,
   Layers3,
+  Paperclip,
   Plus,
   Search,
   Scissors,
   ShoppingCart,
   Trash2,
+  X,
 } from "lucide-react";
 
 import { useCart } from "@/components/providers/cart-provider";
@@ -25,12 +27,15 @@ import {
   type SubmitCuttingRequestInput,
 } from "@/app/(public)/calculator/actions";
 import type { CalculatorProductContext } from "@/features/catalog/data";
+import type { ImportedDetail } from "@/features/services/cut-list-import";
+import { CutListImportPanel } from "@/features/services/cut-list-import-panel";
 import type {
   CalculatorMaterialDto,
   CalculatorPresetDto,
   CalculatorSheetFormatDto,
 } from "@/lib/server/calculator-config";
 import { formatPrice } from "@/lib/commerce";
+import { cuttingSiteIncentive } from "@/lib/site-config";
 import { cn } from "@/lib/utils";
 
 type EdgeSide = "top" | "right" | "bottom" | "left";
@@ -430,6 +435,148 @@ function createInitialRows(): DetailRow[] {
       edgedSides: [...allEdgeSides],
     },
   ];
+}
+
+const DRAFT_STORAGE_KEY = "artisan:cut-calculator:draft:v1";
+const MAX_REQUEST_ATTACHMENTS = 5;
+// Vercel принимает запрос до 4,5 МБ, оставляем запас на данные заявки.
+const MAX_REQUEST_ATTACHMENTS_BYTES = 4 * 1024 * 1024;
+const requestAttachmentAccept =
+  ".jpg,.jpeg,.png,.webp,.heic,.pdf,.xls,.xlsx,.csv,.txt,.doc,.docx,.zip,.rar,.b3d,.bpr,.sto,.project,.xml,.dxf,.dwg";
+
+type CalculatorDraft = {
+  details: DetailRow[];
+  contact: Pick<
+    CuttingRequestDraft,
+    | "contactName"
+    | "contactPhone"
+    | "contactEmail"
+    | "messengerType"
+    | "messengerHandle"
+  >;
+  savedAt: string;
+};
+
+function isDetailRow(value: unknown): value is DetailRow {
+  if (!value || typeof value !== "object") return false;
+  const row = value as Record<string, unknown>;
+
+  return (
+    typeof row.id === "string" &&
+    typeof row.title === "string" &&
+    typeof row.width === "string" &&
+    typeof row.height === "string" &&
+    typeof row.quantity === "string" &&
+    Array.isArray(row.edgedSides) &&
+    row.edgedSides.every((side) => allEdgeSides.includes(side as EdgeSide)) &&
+    (row.orientationMode === "free" ||
+      row.orientationMode === "fixed" ||
+      row.orientationMode === "rotated")
+  );
+}
+
+function isSampleRows(rows: DetailRow[]) {
+  const sample = createInitialRows();
+
+  return (
+    rows.length === sample.length &&
+    rows.every(
+      (row, index) =>
+        row.title === sample[index].title &&
+        row.width === sample[index].width &&
+        row.height === sample[index].height &&
+        row.quantity === sample[index].quantity,
+    )
+  );
+}
+
+function readCalculatorDraft(): CalculatorDraft | null {
+  try {
+    const raw = window.localStorage.getItem(DRAFT_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<CalculatorDraft>;
+    const details = Array.isArray(parsed.details)
+      ? parsed.details.filter(isDetailRow)
+      : [];
+
+    if (details.length === 0) return null;
+
+    return {
+      details,
+      contact: {
+        contactName: String(parsed.contact?.contactName ?? ""),
+        contactPhone: String(parsed.contact?.contactPhone ?? ""),
+        contactEmail: String(parsed.contact?.contactEmail ?? ""),
+        messengerType:
+          parsed.contact?.messengerType === "WHATSAPP" ||
+          parsed.contact?.messengerType === "TELEGRAM"
+            ? parsed.contact.messengerType
+            : "",
+        messengerHandle: String(parsed.contact?.messengerHandle ?? ""),
+      },
+      savedAt: String(parsed.savedAt ?? ""),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writeCalculatorDraft(draft: CalculatorDraft | null) {
+  try {
+    if (draft) {
+      window.localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draft));
+    } else {
+      window.localStorage.removeItem(DRAFT_STORAGE_KEY);
+    }
+  } catch {
+    // Хранилище недоступно (приватный режим), черновик просто не сохраняем.
+  }
+}
+
+function importedDetailToRow(detail: ImportedDetail, index: number): DetailRow {
+  return {
+    ...createRow(index),
+    title: detail.title,
+    width: String(detail.length),
+    height: String(detail.width),
+    quantity: String(detail.quantity),
+    edgedSides: normalizeEdgeSides(detail.edgedSides),
+  };
+}
+
+async function compressImageAttachment(file: File): Promise<File> {
+  if (!/^image\/(jpeg|png|webp)$/.test(file.type) || file.size < 600_000) {
+    return file;
+  }
+
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, 2000 / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(bitmap.width * scale);
+    canvas.height = Math.round(bitmap.height * scale);
+    canvas
+      .getContext("2d")
+      ?.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, "image/jpeg", 0.82),
+    );
+
+    if (!blob || blob.size >= file.size) return file;
+
+    return new File([blob], file.name.replace(/\.[^.]+$/, "") + ".jpg", {
+      type: "image/jpeg",
+    });
+  } catch {
+    return file;
+  }
+}
+
+function formatFileSize(bytes: number) {
+  return bytes >= 1024 * 1024
+    ? `${(bytes / 1024 / 1024).toFixed(1)} МБ`
+    : `${Math.max(1, Math.round(bytes / 1024))} КБ`;
 }
 
 function getCutMapColor(index: number) {
@@ -1372,6 +1519,57 @@ export function CutCalculator({
     signature: string;
   } | null>(null);
   const [isSubmittingRequest, startSubmittingRequest] = useTransition();
+  const [attachments, setAttachments] = useState<File[]>([]);
+  const [isPreparingAttachments, setIsPreparingAttachments] = useState(false);
+  const [restoredDraftAt, setRestoredDraftAt] = useState<string | null>(null);
+  const draftReadyRef = useRef(false);
+  const attachmentInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const draft = readCalculatorDraft();
+
+    if (draft) {
+      // Черновик живёт в localStorage и доступен только после гидратации.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setDetails(draft.details);
+      setRequestDraft((current) => ({ ...current, ...draft.contact }));
+      setRestoredDraftAt(draft.savedAt || null);
+    }
+
+    draftReadyRef.current = true;
+  }, []);
+
+  useEffect(() => {
+    if (!draftReadyRef.current) return;
+
+    const timer = window.setTimeout(() => {
+      if (isSampleRows(details) && !requestDraft.contactPhone.trim()) {
+        writeCalculatorDraft(null);
+        return;
+      }
+
+      writeCalculatorDraft({
+        details,
+        contact: {
+          contactName: requestDraft.contactName,
+          contactPhone: requestDraft.contactPhone,
+          contactEmail: requestDraft.contactEmail,
+          messengerType: requestDraft.messengerType,
+          messengerHandle: requestDraft.messengerHandle,
+        },
+        savedAt: new Date().toISOString(),
+      });
+    }, 400);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    details,
+    requestDraft.contactEmail,
+    requestDraft.contactName,
+    requestDraft.contactPhone,
+    requestDraft.messengerHandle,
+    requestDraft.messengerType,
+  ]);
   const cartProductSlugs = useMemo(
     () => new Set(cartItems.map((item) => item.productSlug)),
     [cartItems],
@@ -1755,6 +1953,70 @@ export function CutCalculator({
     setDetails((current) => [...current, createRow(current.length + 1)]);
   };
 
+  const importDetails = (
+    imported: ImportedDetail[],
+    mode: "append" | "replace",
+  ) => {
+    setDetails((current) => {
+      const keepCurrent =
+        mode === "append" &&
+        current.some(
+          (row) => parsePositive(row.width) && parsePositive(row.height),
+        );
+      const base = keepCurrent ? current : [];
+
+      return [
+        ...base,
+        ...imported.map((detail, index) =>
+          importedDetailToRow(detail, base.length + index + 1),
+        ),
+      ];
+    });
+    setRestoredDraftAt(null);
+  };
+
+  const addAttachments = async (fileList: FileList | null) => {
+    const picked = Array.from(fileList ?? []);
+    if (attachmentInputRef.current) {
+      attachmentInputRef.current.value = "";
+    }
+    if (picked.length === 0) return;
+
+    setIsPreparingAttachments(true);
+    const prepared = await Promise.all(picked.map(compressImageAttachment));
+    setIsPreparingAttachments(false);
+
+    const next = [...attachments, ...prepared].slice(
+      0,
+      MAX_REQUEST_ATTACHMENTS,
+    );
+    const totalBytes = next.reduce((sum, file) => sum + file.size, 0);
+
+    if (totalBytes > MAX_REQUEST_ATTACHMENTS_BYTES) {
+      setRequestFeedback({
+        tone: "error",
+        message:
+          "Файлы больше 4 МБ вместе. Прикрепите меньше файлов или отправьте большой проект менеджеру в WhatsApp.",
+      });
+      return;
+    }
+
+    if (attachments.length + prepared.length > MAX_REQUEST_ATTACHMENTS) {
+      setRequestFeedback({
+        tone: "error",
+        message: `Можно прикрепить до ${MAX_REQUEST_ATTACHMENTS} файлов.`,
+      });
+    } else {
+      setRequestFeedback(null);
+    }
+
+    setAttachments(next);
+  };
+
+  const removeAttachment = (index: number) => {
+    setAttachments((current) => current.filter((_, i) => i !== index));
+  };
+
   const duplicateRow = (id: string) => {
     setDetails((current) => {
       const targetIndex = current.findIndex((row) => row.id === id);
@@ -1877,14 +2139,18 @@ export function CutCalculator({
     setDetails(createInitialRows());
     setRequestFeedback(null);
     setSubmittedProjectReference(null);
+    setAttachments([]);
+    setRestoredDraftAt(null);
   };
 
   const handleRequestSubmit = () => {
-    if (exportableRows.length === 0) {
+    const hasDetails = exportableRows.length > 0;
+
+    if (!hasDetails && attachments.length === 0) {
       setRequestFeedback({
         tone: "error",
         message:
-          "Добавьте хотя бы одну деталь с размерами, чтобы отправить заявку.",
+          "Добавьте детали с размерами или прикрепите проект, Excel или фото списка.",
       });
 
       return;
@@ -1912,7 +2178,59 @@ export function CutCalculator({
 
     startSubmittingRequest(() => {
       void (async () => {
-        const result = await submitCuttingRequestAction(requestPayload);
+        const formData = new FormData();
+        const attachmentNames = attachments.map((file) => file.name);
+
+        attachments.forEach((file) => formData.append("files", file));
+
+        if (hasDetails) {
+          const projectXml = buildGibLabProjectXml({
+            material,
+            sheet,
+            rows: exportableRows,
+            basisSettings,
+            sheetCount: Math.max(cutMap.sheets.length, estimate.sheetCount, 0),
+            edgeThicknessMm: edgeThicknessValue,
+            edgeWidthMm: edgeWidthValue,
+            projectReference: null,
+          });
+          formData.append(
+            "files",
+            new File([projectXml], getGibLabFileName(new Date()), {
+              type: "application/xml",
+            }),
+          );
+        }
+
+        const payload: SubmitCuttingRequestInput = hasDetails
+          ? {
+              ...requestPayload,
+              message:
+                attachmentNames.length > 0
+                  ? `${requestPayload.message}\n\nВложения клиента: ${attachmentNames.join(", ")}`
+                  : requestPayload.message,
+            }
+          : {
+              ...requestPayload,
+              subject: `Распил по файлу: ${requestPayload.material}`,
+              message: [
+                `Материал: ${requestPayload.material}`,
+                `Детали в файлах клиента: ${attachmentNames.join(", ")}`,
+                requestDraft.comment.trim()
+                  ? `\nКомментарий клиента:\n${requestDraft.comment.trim()}`
+                  : "",
+              ]
+                .filter(Boolean)
+                .join("\n"),
+              cuttingSheetCount: null,
+              cuttingEdgeMeters: null,
+              estimatedBudget: null,
+            };
+        if (cuttingSiteIncentive) {
+          payload.message = `${payload.message}\n\n${cuttingSiteIncentive.managerNote}`;
+        }
+
+        const result = await submitCuttingRequestAction(payload, formData);
 
         if (!result.ok) {
           setRequestFeedback({
@@ -1938,6 +2256,7 @@ export function CutCalculator({
           ...current,
           comment: "",
         }));
+        setAttachments([]);
       })();
     });
   };
@@ -2234,6 +2553,37 @@ export function CutCalculator({
               </div>
             </div>
           </div>
+
+          {cuttingSiteIncentive ? (
+            <div className="mt-3.5 flex items-center gap-3 bg-[var(--accent)] px-3 py-2.5 text-white sm:mt-5 sm:px-4 sm:py-3">
+              <span className="shrink-0 font-mono text-lg font-semibold sm:text-xl">
+                {cuttingSiteIncentive.badge}
+              </span>
+              <div className="min-w-0">
+                <p className="text-[13px] leading-5 font-semibold sm:text-sm">
+                  {cuttingSiteIncentive.title}
+                </p>
+                <p className="text-[11px] leading-4.5 text-white/85 sm:text-[12px]">
+                  {cuttingSiteIncentive.text}
+                </p>
+              </div>
+            </div>
+          ) : null}
+
+          <CutListImportPanel onImport={importDetails} />
+
+          {restoredDraftAt ? (
+            <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 border border-[color:var(--line)] bg-white px-3 py-2 text-[12px] leading-5 text-[var(--muted)]">
+              <span>Восстановили ваш прошлый раскрой на этом устройстве.</span>
+              <button
+                type="button"
+                onClick={resetCalculator}
+                className="text-[var(--foreground)] underline underline-offset-2"
+              >
+                Начать заново
+              </button>
+            </div>
+          ) : null}
 
           <div className="mt-3.5 space-y-2.5 sm:mt-5 sm:space-y-3.5">
             {details.map((detail, index) => {
@@ -2665,15 +3015,79 @@ export function CutCalculator({
               </label>
             </div>
 
+            <div className="mt-3 border border-dashed border-[color:var(--line-strong)] bg-white p-3">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <p className="text-[13px] font-medium text-[var(--foreground)]">
+                    Проект Базиса, Excel или фото списка
+                  </p>
+                  <p className="mt-0.5 text-[11px] leading-4.5 text-[var(--muted)]">
+                    Не хотите вводить детали? Прикрепите файл, менеджер
+                    перенесёт его в раскрой. До {MAX_REQUEST_ATTACHMENTS}{" "}
+                    файлов, вместе до 4 МБ.
+                  </p>
+                </div>
+                <Button
+                  variant="secondary"
+                  onClick={() => attachmentInputRef.current?.click()}
+                  disabled={
+                    isPreparingAttachments ||
+                    attachments.length >= MAX_REQUEST_ATTACHMENTS
+                  }
+                  className="w-full shrink-0 sm:w-auto"
+                >
+                  <Paperclip className="size-4" />
+                  {isPreparingAttachments ? "Готовим..." : "Прикрепить"}
+                </Button>
+                <input
+                  ref={attachmentInputRef}
+                  type="file"
+                  multiple
+                  accept={requestAttachmentAccept}
+                  className="hidden"
+                  onChange={(event) => void addAttachments(event.target.files)}
+                />
+              </div>
+              {attachments.length > 0 ? (
+                <ul className="mt-2.5 grid gap-1.5">
+                  {attachments.map((file, index) => (
+                    <li
+                      key={`${file.name}-${index}`}
+                      className="flex items-center justify-between gap-2 border border-[color:var(--line)] bg-[var(--surface-strong)] px-2.5 py-1.5 text-[12px]"
+                    >
+                      <span className="min-w-0 truncate text-[var(--foreground)]">
+                        {file.name}
+                      </span>
+                      <span className="flex shrink-0 items-center gap-2 text-[var(--muted)]">
+                        {formatFileSize(file.size)}
+                        <button
+                          type="button"
+                          onClick={() => removeAttachment(index)}
+                          aria-label={`Убрать ${file.name}`}
+                          className="text-[var(--muted)] hover:text-[var(--foreground)]"
+                        >
+                          <X className="size-3.5" />
+                        </button>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+
             <div className="mt-3 flex flex-col gap-2.5 border-t border-[color:var(--line)] pt-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="text-[11px] leading-4.5 text-[var(--muted)]">
-                В заявку уйдут карта, ведомость, кромка 1 мм и ориентир по
-                стоимости.
+                В заявку уйдут карта, файл для GibLab, кромка и ориентир по
+                стоимости. Точную сумму подтвердит менеджер.
               </div>
               <Button
                 variant="accent"
                 onClick={handleRequestSubmit}
-                disabled={isSubmittingRequest || exportableRows.length === 0}
+                disabled={
+                  isSubmittingRequest ||
+                  isPreparingAttachments ||
+                  (exportableRows.length === 0 && attachments.length === 0)
+                }
                 className="w-full sm:w-auto"
               >
                 {isSubmittingRequest ? "Отправляем..." : "Отправить заявку"}

@@ -1,13 +1,15 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import path from "node:path";
 import { z } from "zod";
 
 import { getOptionalSession } from "@/lib/auth/dal";
 import { handleCuttingRequestCreated } from "@/lib/server/commercial-integrations";
 import { logOperationEvent } from "@/lib/server/operation-events";
-import { createCuttingRequest } from "@/lib/server/request-inbox";
+import {
+  createCuttingRequest,
+  isAllowedRequestFile,
+} from "@/lib/server/request-inbox";
 
 const serviceRequestSchema = z.object({
   contactName: z.string().trim().min(2, "Укажите имя для заявки."),
@@ -62,27 +64,6 @@ function normalizeFiles(rawEntries: FormDataEntryValue[]) {
       entry.size > 0 &&
       entry.name.trim().length > 0,
   );
-}
-
-function hasAllowedFileExtension(fileName: string) {
-  return new Set([
-    ".pdf",
-    ".xls",
-    ".xlsx",
-    ".csv",
-    ".txt",
-    ".doc",
-    ".docx",
-    ".zip",
-    ".rar",
-    ".jpg",
-    ".jpeg",
-    ".png",
-    ".webp",
-    ".dwg",
-    ".dxf",
-    ".project",
-  ]).has(path.extname(fileName).toLowerCase());
 }
 
 function buildServiceRequestMessage(input: {
@@ -159,7 +140,7 @@ export async function submitServiceRequestAction(
   }
 
   const unsupportedFile = files.find(
-    (file) => !hasAllowedFileExtension(file.name),
+    (file) => !isAllowedRequestFile(file.name),
   );
 
   if (unsupportedFile) {
