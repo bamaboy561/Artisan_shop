@@ -14,6 +14,7 @@ import { formatPrice } from "@/lib/commerce";
 import { getDb, hasDatabaseUrl, isDemoModeEnabled } from "@/lib/db";
 import { absoluteUrl } from "@/lib/seo";
 import { sendClientDirectMessage } from "@/lib/server/client-notifications";
+import { sendCustomerEmail } from "@/lib/server/customer-email";
 
 type TelegramMessagePayload = {
   title: string;
@@ -1143,6 +1144,34 @@ export async function handleCuttingRequestCreated(
   ]);
 }
 
+// Письмо о готовности получает и гость без Telegram, если оставил email.
+async function sendReadyForPickupEmail(input: {
+  email?: string | null;
+  contactName: string;
+  subject: string;
+  line: string;
+  accountPath: string;
+}) {
+  if (!input.email) {
+    return;
+  }
+
+  try {
+    await sendCustomerEmail({
+      to: input.email,
+      subject: input.subject,
+      greeting: `Здравствуйте, ${input.contactName}!`,
+      lines: [input.line, "Заберите его в рабочее время по адресу ниже."],
+      action: {
+        text: "Открыть в личном кабинете",
+        url: absoluteUrl(input.accountPath),
+      },
+    });
+  } catch (error) {
+    console.error("[integrations:email]", error);
+  }
+}
+
 export async function handleRequestUpdated(input: RequestIntegrationInput) {
   const requestPayload = buildRequestPayload(input);
   const telegramPayload = buildRequestStatusTelegramMessage(input);
@@ -1177,6 +1206,19 @@ export async function handleRequestUpdated(input: RequestIntegrationInput) {
                 actions: clientPayload.actions,
               }).then(() => undefined),
           ),
+        ]
+      : []),
+    ...(input.cuttingStage === CuttingStage.READY_FOR_PICKUP &&
+    input.previousCuttingStage !== undefined &&
+    input.previousCuttingStage !== input.cuttingStage
+      ? [
+          sendReadyForPickupEmail({
+            email: input.contactEmail,
+            contactName: input.contactName,
+            subject: `Распил по заявке ${input.number ?? input.id} готов к выдаче`,
+            line: `Распил по заявке ${input.number ?? input.id} готов к выдаче.`,
+            accountPath: "/account/requests",
+          }),
         ]
       : []),
     safelyRunIntegration("1c", "request.updated", requestPayload, () =>
@@ -1258,6 +1300,19 @@ export async function handleOrderUpdated(input: OrderIntegrationInput) {
                 actions: clientPayload.actions,
               }).then(() => undefined),
           ),
+        ]
+      : []),
+    ...(input.status === "READY_FOR_PICKUP" &&
+    typeof input.previousStatus === "string" &&
+    input.previousStatus !== input.status
+      ? [
+          sendReadyForPickupEmail({
+            email: input.contactEmail,
+            contactName: input.contactName,
+            subject: `Заказ ${input.number ?? input.id} готов к выдаче`,
+            line: `Заказ ${input.number ?? input.id} на сумму ${formatPrice(Math.round(input.total))} готов к выдаче.`,
+            accountPath: "/account/orders",
+          }),
         ]
       : []),
     safelyRunIntegration("1c", "order.updated", orderPayload, () =>
