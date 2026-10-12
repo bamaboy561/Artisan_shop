@@ -2961,6 +2961,8 @@ export async function updateOrderItemsAction(formData: FormData) {
       tx.order.findUnique({
         where: { id: orderId },
         select: {
+          subtotal: true,
+          discountTotal: true,
           promotionDiscountTotal: true,
           loyaltyRedemptionTotal: true,
           deliveryTotal: true,
@@ -2988,6 +2990,7 @@ export async function updateOrderItemsAction(formData: FormData) {
           id: true,
           productId: true,
           quantity: true,
+          unitPrice: true,
           snapshotName: true,
           discountAmount: true,
         },
@@ -3176,6 +3179,10 @@ export async function updateOrderItemsAction(formData: FormData) {
     });
     const repricedItems = finalItems.map((item) => {
       const lineSubtotal = item.unitPrice * item.quantity;
+      const previousItem = currentItemMap.get(item.id);
+      const previousLineSubtotal = previousItem
+        ? previousItem.unitPrice * previousItem.quantity
+        : 0;
       const promotionPrice = item.product
         ? getProductPromotionPrice(
             item.unitPrice,
@@ -3183,9 +3190,22 @@ export async function updateOrderItemsAction(formData: FormData) {
             item.product.category.promotions,
           )
         : null;
-      const discountAmount = item.product
-        ? (promotionPrice?.unitDiscountAmount ?? 0) * item.quantity
-        : Math.min(item.discountAmount, lineSubtotal);
+      // Скидку строки, которая уже была в заказе, сохраняем в той же доле:
+      // правка количества не должна стирать личную скидку или цену из
+      // накладной. Акцию заново считаем только для новой строки.
+      const discountAmount = previousItem
+        ? previousLineSubtotal > 0
+          ? Math.min(
+              lineSubtotal,
+              Math.round(
+                (previousItem.discountAmount / previousLineSubtotal) *
+                  lineSubtotal,
+              ),
+            )
+          : 0
+        : item.product
+          ? (promotionPrice?.unitDiscountAmount ?? 0) * item.quantity
+          : Math.min(item.discountAmount, lineSubtotal);
 
       return {
         ...item,
@@ -3236,9 +3256,31 @@ export async function updateOrderItemsAction(formData: FormData) {
         : 0;
     const promotionDiscountTotal =
       linePromotionDiscountTotal + orderPromotionDiscountTotal;
+    // Личная скидка заказа с сайта хранится на уровне заказа, а не строк.
+    // Сохраняем её в той же доле от суммы после скидок строк.
+    const previousLineDiscountTotal = currentItems.reduce(
+      (sum, item) => sum + item.discountAmount,
+      0,
+    );
+    const previousPersonalDiscount = Math.max(
+      0,
+      order.discountTotal -
+        Math.max(order.promotionDiscountTotal, previousLineDiscountTotal),
+    );
+    const previousPersonalBase = order.subtotal - previousLineDiscountTotal;
+    const personalDiscountTotal =
+      previousPersonalDiscount > 0 && previousPersonalBase > 0
+        ? Math.min(
+            Math.max(0, subtotal - promotionDiscountTotal),
+            Math.round(
+              (previousPersonalDiscount / previousPersonalBase) *
+                subtotalAfterLinePromotions,
+            ),
+          )
+        : 0;
     const subtotalAfterPromotion = Math.max(
       0,
-      subtotal - promotionDiscountTotal,
+      subtotal - promotionDiscountTotal - personalDiscountTotal,
     );
     const loyaltyRedemptionTotal = Math.min(
       order.loyaltyRedemptionTotal,
@@ -3324,6 +3366,7 @@ export async function updateOrderItemsAction(formData: FormData) {
       0,
       subtotal -
         promotionDiscountTotal -
+        personalDiscountTotal -
         loyaltyRedemptionTotal +
         order.deliveryTotal,
     );
@@ -3332,7 +3375,7 @@ export async function updateOrderItemsAction(formData: FormData) {
       where: { id: orderId },
       data: {
         subtotal,
-        discountTotal: promotionDiscountTotal,
+        discountTotal: promotionDiscountTotal + personalDiscountTotal,
         promotionDiscountTotal,
         loyaltyRedemptionTotal,
         total,
