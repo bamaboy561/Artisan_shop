@@ -752,7 +752,7 @@ function parseProductImportSheet(
   const warnings: string[] = [];
   if (inventoryReport) {
     warnings.push(
-      "Распознан отчёт остатков: цены и суммы игнорируются во всех режимах. Товары, отсутствующие в отчёте, не обнуляются.",
+      "Распознан отчёт остатков: цены и суммы игнорируются во всех режимах. Товары, отсутствующие в отчёте, обнуляются, только если включена галочка «Обнулить остаток у товаров, которых нет в файле».",
     );
   }
   if (!columnMap.has("name")) {
@@ -916,12 +916,26 @@ function parseProductImportSheet(
   });
 
   if (inventoryReport) {
-    const invalidStockRows = rows.filter(
+    const stockErrorRows = rows.filter(
       (row) => row.stockImportErrors.stockQuantity,
+    );
+    // Дробное количество (метры кромки) не ошибка: оно округляется вниз.
+    const fractionalStockRows = stockErrorRows.filter(
+      (row) =>
+        row.stockQuantity !== null &&
+        row.stockQuantity >= 0 &&
+        row.stockQuantity <= 2147483647 &&
+        !Number.isInteger(row.stockQuantity),
     ).length;
+    const invalidStockRows = stockErrorRows.length - fractionalStockRows;
+    if (fractionalStockRows) {
+      warnings.push(
+        `Дробных остатков: ${fractionalStockRows}, будут округлены вниз до целого.`,
+      );
+    }
     if (invalidStockRows) {
       warnings.push(
-        `Строк с некорректным или дробным остатком: ${invalidStockRows}. Они не будут обновлены; количества не округляются.`,
+        `Строк с некорректным остатком: ${invalidStockRows}. Они не будут обновлены.`,
       );
     }
   }
