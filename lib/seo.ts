@@ -361,17 +361,31 @@ export function categoryDescription(category: CatalogCategory) {
   );
 }
 
+// Search engines demote titles that are bare keyword lists
+// ("ЛДСП, бишкек, дешево, скидки, ..."), so such admin values fall back
+// to the generated text.
+function isKeywordList(value?: string | null) {
+  return (value?.match(/,/g)?.length ?? 0) >= 3;
+}
+
+function usableSeoText(value?: string | null) {
+  const trimmed = value?.trim();
+  return trimmed && !isKeywordList(trimmed) ? trimmed : "";
+}
+
 export function categorySeoTitle(category: CatalogCategory) {
   return (
-    category.seoTitle?.trim() ||
+    usableSeoText(category.seoTitle) ||
     `${category.name} в Бишкеке — каталог, наличие и распил`
   );
 }
 
 export function categorySeoDescription(category: CatalogCategory) {
-  const description = category.seoDescription
-    ? normalizeText(category.seoDescription, "")
-    : `${categoryDescription(category)} Подбор, консультация, запрос цены и услуги распила в ${localMarket}.`;
+  const seoDescription = usableSeoText(category.seoDescription);
+  const description =
+    seoDescription && seoDescription !== usableSeoText(category.seoTitle)
+      ? normalizeText(seoDescription, "")
+      : `${normalizeText(category.summary || category.description, `${category.name}: материалы Artisan, подбор, наличие и запрос цены.`)} Подбор, консультация, заказ и услуги распила в ${localMarket}.`;
 
   return truncateText(description);
 }
@@ -384,8 +398,10 @@ export function productDescription(product: FeaturedProduct) {
 }
 
 export function productSeoTitle(product: FeaturedProduct) {
-  if (product.seoTitle?.trim()) {
-    return product.seoTitle;
+  const seoTitle = usableSeoText(product.seoTitle);
+
+  if (seoTitle) {
+    return seoTitle;
   }
 
   const core = [product.name, product.brand, product.categoryName]
@@ -396,8 +412,10 @@ export function productSeoTitle(product: FeaturedProduct) {
 }
 
 export function productSeoDescription(product: FeaturedProduct) {
-  if (product.seoDescription?.trim()) {
-    return truncateText(product.seoDescription);
+  const seoDescription = usableSeoText(product.seoDescription);
+
+  if (seoDescription) {
+    return truncateText(seoDescription);
   }
 
   const base = normalizeText(

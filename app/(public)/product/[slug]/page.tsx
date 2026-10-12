@@ -4,6 +4,8 @@ import { notFound } from "next/navigation";
 
 import { AddBundleItemButton } from "@/components/ecommerce/add-bundle-item-button";
 import { AddToCartButton } from "@/components/ecommerce/add-to-cart-button";
+import { PurchaseInfo } from "@/components/ecommerce/purchase-info";
+import { QuantityAddToCart } from "@/components/ecommerce/quantity-add-to-cart";
 import { FavoriteToggle } from "@/components/catalog/favorite-toggle";
 import { ProductGalleryViewer } from "@/components/catalog/product-gallery-viewer";
 import { StructuredData } from "@/components/seo/structured-data";
@@ -186,7 +188,6 @@ export default async function ProductPage({ params }: ProductPageProps) {
       (specification) =>
         !duplicatedSpecKeys.has(specification.key.trim().toLowerCase()),
     ),
-    { key: "Сценарий заказа", value: product.action },
   ];
 
   return (
@@ -336,10 +337,10 @@ export default async function ProductPage({ params }: ProductPageProps) {
                 {product.purchaseMode === "cart" &&
                 typeof product.price === "number" ? (
                   <>
-                    <AddToCartButton
+                    <QuantityAddToCart
                       productSlug={product.slug}
                       disabled={!product.inStock}
-                      className="w-full"
+                      maxQuantity={product.stockQuantity}
                     />
                     <ButtonLink
                       href="/contacts"
@@ -375,6 +376,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
                   </>
                 )}
               </div>
+
+              <PurchaseInfo className="mt-5" />
             </div>
           </aside>
         </div>

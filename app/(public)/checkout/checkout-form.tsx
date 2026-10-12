@@ -192,7 +192,8 @@ export function CheckoutForm({
                   Имя
                   <Input
                     name="name"
-                    placeholder="Иван Иванов"
+                    autoComplete="name"
+                    placeholder="Айбек Асанов"
                     defaultValue={customer?.name}
                     required
                   />
@@ -202,7 +203,9 @@ export function CheckoutForm({
                   <Input
                     name="phone"
                     type="tel"
-                    placeholder="+7 900 000-00-00"
+                    inputMode="tel"
+                    autoComplete="tel"
+                    placeholder="+996 555 123 456"
                     defaultValue={customer?.phone}
                     required
                   />
@@ -212,7 +215,8 @@ export function CheckoutForm({
                   <Input
                     name="email"
                     type="email"
-                    placeholder="project@artisan.pro"
+                    autoComplete="email"
+                    placeholder="name@mail.kg"
                     defaultValue={customer?.email}
                   />
                 </label>
@@ -229,7 +233,11 @@ export function CheckoutForm({
               <div className="grid gap-4 md:grid-cols-2">
                 <label className="grid gap-2 text-sm text-[var(--foreground)]">
                   Город
-                  <Input name="city" placeholder="Бишкек" />
+                  <Input
+                    name="city"
+                    placeholder="Бишкек"
+                    defaultValue="Бишкек"
+                  />
                 </label>
                 <label className="grid gap-2 text-sm text-[var(--foreground)]">
                   Способ доставки

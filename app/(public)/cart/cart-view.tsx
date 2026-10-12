@@ -14,6 +14,7 @@ import { Container } from "@/components/ui/container";
 import { SectionHeading } from "@/components/ui/section-heading";
 import type { FeaturedProduct } from "@/features/catalog/types";
 import { formatPrice } from "@/lib/commerce";
+import { PurchaseInfo } from "@/components/ecommerce/purchase-info";
 
 function CartQuantityInput({
   productName,
@@ -300,6 +301,7 @@ export function CartView({ products }: { products: FeaturedProduct[] }) {
                 Оформить заказ
               </Link>
             )}
+            <PurchaseInfo className="mt-6" />
           </aside>
         </div>
       )}
