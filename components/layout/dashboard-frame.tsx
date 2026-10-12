@@ -36,8 +36,8 @@ function AdminFrame({
   const notificationBadge = requestBadge;
 
   return (
-    <div className="min-h-screen bg-[#f7f7f5] text-[#22201e] lg:grid lg:grid-cols-[264px_minmax(0,1fr)] print:block print:bg-white">
-      <aside className="relative z-30 bg-[#111210] text-white lg:sticky lg:top-0 lg:h-screen lg:overflow-hidden print:hidden">
+    <div className="min-h-screen bg-[#f7f7f5] text-[#22201e] print:block print:bg-white lg:grid lg:grid-cols-[264px_minmax(0,1fr)]">
+      <aside className="relative z-30 bg-[#111210] text-white print:hidden lg:sticky lg:top-0 lg:h-screen lg:overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_8%_8%,rgba(197,89,53,0.22),transparent_28%),linear-gradient(180deg,rgba(255,255,255,0.035),rgba(255,255,255,0))]" />
         <div className="relative flex flex-col px-3 py-3 lg:h-full lg:min-h-0 lg:py-4">
           <Link href="/admin" className="flex items-center gap-3 px-1">
@@ -62,7 +62,7 @@ function AdminFrame({
             На сайт
           </Link>
 
-          <div className="mt-4 min-h-0 [scrollbar-width:none] overflow-hidden lg:mt-6 lg:flex-1 lg:overflow-y-auto lg:pr-1 [&::-webkit-scrollbar]:hidden">
+          <div className="mt-4 min-h-0 overflow-hidden [scrollbar-width:none] lg:mt-6 lg:flex-1 lg:overflow-y-auto lg:pr-1 [&::-webkit-scrollbar]:hidden">
             <DashboardNav items={items} variant="admin" />
           </div>
 
@@ -148,7 +148,7 @@ function AdminFrame({
 
         <main
           id="main-content"
-          className="min-w-0 space-y-5 overflow-x-clip px-4 py-5 sm:px-6 xl:px-7 xl:py-6 print:space-y-0 print:overflow-visible print:p-0"
+          className="min-w-0 space-y-5 overflow-x-clip px-4 py-5 print:space-y-0 print:overflow-visible print:p-0 sm:px-6 xl:px-7 xl:py-6"
         >
           <div className="sr-only">
             <h1>{title}</h1>
