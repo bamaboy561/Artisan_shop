@@ -1,3 +1,4 @@
+import { ConfirmDeleteButton } from "@/components/admin/confirm-delete-button";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -7,7 +8,7 @@ import {
   type ProductFormDefaults,
 } from "@/app/admin/products/new-product-form";
 import { StatusBadge } from "@/components/admin/status-badge";
-import { Button } from "@/components/ui/button";
+import { getButtonClassName } from "@/components/ui/button";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { ProductOrderMode, ProductStatus } from "@/generated/prisma";
 import {
@@ -209,14 +210,17 @@ export default async function EditProductPage({
             </Link>
             <form action={deleteProductAction}>
               <input type="hidden" name="id" value={product.id} />
-              <Button
-                type="submit"
-                variant="ghost"
-                size="sm"
-                className="h-10 px-4 text-red-600 hover:bg-red-50"
+              <input type="hidden" name="redirectTo" value="list" />
+              <ConfirmDeleteButton
+                confirmMessage="Удалить товар? Он пропадёт из каталога, избранного и комплектов. Это действие нельзя отменить."
+                className={getButtonClassName(
+                  "ghost",
+                  "sm",
+                  "h-10 px-4 text-red-600 hover:bg-red-50",
+                )}
               >
                 Удалить товар
-              </Button>
+              </ConfirmDeleteButton>
             </form>
           </div>
         </div>

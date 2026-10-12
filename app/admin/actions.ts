@@ -66,6 +66,10 @@ import {
   isProductionOperator,
   roleDefinitions,
 } from "@/lib/auth/roles";
+import {
+  canManageLoyalty,
+  setLoyaltyManagerAccess,
+} from "@/lib/server/loyalty-permissions";
 import { hasDatabaseUrl, getDb } from "@/lib/db";
 import { ensureBrandLogoColumn } from "@/lib/server/brand-schema";
 import { sendClientDirectMessage } from "@/lib/server/client-notifications";
@@ -886,6 +890,18 @@ async function ensureAdminAccess() {
 
   if (!canAccessGeneralAdmin(session.roleCode)) {
     redirect(getAdminHomePath(session.roleCode));
+  }
+
+  return session;
+}
+
+// Правила бонусов, баллы, уровни, личные скидки и удаление клиентов:
+// администратор или менеджер, которому администратор выдал это право.
+async function ensureLoyaltyManageAccess() {
+  const session = await ensureAdminAccess();
+
+  if (!(await canManageLoyalty(session))) {
+    redirect("/admin/users?loyaltyDenied=1");
   }
 
   return session;
@@ -1997,6 +2013,11 @@ export async function deleteProductAction(formData: FormData) {
   ]);
 
   revalidateAdminCatalog();
+
+  // Из карточки товара возвращаем в список: самой карточки больше нет.
+  if (getString(formData, "redirectTo") === "list") {
+    redirect("/admin/products");
+  }
 }
 
 export async function updateProductAction(formData: FormData) {
@@ -2100,6 +2121,28 @@ export async function updateProductDetailsAction(formData: FormData) {
   );
   const imageUrls = await resolveProductImageUrls(formData, slug);
 
+  // Блоки «Плитный материал» и «Размеры кромки» показываются не для всех
+  // категорий. Поле, которого не было в форме, не трогаем, а не обнуляем.
+  const ifSubmitted = <T,>(field: string, read: () => T) =>
+    formData.has(field) ? read() : undefined;
+
+  // Остаток мог уменьшиться заказом, пока карточка была открыта. Если
+  // менеджер его не менял, не пишем ничего; если менял, применяем разницу.
+  const submittedStock = getOptionalInt(formData, "stockQuantity");
+  const initialStockRaw = formData.get("stockQuantityInitial");
+  const initialStock =
+    typeof initialStockRaw === "string" && initialStockRaw.trim() !== ""
+      ? Number.parseInt(initialStockRaw, 10)
+      : null;
+  const stockQuantityUpdate =
+    typeof initialStockRaw !== "string"
+      ? submittedStock
+      : submittedStock === initialStock
+        ? undefined
+        : submittedStock === null || initialStock === null
+          ? submittedStock
+          : { increment: submittedStock - initialStock };
+
   await db.$transaction(async (tx) => {
     await tx.product.update({
       where: { id },
@@ -2111,21 +2154,27 @@ export async function updateProductDetailsAction(formData: FormData) {
         brandId,
         summary: getOptionalString(formData, "summary"),
         description: getOptionalString(formData, "description"),
-        format: getOptionalString(formData, "format"),
-        thicknessMm: getOptionalInt(formData, "thicknessMm"),
-        edgeThicknessMm: getOptionalFloat(formData, "edgeThicknessMm"),
-        edgeWidthMm: getOptionalFloat(formData, "edgeWidthMm"),
-        calculatorMaterialId: getOptionalString(
-          formData,
-          "calculatorMaterialId",
+        format: ifSubmitted("format", () =>
+          getOptionalString(formData, "format"),
         ),
-        calculatorSheetPresetId: getOptionalString(
-          formData,
-          "calculatorSheetPresetId",
+        thicknessMm: ifSubmitted("thicknessMm", () =>
+          getOptionalInt(formData, "thicknessMm"),
+        ),
+        edgeThicknessMm: ifSubmitted("edgeThicknessMm", () =>
+          getOptionalFloat(formData, "edgeThicknessMm"),
+        ),
+        edgeWidthMm: ifSubmitted("edgeWidthMm", () =>
+          getOptionalFloat(formData, "edgeWidthMm"),
+        ),
+        calculatorMaterialId: ifSubmitted("calculatorMaterialId", () =>
+          getOptionalString(formData, "calculatorMaterialId"),
+        ),
+        calculatorSheetPresetId: ifSubmitted("calculatorSheetPresetId", () =>
+          getOptionalString(formData, "calculatorSheetPresetId"),
         ),
         price: getOptionalInt(formData, "price"),
         compareAtPrice: getOptionalInt(formData, "compareAtPrice"),
-        stockQuantity: getOptionalInt(formData, "stockQuantity"),
+        stockQuantity: stockQuantityUpdate,
         seoTitle: getOptionalString(formData, "seoTitle"),
         seoDescription: getOptionalString(formData, "seoDescription"),
         status:
@@ -4501,6 +4550,60 @@ export async function setProductionStageAction(formData: FormData) {
   );
 }
 
+// «Выдано»: готовый заказ отдан клиенту, заявка закрывается.
+export async function markCuttingRequestIssuedAction(formData: FormData) {
+  const requestId = getString(formData, "requestId");
+
+  if (!requestId) {
+    redirect("/admin/production?notice=request-missing");
+  }
+
+  const actor = await ensureProductionAdminAccess(requestId);
+
+  if (!canManageProduction(actor.roleCode)) {
+    redirect(productionActionReturn(formData, requestId, "action-forbidden"));
+  }
+
+  const previousRequest = await getRequestInboxItemById(requestId);
+
+  if (
+    !previousRequest ||
+    previousRequest.cuttingStage !== CuttingStage.READY_FOR_PICKUP ||
+    previousRequest.status === RequestStatus.COMPLETED ||
+    previousRequest.status === RequestStatus.CANCELED
+  ) {
+    redirect(productionActionReturn(formData, requestId, "action-forbidden"));
+  }
+
+  await updateRequestInboxItem({
+    id: requestId,
+    status: RequestStatus.COMPLETED,
+    managerId: previousRequest.managerId,
+  });
+
+  await logOperationEvent({
+    entityType: "request",
+    entityId: requestId,
+    eventType: "status",
+    title: "Заказ выдан клиенту",
+    description: previousRequest.cuttingPickupCell
+      ? `Выдан из ячейки ${previousRequest.cuttingPickupCell}.`
+      : "Готовый заказ передан клиенту.",
+    fromStatus: previousRequest.status,
+    toStatus: RequestStatus.COMPLETED,
+    isVisibleToClient: true,
+    actor,
+  });
+
+  await syncRequestById(requestId, {
+    previousStatus: previousRequest.status,
+    previousManager: previousRequest.manager,
+  });
+
+  revalidateAdminOperations();
+  redirect(productionActionReturn(formData, requestId, "issued"));
+}
+
 export async function uploadRequestResultFilesAction(formData: FormData) {
   const requestId = getString(formData, "requestId");
   const files = getFileList(formData, "files");
@@ -4679,6 +4782,32 @@ export async function createSalesFloorOrderAction(formData: FormData) {
   }
 
   const db = getDb();
+
+  // Повторная отправка той же формы открывает уже созданную продажу.
+  const submissionId = getString(formData, "submissionId");
+  const submissionKey = /^[A-Za-z0-9-]{16,64}$/.test(submissionId)
+    ? `sales-floor:submission:${submissionId}`
+    : null;
+
+  if (submissionKey) {
+    const saved = await db.siteSetting.findUnique({
+      where: { key: submissionKey },
+    });
+
+    if (saved) {
+      const savedOrderId =
+        saved.value && typeof saved.value === "object"
+          ? (saved.value as { orderId?: unknown }).orderId
+          : null;
+
+      redirect(
+        typeof savedOrderId === "string"
+          ? `/admin/orders/${savedOrderId}`
+          : "/admin/orders",
+      );
+    }
+  }
+
   await ensureProductBundleItemsTable(db);
   const uniqueProductIds = [
     ...new Set(requestedItems.map((item) => item.productId)),
@@ -4842,7 +4971,20 @@ export async function createSalesFloorOrderAction(formData: FormData) {
     awardedPoints > 0 ? `Начислено бонусов: ${awardedPoints}` : "",
     managerComment,
   ].filter(Boolean);
-  const orderNumber = buildAdminOrderNumber("H");
+  let orderNumber = buildAdminOrderNumber("H");
+
+  // Номер уникален в базе: при совпадении берём другой.
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const taken = await db.order.findUnique({
+      where: { number: orderNumber },
+      select: { id: true },
+    });
+
+    if (!taken) break;
+    orderNumber = buildAdminOrderNumber("H");
+  }
+
+  const soldAt = new Date();
 
   let createdOrder: {
     id: string;
@@ -4866,8 +5008,11 @@ export async function createSalesFloorOrderAction(formData: FormData) {
           number: orderNumber,
           userId: customer.id,
           managerId: actor.userId,
-          status: OrderStatus.NEW,
-          inventoryReservedAt: new Date(),
+          // Продажа в зале сразу оплачена и выдана.
+          status: OrderStatus.COMPLETED,
+          readyAt: soldAt,
+          completedAt: soldAt,
+          inventoryReservedAt: soldAt,
           contactName: customerName,
           contactPhone: customer.phone ?? "",
           contactEmail: customer.email,
@@ -4897,6 +5042,12 @@ export async function createSalesFloorOrderAction(formData: FormData) {
           createdAt: true,
         },
       });
+
+      if (submissionKey) {
+        await tx.siteSetting.create({
+          data: { key: submissionKey, value: { orderId: order.id } },
+        });
+      }
 
       if (awardedPoints > 0 || loyaltyRedemptionTotal > 0) {
         if (loyaltyRedemptionTotal > 0) {
@@ -4936,6 +5087,16 @@ export async function createSalesFloorOrderAction(formData: FormData) {
       redirect("/admin/sales-floor?error=loyalty");
     }
 
+    // Та же продажа сохранилась параллельным запросом.
+    if (
+      submissionKey &&
+      typeof error === "object" &&
+      error !== null &&
+      (error as { code?: unknown }).code === "P2002"
+    ) {
+      redirect("/admin/orders");
+    }
+
     throw error;
   }
 
@@ -4943,9 +5104,9 @@ export async function createSalesFloorOrderAction(formData: FormData) {
     entityType: "order",
     entityId: createdOrder.id,
     eventType: "status",
-    title: "Заказ создан в продаже в зале",
+    title: "Продажа в зале: оплачено и выдано",
     description: "Менеджер собрал продажу на планшете и привязал ее к клиенту.",
-    toStatus: OrderStatus.NEW,
+    toStatus: OrderStatus.COMPLETED,
     isVisibleToClient: true,
     actor,
   });
@@ -4954,7 +5115,7 @@ export async function createSalesFloorOrderAction(formData: FormData) {
     id: createdOrder.id,
     userId: customer.id,
     number: createdOrder.number,
-    status: OrderStatus.NEW,
+    status: OrderStatus.COMPLETED,
     contactName: customerName,
     contactPhone: customer.phone ?? "",
     contactEmail: customer.email,
@@ -5498,12 +5659,30 @@ export async function deleteBannerAction(formData: FormData) {
   revalidateAdminContent();
 }
 
+export async function setLoyaltyManagerAccessAction(formData: FormData) {
+  if (!hasDatabaseUrl()) {
+    return;
+  }
+
+  await ensureStaffAdminAccess();
+
+  const id = getString(formData, "id");
+
+  if (!id) {
+    return;
+  }
+
+  await setLoyaltyManagerAccess(id, getString(formData, "allowed") === "1");
+  revalidatePath("/admin/staff");
+  revalidatePath("/admin/users");
+}
+
 export async function updateLoyaltyProgramSettingsAction(formData: FormData) {
   if (!hasDatabaseUrl()) {
     return;
   }
 
-  await ensureAdminAccess();
+  await ensureLoyaltyManageAccess();
 
   const currentConfig = await getLoyaltyProgramConfig();
   await saveLoyaltyProgramConfig({
@@ -5581,7 +5760,7 @@ export async function recalculateLoyaltyStatusesAction() {
     return;
   }
 
-  await ensureAdminAccess();
+  await ensureLoyaltyManageAccess();
 
   const review = await runMonthlyLoyaltyReview({
     force: true,
@@ -5604,7 +5783,7 @@ export async function updateUserLoyaltyAction(formData: FormData) {
     return;
   }
 
-  await ensureAdminAccess();
+  await ensureLoyaltyManageAccess();
 
   const id = getString(formData, "id");
   const loyaltyTier = getString(formData, "loyaltyTier");
@@ -5655,7 +5834,7 @@ export async function deleteClientAction(formData: FormData) {
     return;
   }
 
-  const session = await ensureAdminAccess();
+  const session = await ensureLoyaltyManageAccess();
   const id = getString(formData, "id");
 
   if (!id || id === session.userId) {
@@ -5761,7 +5940,7 @@ export async function adjustUserLoyaltyPointsAction(formData: FormData) {
     return;
   }
 
-  const session = await ensureAdminAccess();
+  const session = await ensureLoyaltyManageAccess();
 
   const id = getString(formData, "id");
   const pointsDelta = getOptionalInt(formData, "pointsDelta");
