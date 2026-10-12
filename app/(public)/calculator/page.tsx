@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { ButtonLink } from "@/components/ui/button-link";
+import { CalculatorHero } from "@/features/services/calculator-hero";
 import { CutCalculator } from "@/features/services/cut-calculator";
 import { getCalculatorBundle } from "@/lib/server/calculator-config";
 import { getCalculatorContextBySlug } from "@/lib/server/catalog-public";
@@ -34,46 +34,10 @@ export default async function CalculatorPage({
   ]);
 
   return (
-    <div className="bg-[#f6f2eb]">
-      <section className="px-4 pt-3 pb-5 sm:px-8 sm:pt-7 sm:pb-10 lg:px-10 lg:pt-8 lg:pb-12">
-        <div className="mx-auto max-w-[1600px] border-t border-[#151411]/10 pt-3 sm:pt-5">
-          <div className="flex items-end justify-between gap-4">
-            <div className="max-w-[34rem]">
-              <p className="font-mono text-[9px] tracking-[0.18em] text-[var(--accent)] uppercase">
-                Калькулятор распила
-              </p>
-              <h1 className="mt-1.5 text-[1.05rem] leading-[1.04] font-semibold tracking-[-0.045em] text-[#151411] sm:mt-3 sm:max-w-[14ch] sm:text-[2.2rem]">
-                Раскрой онлайн: листы и цена сразу.
-              </h1>
-              <ol className="mt-2 grid gap-1 text-[12px] leading-5 text-[#5f554c] sm:mt-3 sm:text-sm">
-                <li>1. Вставьте список из Excel или введите детали.</li>
-                <li>
-                  2. Сразу видно число листов, карту раскроя и ориентир цены.
-                </li>
-                <li>3. Отправьте заявку, можно с проектом Базиса или фото.</li>
-              </ol>
-            </div>
-
-            <div className="hidden sm:flex sm:flex-row sm:flex-wrap sm:gap-3">
-              <ButtonLink
-                href="#cut-request-form"
-                variant="primary"
-                className="justify-center sm:w-auto"
-              >
-                Отправить заявку
-              </ButtonLink>
-              <ButtonLink
-                href="/catalog"
-                variant="secondary"
-                className="justify-center sm:w-auto"
-              >
-                Перейти в каталог
-              </ButtonLink>
-            </div>
-          </div>
-        </div>
-
-        <div className="mx-auto mt-4 max-w-[1600px] sm:mt-7">
+    <div className="bg-[#f3f5f3]">
+      <CalculatorHero />
+      <section className="px-4 pb-5 sm:px-8 sm:pb-10 lg:px-10 lg:pb-12">
+        <div className="mx-auto max-w-[1600px]">
           <CutCalculator
             key={productContext?.slug ?? "manual"}
             productContext={productContext}
