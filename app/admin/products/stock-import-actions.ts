@@ -102,9 +102,34 @@ export async function processStockImportAction(
     mode === "stock" ||
     (mode === "all" && parsed.rows.every((row) => row.inventoryReport));
   const fileName = file.name;
+
+  // «Обнулить то, чего нет в файле»: товар распродан и пропал из отчёта 1С,
+  // но на сайте всё ещё числится в наличии. Только для сверки остатков.
+  const zeroMissing = reconcile && formData.get("zeroMissing") === "on";
+  const missingToZero = zeroMissing
+    ? buildStockReconciliation(parsed.rows, products, plan).flatMap((entry) =>
+        entry.kind === "missing" && (entry.siteQuantity ?? 0) > 0
+          ? [
+              {
+                id: entry.key.slice("missing:".length),
+                name: entry.name,
+                quantity: entry.siteQuantity ?? 0,
+              },
+            ]
+          : [],
+      )
+    : [];
+  const missingToZeroIds = new Set(missingToZero.map((item) => item.id));
+  let zeroedCount: number | null = null;
   const fingerprint = createHash("sha256")
     .update(new Uint8Array(await file.arrayBuffer()))
-    .update(JSON.stringify({ mode, plan }))
+    .update(
+      JSON.stringify({
+        mode,
+        plan,
+        zeroMissing: zeroMissing ? [...missingToZeroIds] : false,
+      }),
+    )
     .digest("hex");
 
   function result(
@@ -126,6 +151,43 @@ export async function processStockImportAction(
     const reconciliation = reconcile
       ? buildStockReconciliation(parsed.rows, products, plan)
       : undefined;
+
+    if (reconciliation && zeroMissing) {
+      for (const entry of reconciliation) {
+        if (
+          entry.kind === "missing" &&
+          missingToZeroIds.has(entry.key.slice("missing:".length))
+        ) {
+          entry.reason =
+            zeroedCount === null
+              ? `Нет в файле: остаток будет обнулён (сейчас ${entry.siteQuantity}).`
+              : `Нет в файле: остаток обнулён (было ${entry.siteQuantity}).`;
+        }
+      }
+    }
+
+    const zeroWarnings =
+      zeroMissing && missingToZero.length > 0
+        ? [
+            `${
+              zeroedCount === null
+                ? "После подтверждения будет обнулён остаток"
+                : "Обнулён остаток"
+            } у товаров, которых нет в файле: ${
+              zeroedCount ?? missingToZero.length
+            }. ${missingToZero
+              .slice(0, 20)
+              .map((item) => `${item.name} (${item.quantity})`)
+              .join("; ")}${
+              missingToZero.length > 20
+                ? `; и ещё ${missingToZero.length - 20}. Полный список в отчёте.`
+                : "."
+            }`,
+          ]
+        : zeroMissing
+          ? ["Товаров с остатком, которых нет в файле, не найдено."]
+          : [];
+
     return {
       phase,
       message,
@@ -143,7 +205,7 @@ export async function processStockImportAction(
         before: entry.before,
         changes: entry.changes,
       })),
-      warnings: parsed.warnings,
+      warnings: [...zeroWarnings, ...parsed.warnings],
       columns: parsed.mappedColumns,
       reconciliation,
       reportCsv: reconciliation
@@ -171,7 +233,7 @@ export async function processStockImportAction(
       );
       if (
         !Array.isArray(keys) ||
-        !keys.length ||
+        (!keys.length && !(zeroMissing && missingToZero.length > 0)) ||
         keys.some((key) => typeof key !== "string" || !allowed.has(key))
       )
         return result(
@@ -259,7 +321,25 @@ export async function processStockImportAction(
       }
     }
   }
-  if (plan.some((entry) => entry.status === "updated")) {
+  if (zeroMissing && missingToZero.length > 0) {
+    try {
+      const zeroed = await db.product.updateMany({
+        where: {
+          id: { in: [...missingToZeroIds] },
+          stockQuantity: { gt: 0 },
+        },
+        data: {
+          stockQuantity: 0,
+          inventoryStatus: getInventoryStatusForStock(0),
+        },
+      });
+      zeroedCount = zeroed.count;
+    } catch {
+      zeroedCount = 0;
+    }
+  }
+
+  if (plan.some((entry) => entry.status === "updated") || zeroedCount) {
     for (const path of [
       "/admin",
       "/admin/products",
@@ -281,7 +361,7 @@ export async function processStockImportAction(
     "done",
     counts.error || counts.conflict
       ? "Обновление завершено с замечаниями. Строки, требующие повторной проверки, указаны в отчёте."
-      : counts.updated
+      : counts.updated || zeroedCount
         ? "Цены и остатки обновлены."
         : "Обновление не потребовалось. Проверьте результаты строк.",
   );
