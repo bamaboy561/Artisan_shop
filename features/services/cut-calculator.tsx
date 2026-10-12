@@ -2891,7 +2891,7 @@ export function CutCalculator({
                     label="Крупный остаток"
                     value={
                       cutMap.largestOffcut
-                        ? `${Math.round(cutMap.largestOffcut.width)} × ${Math.round(cutMap.largestOffcut.height)} мм`
+                        ? `${Math.floor(cutMap.largestOffcut.width)} × ${Math.floor(cutMap.largestOffcut.height)} мм`
                         : "Нет"
                     }
                     muted
@@ -3050,7 +3050,7 @@ export function CutCalculator({
                             label="Крупный остаток"
                             value={
                               cutSheet.largestOffcut
-                                ? `${Math.round(cutSheet.largestOffcut.width)} × ${Math.round(cutSheet.largestOffcut.height)} мм`
+                                ? `${Math.floor(cutSheet.largestOffcut.width)} × ${Math.floor(cutSheet.largestOffcut.height)} мм`
                                 : "Нет"
                             }
                             muted
@@ -3074,7 +3074,7 @@ export function CutCalculator({
                                   key={offcut.id}
                                   className="inline-flex items-center border border-[color:var(--line)] bg-white px-2.5 py-1.5 text-[11px] text-[var(--foreground)]"
                                 >
-                                  {Math.round(offcut.width)}×{Math.round(offcut.height)} мм
+                                  {Math.floor(offcut.width)}×{Math.floor(offcut.height)} мм
                                 </span>
                               ))}
                             </div>
