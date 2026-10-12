@@ -650,7 +650,11 @@ export function NewProductForm({
   const detailsGridClassName = compact
     ? "grid gap-2.5 sm:grid-cols-2"
     : "grid gap-3 lg:grid-cols-2";
-  const sheetFormatValue = buildSheetFormat(sheetLengthMm, sheetWidthMm);
+  // Формат, записанный не как «длина x ширина», не должен пропадать при
+  // сохранении: оставляем его, пока менеджер не введёт размеры листа.
+  const sheetFormatValue =
+    buildSheetFormat(sheetLengthMm, sheetWidthMm) ||
+    (defaultSheetDimensions ? "" : (defaults?.format ?? ""));
   const calculatorSheetOptions = [...calculatorSheetFormats];
   if (
     defaultSheetPresetId &&
@@ -872,6 +876,13 @@ export function NewProductForm({
 
           <FieldLabel className={compact ? "xl:col-span-2" : "lg:col-span-2"}>
             Остаток
+            {isEdit ? (
+              <input
+                type="hidden"
+                name="stockQuantityInitial"
+                value={defaults?.stockQuantity ?? ""}
+              />
+            ) : null}
             <Input
               name="stockQuantity"
               type="number"

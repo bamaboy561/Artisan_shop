@@ -1,10 +1,11 @@
+import { ConfirmDeleteButton } from "@/components/admin/confirm-delete-button";
 import Link from "next/link";
 
 import { deleteCategoryAction } from "@/app/admin/actions";
 import { CategoryCreateForm } from "@/app/admin/categories/category-create-form";
 import { SetupState } from "@/components/admin/setup-state";
 import { StatusBadge } from "@/components/admin/status-badge";
-import { Button } from "@/components/ui/button";
+import { getButtonClassName } from "@/components/ui/button";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { CategoryKind } from "@/generated/prisma";
 import { requireAdminSession } from "@/lib/auth/dal";
@@ -149,20 +150,22 @@ export default async function AdminCategoriesPage() {
 
                       <form action={deleteCategoryAction}>
                         <input type="hidden" name="id" value={category.id} />
-                        <Button
-                          type="submit"
-                          variant="ghost"
-                          size="sm"
+                        <ConfirmDeleteButton
+                          confirmMessage="Удалить категорию? Это действие нельзя отменить."
                           disabled={!canDelete}
                           title={
                             canDelete
                               ? "Удалить категорию"
                               : "Нельзя удалить категорию, пока к ней привязаны товары"
                           }
-                          className="h-10 w-full text-red-600 hover:bg-red-50 disabled:text-[var(--muted)]"
+                          className={getButtonClassName(
+                            "ghost",
+                            "sm",
+                            "h-10 w-full text-red-600 hover:bg-red-50 disabled:text-[var(--muted)]",
+                          )}
                         >
                           Удалить
-                        </Button>
+                        </ConfirmDeleteButton>
                       </form>
                     </div>
                   </section>

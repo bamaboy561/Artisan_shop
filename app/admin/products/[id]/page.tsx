@@ -1,3 +1,4 @@
+import { ConfirmDeleteButton } from "@/components/admin/confirm-delete-button";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -7,7 +8,7 @@ import {
   type ProductFormDefaults,
 } from "@/app/admin/products/new-product-form";
 import { StatusBadge } from "@/components/admin/status-badge";
-import { Button } from "@/components/ui/button";
+import { getButtonClassName } from "@/components/ui/button";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { ProductOrderMode, ProductStatus } from "@/generated/prisma";
 import {
@@ -24,6 +25,14 @@ export const dynamic = "force-dynamic";
 
 type EditProductPageProps = {
   params: Promise<{ id: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
+
+const noticeMessages: Record<string, string> = {
+  created: "Товар создан. Проверьте карточку и при необходимости дополните.",
+  saved: "Изменения сохранены.",
+  duplicate:
+    "Такой товар уже есть: совпадают название, категория и бренд. Новый не создан, открыта существующая карточка.",
 };
 
 const statusLabels: Record<ProductStatus, string> = {
@@ -60,6 +69,7 @@ function formatPrice(value: number | null) {
 
 export default async function EditProductPage({
   params,
+  searchParams,
 }: EditProductPageProps) {
   if (!hasDatabaseUrl()) notFound();
 
@@ -160,8 +170,22 @@ export default async function EditProductPage({
     isFeatured: product.isFeatured,
   };
 
+  const noticeParam = (await searchParams)?.notice;
+  const notice =
+    noticeMessages[
+      (Array.isArray(noticeParam) ? noticeParam[0] : noticeParam) ?? ""
+    ];
+
   return (
     <div className="space-y-4">
+      {notice ? (
+        <p
+          role="status"
+          className="rounded-[14px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800"
+        >
+          {notice}
+        </p>
+      ) : null}
       <section className="surface-glow rounded-[24px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-6 sm:p-8">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
           <div className="min-w-0">
@@ -209,14 +233,17 @@ export default async function EditProductPage({
             </Link>
             <form action={deleteProductAction}>
               <input type="hidden" name="id" value={product.id} />
-              <Button
-                type="submit"
-                variant="ghost"
-                size="sm"
-                className="h-10 px-4 text-red-600 hover:bg-red-50"
+              <input type="hidden" name="redirectTo" value="list" />
+              <ConfirmDeleteButton
+                confirmMessage="Удалить товар? Он пропадёт из каталога, избранного и комплектов. Это действие нельзя отменить."
+                className={getButtonClassName(
+                  "ghost",
+                  "sm",
+                  "h-10 px-4 text-red-600 hover:bg-red-50",
+                )}
               >
                 Удалить товар
-              </Button>
+              </ConfirmDeleteButton>
             </form>
           </div>
         </div>

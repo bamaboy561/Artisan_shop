@@ -1,3 +1,4 @@
+import { ConfirmDeleteButton } from "@/components/admin/confirm-delete-button";
 import Form from "next/form";
 import Link from "next/link";
 import { Pagination } from "@/components/ui/pagination";
@@ -16,13 +17,13 @@ import {
 import { ProductImportForm } from "@/app/admin/products/product-import-form";
 import { ProductStockImportForm } from "@/app/admin/products/product-stock-import-form";
 import { NewProductForm } from "@/app/admin/products/new-product-form";
-import { AdminSubmitButton } from "@/components/admin/admin-submit-button";
+import { BulkProductsSubmitButton } from "@/components/admin/bulk-products-submit-button";
 import { BulkSelectionTools } from "@/components/admin/bulk-selection-tools";
 import { CatalogExportButton } from "@/components/admin/catalog-export-button";
 import { PhotoCatalogExport } from "@/components/admin/photo-catalog-export";
 import { SetupState } from "@/components/admin/setup-state";
 import { StatusBadge } from "@/components/admin/status-badge";
-import { Button } from "@/components/ui/button";
+import { Button, getButtonClassName } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { Select } from "@/components/ui/select";
@@ -76,6 +77,9 @@ const bulkActionOptions = [
   { value: "set-cart", label: "Режим: в корзину" },
   { value: "set-request-price", label: "Режим: запрос цены" },
   { value: "set-service", label: "Режим: сервисная заявка" },
+  { value: "price-percent", label: "Изменить цену на процент" },
+  { value: "set-category", label: "Перенести в категорию" },
+  { value: "set-brand", label: "Сменить бренд" },
 ] as const;
 
 function formatPrice(value: number | null) {
@@ -668,6 +672,22 @@ export default async function AdminProductsPage({
               </Select>
             </label>
 
+            <label className="grid min-w-0 gap-1.5">
+              <span className="text-xs font-medium text-[var(--foreground)]">
+                Что не заполнено
+              </span>
+              <Select
+                name="issue"
+                defaultValue={state.issue}
+                className="h-9 sm:h-9"
+              >
+                <option value="all">Не важно</option>
+                <option value="no-photo">Без фото</option>
+                <option value="no-price">Без цены</option>
+                <option value="zero-stock">Остаток ноль</option>
+              </Select>
+            </label>
+
             <div className="flex flex-wrap items-end gap-2 xl:col-span-6">
               <Button type="submit" variant="accent" size="sm" className="h-9">
                 Применить
@@ -701,7 +721,7 @@ export default async function AdminProductsPage({
             <form
               id="bulk-products-form"
               action={bulkUpdateProductsAction}
-              className="grid min-w-0 gap-2 lg:grid-cols-[minmax(0,1fr)_auto]"
+              className="grid min-w-0 gap-2 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,0.7fr)_minmax(0,1fr)_minmax(0,1fr)_auto]"
             >
               <Select name="bulkAction" defaultValue="" className="h-9 sm:h-9">
                 <option value="" disabled>
@@ -713,13 +733,43 @@ export default async function AdminProductsPage({
                   </option>
                 ))}
               </Select>
-              <AdminSubmitButton
-                type="submit"
-                variant="secondary"
-                className="h-9 w-full lg:w-auto"
-                idleLabel="Применить"
-                pendingLabel="Применяем..."
+              <Input
+                name="pricePercent"
+                type="number"
+                step="0.1"
+                min="-90"
+                max="300"
+                placeholder="Цена, % (напр. 5 или -10)"
+                aria-label="На сколько процентов изменить цену"
+                className="h-9"
               />
+              <Select
+                name="bulkCategoryId"
+                defaultValue=""
+                aria-label="Категория для переноса"
+                className="h-9 sm:h-9"
+              >
+                <option value="">Категория для переноса</option>
+                {categories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </Select>
+              <Select
+                name="bulkBrandId"
+                defaultValue=""
+                aria-label="Бренд для замены"
+                className="h-9 sm:h-9"
+              >
+                <option value="">Бренд для замены</option>
+                {brands.map((brand) => (
+                  <option key={brand.id} value={brand.id}>
+                    {brand.name}
+                  </option>
+                ))}
+              </Select>
+              <BulkProductsSubmitButton checkboxSelector="[data-product-bulk-checkbox='true']" />
             </form>
           </div>
         </section>
@@ -830,14 +880,16 @@ export default async function AdminProductsPage({
                     </Link>
                     <form action={deleteProductAction}>
                       <input type="hidden" name="id" value={product.id} />
-                      <Button
-                        type="submit"
-                        variant="ghost"
-                        size="sm"
-                        className="h-9 text-red-600 hover:bg-red-50"
+                      <ConfirmDeleteButton
+                        confirmMessage="Удалить товар? Он пропадёт из каталога, избранного и комплектов. Это действие нельзя отменить."
+                        className={getButtonClassName(
+                          "ghost",
+                          "sm",
+                          "h-9 text-red-600 hover:bg-red-50",
+                        )}
                       >
                         Удалить
-                      </Button>
+                      </ConfirmDeleteButton>
                     </form>
                   </div>
                 </article>

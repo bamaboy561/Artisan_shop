@@ -207,9 +207,18 @@ export function SalesFloorForm({
   const [qrValue, setQrValue] = useState("");
   const [scannerActive, setScannerActive] = useState(false);
   const [scannerMessage, setScannerMessage] = useState<string | null>(null);
-  const [selectedCustomerId, setSelectedCustomerId] = useState(
-    customers[0]?.id ?? "",
-  );
+  // Клиента выбирает менеджер: заранее никто не выбран, чтобы продажа
+  // не записалась на чужого человека.
+  const [selectedCustomerId, setSelectedCustomerId] = useState("");
+  const submissionIdRef = useRef<HTMLInputElement | null>(null);
+
+  // Метка отправки: по ней сервер узнаёт повтор той же продажи
+  // (двойное нажатие, обрыв связи) и не создаёт вторую.
+  useEffect(() => {
+    if (submissionIdRef.current) {
+      submissionIdRef.current.value = crypto.randomUUID();
+    }
+  }, []);
   const [redeemPointsInput, setRedeemPointsInput] = useState("");
   const [items, setItems] = useState<SelectedItem[]>([]);
   const [invoiceReference, setInvoiceReference] = useState("");
@@ -552,6 +561,7 @@ export function SalesFloorForm({
       className="grid gap-4 xl:grid-cols-[minmax(280px,0.9fr)_minmax(360px,1fr)_minmax(320px,0.85fr)]"
     >
       <input type="hidden" name="customerId" value={selectedCustomerId} />
+      <input type="hidden" name="submissionId" ref={submissionIdRef} />
       <input type="hidden" name="invoiceReference" value={invoiceReference} />
 
       <section className="rounded-[28px] border border-[color:var(--line)] bg-white p-4 shadow-[0_18px_50px_rgba(30,28,25,0.05)]">
@@ -997,7 +1007,7 @@ export function SalesFloorForm({
 
         <AdminSubmitButton
           disabled={invoiceEditing || !selectedCustomerId || !items.length}
-          idleLabel="Сохранить продажу"
+          idleLabel="Оплачено и выдано"
           pendingLabel="Сохраняем..."
           className="mt-5 h-12 w-full rounded-full bg-white text-[#111] hover:bg-[#f4e7df]"
         />

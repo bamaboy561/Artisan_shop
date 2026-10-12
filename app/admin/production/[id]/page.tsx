@@ -11,6 +11,7 @@ import {
 
 import {
   advanceProductionStageAction,
+  markCuttingRequestIssuedAction,
   setProductionStageAction,
   uploadRequestResultFilesAction,
 } from "@/app/admin/actions";
@@ -78,6 +79,11 @@ const noticeMessages: Record<
     text: "Производственная заявка не найдена.",
   },
   "deadline-saved": { tone: "success", text: "Плановая готовность сохранена." },
+  issued: { tone: "success", text: "Заказ отмечен как выданный." },
+  "not-launched": {
+    tone: "error",
+    text: "Заявка ещё не запущена в производство. Дождитесь менеджера.",
+  },
   "deadline-conflict": {
     tone: "error",
     text: "Срок уже изменён другим сотрудником. Проверьте обновлённую дату.",
@@ -359,7 +365,7 @@ export default async function ProductionRequestPage({
                   <span className="sr-only">Комментарий станции</span>
                   <Textarea
                     name="cuttingStageNote"
-                    placeholder="Необязательно"
+                    placeholder="Виден только сотрудникам, клиенту не уходит"
                     rows={3}
                   />
                 </label>
@@ -421,6 +427,32 @@ export default async function ProductionRequestPage({
           ) : null}
         </section>
       </div>
+
+      {manager &&
+      !isClosed &&
+      request.cuttingStage === CuttingStage.READY_FOR_PICKUP ? (
+        <section className="border-y border-emerald-200 bg-emerald-50 p-4 sm:p-5">
+          <h2 className="text-base font-semibold">Выдача заказа</h2>
+          <p className="mt-1 text-sm leading-6 text-[var(--muted)]">
+            Заказ готов
+            {request.cuttingPickupCell
+              ? ` и лежит в ячейке ${request.cuttingPickupCell}`
+              : ""}
+            . Когда клиент его заберёт, нажмите «Выдано»: заявка закроется и
+            уйдёт из очереди.
+          </p>
+          <form action={markCuttingRequestIssuedAction} className="mt-3">
+            <input type="hidden" name="requestId" value={request.id} />
+            <input type="hidden" name="returnTo" value={returnTo} />
+            <AdminSubmitButton
+              type="submit"
+              variant="accent"
+              idleLabel="Выдано"
+              pendingLabel="Сохраняем..."
+            />
+          </form>
+        </section>
+      ) : null}
 
       {manager && !isClosed ? (
         <section className="border-y border-[color:var(--line)] bg-white p-4 sm:p-5">

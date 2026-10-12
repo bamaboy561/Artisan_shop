@@ -15,6 +15,13 @@ export type AdminProductSort =
 
 export type AdminProductFeaturedFilter = "all" | "featured" | "regular";
 
+// Что в карточке не заполнено: помогает быстро найти товары к доработке.
+export type AdminProductIssueFilter =
+  | "all"
+  | "no-photo"
+  | "no-price"
+  | "zero-stock";
+
 export type AdminProductFilterState = {
   q: string;
   categoryId: string;
@@ -22,6 +29,7 @@ export type AdminProductFilterState = {
   status: ProductStatus | "all";
   orderMode: ProductOrderMode | "all";
   featured: AdminProductFeaturedFilter;
+  issue: AdminProductIssueFilter;
   sort: AdminProductSort;
 };
 
@@ -131,6 +139,10 @@ export function parseAdminProductSearchParams(
     )
       ? (featuredCandidate as AdminProductFeaturedFilter)
       : "all",
+    issue:
+      (["no-photo", "no-price", "zero-stock"] as const).find(
+        (item) => item === getFirstSearchValue(searchParams, "issue"),
+      ) ?? "all",
     sort: validSorts.has(sortCandidate as AdminProductSort)
       ? (sortCandidate as AdminProductSort)
       : "updated-desc",
@@ -182,6 +194,18 @@ export function filterAdminProducts(
     }
 
     if (state.featured === "regular" && product.isFeatured) {
+      return false;
+    }
+
+    if (state.issue === "no-photo" && product.images.length > 0) {
+      return false;
+    }
+
+    if (state.issue === "no-price" && product.price) {
+      return false;
+    }
+
+    if (state.issue === "zero-stock" && (product.stockQuantity ?? 1) > 0) {
       return false;
     }
 
@@ -259,6 +283,10 @@ export function buildAdminProductsHref(
 
   if (state.featured !== "all") {
     params.set("featured", state.featured);
+  }
+
+  if (state.issue !== "all") {
+    params.set("issue", state.issue);
   }
 
   if (state.sort !== "updated-desc") {
