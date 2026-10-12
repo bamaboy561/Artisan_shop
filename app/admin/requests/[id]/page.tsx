@@ -20,6 +20,8 @@ import { AdminSubmitButton } from "@/components/admin/admin-submit-button";
 import { DeleteRequestButton } from "@/components/admin/delete-request-button";
 import { CuttingProgress } from "@/components/cutting/cutting-progress";
 import { OperationTimeline } from "@/components/admin/operation-timeline";
+import { WhatsappClientLink } from "@/components/admin/whatsapp-client-link";
+import { buildRequestWhatsappText } from "@/features/admin/whatsapp";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -161,7 +163,10 @@ export default async function AdminRequestDetailPage({
   }
 
   const cuttingManager = isCuttingManager(session.roleCode);
-  const laborPrice = request.type === RequestType.CUTTING_SERVICE ? await getCuttingPrice(id) : null;
+  const laborPrice =
+    request.type === RequestType.CUTTING_SERVICE
+      ? await getCuttingPrice(id)
+      : null;
   const { pricingError } = await searchParams;
   const canDeleteRequest = canDeleteRequests(session.roleCode);
   const canCreateOrder =
@@ -254,6 +259,17 @@ export default async function AdminRequestDetailPage({
                 <p className="mt-1 text-sm text-[var(--muted)]">
                   {request.contactPhone}
                 </p>
+                <WhatsappClientLink
+                  className="mt-2"
+                  phone={request.contactPhone}
+                  text={buildRequestWhatsappText({
+                    number: request.number,
+                    contactName: request.contactName,
+                    statusLabel: requestStatusLabels[request.status],
+                    isCutting: request.type === RequestType.CUTTING_SERVICE,
+                    isReady: request.cuttingStage === "READY_FOR_PICKUP",
+                  })}
+                />
                 {request.contactEmail ? (
                   <p className="mt-1 text-sm text-[var(--muted)]">
                     {request.contactEmail}
@@ -504,18 +520,46 @@ export default async function AdminRequestDetailPage({
               </div>
             ) : null}
 
-            {request.type === RequestType.CUTTING_SERVICE ? <div className="mt-5 space-y-3 border-y border-[color:var(--line)] py-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <h3 className="text-sm font-semibold">Стоимость работ: {formatBudget(request.quotedTotal ?? null)}</h3>
-                <Link href="/admin/cutting/pricing" className="text-sm underline">Прайс работ</Link>
+            {request.type === RequestType.CUTTING_SERVICE ? (
+              <div className="mt-5 space-y-3 border-y border-[color:var(--line)] py-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <h3 className="text-sm font-semibold">
+                    Стоимость работ: {formatBudget(request.quotedTotal ?? null)}
+                  </h3>
+                  <Link
+                    href="/admin/cutting/pricing"
+                    className="text-sm underline"
+                  >
+                    Прайс работ
+                  </Link>
+                </div>
+                {laborPrice ? (
+                  <p className="text-sm text-[var(--muted)]">
+                    Распил: {laborPrice.sheetRate} сом/лист · Кромление:{" "}
+                    {laborPrice.edgeRate} сом/м
+                  </p>
+                ) : null}
+                {pricingError ? (
+                  <p role="alert" className="text-sm text-red-700">
+                    {pricingError}
+                  </p>
+                ) : null}
+                <form action={repriceCuttingRequestAction}>
+                  <input type="hidden" name="requestId" value={request.id} />
+                  <AdminSubmitButton
+                    type="submit"
+                    variant="secondary"
+                    size="sm"
+                    idleLabel={
+                      laborPrice
+                        ? "Пересчитать по текущему прайсу"
+                        : "Рассчитать по прайсу"
+                    }
+                    pendingLabel="Считаем..."
+                  />
+                </form>
               </div>
-              {laborPrice ? <p className="text-sm text-[var(--muted)]">Распил: {laborPrice.sheetRate} сом/лист · Кромление: {laborPrice.edgeRate} сом/м</p> : null}
-              {pricingError ? <p role="alert" className="text-sm text-red-700">{pricingError}</p> : null}
-              <form action={repriceCuttingRequestAction}>
-                <input type="hidden" name="requestId" value={request.id} />
-                <AdminSubmitButton type="submit" variant="secondary" size="sm" idleLabel={laborPrice ? "Пересчитать по текущему прайсу" : "Рассчитать по прайсу"} pendingLabel="Считаем..." />
-              </form>
-            </div> : null}
+            ) : null}
             <form
               action={updateRequestProductionResultAction}
               className="mt-5 grid gap-3 sm:grid-cols-[minmax(0,160px)_minmax(0,1fr)]"

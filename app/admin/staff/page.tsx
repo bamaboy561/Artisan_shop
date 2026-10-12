@@ -2,6 +2,7 @@ import { KeyRound, Search, ShieldCheck, UserRoundCog } from "lucide-react";
 
 import {
   resetCuttingManagerPasswordAction,
+  setLoyaltyManagerAccessAction,
   updateStaffAccountRoleAction,
 } from "@/app/admin/actions";
 import { CuttingManagerForm } from "@/app/admin/staff/cutting-manager-form";
@@ -26,6 +27,7 @@ import {
   roleDefinitions,
   standardAssignableRoleCodes,
 } from "@/lib/auth/roles";
+import { getLoyaltyManagerIds } from "@/lib/server/loyalty-permissions";
 import { hasDatabaseUrl } from "@/lib/db";
 import {
   getStaffAccountDirectory,
@@ -182,6 +184,8 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
     return search ? `/admin/staff?${search}` : "/admin/staff";
   };
 
+  const loyaltyManagerIds = await getLoyaltyManagerIds();
+
   const rows = directory.accounts.map((account) => {
     const isCurrentAccount = account.id === session.userId;
     const canChangeRole =
@@ -298,6 +302,37 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
                 : "Изменение доступно супер-администратору."}
             </p>
           )}
+
+          {account.role.code === RoleCode.MANAGER && !isCurrentAccount ? (
+            <form
+              action={setLoyaltyManagerAccessAction}
+              className="grid gap-1.5"
+            >
+              <input type="hidden" name="id" value={account.id} />
+              <input
+                type="hidden"
+                name="allowed"
+                value={loyaltyManagerIds.has(account.id) ? "0" : "1"}
+              />
+              <p className="text-xs leading-5 text-[var(--muted)]">
+                Бонусы, скидки и удаление клиентов:{" "}
+                <span className="font-semibold text-[var(--foreground)]">
+                  {loyaltyManagerIds.has(account.id)
+                    ? "разрешено"
+                    : "запрещено"}
+                </span>
+              </p>
+              <AdminSubmitButton
+                type="submit"
+                variant="secondary"
+                size="sm"
+                idleLabel={
+                  loyaltyManagerIds.has(account.id) ? "Запретить" : "Разрешить"
+                }
+                pendingLabel="Сохраняем..."
+              />
+            </form>
+          ) : null}
 
           {canChangeAccess ? (
             <StaffAccessButton

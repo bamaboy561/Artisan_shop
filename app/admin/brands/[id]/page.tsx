@@ -1,9 +1,10 @@
+import { ConfirmDeleteButton } from "@/components/admin/confirm-delete-button";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { deleteBrandAction, updateBrandAction } from "@/app/admin/actions";
 import { AdminSubmitButton } from "@/components/admin/admin-submit-button";
-import { Button } from "@/components/ui/button";
+import { Button, getButtonClassName } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { Textarea } from "@/components/ui/textarea";
@@ -93,15 +94,17 @@ export default async function EditBrandPage({ params }: EditBrandPageProps) {
             </Link>
             <form action={deleteBrandAction}>
               <input type="hidden" name="id" value={brand.id} />
-              <Button
-                type="submit"
-                variant="ghost"
-                size="sm"
+              <ConfirmDeleteButton
+                confirmMessage="Удалить бренд? Это действие нельзя отменить."
                 disabled={brand._count.products > 0}
-                className="h-10 px-4 text-red-600 hover:bg-red-50 disabled:text-[var(--muted)]"
+                className={getButtonClassName(
+                  "ghost",
+                  "sm",
+                  "h-10 px-4 text-red-600 hover:bg-red-50 disabled:text-[var(--muted)]",
+                )}
               >
                 Удалить бренд
-              </Button>
+              </ConfirmDeleteButton>
             </form>
           </div>
         </div>

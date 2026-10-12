@@ -1,3 +1,4 @@
+import { ConfirmDeleteButton } from "@/components/admin/confirm-delete-button";
 import Form from "next/form";
 import Link from "next/link";
 
@@ -395,13 +396,13 @@ export default async function AdminPromotionsPage({
                 idleLabel="Telegram промо"
                 pendingLabel="Рассылаем..."
               />
-              <button
-                type="submit"
+              <ConfirmDeleteButton
+                confirmMessage="Удалить акцию? Это действие нельзя отменить."
                 formAction={deletePromotionAction}
                 className="inline-flex h-9 items-center justify-center px-4 text-sm font-medium text-red-600 transition hover:bg-red-50"
               >
                 Удалить
-              </button>
+              </ConfirmDeleteButton>
             </div>
           </form>
         </div>

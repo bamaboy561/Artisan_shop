@@ -10,6 +10,8 @@ import { MetricCard } from "@/components/admin/metric-card";
 import { SetupState } from "@/components/admin/setup-state";
 import { DownloadCsvButton } from "@/components/admin/download-csv-button";
 import { Pagination } from "@/components/ui/pagination";
+import { WhatsappClientLink } from "@/components/admin/whatsapp-client-link";
+import { buildOrderWhatsappText } from "@/features/admin/whatsapp";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { Select } from "@/components/ui/select";
 import { DataTable } from "@/components/ui/table";
@@ -297,6 +299,17 @@ export default async function AdminOrdersPage({
       <div className="space-y-1">
         <p>{order.contactName}</p>
         <p className="text-xs text-[var(--muted)]">{order.contactPhone}</p>
+        <WhatsappClientLink
+          className="text-xs"
+          label="WhatsApp"
+          phone={order.contactPhone}
+          text={buildOrderWhatsappText({
+            number: order.number,
+            contactName: order.contactName,
+            statusLabel: orderStatusLabels[order.status],
+            isReady: order.status === OrderStatus.READY_FOR_PICKUP,
+          })}
+        />
         <p className="text-xs text-[var(--muted)]">
           {order.companyName ?? order.user?.companyName ?? "Частный клиент"}
         </p>

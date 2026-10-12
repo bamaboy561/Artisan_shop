@@ -1,6 +1,7 @@
+import { ConfirmDeleteButton } from "@/components/admin/confirm-delete-button";
 import Link from "next/link";
 
-import { Button } from "@/components/ui/button";
+import { Button, getButtonClassName } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { Textarea } from "@/components/ui/textarea";
@@ -221,20 +222,22 @@ export default async function AdminBrandsPage() {
 
                       <form action={deleteBrandAction}>
                         <input type="hidden" name="id" value={brand.id} />
-                        <Button
-                          type="submit"
-                          variant="ghost"
-                          size="sm"
+                        <ConfirmDeleteButton
+                          confirmMessage="Удалить бренд? Это действие нельзя отменить."
                           disabled={!canDelete}
                           title={
                             canDelete
                               ? "Удалить бренд"
                               : "Нельзя удалить бренд, пока к нему привязаны товары"
                           }
-                          className="h-10 w-full text-red-600 hover:bg-red-50 disabled:text-[var(--muted)]"
+                          className={getButtonClassName(
+                            "ghost",
+                            "sm",
+                            "h-10 w-full text-red-600 hover:bg-red-50 disabled:text-[var(--muted)]",
+                          )}
                         >
                           Удалить
-                        </Button>
+                        </ConfirmDeleteButton>
                       </form>
                     </div>
                   </section>

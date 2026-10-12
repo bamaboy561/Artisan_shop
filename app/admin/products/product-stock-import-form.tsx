@@ -40,6 +40,7 @@ export function ProductStockImportForm({
   const [file, setFile] = useState<File | null>(null);
   const [mode, setMode] = useState<StockImportMode>("stock");
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [zeroMissing, setZeroMissing] = useState(false);
   const [result, setResult] = useState<StockImportResult | null>(null);
   const [pending, startTransition] = useTransition();
   const [intent, setIntent] = useState<"preview" | "apply">("preview");
@@ -49,7 +50,7 @@ export function ProductStockImportForm({
     if (
       nextIntent === "apply" &&
       !window.confirm(
-        `Обновить товаров: ${result?.reconciliation ? selected.size : (result?.counts?.ready ?? 0)}? Остальные строки останутся без изменений.`,
+        `Обновить товаров: ${result?.reconciliation ? selected.size : (result?.counts?.ready ?? 0)}? Остальные строки останутся без изменений.${zeroMissing ? " Остаток товаров, которых нет в файле, будет обнулён." : ""}`,
       )
     )
       return;
@@ -58,6 +59,7 @@ export function ProductStockImportForm({
     data.set("stockFile", file);
     data.set("mode", mode);
     data.set("intent", nextIntent);
+    if (zeroMissing && mode !== "price") data.set("zeroMissing", "on");
     if (result?.fingerprint) data.set("fingerprint", result.fingerprint);
     if (result?.reconciliation)
       data.set("selectedRows", JSON.stringify([...selected]));
@@ -123,6 +125,25 @@ export function ProductStockImportForm({
               </label>
             ))}
           </div>
+          {mode !== "price" ? (
+            <label className="flex items-start gap-2 text-xs leading-5 text-zinc-700">
+              <input
+                type="checkbox"
+                checked={zeroMissing}
+                onChange={(event) => {
+                  setZeroMissing(event.target.checked);
+                  setResult(null);
+                  setSelected(new Set());
+                }}
+                className="mt-1"
+              />
+              <span>
+                Обнулить остаток у товаров, которых нет в файле. Включайте,
+                только если загружаете полный отчёт остатков по всему складу:
+                список таких товаров будет показан до подтверждения.
+              </span>
+            </label>
+          ) : null}
           <label className="grid min-w-0 gap-2 text-sm font-medium">
             Файл Excel / CSV
             <Input
@@ -312,26 +333,28 @@ export function ProductStockImportForm({
             </p>
           ) : null}
           <div className="flex flex-wrap gap-2">
-            {result.phase === "preview" && !!result.counts?.ready && (
-              <Button
-                type="button"
-                variant="accent"
-                disabled={
-                  pending || (!!result.reconciliation && !selected.size)
-                }
-                onClick={() => submit("apply")}
-                className="h-auto min-h-10 py-2 tracking-normal normal-case"
-              >
-                {pending && intent === "apply" ? (
-                  <LoaderCircle className="size-4 animate-spin" />
-                ) : (
-                  <Check className="size-4" />
-                )}
-                {pending && intent === "apply"
-                  ? "Применяем..."
-                  : `Применить: ${result.reconciliation ? selected.size : result.counts.ready}`}
-              </Button>
-            )}
+            {result.phase === "preview" &&
+              (!!result.counts?.ready || zeroMissing) && (
+                <Button
+                  type="button"
+                  variant="accent"
+                  disabled={
+                    pending ||
+                    (!!result.reconciliation && !selected.size && !zeroMissing)
+                  }
+                  onClick={() => submit("apply")}
+                  className="h-auto min-h-10 py-2 tracking-normal normal-case"
+                >
+                  {pending && intent === "apply" ? (
+                    <LoaderCircle className="size-4 animate-spin" />
+                  ) : (
+                    <Check className="size-4" />
+                  )}
+                  {pending && intent === "apply"
+                    ? "Применяем..."
+                    : `Применить: ${result.reconciliation ? selected.size : (result.counts?.ready ?? 0)}`}
+                </Button>
+              )}
             {result.reportCsv && (
               <Button
                 type="button"
