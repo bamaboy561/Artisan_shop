@@ -232,6 +232,20 @@ function getOptionalDate(formData: FormData, key: string) {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+// Дата окончания включительно: акция и баннер действуют до конца этого дня
+// по времени Бишкека, а не обрываются в его начале.
+function getOptionalEndDate(formData: FormData, key: string) {
+  const value = getString(formData, key);
+
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(`${value}T23:59:59.999+06:00`);
+
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 function getStringList(formData: FormData, key: string) {
   return formData
     .getAll(key)
@@ -1918,7 +1932,7 @@ export async function createProductAction(formData: FormData) {
   );
   const imageUrls = await resolveProductImageUrls(formData, slug);
 
-  await db.product.create({
+  const createdProduct = await db.product.create({
     data: {
       name,
       slug,
@@ -1984,6 +1998,10 @@ export async function createProductAction(formData: FormData) {
   });
 
   revalidateAdminCatalog();
+
+  // Открываем карточку нового товара: видно, что он создан, а повторное
+  // нажатие в старой форме не создаст дубль.
+  redirect(`/admin/products/${createdProduct.id}?notice=created`);
 }
 
 export async function deleteProductAction(formData: FormData) {
@@ -2238,6 +2256,7 @@ export async function updateProductDetailsAction(formData: FormData) {
     revalidatePath(`/product/${previousProduct.slug}`);
   }
   revalidatePath(`/product/${slug}`);
+  redirect(`/admin/products/${id}?notice=saved`);
 }
 
 export async function importProductsFromExcelAction(formData: FormData) {
@@ -5245,6 +5264,11 @@ export async function createPromotionAction(formData: FormData) {
     return;
   }
 
+  // Скидка больше 100% сделала бы цену отрицательной.
+  if (discountType === DiscountType.PERCENT && discountValue > 100) {
+    return;
+  }
+
   const normalizedTargetType =
     Object.values(PromotionTargetType).find((item) => item === targetType) ??
     PromotionTargetType.ORDER;
@@ -5271,7 +5295,7 @@ export async function createPromotionAction(formData: FormData) {
       badgeText: getOptionalString(formData, "badgeText"),
       isHighlighted: getString(formData, "isHighlighted") === "on",
       startsAt: getOptionalDate(formData, "startsAt"),
-      endsAt: getOptionalDate(formData, "endsAt"),
+      endsAt: getOptionalEndDate(formData, "endsAt"),
       products:
         normalizedTargetType === PromotionTargetType.PRODUCT &&
         selectedProductId
@@ -5337,6 +5361,11 @@ export async function updatePromotionAction(formData: FormData) {
     return;
   }
 
+  // Скидка больше 100% сделала бы цену отрицательной.
+  if (discountType === DiscountType.PERCENT && discountValue > 100) {
+    return;
+  }
+
   const normalizedTargetType =
     Object.values(PromotionTargetType).find((item) => item === targetType) ??
     PromotionTargetType.ORDER;
@@ -5367,7 +5396,7 @@ export async function updatePromotionAction(formData: FormData) {
         badgeText: getOptionalString(formData, "badgeText"),
         isHighlighted: getString(formData, "isHighlighted") === "on",
         startsAt: getOptionalDate(formData, "startsAt"),
-        endsAt: getOptionalDate(formData, "endsAt"),
+        endsAt: getOptionalEndDate(formData, "endsAt"),
         products:
           normalizedTargetType === PromotionTargetType.PRODUCT &&
           selectedProductId
@@ -5676,7 +5705,7 @@ export async function createBannerAction(formData: FormData) {
       isActive: getString(formData, "isActive") === "on",
       sortOrder: getOptionalInt(formData, "sortOrder") ?? 100,
       startsAt: getOptionalDate(formData, "startsAt"),
-      endsAt: getOptionalDate(formData, "endsAt"),
+      endsAt: getOptionalEndDate(formData, "endsAt"),
     },
   });
 
@@ -5714,7 +5743,7 @@ export async function updateBannerAction(formData: FormData) {
       isActive: getString(formData, "isActive") === "on",
       sortOrder: getOptionalInt(formData, "sortOrder") ?? 100,
       startsAt: getOptionalDate(formData, "startsAt"),
-      endsAt: getOptionalDate(formData, "endsAt"),
+      endsAt: getOptionalEndDate(formData, "endsAt"),
     },
   });
 
