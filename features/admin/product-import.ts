@@ -473,6 +473,13 @@ function extractInventoryValuation(
   return null;
 }
 
+const lookalikeHeaderPatterns: Partial<Record<ImportField, RegExp>> = {
+  price: /закуп|себестоим|входн|оптов|дилер/u,
+  compareAtPrice: /закуп|себестоим|входн|оптов|дилер/u,
+  stockQuantity: /упаков|кратн|минимальн/u,
+  sku: /цвет|поставщик/u,
+};
+
 function matchField(header: string) {
   const normalizedHeader = normalizeKey(header);
 
@@ -492,6 +499,15 @@ function matchField(header: string) {
       (item.name.length > 2 && normalizedHeader.includes(item.name)) ||
       (item.name.length > 4 && item.name.includes(normalizedHeader)),
   );
+
+  // Похожие по названию, но другие по смыслу колонки не подставляем:
+  // «Цена закупки» не цена продажи, «Количество в упаковке» не остаток.
+  if (
+    partial &&
+    lookalikeHeaderPatterns[partial.field]?.test(normalizedHeader)
+  ) {
+    return null;
+  }
 
   return partial?.field ?? null;
 }

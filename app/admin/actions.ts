@@ -2539,9 +2539,13 @@ export async function importProductsFromExcelAction(formData: FormData) {
       }));
 
       if (existingProduct) {
+        // У существующего товара «Сценарий заказа» и «Наличие» меняем,
+        // только если они указаны в файле. Иначе оставляем как есть.
         const updateData: Prisma.ProductUpdateInput = {
-          orderMode: row.orderMode ?? defaultOrderMode,
-          inventoryStatus: row.inventoryStatus ?? defaultInventoryStatus,
+          ...(row.orderMode ? { orderMode: row.orderMode } : {}),
+          ...(row.inventoryStatus
+            ? { inventoryStatus: row.inventoryStatus }
+            : {}),
         };
 
         if (row.name) {
