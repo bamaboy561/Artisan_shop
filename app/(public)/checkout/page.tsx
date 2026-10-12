@@ -4,6 +4,7 @@ import { CheckoutForm } from "@/app/(public)/checkout/checkout-form";
 import { getOptionalSession } from "@/lib/auth/dal";
 import { getDb, hasDatabaseUrl } from "@/lib/db";
 import {
+  getEffectiveDiscountPercent,
   getLoyaltyTierBenefits,
   getLoyaltyTierLabel,
   getLoyaltyTierForCategory,
@@ -66,6 +67,7 @@ export default async function CheckoutPage() {
                 loyaltyConfig,
               ),
               pointsBalance: customer.loyaltyPointsBalance,
+              personalDiscountPercent: getEffectiveDiscountPercent(customer),
               maxRedeemPercent: loyaltyConfig.maxRedeemPercent,
               plateMaterialAccrualPercent: getLoyaltyTierBenefits(
                 getLoyaltyTierForCategory("PLATE", customer),

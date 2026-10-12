@@ -31,6 +31,7 @@ type CheckoutCustomer = {
   companyName: string;
   loyaltyTierLabel: string;
   pointsBalance: number;
+  personalDiscountPercent: number;
   maxRedeemPercent: number;
   plateMaterialAccrualPercent: number;
   fittingsAccrualPercent: number;
@@ -72,17 +73,27 @@ export function CheckoutForm({
   const handledSuccessRef = useRef(false);
   const errorRef = useRef<HTMLDivElement>(null);
   const detailsRef = useRef<HTMLDetailsElement>(null);
+  const personalDiscountPercent = customer?.personalDiscountPercent ?? 0;
+  const personalDiscountTotal = Math.round(
+    (subtotal * personalDiscountPercent) / 100,
+  );
+  const subtotalAfterPersonalDiscount = Math.max(
+    0,
+    subtotal - personalDiscountTotal,
+  );
   const maxRedeemablePoints = customer
     ? Math.min(
         customer.pointsBalance,
-        Math.floor((subtotal * customer.maxRedeemPercent) / 100),
+        Math.floor(
+          (subtotalAfterPersonalDiscount * customer.maxRedeemPercent) / 100,
+        ),
       )
     : 0;
   const redeemablePoints = Math.min(
     maxRedeemablePoints,
     Math.max(0, Number.parseInt(fields.redeemPoints, 10) || 0),
   );
-  const total = Math.max(0, subtotal - redeemablePoints);
+  const total = Math.max(0, subtotalAfterPersonalDiscount - redeemablePoints);
   const stockIssues = items.flatMap((item) => {
     const product = products.find((entry) => entry.slug === item.productSlug);
     if (
@@ -367,6 +378,12 @@ export function CheckoutForm({
                 <div className={s.saving}>
                   <dt>Скидка акции</dt>
                   <dd>−{formatPrice(promotionDiscountTotal)}</dd>
+                </div>
+              )}
+              {personalDiscountTotal > 0 && (
+                <div className={s.saving}>
+                  <dt>Личная скидка {personalDiscountPercent}%</dt>
+                  <dd>−{formatPrice(personalDiscountTotal)}</dd>
                 </div>
               )}
               <div>
