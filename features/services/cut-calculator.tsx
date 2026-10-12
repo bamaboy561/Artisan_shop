@@ -1281,7 +1281,7 @@ function MetricTile({
   return (
     <div
       className={cn(
-        "min-w-0 overflow-hidden border px-3 py-2.5",
+        "min-w-0 overflow-hidden rounded-[14px] border px-3 py-2.5",
         muted
           ? "border-[color:var(--line)] bg-white"
           : "border-white/10 bg-white/6",
@@ -1289,7 +1289,7 @@ function MetricTile({
     >
       <p
         className={cn(
-          "truncate text-[11px] tracking-[0.12em] uppercase",
+          "truncate text-xs font-medium",
           muted ? "text-[var(--muted)]" : "text-white/54",
         )}
       >
@@ -1317,8 +1317,8 @@ function ContextField({
   detail?: string;
 }) {
   return (
-    <div className="min-w-0 border border-[color:var(--line)] bg-[var(--surface-strong)] px-3 py-2.5 sm:px-4 sm:py-3">
-      <p className="truncate font-mono text-[9px] tracking-[0.14em] text-[var(--muted)] uppercase">
+    <div className="min-w-0 rounded-[14px] border border-[color:var(--line)] bg-[var(--surface-strong)] px-3 py-2.5 sm:px-4 sm:py-3">
+      <p className="truncate text-xs font-medium text-[var(--muted)]">
         {label}
       </p>
       <p className="mt-1 truncate text-[13px] font-medium text-[var(--foreground)] sm:text-sm">
@@ -2306,13 +2306,13 @@ export function CutCalculator({
     <section
       id="cut-calculator"
       ref={calculatorSectionRef}
-      className="overflow-hidden border-t border-[#151411]/10 bg-white"
+      className="overflow-hidden rounded-[24px] border border-[#e3ddd2] bg-white"
     >
       <div className="grid gap-0 xl:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="p-3 sm:p-6 lg:p-7 xl:p-8">
           <div className="grid gap-1.5 sm:gap-3">
             <div className="max-w-3xl">
-              <p className="font-mono text-[9px] tracking-[0.18em] text-[var(--accent)] uppercase">
+              <p className="text-[13px] font-semibold text-[var(--accent)]">
                 Параметры расчета
               </p>
             </div>
@@ -2528,10 +2528,10 @@ export function CutCalculator({
             </div>
           </div>
 
-          <div className="mt-4 rounded-2xl bg-[#1b1714] p-4 text-white xl:hidden">
+          <div className="mt-4 rounded-2xl bg-[#1f2b25] p-4 text-white xl:hidden">
             <div className="flex items-end justify-between gap-3">
               <div>
-                <p className="font-mono text-[10px] tracking-[0.16em] text-white/55 uppercase">
+                <p className="text-[13px] font-semibold text-white/60">
                   Ориентир по раскрою
                 </p>
                 <p className="mt-1 font-[family-name:var(--font-unbounded)] text-[1.7rem] leading-none font-medium">
@@ -2568,8 +2568,8 @@ export function CutCalculator({
           </div>
 
           {cuttingSiteIncentive ? (
-            <div className="mt-3.5 flex items-center gap-3 bg-[var(--accent)] px-3 py-2.5 text-white sm:mt-5 sm:px-4 sm:py-3">
-              <span className="shrink-0 font-mono text-lg font-semibold sm:text-xl">
+            <div className="mt-3.5 flex items-center gap-3 rounded-[20px] bg-[var(--accent)] px-4 py-3 text-white sm:mt-5 sm:px-4 sm:py-3">
+              <span className="shrink-0 font-[family-name:var(--font-unbounded)] text-lg font-medium sm:text-xl">
                 {cuttingSiteIncentive.badge}
               </span>
               <div className="min-w-0">
@@ -2643,11 +2643,11 @@ export function CutCalculator({
 
           <div
             id="cut-request-form"
-            className="mt-4 border border-[color:var(--line)] bg-[#fcfaf6] p-3 sm:p-4"
+            className="mt-4 rounded-[20px] border border-[color:var(--line)] bg-[#faf8f4] p-3 sm:p-4"
           >
             <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <p className="font-mono text-[10px] tracking-[0.16em] text-[var(--accent)] uppercase">
+                <p className="text-[13px] font-semibold text-[var(--accent)]">
                   Заявка на распил
                 </p>
                 <p className="mt-1 text-sm font-medium text-[var(--foreground)]">
@@ -2838,10 +2838,10 @@ export function CutCalculator({
             параметрам раскроя.
           </p>
 
-          <div className="mt-7 overflow-hidden border-t border-[#151411]/10 bg-[#fcfaf6] pt-4 sm:mt-8 sm:pt-6">
+          <div className="mt-7 overflow-hidden border-t border-[#e3ddd2] pt-4 sm:mt-8 sm:pt-6">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="max-w-2xl">
-                <p className="font-mono text-[10px] tracking-[0.16em] text-[var(--accent)] uppercase">
+                <p className="text-[13px] font-semibold text-[var(--accent)]">
                   Карта раскроя
                 </p>
                 <h3 className="mt-2 text-[1.35rem] leading-tight font-semibold text-[var(--foreground)] sm:text-2xl">
@@ -2891,7 +2891,7 @@ export function CutCalculator({
                     label="Крупный остаток"
                     value={
                       cutMap.largestOffcut
-                        ? `${cutMap.largestOffcut.width} × ${cutMap.largestOffcut.height} мм`
+                        ? `${Math.round(cutMap.largestOffcut.width)} × ${Math.round(cutMap.largestOffcut.height)} мм`
                         : "Нет"
                     }
                     muted
@@ -2925,7 +2925,7 @@ export function CutCalculator({
                     return (
                       <div
                         key={cutSheet.index}
-                        className="min-w-0 overflow-hidden border border-[color:var(--line)] bg-white p-2.5 sm:p-3"
+                        className="min-w-0 overflow-hidden rounded-[20px] border border-[color:var(--line)] bg-white p-2.5 sm:p-3"
                       >
                         <div className="flex flex-wrap items-center justify-between gap-2.5">
                           <div>
@@ -2936,13 +2936,13 @@ export function CutCalculator({
                               {sheet.width} × {sheet.height} мм
                             </p>
                           </div>
-                          <span className="inline-flex min-h-7 items-center border border-[color:var(--line)] px-2 font-mono text-[9px] tracking-[0.12em] text-[var(--foreground)] uppercase">
+                          <span className="inline-flex min-h-7 items-center rounded-full border border-[color:var(--line)] px-3 text-xs font-medium text-[var(--foreground)]">
                             {cutSheet.pieces.length} деталей ·{" "}
                             {fillRate.toFixed(0)}%
                           </span>
                         </div>
 
-                        <div className="mt-2.5 border border-[color:var(--line)] bg-[#f7f3ec] p-1.5 sm:mt-3 sm:p-2">
+                        <div className="mt-2.5 rounded-[14px] border border-[color:var(--line)] bg-[#f4f1eb] p-1.5 sm:mt-3 sm:p-2">
                           <div
                             className="relative w-full overflow-hidden bg-[linear-gradient(180deg,rgba(255,255,255,0.72)_0%,rgba(244,238,228,0.96)_100%)]"
                             style={{
@@ -3050,7 +3050,7 @@ export function CutCalculator({
                             label="Крупный остаток"
                             value={
                               cutSheet.largestOffcut
-                                ? `${cutSheet.largestOffcut.width} × ${cutSheet.largestOffcut.height} мм`
+                                ? `${Math.round(cutSheet.largestOffcut.width)} × ${Math.round(cutSheet.largestOffcut.height)} мм`
                                 : "Нет"
                             }
                             muted
@@ -3058,7 +3058,7 @@ export function CutCalculator({
                         </div>
 
                         {cutSheet.offcuts.length > 0 ? (
-                          <div className="mt-3 border border-[color:var(--line)] bg-[var(--surface-strong)] p-3">
+                          <div className="mt-3 rounded-[14px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-3">
                             <div className="flex flex-wrap items-center justify-between gap-2">
                               <p className="text-xs font-semibold text-[var(--foreground)]">
                                 Полезные остатки листа
@@ -3074,7 +3074,7 @@ export function CutCalculator({
                                   key={offcut.id}
                                   className="inline-flex items-center border border-[color:var(--line)] bg-white px-2.5 py-1.5 text-[11px] text-[var(--foreground)]"
                                 >
-                                  {offcut.width}×{offcut.height} мм
+                                  {Math.round(offcut.width)}×{Math.round(offcut.height)} мм
                                 </span>
                               ))}
                             </div>
@@ -3111,10 +3111,10 @@ export function CutCalculator({
             )}
           </div>
 
-          <div className="mt-7 overflow-hidden border-t border-[#151411]/10 bg-[#fcfaf6] pt-4 sm:mt-8 sm:pt-6">
+          <div className="mt-7 overflow-hidden border-t border-[#e3ddd2] pt-4 sm:mt-8 sm:pt-6">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="max-w-2xl">
-                <p className="font-mono text-[10px] tracking-[0.16em] text-[var(--accent)] uppercase">
+                <p className="text-[13px] font-semibold text-[var(--accent)]">
                   Ведомость для цеха
                 </p>
                 <h3 className="mt-2 text-[1.35rem] leading-tight font-semibold text-[var(--foreground)] sm:text-2xl">
@@ -3162,7 +3162,7 @@ export function CutCalculator({
                   </div>
                   <div className="mt-3 grid grid-cols-1 gap-2 text-[12px] leading-5 text-[var(--muted)] min-[380px]:grid-cols-2">
                     <div>
-                      <p className="font-mono text-[10px] tracking-[0.12em] uppercase">
+                      <p className="text-xs font-medium">
                         Кромка
                       </p>
                       <p className="mt-0.5 text-[var(--foreground)]">
@@ -3170,7 +3170,7 @@ export function CutCalculator({
                       </p>
                     </div>
                     <div>
-                      <p className="font-mono text-[10px] tracking-[0.12em] uppercase">
+                      <p className="text-xs font-medium">
                         Ориентация
                       </p>
                       <p className="mt-0.5 text-[var(--foreground)]">
@@ -3178,7 +3178,7 @@ export function CutCalculator({
                       </p>
                     </div>
                     <div className="min-[380px]:col-span-2">
-                      <p className="font-mono text-[10px] tracking-[0.12em] uppercase">
+                      <p className="text-xs font-medium">
                         Листы
                       </p>
                       <p className="mt-0.5 text-[var(--foreground)]">
@@ -3194,28 +3194,28 @@ export function CutCalculator({
               <table className="min-w-full border-collapse text-left">
                 <thead>
                   <tr className="border-b border-[color:var(--line)] bg-[var(--surface-strong)]">
-                    <th className="px-3 py-3 text-[11px] font-semibold tracking-[0.12em] text-[var(--muted)] uppercase">
+                    <th className="px-3 py-3 text-xs font-semibold text-[var(--muted)]">
                       #
                     </th>
-                    <th className="px-3 py-3 text-[11px] font-semibold tracking-[0.12em] text-[var(--muted)] uppercase">
+                    <th className="px-3 py-3 text-xs font-semibold text-[var(--muted)]">
                       Деталь
                     </th>
-                    <th className="px-3 py-3 text-[11px] font-semibold tracking-[0.12em] text-[var(--muted)] uppercase">
+                    <th className="px-3 py-3 text-xs font-semibold text-[var(--muted)]">
                       Размер
                     </th>
-                    <th className="px-3 py-3 text-[11px] font-semibold tracking-[0.12em] text-[var(--muted)] uppercase">
+                    <th className="px-3 py-3 text-xs font-semibold text-[var(--muted)]">
                       Кол-во
                     </th>
-                    <th className="px-3 py-3 text-[11px] font-semibold tracking-[0.12em] text-[var(--muted)] uppercase">
+                    <th className="px-3 py-3 text-xs font-semibold text-[var(--muted)]">
                       Кромка
                     </th>
-                    <th className="px-3 py-3 text-[11px] font-semibold tracking-[0.12em] text-[var(--muted)] uppercase">
+                    <th className="px-3 py-3 text-xs font-semibold text-[var(--muted)]">
                       Ориентация
                     </th>
-                    <th className="px-3 py-3 text-[11px] font-semibold tracking-[0.12em] text-[var(--muted)] uppercase">
+                    <th className="px-3 py-3 text-xs font-semibold text-[var(--muted)]">
                       Листы
                     </th>
-                    <th className="px-3 py-3 text-[11px] font-semibold tracking-[0.12em] text-[var(--muted)] uppercase">
+                    <th className="px-3 py-3 text-xs font-semibold text-[var(--muted)]">
                       Статус
                     </th>
                   </tr>
@@ -3258,9 +3258,9 @@ export function CutCalculator({
           </div>
         </div>
 
-        <aside className="hidden border-t border-[#151411]/10 bg-[#f6f2eb] p-4 text-[#151411] sm:p-5 lg:p-6 xl:sticky xl:top-20 xl:block xl:self-start xl:border-t-0 xl:border-l xl:border-[#151411]/10">
-          <div className="rounded-2xl bg-[#1b1714] p-5 text-white shadow-[0_18px_40px_rgba(21,20,17,0.25)]">
-            <p className="font-mono text-[10px] tracking-[0.18em] text-white/55 uppercase">
+        <aside className="hidden border-t border-[#151411]/10 bg-[#faf8f4] p-4 text-[#1b1c19] sm:p-5 lg:p-6 xl:sticky xl:top-20 xl:block xl:self-start xl:border-t-0 xl:border-l xl:border-[#151411]/10">
+          <div className="rounded-2xl bg-[#1f2b25] p-5 text-white shadow-[0_18px_40px_rgba(21,20,17,0.25)]">
+            <p className="text-[13px] font-semibold text-white/60">
               Ориентир по раскрою
             </p>
             <p className="mt-2 font-[family-name:var(--font-unbounded)] text-[2rem] leading-none font-medium">
@@ -3275,7 +3275,7 @@ export function CutCalculator({
             </p>
             <a
               href="#cut-request-form"
-              className="mt-4 flex h-11 items-center justify-center rounded-xl bg-[#e0703f] text-[13px] font-semibold tracking-[0.04em] uppercase transition hover:bg-[#c95e30]"
+              className="mt-4 flex h-11 items-center justify-center rounded-full bg-[#c4532b] text-sm font-semibold transition hover:bg-[#a8431f]"
             >
               Отправить заявку
             </a>
@@ -3290,14 +3290,14 @@ export function CutCalculator({
               return (
                 <div
                   key={card.label}
-                  className="border border-[#151411]/10 bg-[rgba(255,255,255,0.55)] p-3"
+                  className="rounded-[14px] border border-[#e3ddd2] bg-white p-3"
                 >
                   <div className="flex items-center gap-3">
-                    <span className="flex size-9 items-center justify-center bg-white">
+                    <span className="flex size-9 items-center justify-center rounded-full bg-[#f4f1eb]">
                       <Icon className="size-4 text-[var(--accent)]" />
                     </span>
                     <div>
-                      <p className="text-[11px] tracking-[0.12em] text-[#7e7064] uppercase">
+                      <p className="text-xs text-[#6e6b63]">
                         {card.label}
                       </p>
                       <p className="mt-0.5 text-base font-semibold text-[#151411]">
@@ -3337,7 +3337,7 @@ export function CutCalculator({
 
       <div
         className={cn(
-          "fixed inset-x-3 bottom-[calc(4.4rem+env(safe-area-inset-bottom))] z-30 flex items-center gap-3 rounded-2xl bg-[#1b1714] px-4 py-3 text-white shadow-[0_18px_40px_rgba(21,20,17,0.35)] transition duration-300 xl:hidden",
+          "fixed inset-x-3 bottom-[calc(4.4rem+env(safe-area-inset-bottom))] z-30 flex items-center gap-3 rounded-2xl bg-[#1f2b25] px-4 py-3 text-white shadow-[0_18px_40px_rgba(21,20,17,0.35)] transition duration-300 xl:hidden",
           showStickySummary
             ? "translate-y-0 opacity-100"
             : "pointer-events-none translate-y-4 opacity-0",
@@ -3354,7 +3354,7 @@ export function CutCalculator({
         </div>
         <a
           href="#cut-request-form"
-          className="inline-flex h-10 shrink-0 items-center rounded-xl bg-[#e0703f] px-4 text-[13px] font-semibold"
+          className="inline-flex h-10 shrink-0 items-center rounded-xl bg-[#c4532b] px-4 text-[13px] font-semibold"
         >
           Отправить
         </a>

@@ -125,7 +125,7 @@ export function CutDetailTable({
 }: CutDetailTableProps) {
   return (
     <div className="mt-4 overflow-hidden rounded-2xl border border-[color:var(--line)] bg-white shadow-[0_1px_0_rgba(21,20,17,0.04)] sm:mt-5">
-      <div className="hidden grid-cols-[28px_minmax(0,1.4fr)_92px_92px_64px_128px_minmax(0,1fr)_96px_68px] gap-2 border-b border-[color:var(--line)] bg-[#faf7f2] px-3 py-2.5 font-mono text-[10px] tracking-[0.12em] text-[var(--muted)] uppercase lg:grid">
+      <div className="hidden grid-cols-[28px_minmax(0,1.4fr)_92px_92px_64px_128px_minmax(0,1fr)_96px_68px] gap-2 border-b border-[color:var(--line)] bg-[#faf7f2] px-3 py-2.5 text-xs font-semibold text-[var(--muted)] lg:grid">
         <span>№</span>
         <span>Название</span>
         <span>Длина, мм</span>

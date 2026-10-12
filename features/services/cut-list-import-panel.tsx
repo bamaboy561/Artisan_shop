@@ -121,7 +121,7 @@ export function CutListImportPanel({ onImport }: CutListImportPanelProps) {
     <div className="mt-3.5 border border-dashed border-[color:var(--line-strong)] bg-[#fcfaf6] p-3 sm:mt-5 sm:p-4">
       <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
-          <p className="font-mono text-[10px] tracking-[0.16em] text-[var(--accent)] uppercase">
+          <p className="text-[13px] font-semibold text-[var(--accent)]">
             Список деталей готов?
           </p>
           <p className="mt-1 text-sm font-medium text-[var(--foreground)]">
