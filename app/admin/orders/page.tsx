@@ -9,6 +9,7 @@ import { DeleteOrderButton } from "@/components/admin/delete-order-button";
 import { MetricCard } from "@/components/admin/metric-card";
 import { SetupState } from "@/components/admin/setup-state";
 import { DownloadCsvButton } from "@/components/admin/download-csv-button";
+import { Pagination } from "@/components/ui/pagination";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { Select } from "@/components/ui/select";
 import { DataTable } from "@/components/ui/table";
@@ -227,7 +228,33 @@ export default async function AdminOrdersPage({
       : null,
   ].filter(Boolean) as Array<{ key: string; label: string; href: string }>;
 
-  const rows = filteredOrders.map((order) => ({
+  const pageSize = 30;
+  const totalPages = Math.max(1, Math.ceil(filteredOrders.length / pageSize));
+  const requestedPage = Number.parseInt(
+    String(
+      Array.isArray(resolvedSearchParams.page)
+        ? resolvedSearchParams.page[0]
+        : (resolvedSearchParams.page ?? "1"),
+    ),
+    10,
+  );
+  const currentPage =
+    Number.isFinite(requestedPage) && requestedPage >= 1
+      ? Math.min(requestedPage, totalPages)
+      : 1;
+  const pageOrders = filteredOrders.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize,
+  );
+  const getPageHref = (page: number) => {
+    const href = getStateHref(state, {});
+
+    return page > 1
+      ? `${href}${href.includes("?") ? "&" : "?"}page=${page}`
+      : href;
+  };
+
+  const rows = pageOrders.map((order) => ({
     select: (
       <input
         type="checkbox"
@@ -616,6 +643,14 @@ export default async function AdminOrdersPage({
           caption="Таблица заказов"
           emptyMessage="По текущим фильтрам ничего не найдено. Измените срез или сбросьте параметры."
         />
+        {totalPages > 1 ? (
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            getHref={getPageHref}
+            className="mt-4"
+          />
+        ) : null}
       </section>
     </div>
   );
