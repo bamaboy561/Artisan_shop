@@ -1,0 +1,112 @@
+{
+  "site": "https://artisan.shop.kg/",
+  "interiors": [
+    "https://extravert.ru/wp-content/uploads/2024/02/kuhnya-M.326-1-1.jpg",
+    "https://kitchen.slotex.com/upload/iblock/a02/qwn5cy0iofqgdjmthdu9okf32hn5ivix.jpg",
+    "https://extravert.ru/wp-content/uploads/2023/11/shkaf-s-nishej-D.340.S01-Magnoliya-Kurilskaya-vanilnaya-Sinij-skalistyj-201-4-1.jpg"
+  ],
+  "products": [
+    {
+      "slug": "agt-supra-mat-forest-green-zelenyy-les-3027",
+      "images": [
+        "https://www.agtwood.ru/medium/Product/Image/c51a4741-9a10-4d10-9124-7818973206c3",
+        "https://www.agtwood.ru/medium/Product/Image/e45efa4d-dc7a-4c57-8d53-b2eaf4bc0adc"
+      ]
+    },
+    {
+      "slug": "agt-mdf-supra-mat-london-blues-london-goluboy-one",
+      "images": [
+        "https://www.agtwood.ru/medium/Product/Image/d11ba03a-b675-47d1-ae34-391c49ced6b5",
+        "https://www.agtwood.ru/medium/Product/Image/646f11db-5bc3-4c9c-b591-ce135c8580ad"
+      ]
+    },
+    {
+      "slug": "agt-mdf-supra-mat-sahara-cream-one-8mm",
+      "images": [
+        "https://www.agtwood.ru/medium/Product/Image/3c8cd144-b5f5-4c9b-bce6-0b503e4487dc",
+        "https://www.agtwood.ru/medium/Product/Image/3ae55934-b289-4731-84f9-4039ab2e8199"
+      ]
+    },
+    {
+      "slug": "agt-mdf-supra-mat-pembe-papatya-rozovaya-romashka-double",
+      "images": [
+        "https://www.agtwood.com/medium/Product/Image/46a3ca6a-b94d-4c90-8da6-218be61c518d",
+        "https://www.agtwood.com/medium/Product/Image/cfd48f6a-a09a-476c-9f5a-78cea6cfa9c6"
+      ]
+    },
+    {
+      "slug": "dub-komi-2-75-1-83-1086-ow",
+      "images": [
+        "https://sdgiywbbgpihbjdl.public.blob.vercel-storage.com/products/dub-komi-2-75-1-83-1086-ow/1781585694264-12a55dff88ac11ec8e65001e67103a08_9fcb2b27f0ba11eeb2c4001e67103a08-nKoTK01BfEHxCtFUvFLHrm25BKhVDV.jpg",
+        "https://swisskrono.ru/ldsp_files/1086_347344_82c7bd10.jpg"
+      ]
+    },
+    {
+      "slug": "dub-delano-seryy-2-75-1-83-4081-ow",
+      "images": [
+        "https://w230203-807.cdn.webasyst.cloud/wa-data/public/shop/products/30/26/2630/images/4682/4682.970.jpg",
+        "https://swisskrono.ru/ldsp_files/4081_347347_82c7bd10.jpg"
+      ]
+    },
+    {
+      "slug": "seryy-temnyy-2-75-1-83-171-vl",
+      "images": [
+        "https://w230203-807.cdn.webasyst.cloud/wa-data/public/shop/products/18/25/2518/images/4403/4403.970.jpg",
+        "https://swisskrono.ru/ldsp_files/171_347339_82c7bd10.jpg"
+      ]
+    },
+    {
+      "slug": "s01-bezhevyy-grozovoy-e1-327",
+      "images": [
+        "https://smart812.ru/upload/iblock/fd0/i0lanh9642kqsr462cniadvjk1am7d6f.jpg",
+        "https://extravert.ru/wp-content/uploads/2023/11/M.327.S01_1061-Lnyanoj.jpg"
+      ]
+    },
+    {
+      "slug": "extravert-ldsp-s01-bezhevyy-kashemirovyy-e1",
+      "images": [
+        "https://extravert.ru/wp-content/uploads/2024/02/kuhnya-M.326-1-1.jpg",
+        "https://extravert.ru/wp-content/uploads/2023/11/M.326.S01_7667-Avorio.jpg"
+      ]
+    },
+    {
+      "slug": "slotex-hpl-compact-fornoli-pf-12-1320-list-4200-8132-s2",
+      "images": [
+        "https://sdgiywbbgpihbjdl.public.blob.vercel-storage.com/products/slotex-hpl-compact-fornoli-pf-12-1320-list-4200-8132-s2/1783058121066-1-chatgpt-image-2-.-2026-.-14_08_16-1-ObUhz3SOsidKFIS2GmCTs11cPsIg9S.png",
+        "https://sdgiywbbgpihbjdl.public.blob.vercel-storage.com/products/slotex-hpl-compact-fornoli-pf-12-1320-list-4200-8132-s2/1784359527117-1-ipfr1d68biwbn9ysm3nfzwz8t5b8lqfa-v7fuiihwjlUI36nHBNviMRzxdtFiDK.jpg"
+      ]
+    },
+    {
+      "slug": "slotex-hpl-compact-mystic-marble-spa-12-1320-list-3050-8053-1320",
+      "images": [
+        "https://sdgiywbbgpihbjdl.public.blob.vercel-storage.com/products/slotex-hpl-compact-mystic-marble-spa-12-1320-list-3050-8053-1320/1784524551892-1-28777d2c28621d6e47f46f15d01d7f7a-r0aQQxG1dKmX0yZoiH0GKGA1DiFiCn.jpg",
+        "https://sdgiywbbgpihbjdl.public.blob.vercel-storage.com/products/slotex-hpl-compact-mystic-marble-spa-12-1320-list-3050-8053-1320/1784524589681-1-9b292c4cdadbe2f311649db751d635be-GYpI3BN13phdwrwIwN9HEiwnuw8kLt.jpg"
+      ]
+    },
+    {
+      "slug": "hettich-petlya-sensys-8675-ugol-110-chashka-th52-d35-naveska-na-srednyuyu-stenku-b-3-nikel",
+      "images": [
+        "https://shop.hettich.com/medias/400Wx400H-300201-8645-halbvorl-52-NI-shop.jpg?context=bWFzdGVyfDRhbGxwb3J0YWx8MTI5NjF8aW1hZ2UvanBlZ3xhR0poTDJneU5DOHhNRGs0TXpBd016TTRPVGs0TWk4ME1EQlhlRFF3TUVoZk16QXdNakF4WHpnMk5EVmZhR0ZzWW5admNteGZOVEpmVGtsZmMyaHZjQzVxY0djfDJiNzM2OGIxNTZlNmJhZjVlYTNjYzYxYThiNmVlNDNmMTNlYWI5OTc3ZTJhMGVhMDFkNmMyOTMxYWYxZjIxM2M"
+      ]
+    },
+    {
+      "slug": "hettich-wingline-l-komplekt-furnitury-heavy-s-nizhnim-napravlyayuschim-elementom-25-kg-ant",
+      "images": [
+        "https://shop.hettich.com/medias/400Wx400H-410110-WingLine-9339356-shop.jpg?context=bWFzdGVyfDRhbGxwb3J0YWx8NDk1OTB8aW1hZ2UvanBlZ3xhRFJoTDJobU9TOHhNRGs0TWpNNE1EUXpOelV6TkM4ME1EQlhlRFF3TUVoZk5ERXdNVEV3WDFkcGJtZE1hVzVsWHprek16a3pOVFpmYzJodmNDNXFjR2N8OWZiM2Y2NzZkN2I4ZDQ0MDI5ODllYWE2YTMxNTEzY2M3OGVjYjJhYWQ5MDk5YzI5Yzc2MjAzN2JhZTJmMTVmYw"
+      ]
+    },
+    {
+      "slug": "italiana-ferramenta-kronshteyn-pk2-pro-16-mm-s-otverstiem-6-2-mm-chernyy-nk-11412030yq",
+      "images": [
+        "https://www.italianaferramenta.it/materials/dati/documenti/immagini/11412030YQ.jpg?v110"
+      ]
+    },
+    {
+      "slug": "nuomi-terras-trehstoronnyaya-mnogofunkcionalnaya-vydvizhnaya-korzina-na-750mm-3017502",
+      "images": [
+        "https://nuomihome.com/wp-content/uploads/2023/06/Terras-Series-Multi-functional-Pull-Out-Basket-5.jpg",
+        "https://nuomihome.com/wp-content/uploads/2023/06/Terras-Series-Multi-functional-Pull-Out-Basket-2.jpg"
+      ]
+    }
+  ]
+}

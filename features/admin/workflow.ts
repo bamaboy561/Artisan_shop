@@ -105,9 +105,19 @@ export const orderWorkflowSteps = [
     summary: "Заказ создан и ожидает подтверждения менеджера.",
   },
   {
+    status: OrderStatus.RESERVED,
+    label: "Бронь",
+    summary: "Товары зарезервированы для клиента.",
+  },
+  {
     status: OrderStatus.CONFIRMED,
     label: "Подтвержден",
     summary: "Состав, сумма и условия согласованы.",
+  },
+  {
+    status: OrderStatus.PAID,
+    label: "Оплачено",
+    summary: "Оплата получена и зафиксирована в заказе.",
   },
   {
     status: OrderStatus.IN_PRODUCTION,
@@ -136,10 +146,32 @@ export const orderQuickTransitions: Record<
   Array<{ status: OrderStatus; label: string; intent?: "accent" | "secondary" }>
 > = {
   [OrderStatus.NEW]: [
+    {
+      status: OrderStatus.RESERVED,
+      label: "Поставить в бронь",
+      intent: "accent",
+    },
     { status: OrderStatus.CONFIRMED, label: "Подтвердить", intent: "accent" },
     { status: OrderStatus.CANCELED, label: "Отменить", intent: "secondary" },
   ],
+  [OrderStatus.RESERVED]: [
+    { status: OrderStatus.PAID, label: "Оплачено", intent: "accent" },
+    {
+      status: OrderStatus.CONFIRMED,
+      label: "Подтвердить",
+      intent: "secondary",
+    },
+    { status: OrderStatus.CANCELED, label: "Отменить", intent: "secondary" },
+  ],
   [OrderStatus.CONFIRMED]: [
+    { status: OrderStatus.PAID, label: "Оплачено", intent: "accent" },
+    {
+      status: OrderStatus.IN_PRODUCTION,
+      label: "В производство",
+      intent: "accent",
+    },
+  ],
+  [OrderStatus.PAID]: [
     {
       status: OrderStatus.IN_PRODUCTION,
       label: "В производство",

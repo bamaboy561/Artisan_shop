@@ -16,6 +16,8 @@ import { ProductStockImportForm } from "@/app/admin/products/product-stock-impor
 import { NewProductForm } from "@/app/admin/products/new-product-form";
 import { AdminSubmitButton } from "@/components/admin/admin-submit-button";
 import { BulkSelectionTools } from "@/components/admin/bulk-selection-tools";
+import { CatalogExportButton } from "@/components/admin/catalog-export-button";
+import { PhotoCatalogExport } from "@/components/admin/photo-catalog-export";
 import { SetupState } from "@/components/admin/setup-state";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { Button } from "@/components/ui/button";
@@ -200,7 +202,7 @@ export default async function AdminProductsPage({
     );
   }
 
-  await requireAdminSession("/login?next=/admin/products");
+  await requireAdminSession("/login?next=/admin/products", "/admin/products");
 
   const [
     {
@@ -357,6 +359,8 @@ export default async function AdminProductsPage({
             <UploadCloud className="size-4" strokeWidth={1.8} />
             Импорт Excel
           </Link>
+          <CatalogExportButton />
+          <PhotoCatalogExport brands={brands} />
         </div>
       </section>
 
@@ -441,8 +445,8 @@ export default async function AdminProductsPage({
         </div>
       </section>
 
-      <section id="import-products" className="grid gap-3 xl:grid-cols-2">
-        <details className="surface-glow rounded-[22px] border border-[color:var(--line)] bg-white/88 p-3 sm:p-4">
+      <section id="import-products" className="grid min-w-0 gap-3">
+        <details id="stock-import" className="min-w-0 border-y border-[color:var(--line)] bg-white p-3 sm:p-4">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
             <span className="flex min-w-0 items-center gap-3">
               <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-[#171613] text-white">
@@ -450,10 +454,10 @@ export default async function AdminProductsPage({
               </span>
               <span className="min-w-0">
                 <span className="block text-lg font-semibold tracking-[-0.03em] text-[var(--foreground)]">
-                  Быстро цены и остатки
+                  Цены и остатки
                 </span>
                 <span className="mt-0.5 block text-xs leading-5 text-[var(--muted)]">
-                  Для ежедневной выгрузки из 1С: SKU, цена, остаток, наличие.
+                  Ежедневное обновление из Excel / 1С
                 </span>
               </span>
             </span>
@@ -759,7 +763,7 @@ export default async function AdminProductsPage({
                       ) : null}
                     </div>
 
-                    <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
+                    <p className="mt-1 text-xs leading-5 [overflow-wrap:anywhere] text-[var(--muted)]">
                       SKU: {product.sku} · /product/{product.slug}
                     </p>
 

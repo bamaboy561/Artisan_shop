@@ -18,7 +18,7 @@ export const accountNavigation: NavItem[] = [
   {
     href: "/account",
     label: "Обзор",
-    description: "Уровень, скидка и основная активность клиента.",
+    description: "Статусы, баллы и основная активность клиента.",
   },
   {
     href: "/account/orders",
@@ -34,6 +34,11 @@ export const accountNavigation: NavItem[] = [
     href: "/account/favorites",
     label: "Избранное",
     description: "Сохраненные товары и подборки.",
+  },
+  {
+    href: "/account/profile",
+    label: "Профиль",
+    description: "Контактные данные и настройки аккаунта.",
   },
 ];
 
@@ -56,7 +61,7 @@ export const adminNavigation: NavItem[] = [
   {
     href: "/admin/sales-floor",
     label: "Продажа в зале",
-    description: "Планшет менеджера: клиент, товары, скидка и бонусы.",
+    description: "Планшет менеджера: клиент, товары и бонусы.",
   },
   {
     href: "/admin/requests",
@@ -67,6 +72,11 @@ export const adminNavigation: NavItem[] = [
     href: "/admin/cutting",
     label: "Распил",
     description: "Очередь, файлы, карта и ведомость.",
+  },
+  {
+    href: "/admin/production",
+    label: "Производство",
+    description: "Станции, QR и этапы выполнения.",
   },
   {
     href: "/admin/categories",
@@ -86,7 +96,12 @@ export const adminNavigation: NavItem[] = [
   {
     href: "/admin/users",
     label: "Клиенты",
-    description: "Уровни, скидки и баллы.",
+    description: "Уровни, статусы и баллы.",
+  },
+  {
+    href: "/admin/staff",
+    label: "Сотрудники",
+    description: "Аккаунты, роли и станции.",
   },
   {
     href: "/admin/loyalty",
@@ -111,12 +126,12 @@ export const adminNavigation: NavItem[] = [
 ];
 
 export const companyContacts = {
-  phone: "+996 552 788 188",
-  phoneTel: "+996552788188",
+  phone: "+996 553 432 131",
+  phoneTel: "+996553432131",
   email: "info@artisan.kg",
   address: "г. Бишкек, ул. Кулатова 3/1",
   hours: "Пн-Пт 09:00-17:00",
-  whatsapp: "https://wa.me/996552788188",
+  whatsapp: "https://wa.me/996553432131",
   telegram: "",
 };
 

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowUpRight, Search } from "lucide-react";
-import { FormEvent, useState, useTransition } from "react";
+import { FormEvent, useEffect, useState, useTransition } from "react";
 
 type HomeCatalogSearchProduct = {
   slug: string;
@@ -11,11 +11,6 @@ type HomeCatalogSearchProduct = {
   sku: string;
   brand: string;
   categoryName: string;
-  searchText: string;
-};
-
-type HomeCatalogSearchProps = {
-  products: HomeCatalogSearchProduct[];
 };
 
 const quickSearches = [
@@ -43,17 +38,39 @@ function catalogSearchHref(query: string) {
   return queryString ? `/catalog?${queryString}` : "/catalog";
 }
 
-export function HomeCatalogSearch({ products }: HomeCatalogSearchProps) {
+export function HomeCatalogSearch() {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [isPending, startTransition] = useTransition();
   const normalizedQuery = normalizeSearch(query);
-  const suggestions =
-    normalizedQuery.length >= 2
-      ? products
-          .filter((product) => product.searchText.includes(normalizedQuery))
-          .slice(0, 5)
-      : [];
+  const [result, setResult] = useState<{
+    query: string;
+    products: HomeCatalogSearchProduct[];
+  }>({ query: "", products: [] });
+  const suggestions = result.query === normalizedQuery ? result.products : [];
+
+  useEffect(() => {
+    if (normalizedQuery.length < 2) return;
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      try {
+        const response = await fetch(
+          `/api/catalog/search?q=${encodeURIComponent(normalizedQuery)}`,
+          { signal: controller.signal },
+        );
+        if (!response.ok) return;
+        const data = await response.json();
+        if (!controller.signal.aborted)
+          setResult({ query: normalizedQuery, products: data.products });
+      } catch {
+        /* Full catalog search remains available if suggestions fail. */
+      }
+    }, 300);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [normalizedQuery]);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -91,6 +108,7 @@ export function HomeCatalogSearch({ products }: HomeCatalogSearchProps) {
                 placeholder="Введите название, бренд или артикул"
                 className="h-[52px] min-w-0 bg-transparent px-3 text-base text-[var(--foreground)] outline-none placeholder:text-[#8b7d70] sm:h-14 sm:px-4 sm:text-lg"
                 autoComplete="off"
+                maxLength={200}
               />
               <button
                 type="submit"
@@ -129,7 +147,7 @@ export function HomeCatalogSearch({ products }: HomeCatalogSearchProps) {
                 className="group min-w-0 rounded-[8px] border border-[#ddd3c7] bg-white/72 p-3 shadow-[0_8px_20px_rgba(37,31,24,0.04)] transition hover:border-[#c56c45] hover:bg-white"
               >
                 <div className="flex items-start justify-between gap-3">
-                  <p className="truncate text-sm font-semibold text-[var(--foreground)]">
+                  <p className="text-sm leading-5 font-semibold [overflow-wrap:anywhere] text-[var(--foreground)]">
                     {product.name}
                   </p>
                   <ArrowUpRight
@@ -137,7 +155,7 @@ export function HomeCatalogSearch({ products }: HomeCatalogSearchProps) {
                     className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--muted)] transition group-hover:text-[var(--accent)]"
                   />
                 </div>
-                <p className="mt-1 truncate text-xs text-[var(--muted)]">
+                <p className="mt-1 text-xs leading-4 [overflow-wrap:anywhere] text-[var(--muted)]">
                   {product.brand} · {product.sku || product.categoryName}
                 </p>
               </Link>

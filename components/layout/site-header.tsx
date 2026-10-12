@@ -4,17 +4,19 @@ import Link from "next/link";
 import {
   useEffect,
   useState,
+  useTransition,
   type ComponentType,
   type FormEvent,
-  type KeyboardEvent,
   type SVGProps,
 } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Calculator,
   Home,
   LayoutGrid,
+  LoaderCircle,
   Menu,
+  MessageCircle,
   Search,
   Shapes,
   ShoppingCart,
@@ -23,7 +25,11 @@ import {
 } from "lucide-react";
 
 import { useCart } from "@/components/providers/cart-provider";
-import { companyName, primaryNavigation } from "@/lib/site-config";
+import {
+  companyContacts,
+  companyName,
+  primaryNavigation,
+} from "@/lib/site-config";
 import { cn } from "@/lib/utils";
 
 const primaryNavigationLeft = primaryNavigation.slice(0, 3);
@@ -123,21 +129,14 @@ function MobileBottomDock({ pathname }: { pathname: string }) {
 
 function HeaderSearchForm({ isHeroMode }: { isHeroMode: boolean }) {
   const [query, setQuery] = useState("");
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
 
   function navigateToCatalog() {
-    window.location.href = catalogSearchHref(query);
+    startTransition(() => router.push(catalogSearchHref(query)));
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    navigateToCatalog();
-  }
-
-  function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
-    if (event.key !== "Enter") {
-      return;
-    }
-
     event.preventDefault();
     navigateToCatalog();
   }
@@ -160,15 +159,15 @@ function HeaderSearchForm({ isHeroMode }: { isHeroMode: boolean }) {
         placeholder="Поиск"
         value={query}
         onChange={(event) => setQuery(event.target.value)}
-        onKeyDown={handleKeyDown}
+        aria-label="Поиск по сайту"
         className={cn(
           "h-full min-w-0 flex-1 bg-transparent px-3 text-sm outline-none placeholder:text-current/48",
           isHeroMode ? "text-white" : "text-[var(--foreground)]",
         )}
       />
       <button
-        type="button"
-        onClick={navigateToCatalog}
+        type="submit"
+        disabled={pending}
         className={cn(
           "inline-flex h-full w-10 shrink-0 items-center justify-center border-l transition",
           isHeroMode
@@ -177,7 +176,11 @@ function HeaderSearchForm({ isHeroMode }: { isHeroMode: boolean }) {
         )}
         aria-label="Найти"
       >
-        <Search className="size-4" />
+        {pending ? (
+          <LoaderCircle className="size-4 animate-spin" />
+        ) : (
+          <Search className="size-4" />
+        )}
       </button>
     </form>
   );
@@ -284,6 +287,21 @@ export function SiteHeader() {
               <div className="w-[10rem] 2xl:w-[16rem]">
                 <HeaderSearchForm isHeroMode={isHeroMode} />
               </div>
+              <a
+                href={companyContacts.whatsapp}
+                target="_blank"
+                rel="noreferrer"
+                className={cn(
+                  "inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-[6px] px-3 font-mono text-[9px] font-semibold tracking-[0.12em] whitespace-nowrap uppercase transition 2xl:text-[10px] 2xl:tracking-[0.16em]",
+                  isHeroMode
+                    ? "bg-white/12 text-white hover:bg-white/20"
+                    : "bg-[#1f8f5f] text-white hover:bg-[#176d49]",
+                )}
+                aria-label={`Написать в WhatsApp ${companyContacts.phone}`}
+              >
+                <MessageCircle className="size-4" />
+                <span className="hidden 2xl:inline">WhatsApp</span>
+              </a>
               <Link
                 href="/account"
                 className={cn(
@@ -442,6 +460,16 @@ export function SiteHeader() {
             </div>
 
             <div className="mt-5 grid grid-cols-2 gap-2">
+              <a
+                href={companyContacts.whatsapp}
+                target="_blank"
+                rel="noreferrer"
+                onClick={() => setIsMenuOpen(false)}
+                className="col-span-2 inline-flex h-12 items-center justify-center gap-2 rounded-[1rem] bg-[#1f8f5f] px-4 font-mono text-[10px] font-semibold tracking-[0.14em] text-white uppercase"
+              >
+                <MessageCircle className="size-4" />
+                WhatsApp
+              </a>
               <Link
                 href="/account"
                 onClick={() => setIsMenuOpen(false)}
@@ -467,7 +495,7 @@ export function SiteHeader() {
         </div>
       ) : null}
 
-      <MobileBottomDock pathname={pathname} />
+      {pathname !== "/checkout" && <MobileBottomDock pathname={pathname} />}
     </>
   );
 }

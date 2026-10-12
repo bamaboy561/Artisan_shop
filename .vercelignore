@@ -4,11 +4,16 @@ node_modules
 .vercel
 .claude
 .artisan-runtime
+outputs
 public/uploads
 tmp-*.png
+tmp-*.log
+tmp-*.html
 .codex-*.png
 .codex-*.log
 .dev-server*.log
 .next-dev-*.log
 .next-start.log
 tsconfig.tsbuildinfo
+.codex-storefront-backup-20260926
+.codex-storefront-qa

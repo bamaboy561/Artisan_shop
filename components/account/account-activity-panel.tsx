@@ -111,11 +111,16 @@ function getOrderTone(status: OrderStatus) {
   }
 
   if (
+    status === OrderStatus.PAID ||
     status === OrderStatus.CONFIRMED ||
     status === OrderStatus.IN_PRODUCTION ||
     status === OrderStatus.SHIPPED
   ) {
     return "accent";
+  }
+
+  if (status === OrderStatus.RESERVED) {
+    return "warning";
   }
 
   return "neutral";

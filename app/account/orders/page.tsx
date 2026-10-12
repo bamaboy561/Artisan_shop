@@ -1,4 +1,6 @@
 import { SetupState } from "@/components/admin/setup-state";
+import { CartProvider } from "@/components/providers/cart-provider";
+import { RepeatOrderButton } from "@/components/account/repeat-order-button";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { ClientOperationTimeline } from "@/components/account/client-operation-timeline";
 import { SectionHeading } from "@/components/ui/section-heading";
@@ -30,11 +32,29 @@ function formatOptionalDate(date: Date | null) {
   return date ? formatDate(date) : "Не задано";
 }
 
+function formatOrderLinePrice(item: {
+  quantity: number;
+  unitPrice: number;
+  discountAmount: number;
+  total: number;
+}) {
+  const base = `${item.quantity} шт. x ${formatCurrency(item.unitPrice)}`;
+
+  if (item.discountAmount > 0) {
+    return `${base} · скидка ${formatCurrency(item.discountAmount)} · итого ${formatCurrency(item.total)}`;
+  }
+
+  return `${base} · итого ${formatCurrency(item.total)}`;
+}
+
 function getStatusTone(status: OrderStatus) {
   switch (status) {
     case OrderStatus.NEW:
+    case OrderStatus.RESERVED:
     case OrderStatus.CONFIRMED:
       return "warning" as const;
+    case OrderStatus.PAID:
+      return "success" as const;
     case OrderStatus.IN_PRODUCTION:
     case OrderStatus.READY_FOR_PICKUP:
     case OrderStatus.SHIPPED:
@@ -68,7 +88,7 @@ export default async function AccountOrdersPage() {
     return null;
   }
 
-  const orders = await getAccountOrders(user.id);
+  const orders = await getAccountOrders(user);
 
   const rows = orders.map((order) => ({
     order: (
@@ -79,6 +99,38 @@ export default async function AccountOrdersPage() {
         <p className="text-xs text-[var(--muted)]">
           {formatDate(order.createdAt)}
         </p>
+        {order.items.length > 0 && <RepeatOrderButton orderId={order.id} />}
+      </div>
+    ),
+    items: (
+      <div className="max-h-56 min-w-[16rem] space-y-3 overflow-y-auto pr-1">
+        {order.items.length > 0 ? (
+          order.items.map((item) => (
+            <div
+              key={item.id}
+              className="border-b border-[#ece8e2] pb-2 last:border-0 last:pb-0"
+            >
+              <p className="text-sm leading-5 font-medium text-[var(--foreground)]">
+                {item.snapshotName}
+              </p>
+              <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
+                {[
+                  item.snapshotBrand,
+                  item.snapshotSku ? `Арт. ${item.snapshotSku}` : "",
+                ]
+                  .filter(Boolean)
+                  .join(" · ") || "Без артикула"}
+              </p>
+              <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
+                {formatOrderLinePrice(item)}
+              </p>
+            </div>
+          ))
+        ) : (
+          <p className="text-sm leading-6 text-[var(--muted)]">
+            Состав заказа появится после обработки менеджером.
+          </p>
+        )}
       </div>
     ),
     delivery: (
@@ -154,30 +206,33 @@ export default async function AccountOrdersPage() {
   }));
 
   return (
-    <div className="space-y-4">
-      <section className="surface-glow rounded-[24px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-6 sm:p-8">
-        <SectionHeading
-          title="История заказов"
-          description="Все оформленные заказы, суммы, доставка и начисленные баллы по программе лояльности."
-          titleClassName="text-2xl sm:text-3xl"
-          descriptionClassName="max-w-2xl text-sm leading-7"
-        />
-      </section>
+    <CartProvider>
+      <div className="space-y-4">
+        <section className="surface-glow rounded-[24px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-6 sm:p-8">
+          <SectionHeading
+            title="История заказов"
+            description="Все оформленные заказы, состав покупки, суммы, получение и начисленные баллы по программе лояльности."
+            titleClassName="text-2xl sm:text-3xl"
+            descriptionClassName="max-w-2xl text-sm leading-7"
+          />
+        </section>
 
-      <DataTable
-        columns={[
-          { key: "order", label: "Заказ" },
-          { key: "delivery", label: "Доставка и скидка" },
-          { key: "status", label: "Статус" },
-          { key: "production", label: "Производство" },
-          { key: "history", label: "История" },
-          { key: "total", label: "Сумма и баллы" },
-          { key: "updated", label: "Обновлён" },
-        ]}
-        rows={rows}
-        caption="Заказы"
-        emptyMessage="После первого оформления заказа история появится здесь."
-      />
-    </div>
+        <DataTable
+          columns={[
+            { key: "order", label: "Заказ" },
+            { key: "items", label: "Состав покупки" },
+            { key: "delivery", label: "Получение и скидка" },
+            { key: "status", label: "Статус" },
+            { key: "production", label: "Производство" },
+            { key: "history", label: "История" },
+            { key: "total", label: "Сумма и баллы" },
+            { key: "updated", label: "Обновлён" },
+          ]}
+          rows={rows}
+          caption="Заказы"
+          emptyMessage="После первого оформления заказа история появится здесь."
+        />
+      </div>
+    </CartProvider>
   );
 }

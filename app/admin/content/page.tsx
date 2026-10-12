@@ -332,7 +332,7 @@ export default async function AdminContentPage() {
     );
   }
 
-  await requireAdminSession("/login?next=/admin/content");
+  await requireAdminSession("/login?next=/admin/content", "/admin/content");
 
   const { pages, banners } = await getAdminContentOverview();
   const activeBanners = banners.filter((banner) => banner.isActive);

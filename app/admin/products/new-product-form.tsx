@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { upload } from "@vercel/blob/client";
+import { useRef, useState, type FormEvent, type ReactNode } from "react";
 
 import {
   createProductAction,
@@ -75,6 +76,8 @@ export type ProductFormDefaults = {
   inventoryStatus: InventoryStatus;
   format: string | null;
   thicknessMm: number | null;
+  edgeThicknessMm: number | null;
+  edgeWidthMm: number | null;
   imageUrls: string[];
   calculatorMaterialId: string | null;
   calculatorSheetPresetId: string | null;
@@ -228,6 +231,49 @@ function buildSheetFormat(length: string, width: string) {
   }
 
   return buildSheetFormatLabel(normalizedLength, normalizedWidth);
+}
+
+const productImageUploadUrl = "/api/admin/product-images/upload";
+const largeImageMultipartThresholdBytes = 100 * 1024 * 1024;
+const clientProductImageTypes = new Set([
+  "image/avif",
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+]);
+
+function sanitizeClientUploadSegment(value: string) {
+  return value
+    .normalize("NFKD")
+    .replace(/[^\w.\-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .toLowerCase();
+}
+
+function getSafeClientUploadFileName(file: File, index: number) {
+  const extensionMatch = file.name.match(/\.(avif|jpe?g|png|webp)$/i);
+  const extension = extensionMatch?.[0].toLowerCase() ?? ".jpg";
+  const baseName = file.name.replace(/\.[^.]*$/, "");
+  const safeBaseName =
+    sanitizeClientUploadSegment(baseName) || `image-${index + 1}`;
+
+  return `${safeBaseName}${extension}`;
+}
+
+function isClientProductImage(file: File) {
+  return (
+    clientProductImageTypes.has(file.type) ||
+    /\.(avif|jpe?g|png|webp)$/i.test(file.name)
+  );
+}
+
+function clearClientUploadedImageInputs(form: HTMLFormElement) {
+  form
+    .querySelectorAll<HTMLInputElement>(
+      'input[data-client-upload="product-image"]',
+    )
+    .forEach((input) => input.remove());
 }
 
 function BundleCatalogPicker({
@@ -415,7 +461,7 @@ function BundleCatalogPicker({
                     <span className="text-sm font-semibold text-[var(--foreground)]">
                       {product.name}
                     </span>
-                    <span className="text-xs leading-5 text-[var(--muted)]">
+                    <span className="text-xs leading-5 [overflow-wrap:anywhere] text-[var(--muted)]">
                       {[product.brandName, product.sku, product.categoryName]
                         .filter(Boolean)
                         .join(" · ")}
@@ -494,10 +540,10 @@ function BundleCatalogPicker({
                         value={item.componentProductId}
                       />
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-[var(--foreground)]">
+                        <p className="text-sm leading-5 font-semibold [overflow-wrap:anywhere] text-[var(--foreground)]">
                           {product?.name ?? "Товар из каталога"}
                         </p>
-                        <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
+                        <p className="mt-1 text-xs leading-5 [overflow-wrap:anywhere] text-[var(--muted)]">
                           {[
                             product?.brandName,
                             product?.sku,
@@ -568,9 +614,15 @@ export function NewProductForm({
   compact = false,
 }: Props) {
   const isEdit = Boolean(defaults);
+  const allowServerSubmitRef = useRef(false);
+  const isUploadingImagesRef = useRef(false);
   const [name, setName] = useState(defaults?.name ?? "");
   const [categoryId, setCategoryId] = useState(defaults?.categoryId ?? "");
   const [brandId, setBrandId] = useState(defaults?.brandId ?? "");
+  const [isUploadingImages, setIsUploadingImages] = useState(false);
+  const [clientUploadStatus, setClientUploadStatus] = useState<string | null>(
+    null,
+  );
   const defaultSheetDimensions = parseSheetDimensions(defaults?.format);
   const defaultSheetPresetId = getSheetPresetIdFromDimensions(
     defaultSheetDimensions,
@@ -602,7 +654,9 @@ export function NewProductForm({
   const calculatorSheetOptions = [...calculatorSheetFormats];
   if (
     defaultSheetPresetId &&
-    !calculatorSheetOptions.some((format) => format.slug === defaultSheetPresetId)
+    !calculatorSheetOptions.some(
+      (format) => format.slug === defaultSheetPresetId,
+    )
   ) {
     calculatorSheetOptions.unshift({
       slug: defaultSheetPresetId,
@@ -614,11 +668,124 @@ export function NewProductForm({
   }
   const calculatorSheetDefaultValue =
     defaults?.calculatorSheetPresetId ?? defaultSheetPresetId;
+  const [imageUrlFields, setImageUrlFields] = useState(() =>
+    defaults?.imageUrls.length ? defaults.imageUrls : [""],
+  );
+  const updateImageUrlField = (index: number, value: string) => {
+    setImageUrlFields((current) =>
+      current.map((item, itemIndex) => (itemIndex === index ? value : item)),
+    );
+  };
+  const addImageUrlField = () => {
+    setImageUrlFields((current) => [...current, ""]);
+  };
+  const removeImageUrlField = (index: number) => {
+    setImageUrlFields((current) =>
+      current.length > 1
+        ? current.filter((_, itemIndex) => itemIndex !== index)
+        : current,
+    );
+  };
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    if (allowServerSubmitRef.current || !canUploadImages) {
+      return;
+    }
+
+    const form = event.currentTarget;
+    const imageFileField = form.elements.namedItem("imageFiles");
+    const imageFileInput =
+      imageFileField instanceof HTMLInputElement ? imageFileField : null;
+    const files = Array.from(imageFileInput?.files ?? []).filter(
+      (file) => file.size > 0,
+    );
+
+    if (files.length === 0) {
+      return;
+    }
+
+    event.preventDefault();
+
+    if (isUploadingImagesRef.current) {
+      return;
+    }
+
+    isUploadingImagesRef.current = true;
+    setIsUploadingImages(true);
+    setClientUploadStatus(`Загружаю фото: 0 из ${files.length}`);
+
+    try {
+      const invalidFile = files.find((file) => !isClientProductImage(file));
+
+      if (invalidFile) {
+        throw new Error(
+          `Файл "${invalidFile.name}" не подходит. Используйте PNG, JPG, WEBP или AVIF.`,
+        );
+      }
+
+      const productSegment =
+        sanitizeClientUploadSegment(
+          defaults?.slug ?? productIdentity ?? name,
+        ) || "product";
+      const uploadedUrls: string[] = [];
+
+      for (const [index, file] of files.entries()) {
+        const safeFileName = getSafeClientUploadFileName(file, index);
+        const pathname = `products/${productSegment}/${Date.now()}-${index + 1}-${safeFileName}`;
+
+        const blob = await upload(pathname, file, {
+          access: "public",
+          contentType: file.type || undefined,
+          handleUploadUrl: productImageUploadUrl,
+          multipart: file.size > largeImageMultipartThresholdBytes,
+          onUploadProgress: (progress) => {
+            setClientUploadStatus(
+              `Загружаю фото ${index + 1} из ${files.length}: ${progress.percentage}%`,
+            );
+          },
+        });
+
+        uploadedUrls.push(blob.url);
+        setClientUploadStatus(
+          `Загружено фото: ${uploadedUrls.length} из ${files.length}`,
+        );
+      }
+
+      clearClientUploadedImageInputs(form);
+
+      for (const imageUrl of uploadedUrls) {
+        const hiddenInput = document.createElement("input");
+        hiddenInput.type = "hidden";
+        hiddenInput.name = "imageUrl";
+        hiddenInput.value = imageUrl;
+        hiddenInput.dataset.clientUpload = "product-image";
+        form.appendChild(hiddenInput);
+      }
+
+      if (imageFileInput) {
+        imageFileInput.value = "";
+      }
+
+      allowServerSubmitRef.current = true;
+      setClientUploadStatus("Фото загружены. Сохраняю товар...");
+      form.requestSubmit();
+    } catch (error) {
+      console.error(error);
+      isUploadingImagesRef.current = false;
+      setIsUploadingImages(false);
+      setClientUploadStatus(
+        error instanceof Error
+          ? error.message
+          : "Не удалось загрузить фото. Попробуйте ещё раз.",
+      );
+    }
+  }
 
   return (
     <form
       action={isEdit ? updateProductDetailsAction : createProductAction}
       encType="multipart/form-data"
+      onSubmit={handleSubmit}
       className={cn("grid min-w-0 gap-3", compact ? "mt-3" : "mt-4")}
     >
       {defaults ? <input type="hidden" name="id" value={defaults.id} /> : null}
@@ -851,6 +1018,40 @@ export function NewProductForm({
         </CompactPanel>
       ) : null}
 
+      {isFittings ? (
+        <CompactPanel title="Размеры товара / кромки">
+          <div className={plateGridClassName}>
+            <FieldLabel>
+              Толщина кромки, мм
+              <Input
+                name="edgeThicknessMm"
+                type="number"
+                min="0"
+                step="0.1"
+                inputMode="decimal"
+                placeholder="0.8"
+                defaultValue={defaults?.edgeThicknessMm?.toString() ?? ""}
+                className={inputClassName}
+              />
+            </FieldLabel>
+
+            <FieldLabel>
+              Ширина кромки, мм
+              <Input
+                name="edgeWidthMm"
+                type="number"
+                min="0"
+                step="0.1"
+                inputMode="decimal"
+                placeholder="22"
+                defaultValue={defaults?.edgeWidthMm?.toString() ?? ""}
+                className={inputClassName}
+              />
+            </FieldLabel>
+          </div>
+        </CompactPanel>
+      ) : null}
+
       <CompactDetails
         title="Дополнительно"
         summary="адрес, старая цена, подборки"
@@ -887,76 +1088,76 @@ export function NewProductForm({
       </CompactDetails>
 
       <CompactDetails title="Фото и описание" summary="можно заполнить позже">
-        <div className={detailsGridClassName}>
+        <div className="grid gap-3">
           <FieldLabel>
             Фото товара
             <Input
-              name="imageFile0"
+              name="imageFiles"
               type="file"
               accept="image/png,image/jpeg,image/webp,image/avif"
+              multiple
               disabled={!canUploadImages}
               className={inputClassName}
             />
             <FieldHint>
               {canUploadImages
-                ? "PNG, JPG, WEBP или AVIF до 8 МБ."
+                ? "Можно выбрать сразу несколько PNG, JPG, WEBP или AVIF. Лимит 8 МБ и ограничение на 4 фото в карточке убраны."
                 : "Загрузка файлов включится после подключения Vercel Blob."}
             </FieldHint>
+            {clientUploadStatus ? (
+              <span className="text-xs leading-5 font-medium text-[var(--accent)]">
+                {clientUploadStatus}
+              </span>
+            ) : null}
           </FieldLabel>
 
-          <FieldLabel>
-            Ссылка на изображение
-            <Input
-              name="imageUrl0"
-              type="url"
-              placeholder="https://..."
-              defaultValue={defaults?.imageUrls[0] ?? ""}
-              className={inputClassName}
-            />
-            <span className="text-xs leading-5 text-[var(--muted)]">
-              Для комплекта можно оставить пустым: цена рассчитается из
-              выбранных товаров.
-            </span>
-          </FieldLabel>
-        </div>
-
-        <div className="mt-3 grid gap-3 md:grid-cols-3">
-          {[1, 2, 3].map((index) => (
-            <div
-              key={`product-gallery-slot-${index}`}
-              className="grid gap-2 rounded-2xl border border-[color:var(--line)] bg-[#faf8f4] p-3"
-            >
+          <div className="grid gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <p className="font-mono text-[10px] tracking-[0.16em] text-[var(--accent)] uppercase">
-                Фото {index + 1}
+                Ссылки на изображения
               </p>
-              <FieldLabel>
-                Файл
-                <Input
-                  name={`imageFile${index}`}
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp,image/avif"
-                  disabled={!canUploadImages}
-                  className={inputClassName}
-                />
-              </FieldLabel>
-              <FieldLabel>
-                Ссылка
-                <Input
-                  name={`imageUrl${index}`}
-                  type="url"
-                  placeholder="https://..."
-                  defaultValue={defaults?.imageUrls[index] ?? ""}
-                  className={inputClassName}
-                />
-              </FieldLabel>
+              <button
+                type="button"
+                onClick={addImageUrlField}
+                className="h-9 border border-[color:var(--line)] px-3 font-mono text-[10px] tracking-[0.14em] text-[var(--foreground)] uppercase transition hover:border-[var(--accent)] hover:bg-white"
+              >
+                Добавить ссылку
+              </button>
             </div>
-          ))}
+            <div className="grid gap-2">
+              {imageUrlFields.map((imageUrl, index) => (
+                <div
+                  key={`product-image-url-${index}`}
+                  className="flex min-w-0 flex-col gap-2 sm:flex-row"
+                >
+                  <Input
+                    name="imageUrl"
+                    type="url"
+                    placeholder="https://..."
+                    value={imageUrl}
+                    onChange={(event) =>
+                      updateImageUrlField(index, event.target.value)
+                    }
+                    className={cn(inputClassName, "min-w-0 flex-1")}
+                  />
+                  {imageUrlFields.length > 1 ? (
+                    <button
+                      type="button"
+                      onClick={() => removeImageUrlField(index)}
+                      className="h-9 border border-[color:var(--line)] px-3 font-mono text-[10px] tracking-[0.14em] text-red-600 uppercase transition hover:border-red-300 hover:bg-red-50"
+                    >
+                      Убрать
+                    </button>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+            <FieldHint>
+              Первое изображение будет главным. Остальные попадут в галерею
+              карточки товара.
+            </FieldHint>
+          </div>
         </div>
-
-        <FieldHint>
-          Первое фото будет главным. Остальные изображения попадут в галерею
-          карточки товара.
-        </FieldHint>
 
         <div className={detailsGridClassName}>
           <FieldLabel>
@@ -1031,6 +1232,7 @@ export function NewProductForm({
         <AdminSubmitButton
           type="submit"
           variant="accent"
+          disabled={isUploadingImages}
           idleLabel={isEdit ? "Сохранить товар" : "Создать товар"}
           pendingLabel="Сохраняем..."
           className={cn("h-10 w-full", compact ? "" : "md:w-auto")}

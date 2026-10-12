@@ -9,13 +9,51 @@ type PaginationProps = {
   className?: string;
 };
 
+type PaginationItem = number | "ellipsis-left" | "ellipsis-right";
+
+function getPaginationItems(
+  currentPage: number,
+  totalPages: number,
+): PaginationItem[] {
+  if (totalPages <= 9) {
+    return Array.from({ length: totalPages }, (_, index) => index + 1);
+  }
+
+  const visiblePages = new Set([
+    1,
+    totalPages,
+    currentPage - 2,
+    currentPage - 1,
+    currentPage,
+    currentPage + 1,
+    currentPage + 2,
+  ]);
+  const pages = Array.from(visiblePages)
+    .filter((page) => page >= 1 && page <= totalPages)
+    .sort((left, right) => left - right);
+  const items: PaginationItem[] = [];
+
+  for (const page of pages) {
+    const previous = items.at(-1);
+    const previousPage = typeof previous === "number" ? previous : null;
+
+    if (previousPage !== null && page - previousPage > 1) {
+      items.push(previousPage === 1 ? "ellipsis-left" : "ellipsis-right");
+    }
+
+    items.push(page);
+  }
+
+  return items;
+}
+
 export function Pagination({
   currentPage,
   totalPages,
   getHref,
   className,
 }: PaginationProps) {
-  const pages = Array.from({ length: totalPages }, (_, index) => index + 1);
+  const pages = getPaginationItems(currentPage, totalPages);
   const prevPage = Math.max(1, currentPage - 1);
   const nextPage = Math.min(totalPages, currentPage + 1);
   const mobileButtonClassName =
@@ -78,6 +116,18 @@ export function Pagination({
       <div className="hidden max-w-full min-w-0 overflow-x-auto pb-1 sm:block">
         <div className="flex w-max flex-nowrap items-center gap-2">
           {pages.map((page) => {
+            if (typeof page !== "number") {
+              return (
+                <span
+                  key={page}
+                  aria-hidden="true"
+                  className="inline-flex h-10 min-w-8 items-center justify-center text-sm text-[var(--muted)]"
+                >
+                  …
+                </span>
+              );
+            }
+
             const isActive = page === currentPage;
             const sharedClassName =
               "inline-flex h-10 min-w-10 items-center justify-center rounded-full border px-3 text-sm font-semibold transition focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none";

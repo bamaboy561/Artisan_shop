@@ -70,6 +70,7 @@ export type FeaturedProduct = {
   oldPrice?: number;
   sku: string;
   inStock: boolean;
+  stockQuantity: number | null;
   format: string;
   summary: string;
   description: string;
@@ -90,6 +91,19 @@ export type FeaturedProduct = {
   sheetPresetId?: CalculatorSheetPresetId;
   updatedAt?: Date;
 };
+
+export type PublicProductSearchItem = Pick<
+  FeaturedProduct,
+  | "slug"
+  | "name"
+  | "sku"
+  | "brand"
+  | "categoryName"
+  | "image"
+  | "price"
+  | "oldPrice"
+  | "inStock"
+>;
 
 export type Brand = {
   slug: string;

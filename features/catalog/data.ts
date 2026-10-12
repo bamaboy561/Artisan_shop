@@ -42,7 +42,10 @@ export function normalizeBrandSlug(slug: string) {
   const normalized = slug
     .trim()
     .toLocaleLowerCase("ru-RU")
-    .replace(/\s+/g, "-");
+    .replaceAll("ё", "е")
+    .replace(/[^\p{L}\p{N}]+/gu, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
 
   return brandSlugAliases[slug] ?? brandSlugAliases[normalized] ?? normalized;
 }

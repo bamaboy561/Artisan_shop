@@ -32,6 +32,7 @@ export type CreateOperationEventInput = {
     | "manager_note"
     | "client_note"
     | "client_files"
+    | "cutting_stage"
     | "production_result"
     | "result_files"
     | "fulfillment";

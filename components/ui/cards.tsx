@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 
 import { FavoriteToggle } from "@/components/catalog/favorite-toggle";
+import { AddToCartButton } from "@/components/ecommerce/add-to-cart-button";
 import { ProductImage } from "@/components/catalog/product-image";
 import { formatPrice } from "@/lib/commerce";
 import { cn } from "@/lib/utils";
@@ -16,8 +17,10 @@ type ProductCardProps = {
   image?: string;
   price?: number;
   oldPrice?: number;
+  sku?: string;
   inStock?: boolean;
   categoryName?: string;
+  purchaseMode?: "cart" | "request";
   compact?: boolean;
   denseMobile?: boolean;
   mobileList?: boolean;
@@ -38,7 +41,9 @@ export function ProductCard({
   image,
   price,
   oldPrice,
+  sku,
   inStock = true,
+  purchaseMode = "request",
   compact = false,
   denseMobile = false,
   mobileList = false,
@@ -56,16 +61,127 @@ export function ProductCard({
         ? "aspect-[0.78] sm:aspect-[1.06]"
         : "aspect-[0.92] sm:aspect-[1.06]"
       : "aspect-[0.96] sm:aspect-[1.08]";
+  const canAddToCart =
+    Boolean(productSlug) &&
+    purchaseMode === "cart" &&
+    typeof price === "number";
+
+  if (mobileList) {
+    return (
+      <article
+        className={cn(
+          "relative flex h-full min-w-0 flex-col border-b border-[color:var(--line)] pb-4 sm:border-b-0",
+          className,
+        )}
+      >
+        <div className="grid min-w-0 grid-cols-[96px_minmax(0,1fr)] gap-3 sm:flex sm:flex-1 sm:flex-col sm:gap-0">
+          <div className="relative self-start sm:w-full">
+            <Link
+              href={href}
+              className="group relative block aspect-square w-24 overflow-hidden rounded bg-white sm:aspect-[4/3] sm:w-full"
+            >
+              <ProductImage
+                src={image}
+                alt={name}
+                fill
+                fallbackLabel="Artisan"
+                className="object-contain p-1 transition-transform duration-300 group-hover:scale-105"
+                sizes="(max-width: 639px) 96px, (max-width: 1024px) 50vw, 25vw"
+              />
+            </Link>
+            {productSlug && showFavorite ? (
+              <div className="absolute top-1 left-1 z-10 sm:top-2 sm:right-2 sm:left-auto">
+                <FavoriteToggle
+                  productSlug={productSlug}
+                  isFavorite={isFavorite}
+                  next={favoriteNext}
+                />
+              </div>
+            ) : null}
+            {isBundle ? (
+              <span className="mt-1 block text-xs text-[var(--muted)] sm:absolute sm:bottom-2 sm:left-2 sm:bg-white sm:px-2 sm:py-1">
+                Комплект
+              </span>
+            ) : null}
+          </div>
+          <div className="min-w-0 flex-1 sm:pt-3">
+            <p className="text-xs text-[var(--muted)]">{brand}</p>
+            <h3 className="mt-1 text-sm leading-5 font-medium break-words text-[var(--foreground)] sm:text-base sm:leading-6">
+              <Link href={href} className="hover:text-[var(--accent)]">
+                {name}
+              </Link>
+            </h3>
+            {sku ? (
+              <p className="mt-1.5 text-xs leading-5 [overflow-wrap:anywhere] text-[var(--muted)]">
+                Артикул: {sku}
+              </p>
+            ) : null}
+            {format ? (
+              <p className="mt-1 text-xs leading-5 [overflow-wrap:anywhere] text-[var(--muted)]">
+                {format}
+              </p>
+            ) : null}
+            <p
+              className={cn(
+                "mt-1.5 text-xs",
+                inStock ? "text-emerald-700" : "text-[var(--muted)]",
+              )}
+            >
+              {inStock ? "В наличии" : "Под заказ"}
+            </p>
+          </div>
+        </div>
+        <div className="mt-3 flex min-w-0 flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-base font-semibold break-words text-[var(--foreground)]">
+              {typeof price === "number" ? formatPrice(price) : action}
+            </p>
+            {typeof oldPrice === "number" &&
+            typeof price === "number" &&
+            oldPrice > price ? (
+              <p className="text-xs text-[var(--muted)] line-through">
+                {formatPrice(oldPrice)}
+              </p>
+            ) : null}
+          </div>
+          {canAddToCart && productSlug ? (
+            <AddToCartButton
+              productSlug={productSlug}
+              disabled={!inStock}
+              className="min-w-[130px]"
+            />
+          ) : (
+            <Link
+              href={href}
+              className="inline-flex min-h-11 items-center gap-2 text-sm text-[var(--foreground)]"
+            >
+              Подробнее
+              <ArrowRight className="size-4" />
+            </Link>
+          )}
+        </div>
+      </article>
+    );
+  }
 
   return (
     <article className={cn("relative h-full", className)}>
-      {showFavorite && productSlug ? (
-        <div className="absolute top-2 right-2 z-20 sm:top-3 sm:right-3">
-          <FavoriteToggle
-            productSlug={productSlug}
-            isFavorite={isFavorite}
-            next={favoriteNext}
-          />
+      {productSlug && (showFavorite || canAddToCart) ? (
+        <div className="absolute top-2 right-2 z-20 grid gap-2 sm:top-3 sm:right-3">
+          {showFavorite ? (
+            <FavoriteToggle
+              productSlug={productSlug}
+              isFavorite={isFavorite}
+              next={favoriteNext}
+            />
+          ) : null}
+          {canAddToCart ? (
+            <AddToCartButton
+              productSlug={productSlug}
+              disabled={!inStock}
+              compact
+            />
+          ) : null}
         </div>
       ) : null}
 
@@ -152,6 +268,17 @@ export function ProductCard({
             {name}
           </h3>
 
+          {sku ? (
+            <p
+              className={cn(
+                "mt-2 font-mono leading-4 tracking-[0.1em] [overflow-wrap:anywhere] text-[var(--muted)] uppercase",
+                compact ? "text-[9px]" : "text-[9px] sm:text-[10px]",
+              )}
+            >
+              SKU: {sku}
+            </p>
+          ) : null}
+
           <div
             className={cn(
               "mt-auto grid min-w-0 gap-1.5",
@@ -189,7 +316,7 @@ export function ProductCard({
 
             <span
               className={cn(
-                "block max-w-full font-mono leading-4 tracking-[0.12em] break-words text-[var(--muted)] uppercase",
+                "block max-w-full font-mono leading-4 tracking-[0.12em] [overflow-wrap:anywhere] text-[var(--muted)] uppercase",
                 compact ? "text-[9px]" : "text-[9px] sm:text-[10px]",
               )}
             >

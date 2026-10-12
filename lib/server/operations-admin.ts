@@ -27,7 +27,12 @@ export async function getAdminManagers() {
     where: {
       role: {
         code: {
-          in: [RoleCode.MANAGER, RoleCode.ADMIN, RoleCode.SUPER_ADMIN],
+          in: [
+            RoleCode.CUTTING_MANAGER,
+            RoleCode.MANAGER,
+            RoleCode.ADMIN,
+            RoleCode.SUPER_ADMIN,
+          ],
         },
       },
     },

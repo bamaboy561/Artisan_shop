@@ -4,6 +4,7 @@ import {
   Bell,
   Calculator,
   FileStack,
+  Home,
   LogOut,
   Menu,
   Search,
@@ -28,14 +29,12 @@ const variantMeta = {
     label: "Панель управления",
     title: "Рабочий центр Artisan",
     description: "Заказы, запросы, материалы и клиенты в одном интерфейсе.",
-    chips: ["Каталог", "Заявки", "Заказы", "Клиенты"],
   },
   account: {
     label: "Личный кабинет",
     title: "Профиль, заказы и текущие статусы",
     description:
       "Клиент видит только то, что нужно для заказа, повторного обращения и контроля статусов.",
-    chips: ["Профиль", "Заказы", "Заявки", "Избранное"],
   },
 } as const;
 
@@ -51,8 +50,8 @@ function AdminFrame({
   const notificationBadge = requestBadge;
 
   return (
-    <div className="min-h-screen bg-[#f7f7f5] text-[#22201e] lg:grid lg:grid-cols-[264px_minmax(0,1fr)]">
-      <aside className="relative z-30 bg-[#111210] text-white lg:sticky lg:top-0 lg:h-screen lg:overflow-hidden">
+    <div className="min-h-screen bg-[#f7f7f5] text-[#22201e] print:block print:bg-white lg:grid lg:grid-cols-[264px_minmax(0,1fr)]">
+      <aside className="relative z-30 bg-[#111210] text-white print:hidden lg:sticky lg:top-0 lg:h-screen lg:overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_8%_8%,rgba(197,89,53,0.22),transparent_28%),linear-gradient(180deg,rgba(255,255,255,0.035),rgba(255,255,255,0))]" />
         <div className="relative flex flex-col px-3 py-3 lg:h-full lg:min-h-0 lg:py-4">
           <Link href="/admin" className="flex items-center gap-3 px-1">
@@ -67,6 +66,14 @@ function AdminFrame({
                 Панель управления
               </span>
             </span>
+          </Link>
+
+          <Link
+            href="/"
+            className="mt-4 inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/[0.06] px-3 text-sm font-medium text-white/82 transition hover:border-white/30 hover:bg-white hover:text-[#111210]"
+          >
+            <Home className="size-4" strokeWidth={1.85} />
+            На сайт
           </Link>
 
           <div className="mt-4 min-h-0 overflow-hidden [scrollbar-width:none] lg:mt-6 lg:flex-1 lg:overflow-y-auto lg:pr-1 [&::-webkit-scrollbar]:hidden">
@@ -87,8 +94,8 @@ function AdminFrame({
         </div>
       </aside>
 
-      <div className="min-w-0 overflow-x-clip">
-        <header className="sticky top-0 z-20 border-b border-[#e6e2dc] bg-white/88 backdrop-blur-xl">
+      <div className="min-w-0 overflow-x-clip print:overflow-visible">
+        <header className="sticky top-0 z-20 border-b border-[#e6e2dc] bg-white/88 backdrop-blur-xl print:hidden">
           <div className="flex min-h-[78px] flex-col gap-3 px-4 py-3 sm:px-6 xl:flex-row xl:items-center xl:justify-between xl:px-7">
             <div className="flex min-w-0 flex-1 items-center gap-3">
               <button
@@ -105,12 +112,19 @@ function AdminFrame({
                   Поиск по заказам, клиентам, материалам...
                 </span>
                 <span className="ml-auto hidden rounded-md border border-[#e6e2dc] px-2 py-0.5 text-xs text-[#8a857d] sm:inline-flex">
-                  ⌘K
+                  Ctrl K
                 </span>
               </div>
             </div>
 
             <nav className="flex min-w-0 items-center gap-2 overflow-x-auto text-sm text-[#2b2a28]">
+              <Link
+                href="/"
+                className="inline-flex h-10 shrink-0 items-center gap-2 rounded-xl border border-[#e6e2dc] bg-white px-3 font-medium transition hover:border-[#c65b3a] hover:text-[#c65b3a]"
+              >
+                <Home className="size-4" strokeWidth={1.8} />
+                На сайт
+              </Link>
               <Link
                 href="/calculator"
                 className="inline-flex h-10 shrink-0 items-center gap-2 rounded-xl px-3 transition hover:bg-[#f4f1ed]"
@@ -148,7 +162,7 @@ function AdminFrame({
 
         <main
           id="main-content"
-          className="min-w-0 space-y-5 overflow-x-clip px-4 py-5 sm:px-6 xl:px-7 xl:py-6"
+          className="min-w-0 space-y-5 overflow-x-clip px-4 py-5 print:space-y-0 print:overflow-visible print:p-0 sm:px-6 xl:px-7 xl:py-6"
         >
           <div className="sr-only">
             <h1>{title}</h1>
@@ -184,16 +198,28 @@ function AccountFrame({
                 <p className="font-mono text-[8px] tracking-[0.2em] text-white/42 uppercase">
                   {eyebrow}
                 </p>
-                <h1 className="mt-1 truncate text-[1.25rem] leading-none font-semibold tracking-[-0.035em] text-white">
+                <h1 className="mt-1 truncate text-[1.25rem] leading-none font-semibold text-white">
                   {title}
                 </h1>
               </div>
-              <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-white text-sm font-black text-[#111111]">
+              <Link
+                href="/"
+                aria-label="На сайт"
+                className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-white text-sm font-black text-[#111111] transition hover:bg-[#c65b3a] hover:text-white"
+              >
                 A
-              </span>
+              </Link>
             </div>
 
             {actions ? <div>{actions}</div> : null}
+
+            <Link
+              href="/"
+              className="flex h-10 items-center justify-center gap-2 rounded-[16px] border border-white/10 bg-white/[0.06] text-sm font-semibold text-white/82 transition hover:border-white/30 hover:bg-white hover:text-[#111111]"
+            >
+              <Home className="size-4" strokeWidth={1.9} />
+              На сайт
+            </Link>
 
             <DashboardNav items={items} variant={variant} mode="mobile" />
           </div>
@@ -207,7 +233,7 @@ function AccountFrame({
               <p className="font-mono text-[10px] tracking-[0.24em] text-white/38 uppercase">
                 {eyebrow}
               </p>
-              <h1 className="mt-3 max-w-full text-[1.65rem] leading-[1.04] font-semibold tracking-[-0.035em] break-words text-white 2xl:text-[1.85rem]">
+              <h1 className="mt-3 max-w-full text-[1.65rem] leading-[1.04] font-semibold break-words text-white 2xl:text-[1.85rem]">
                 {title}
               </h1>
               <p className="mt-3 text-sm leading-6 break-words text-white/58">
@@ -216,6 +242,14 @@ function AccountFrame({
             </div>
 
             {actions ? <div>{actions}</div> : null}
+
+            <Link
+              href="/"
+              className="flex h-11 items-center justify-center gap-2 rounded-[18px] border border-white/10 bg-white/[0.055] text-sm font-semibold text-white/82 transition hover:border-white/30 hover:bg-white hover:text-[#111111]"
+            >
+              <Home className="size-4" strokeWidth={1.9} />
+              На сайт
+            </Link>
 
             <div className="min-h-0 flex-1 overflow-y-auto pr-1">
               <DashboardNav items={items} variant={variant} />
@@ -235,7 +269,7 @@ function AccountFrame({
                 <p className="font-mono text-[10px] tracking-[0.24em] text-[var(--accent)] uppercase">
                   {meta.label}
                 </p>
-                <h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-[var(--foreground)] sm:text-[2rem]">
+                <h2 className="mt-2 text-2xl font-semibold text-[var(--foreground)] sm:text-[2rem]">
                   {meta.title}
                 </h2>
               </div>

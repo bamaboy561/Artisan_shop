@@ -28,7 +28,7 @@ export default async function AdminBrandsPage() {
     );
   }
 
-  await requireAdminSession("/login?next=/admin/brands");
+  await requireAdminSession("/login?next=/admin/brands", "/admin/brands");
 
   const brands = await getAdminBrands();
 

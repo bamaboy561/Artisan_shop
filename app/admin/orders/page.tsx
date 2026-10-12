@@ -5,6 +5,7 @@ import { OrderStatus } from "@/generated/prisma";
 import { bulkUpdateOrdersAction, updateOrderAction } from "@/app/admin/actions";
 import { AdminSubmitButton } from "@/components/admin/admin-submit-button";
 import { BulkSelectionTools } from "@/components/admin/bulk-selection-tools";
+import { DeleteOrderButton } from "@/components/admin/delete-order-button";
 import { MetricCard } from "@/components/admin/metric-card";
 import { SetupState } from "@/components/admin/setup-state";
 import { StatusBadge } from "@/components/admin/status-badge";
@@ -13,6 +14,7 @@ import { DataTable } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { requireAdminSession } from "@/lib/auth/dal";
+import { canDeleteOrders } from "@/lib/auth/roles";
 import { hasDatabaseUrl, isDemoModeEnabled } from "@/lib/db";
 import {
   getAdminManagers,
@@ -38,7 +40,9 @@ type AdminOrdersPageProps = {
 };
 
 const bulkActionOptions = [
+  { value: "reserve", label: "Поставить выбранные в бронь" },
   { value: "confirm", label: "Подтвердить выбранные" },
+  { value: "mark-paid", label: "Отметить выбранные оплаченными" },
   { value: "to-production", label: "Перевести в производство" },
   { value: "ready-for-pickup", label: "Отметить готовыми к выдаче" },
   { value: "ship", label: "Отметить как отгруженные" },
@@ -67,8 +71,11 @@ function formatDate(date: Date) {
 function getStatusTone(status: OrderStatus) {
   switch (status) {
     case OrderStatus.NEW:
+    case OrderStatus.RESERVED:
     case OrderStatus.CONFIRMED:
       return "warning" as const;
+    case OrderStatus.PAID:
+      return "success" as const;
     case OrderStatus.IN_PRODUCTION:
     case OrderStatus.READY_FOR_PICKUP:
     case OrderStatus.SHIPPED:
@@ -108,7 +115,11 @@ export default async function AdminOrdersPage({
     );
   }
 
-  await requireAdminSession("/login?next=/admin/orders");
+  const session = await requireAdminSession(
+    "/login?next=/admin/orders",
+    "/admin/orders",
+  );
+  const canDeleteOrder = canDeleteOrders(session.roleCode);
 
   const [orders, managers, resolvedSearchParams] = await Promise.all([
     getAdminOrders(),
@@ -204,12 +215,20 @@ export default async function AdminOrdersPage({
         <p className="text-xs text-[var(--muted)]">
           {formatDate(order.createdAt)} · {order._count.items} позиций
         </p>
-        <Link
-          href={`/admin/orders/${order.id}`}
-          className="inline-flex h-8 items-center justify-center border border-[color:var(--line-strong)] px-3 text-[11px] font-semibold tracking-[0.12em] text-[var(--foreground)] uppercase transition hover:border-[color:var(--foreground)] hover:bg-[var(--foreground)] hover:text-white"
-        >
-          Редактировать
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            href={`/admin/orders/${order.id}`}
+            className="inline-flex h-8 items-center justify-center border border-[color:var(--line-strong)] px-3 text-[11px] font-semibold tracking-[0.12em] text-[var(--foreground)] uppercase transition hover:border-[color:var(--foreground)] hover:bg-[var(--foreground)] hover:text-white"
+          >
+            Редактировать
+          </Link>
+          {canDeleteOrder ? (
+            <DeleteOrderButton
+              orderId={order.id}
+              orderNumber={order.number ?? order.id.slice(0, 8)}
+            />
+          ) : null}
+        </div>
       </div>
     ),
     client: (
@@ -381,12 +400,12 @@ export default async function AdminOrdersPage({
         >
           <label className="grid gap-2 xl:col-span-2">
             <span className="text-sm text-[var(--foreground)]">
-              Поиск по номеру, клиенту, телефону или промокоду
+              Поиск по номеру, фамилии, клиенту, телефону или промокоду
             </span>
             <Input
               name="q"
               defaultValue={state.q}
-              placeholder="Например, A-1042 или ОсОО Интерьер"
+              placeholder="Например, Иванов, A-1042 или ОсОО Интерьер"
             />
           </label>
 

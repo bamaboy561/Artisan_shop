@@ -1,0 +1,14 @@
+<resources>
+    <string name="app_name">Artisan</string>
+    <string name="download_started">Файл загружается в папку «Загрузки»</string>
+    <string name="download_failed">Не удалось загрузить файл</string>
+    <string name="camera_permission_denied">Для сканирования QR нужен доступ к камере</string>
+    <string name="file_picker_unavailable">На телефоне не найдено приложение для выбора файла</string>
+    <string name="notification_channel_id" translatable="false">artisan_updates</string>
+    <string name="notification_channel_name">Заказы и бонусы</string>
+    <string name="notification_channel_description">Статусы заказов, распила, бонусы и акции Artisan</string>
+    <string name="notification_permission_title">Уведомления Artisan</string>
+    <string name="notification_permission_message">Разрешите уведомления, чтобы видеть статусы заказов и распила, начисление бонусов и новые акции.</string>
+    <string name="notification_permission_allow">Разрешить</string>
+    <string name="notification_permission_later">Не сейчас</string>
+</resources>

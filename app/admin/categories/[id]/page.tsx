@@ -39,7 +39,10 @@ export default async function EditCategoryPage({
 }: EditCategoryPageProps) {
   if (!hasDatabaseUrl()) notFound();
 
-  await requireAdminSession("/login?next=/admin/categories");
+  await requireAdminSession(
+    "/login?next=/admin/categories",
+    "/admin/categories",
+  );
 
   const { id } = await params;
   const category = await getDb().category.findUnique({

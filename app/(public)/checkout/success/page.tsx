@@ -47,8 +47,8 @@ export default async function CheckoutSuccessPage({
           Спасибо, заказ принят в работу
         </h1>
         <p className="mt-4 text-sm leading-7 text-[var(--muted)]">
-          Менеджер свяжется с вами для подтверждения комплектации, сроков и
-          доставки. Детали заказа уже доступны команде в админке.
+          Менеджер свяжется с вами для подтверждения состава заказа и времени
+          самовывоза. Баллы будут начислены после подтверждения заказа.
         </p>
 
         <div className="mt-8 grid gap-4 sm:grid-cols-3">
@@ -63,7 +63,7 @@ export default async function CheckoutSuccessPage({
 
           <div className="rounded-[20px] border border-[color:var(--line)] bg-[var(--surface)] px-5 py-5 text-left">
             <p className="text-xs tracking-[0.16em] text-[var(--muted)] uppercase">
-              Начислено баллов
+              Баллы к начислению
             </p>
             <p className="mt-2 text-2xl font-semibold text-[var(--foreground)]">
               {awardedPoints > 0 ? awardedPoints : "—"}
