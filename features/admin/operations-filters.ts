@@ -46,6 +46,7 @@ export type AdminOrderFilterState = {
   managerId: string;
   assignment: AdminAssignmentFilter;
   delivery: "all" | "delivery" | "pickup";
+  due: "all" | "overdue";
   sort: AdminOrderSort;
 };
 
@@ -80,6 +81,7 @@ export type AdminOrderItem = {
   total: number;
   createdAt: Date;
   updatedAt: Date;
+  productionDueAt?: Date | string | null;
   managerId: string | null;
   user: {
     firstName?: string | null;
@@ -150,6 +152,26 @@ export const activeOrderStatuses = new Set<OrderStatus>([
   OrderStatus.READY_FOR_PICKUP,
   OrderStatus.SHIPPED,
 ]);
+
+const overdueOrderStatuses = new Set<OrderStatus>([
+  OrderStatus.NEW,
+  OrderStatus.RESERVED,
+  OrderStatus.CONFIRMED,
+  OrderStatus.PAID,
+  OrderStatus.IN_PRODUCTION,
+]);
+
+// Просрочен: срок готовности прошёл, а заказ ещё не готов к выдаче.
+export function isOrderOverdue(
+  order: Pick<AdminOrderItem, "status" | "productionDueAt">,
+  now = new Date(),
+) {
+  if (!order.productionDueAt || !overdueOrderStatuses.has(order.status)) {
+    return false;
+  }
+
+  return new Date(order.productionDueAt).getTime() < now.getTime();
+}
 
 export const activeRequestStatuses = new Set<RequestStatus>([
   RequestStatus.NEW,
@@ -251,6 +273,10 @@ export function parseAdminOrderSearchParams(
       deliveryCandidate === "delivery" || deliveryCandidate === "pickup"
         ? deliveryCandidate
         : "all",
+    due:
+      getFirstSearchValue(searchParams, "due") === "overdue"
+        ? "overdue"
+        : "all",
     sort: validOrderSorts.has(sortCandidate as AdminOrderSort)
       ? (sortCandidate as AdminOrderSort)
       : "updated-desc",
@@ -297,6 +323,10 @@ export function filterAdminOrders(
     }
 
     if (state.delivery === "pickup" && order.deliveryMethodId) {
+      return false;
+    }
+
+    if (state.due === "overdue" && !isOrderOverdue(order)) {
       return false;
     }
 
@@ -369,6 +399,10 @@ export function buildAdminOrdersHref(
 
   if (state.delivery !== "all") {
     params.set("delivery", state.delivery);
+  }
+
+  if (state.due !== "all") {
+    params.set("due", state.due);
   }
 
   if (state.sort !== "updated-desc") {
