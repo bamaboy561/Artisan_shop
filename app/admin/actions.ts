@@ -159,6 +159,7 @@ type TransitionSnapshot = {
   previousCuttingStage?: CuttingStage | null;
   previousCuttingPickupCell?: string | null;
   cuttingStageNote?: string | null;
+  cuttingStageNoteInternal?: boolean;
 };
 
 function getString(formData: FormData, key: string) {
@@ -881,6 +882,7 @@ async function syncRequestById(
     previousCuttingStage: transition?.previousCuttingStage,
     previousCuttingPickupCell: transition?.previousCuttingPickupCell,
     cuttingStageNote: transition?.cuttingStageNote,
+    cuttingStageNoteInternal: transition?.cuttingStageNoteInternal,
     product: request.product,
   });
 }
@@ -4355,6 +4357,8 @@ type CuttingProgressMutationInput = {
   stage: CuttingStage;
   pickupCell?: string | null;
   note?: string | null;
+  // Комментарий оператора станции: виден сотрудникам, клиенту не уходит.
+  internalNote?: boolean;
   expectedStage?: CuttingStage | null;
   actor: Awaited<ReturnType<typeof ensureCuttingAdminAccess>>;
 };
@@ -4402,7 +4406,7 @@ async function applyRequestCuttingProgress(
         ? `Ячейка выдачи: № ${currentRequest.cuttingPickupCell}.`
         : "Ячейка выдачи пока не указана."
       : null,
-    input.note,
+    input.internalNote ? null : input.note,
   ]
     .filter(Boolean)
     .join(" ");
@@ -4418,6 +4422,17 @@ async function applyRequestCuttingProgress(
           fromStatus: previousRequest.cuttingStage,
           toStatus: currentRequest.cuttingStage,
           isVisibleToClient: true,
+          actor: input.actor,
+        })
+      : Promise.resolve(),
+    input.internalNote && input.note
+      ? logOperationEvent({
+          entityType: "request",
+          entityId: input.requestId,
+          eventType: "cutting_stage",
+          title: "Комментарий станции",
+          description: input.note,
+          isVisibleToClient: false,
           actor: input.actor,
         })
       : Promise.resolve(),
@@ -4444,6 +4459,7 @@ async function applyRequestCuttingProgress(
       previousCuttingStage: previousRequest.cuttingStage,
       previousCuttingPickupCell: previousRequest.cuttingPickupCell,
       cuttingStageNote: input.note,
+      cuttingStageNoteInternal: input.internalNote,
     });
   }
 
@@ -4502,6 +4518,11 @@ export async function advanceProductionStageAction(formData: FormData) {
     redirect(productionActionReturn(formData, requestId, "stage-conflict"));
   }
 
+  // Оператор берёт в работу только то, что менеджер запустил в производство.
+  if (!request.cuttingStage && request.status !== RequestStatus.IN_PROGRESS) {
+    redirect(productionActionReturn(formData, requestId, "not-launched"));
+  }
+
   const pickupCell = getOptionalString(formData, "cuttingPickupCell");
 
   if (transition.requiresPickupCell && !pickupCell) {
@@ -4513,6 +4534,7 @@ export async function advanceProductionStageAction(formData: FormData) {
     stage: transition.to,
     pickupCell,
     note: getOptionalString(formData, "cuttingStageNote"),
+    internalNote: true,
     expectedStage: request.cuttingStage,
     actor,
   });

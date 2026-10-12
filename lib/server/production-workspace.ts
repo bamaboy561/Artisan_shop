@@ -130,8 +130,9 @@ export async function getProductionQueue(input: ProductionFilters) {
         ? { cuttingStage: CuttingStage.READY_FOR_PICKUP }
         : filters.station === "CUTTING"
           ? {
+              // Без этапа на станцию попадает только запущенное в работу.
               OR: [
-                { cuttingStage: null },
+                { cuttingStage: null, status: RequestStatus.IN_PROGRESS },
                 { cuttingStage: { in: productionStationStages.CUTTING } },
               ],
             }
