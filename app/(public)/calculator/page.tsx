@@ -43,8 +43,15 @@ export default async function CalculatorPage({
                 Калькулятор распила
               </p>
               <h1 className="mt-1.5 text-[1.05rem] leading-[1.04] font-semibold tracking-[-0.045em] text-[#151411] sm:mt-3 sm:max-w-[14ch] sm:text-[2.2rem]">
-                Раскрой листа и карта деталей.
+                Раскрой онлайн: листы и цена сразу.
               </h1>
+              <ol className="mt-2 grid gap-1 text-[12px] leading-5 text-[#5f554c] sm:mt-3 sm:text-sm">
+                <li>1. Вставьте список из Excel или введите детали.</li>
+                <li>
+                  2. Сразу видно число листов, карту раскроя и ориентир цены.
+                </li>
+                <li>3. Отправьте заявку, можно с проектом Базиса или фото.</li>
+              </ol>
             </div>
 
             <div className="hidden sm:flex sm:flex-row sm:flex-wrap sm:gap-3">

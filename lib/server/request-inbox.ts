@@ -160,9 +160,14 @@ export function isAllowedRequestFile(fileName: string) {
     ".jpeg",
     ".png",
     ".webp",
+    ".heic",
     ".dwg",
     ".dxf",
     ".project",
+    ".b3d",
+    ".bpr",
+    ".sto",
+    ".xml",
   ]).has(extension);
 }
 
@@ -182,20 +187,35 @@ export async function persistRequestFiles(
     return [] as RequestFileRecord[];
   }
 
-  const directory = await ensureRequestUploadsDirectory(
-    requestId,
-    options.directorySlug,
-  );
+  // На Vercel файловая система только для чтения, поэтому файлы заявок
+  // кладём в Vercel Blob, если он подключён, а локально пишем в public.
+  const useBlobStorage = Boolean(process.env.BLOB_READ_WRITE_TOKEN);
+  const directory = useBlobStorage
+    ? null
+    : await ensureRequestUploadsDirectory(requestId, options.directorySlug);
   const savedFiles: RequestFileRecord[] = [];
 
   for (const file of files) {
     const sanitizedBaseName = sanitizeFileName(file.name || "attachment");
     const safeName = sanitizedBaseName || `file-${Date.now()}`;
     const storedFileName = `${Date.now()}-${safeName}`;
-    const targetPath = path.join(directory, storedFileName);
-    const bytes = Buffer.from(await file.arrayBuffer());
+    const relativePath = options.directorySlug
+      ? `${requestId}/${options.directorySlug}/${storedFileName}`
+      : `${requestId}/${storedFileName}`;
+    let fileUrl = `/uploads/requests/${relativePath}`;
 
-    await writeFile(targetPath, bytes);
+    if (directory) {
+      const bytes = Buffer.from(await file.arrayBuffer());
+      await writeFile(path.join(directory, storedFileName), bytes);
+    } else {
+      const { put } = await import("@vercel/blob");
+      const blob = await put(`requests/${relativePath}`, file, {
+        access: "public",
+        addRandomSuffix: true,
+        contentType: file.type || undefined,
+      });
+      fileUrl = blob.url;
+    }
 
     savedFiles.push({
       id: `file-${Date.now()}-${savedFiles.length + 1}`,
@@ -205,9 +225,7 @@ export async function persistRequestFiles(
       uploadedByName: options.uploadedByName ?? null,
       note: options.note ?? null,
       fileName: file.name,
-      fileUrl: options.directorySlug
-        ? `/uploads/requests/${requestId}/${options.directorySlug}/${storedFileName}`
-        : `/uploads/requests/${requestId}/${storedFileName}`,
+      fileUrl,
       mimeType: file.type || null,
       size: file.size,
       createdAt: new Date().toISOString(),

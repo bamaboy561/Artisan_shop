@@ -6,6 +6,7 @@ import { getOptionalSession } from "@/lib/auth/dal";
 import { handleCuttingRequestCreated } from "@/lib/server/commercial-integrations";
 import {
   createCuttingRequest,
+  isAllowedRequestFile,
   type CuttingRequestSubmission,
 } from "@/lib/server/request-inbox";
 
@@ -30,9 +31,28 @@ function normalizeOptionalText(value: string | null | undefined) {
   return normalized.length > 0 ? normalized : null;
 }
 
+const MAX_ATTACHMENTS = 5;
+
+function readAttachments(formData?: FormData | null) {
+  if (!formData) {
+    return [] as File[];
+  }
+
+  return formData
+    .getAll("files")
+    .filter(
+      (entry): entry is File =>
+        typeof entry !== "string" &&
+        entry.size > 0 &&
+        entry.name.trim().length > 0,
+    );
+}
+
 export async function submitCuttingRequestAction(
   input: SubmitCuttingRequestInput,
+  attachments?: FormData | null,
 ): Promise<SubmitCuttingRequestResult> {
+  const files = readAttachments(attachments);
   const subject = normalizeRequiredText(input.subject);
   const message = normalizeRequiredText(input.message);
   const contactName = normalizeRequiredText(input.contactName);
@@ -49,6 +69,24 @@ export async function submitCuttingRequestAction(
     return {
       ok: false,
       message: "Заполните контактные данные и добавьте хотя бы одну деталь.",
+    };
+  }
+
+  if (files.length > MAX_ATTACHMENTS) {
+    return {
+      ok: false,
+      message: `Можно прикрепить до ${MAX_ATTACHMENTS} файлов.`,
+    };
+  }
+
+  const unsupportedFile = files.find(
+    (file) => !isAllowedRequestFile(file.name),
+  );
+
+  if (unsupportedFile) {
+    return {
+      ok: false,
+      message: `Формат файла ${unsupportedFile.name} пока не поддерживается.`,
     };
   }
 
@@ -100,6 +138,7 @@ export async function submitCuttingRequestAction(
       estimatedBudget: input.estimatedBudget ?? null,
       deliveryNeeded: input.deliveryNeeded ?? false,
       userId: session?.userId ?? null,
+      uploadedFiles: files,
     });
 
     if (!createdRequest.duplicate) {
