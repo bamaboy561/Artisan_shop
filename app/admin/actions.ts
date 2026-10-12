@@ -2619,7 +2619,7 @@ export async function importProductsFromExcelAction(formData: FormData) {
           updateData.compareAtPrice = row.compareAtPrice;
         }
         if (row.stockQuantity !== null) {
-          updateData.stockQuantity = row.stockQuantity;
+          updateData.stockQuantity = Math.floor(row.stockQuantity);
         }
         if (row.format) updateData.format = row.format;
         if (row.thicknessMm !== null) updateData.thicknessMm = row.thicknessMm;
@@ -2688,7 +2688,8 @@ export async function importProductsFromExcelAction(formData: FormData) {
         brand: brandId ? { connect: { id: brandId } } : undefined,
         price: row.price,
         compareAtPrice: row.compareAtPrice,
-        stockQuantity: row.stockQuantity,
+        stockQuantity:
+          row.stockQuantity === null ? null : Math.floor(row.stockQuantity),
         format: row.format,
         thicknessMm: row.thicknessMm,
         edgeThicknessMm: row.edgeThicknessMm,

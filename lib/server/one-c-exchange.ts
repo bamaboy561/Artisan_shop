@@ -28,6 +28,18 @@ const nullableIntSchema = z
   .union([z.coerce.number().int().nonnegative(), z.null()])
   .optional();
 
+// Остаток из 1С бывает дробным (метры кромки): сайт хранит целое,
+// поэтому округляем вниз.
+const nullableStockSchema = z
+  .union([
+    z.coerce
+      .number()
+      .nonnegative()
+      .transform((value) => Math.floor(value)),
+    z.null(),
+  ])
+  .optional();
+
 const productStatusSchema = z
   .enum(Object.values(ProductStatus) as [ProductStatus, ...ProductStatus[]])
   .nullable()
@@ -54,9 +66,9 @@ export const oneCProductSyncSchema = z.object({
           name: z.string().trim().min(1).optional(),
           price: nullableIntSchema,
           compareAtPrice: nullableIntSchema,
-          stockQuantity: nullableIntSchema,
-          stock: nullableIntSchema,
-          quantity: nullableIntSchema,
+          stockQuantity: nullableStockSchema,
+          stock: nullableStockSchema,
+          quantity: nullableStockSchema,
           inventoryStatus: inventoryStatusSchema,
           status: productStatusSchema,
         })
