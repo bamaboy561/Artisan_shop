@@ -169,7 +169,10 @@ function OrderWorkflowTrail({ status }: { status: OrderStatus }) {
 export default async function AdminOrderDetailPage({
   params,
 }: AdminOrderDetailPageProps) {
-  const session = await requireAdminSession("/login?next=/admin/orders");
+  const session = await requireAdminSession(
+    "/login?next=/admin/orders",
+    "/admin/orders",
+  );
 
   const { id } = await params;
   const [order, managers, events, productFormOptions] = await Promise.all([
@@ -462,10 +465,7 @@ export default async function AdminOrderDetailPage({
             <h2 className="text-lg font-semibold text-[var(--foreground)]">
               Состав заказа
             </h2>
-            <form
-              action={updateOrderItemsAction}
-              className="mt-5 space-y-4"
-            >
+            <form action={updateOrderItemsAction} className="mt-5 space-y-4">
               <input type="hidden" name="orderId" value={order.id} />
               <div className="divide-y divide-[color:var(--line)] border-y border-[color:var(--line)]">
                 {order.items.map((item) => (
@@ -483,7 +483,7 @@ export default async function AdminOrderDetailPage({
                         defaultValue={item.name}
                         className="h-10 font-medium"
                       />
-                      <p className="mt-1 text-xs text-[var(--muted)]">
+                      <p className="mt-1 text-xs leading-4 [overflow-wrap:anywhere] text-[var(--muted)]">
                         {[item.sku, item.brand].filter(Boolean).join(" · ") ||
                           "Без артикула"}
                       </p>

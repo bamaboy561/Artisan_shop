@@ -15,6 +15,7 @@ import {
   Home,
   LayoutGrid,
   Menu,
+  MessageCircle,
   Search,
   Shapes,
   ShoppingCart,
@@ -23,7 +24,11 @@ import {
 } from "lucide-react";
 
 import { useCart } from "@/components/providers/cart-provider";
-import { companyName, primaryNavigation } from "@/lib/site-config";
+import {
+  companyContacts,
+  companyName,
+  primaryNavigation,
+} from "@/lib/site-config";
 import { cn } from "@/lib/utils";
 
 const primaryNavigationLeft = primaryNavigation.slice(0, 3);
@@ -284,6 +289,21 @@ export function SiteHeader() {
               <div className="w-[10rem] 2xl:w-[16rem]">
                 <HeaderSearchForm isHeroMode={isHeroMode} />
               </div>
+              <a
+                href={companyContacts.whatsapp}
+                target="_blank"
+                rel="noreferrer"
+                className={cn(
+                  "inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-[6px] px-3 font-mono text-[9px] font-semibold tracking-[0.12em] whitespace-nowrap uppercase transition 2xl:text-[10px] 2xl:tracking-[0.16em]",
+                  isHeroMode
+                    ? "bg-white/12 text-white hover:bg-white/20"
+                    : "bg-[#1f8f5f] text-white hover:bg-[#176d49]",
+                )}
+                aria-label={`Написать в WhatsApp ${companyContacts.phone}`}
+              >
+                <MessageCircle className="size-4" />
+                <span className="hidden 2xl:inline">WhatsApp</span>
+              </a>
               <Link
                 href="/account"
                 className={cn(
@@ -442,6 +462,16 @@ export function SiteHeader() {
             </div>
 
             <div className="mt-5 grid grid-cols-2 gap-2">
+              <a
+                href={companyContacts.whatsapp}
+                target="_blank"
+                rel="noreferrer"
+                onClick={() => setIsMenuOpen(false)}
+                className="col-span-2 inline-flex h-12 items-center justify-center gap-2 rounded-[1rem] bg-[#1f8f5f] px-4 font-mono text-[10px] font-semibold tracking-[0.14em] text-white uppercase"
+              >
+                <MessageCircle className="size-4" />
+                WhatsApp
+              </a>
               <Link
                 href="/account"
                 onClick={() => setIsMenuOpen(false)}

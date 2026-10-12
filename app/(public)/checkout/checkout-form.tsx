@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import type { FeaturedProduct } from "@/features/catalog/types";
 import { formatPrice } from "@/lib/commerce";
 
 const initialState: CheckoutFormState = {};
@@ -39,15 +40,32 @@ type CheckoutFormProps = {
   databaseReady: boolean;
   customer: CheckoutCustomer | null;
   deliveryMethods: DeliveryMethodOption[];
+  products: FeaturedProduct[];
 };
+
+function getCartPrice(product: FeaturedProduct | undefined, quantity: number) {
+  const finalPrice = typeof product?.price === "number" ? product.price : 0;
+  const basePrice =
+    product?.isPromotional &&
+    typeof product.oldPrice === "number" &&
+    product.oldPrice > finalPrice
+      ? product.oldPrice
+      : finalPrice;
+
+  return {
+    baseTotal: basePrice * quantity,
+    finalTotal: finalPrice * quantity,
+  };
+}
 
 export function CheckoutForm({
   databaseReady,
   customer,
   deliveryMethods,
+  products,
 }: CheckoutFormProps) {
   const router = useRouter();
-  const { items, itemCount, subtotal, clearCart } = useCart();
+  const { items, itemCount, clearCart } = useCart();
   const [state, formAction, pending] = useActionState(
     submitCheckoutAction,
     initialState,
@@ -57,6 +75,44 @@ export function CheckoutForm({
   );
   const [redeemPointsInput, setRedeemPointsInput] = useState("");
   const handledSuccessRef = useRef(false);
+  const totals = items.reduce(
+    (sum, item) => {
+      const product = products.find(
+        (catalogProduct) => catalogProduct.slug === item.productSlug,
+      );
+      const price = getCartPrice(product, item.quantity);
+
+      return {
+        beforeDiscountSubtotal: sum.beforeDiscountSubtotal + price.baseTotal,
+        subtotal: sum.subtotal + price.finalTotal,
+      };
+    },
+    {
+      beforeDiscountSubtotal: 0,
+      subtotal: 0,
+    },
+  );
+  const beforeDiscountSubtotal = totals.beforeDiscountSubtotal;
+  const subtotal = totals.subtotal;
+  const promotionDiscountTotal = Math.max(0, beforeDiscountSubtotal - subtotal);
+  const stockIssues = items.flatMap((item) => {
+    const product = products.find(
+      (catalogProduct) => catalogProduct.slug === item.productSlug,
+    );
+
+    if (
+      !product ||
+      product.stockQuantity === null ||
+      item.quantity <= product.stockQuantity
+    ) {
+      return [];
+    }
+
+    return [
+      `${product.name}: в корзине ${item.quantity} шт., доступно ${product.stockQuantity} шт.`,
+    ];
+  });
+  const hasStockIssues = stockIssues.length > 0;
 
   useEffect(() => {
     if (!state.success || !state.redirectTo || handledSuccessRef.current) {
@@ -233,7 +289,7 @@ export function CheckoutForm({
                   <div className="rounded-[20px] border border-[color:var(--line)] bg-[var(--surface)] px-4 py-4 text-sm text-[var(--muted)]">
                     <p>
                       Войдите или создайте кабинет, чтобы использовать личные
-                      скидки и накопленные баллы.
+                      статусы и накопленные баллы.
                     </p>
                     <div className="mt-3 flex flex-wrap gap-3">
                       <Link href="/login?next=/checkout">
@@ -266,11 +322,30 @@ export function CheckoutForm({
                 </p>
               ) : null}
 
+              {hasStockIssues ? (
+                <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                  <p className="font-semibold">
+                    Количество превышает доступный остаток.
+                  </p>
+                  {stockIssues.map((issue) => (
+                    <p key={issue} className="mt-1">
+                      {issue}
+                    </p>
+                  ))}
+                  <Link
+                    href="/cart"
+                    className="mt-2 inline-flex font-semibold underline underline-offset-4"
+                  >
+                    Исправить корзину
+                  </Link>
+                </div>
+              ) : null}
+
               <Button
                 type="submit"
                 className="w-full sm:w-auto"
                 variant="accent"
-                disabled={pending || !databaseReady}
+                disabled={pending || !databaseReady || hasStockIssues}
               >
                 {pending ? "Оформляем заказ..." : "Подтвердить заказ"}
               </Button>
@@ -287,9 +362,29 @@ export function CheckoutForm({
                 <span>{itemCount}</span>
               </div>
               <div className="flex items-center justify-between gap-4">
-                <span className="text-[var(--muted)]">Сумма</span>
-                <span>{formatPrice(subtotal)}</span>
+                <span className="text-[var(--muted)]">
+                  {promotionDiscountTotal > 0 ? "До акции" : "Сумма"}
+                </span>
+                <span>
+                  {formatPrice(
+                    promotionDiscountTotal > 0
+                      ? beforeDiscountSubtotal
+                      : subtotal,
+                  )}
+                </span>
               </div>
+              {promotionDiscountTotal > 0 ? (
+                <div className="flex items-center justify-between gap-4 text-[var(--accent)]">
+                  <span>Скидка акции</span>
+                  <span>-{formatPrice(promotionDiscountTotal)}</span>
+                </div>
+              ) : null}
+              {promotionDiscountTotal > 0 ? (
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-[var(--muted)]">После акции</span>
+                  <span>{formatPrice(subtotal)}</span>
+                </div>
+              ) : null}
               <div className="flex items-center justify-between gap-4">
                 <span className="text-[var(--muted)]">Доставка</span>
                 <span>
@@ -336,8 +431,8 @@ export function CheckoutForm({
               </div>
             ) : (
               <div className="mt-5 rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] px-4 py-4 text-sm text-[var(--muted)]">
-                После входа в личный кабинет здесь появятся персональная скидка,
-                баллы и история заказов.
+                После входа в личный кабинет здесь появятся баллы, статусы и
+                история заказов.
               </div>
             )}
           </aside>

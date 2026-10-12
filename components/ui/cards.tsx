@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 
 import { FavoriteToggle } from "@/components/catalog/favorite-toggle";
+import { AddToCartButton } from "@/components/ecommerce/add-to-cart-button";
 import { ProductImage } from "@/components/catalog/product-image";
 import { formatPrice } from "@/lib/commerce";
 import { cn } from "@/lib/utils";
@@ -16,8 +17,10 @@ type ProductCardProps = {
   image?: string;
   price?: number;
   oldPrice?: number;
+  sku?: string;
   inStock?: boolean;
   categoryName?: string;
+  purchaseMode?: "cart" | "request";
   compact?: boolean;
   denseMobile?: boolean;
   mobileList?: boolean;
@@ -38,7 +41,9 @@ export function ProductCard({
   image,
   price,
   oldPrice,
+  sku,
   inStock = true,
+  purchaseMode = "request",
   compact = false,
   denseMobile = false,
   mobileList = false,
@@ -56,16 +61,29 @@ export function ProductCard({
         ? "aspect-[0.78] sm:aspect-[1.06]"
         : "aspect-[0.92] sm:aspect-[1.06]"
       : "aspect-[0.96] sm:aspect-[1.08]";
+  const canAddToCart =
+    Boolean(productSlug) &&
+    purchaseMode === "cart" &&
+    typeof price === "number";
 
   return (
     <article className={cn("relative h-full", className)}>
-      {showFavorite && productSlug ? (
-        <div className="absolute top-2 right-2 z-20 sm:top-3 sm:right-3">
-          <FavoriteToggle
-            productSlug={productSlug}
-            isFavorite={isFavorite}
-            next={favoriteNext}
-          />
+      {productSlug && (showFavorite || canAddToCart) ? (
+        <div className="absolute top-2 right-2 z-20 grid gap-2 sm:top-3 sm:right-3">
+          {showFavorite ? (
+            <FavoriteToggle
+              productSlug={productSlug}
+              isFavorite={isFavorite}
+              next={favoriteNext}
+            />
+          ) : null}
+          {canAddToCart ? (
+            <AddToCartButton
+              productSlug={productSlug}
+              disabled={!inStock}
+              compact
+            />
+          ) : null}
         </div>
       ) : null}
 
@@ -152,6 +170,17 @@ export function ProductCard({
             {name}
           </h3>
 
+          {sku ? (
+            <p
+              className={cn(
+                "mt-2 font-mono leading-4 tracking-[0.1em] [overflow-wrap:anywhere] text-[var(--muted)] uppercase",
+                compact ? "text-[9px]" : "text-[9px] sm:text-[10px]",
+              )}
+            >
+              SKU: {sku}
+            </p>
+          ) : null}
+
           <div
             className={cn(
               "mt-auto grid min-w-0 gap-1.5",
@@ -189,7 +218,7 @@ export function ProductCard({
 
             <span
               className={cn(
-                "block max-w-full font-mono leading-4 tracking-[0.12em] break-words text-[var(--muted)] uppercase",
+                "block max-w-full font-mono leading-4 tracking-[0.12em] [overflow-wrap:anywhere] text-[var(--muted)] uppercase",
                 compact ? "text-[9px]" : "text-[9px] sm:text-[10px]",
               )}
             >

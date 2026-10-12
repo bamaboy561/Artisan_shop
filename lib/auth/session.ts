@@ -1,7 +1,7 @@
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 
-import type { RoleCode } from "@/generated/prisma";
+import type { ProductionStation, RoleCode } from "@/generated/prisma";
 
 export const sessionCookieName = "artisan-session";
 
@@ -11,6 +11,7 @@ export type SessionPayload = {
   email: string;
   firstName?: string | null;
   lastName?: string | null;
+  productionStation?: ProductionStation | null;
 };
 
 function getSessionSecret() {
@@ -56,6 +57,10 @@ export async function decryptSession(
       firstName:
         typeof payload.firstName === "string" ? payload.firstName : null,
       lastName: typeof payload.lastName === "string" ? payload.lastName : null,
+      productionStation:
+        typeof payload.productionStation === "string"
+          ? (payload.productionStation as ProductionStation)
+          : null,
     };
   } catch {
     return null;

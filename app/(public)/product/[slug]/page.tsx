@@ -273,7 +273,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
               <dl className="mt-4 grid gap-3 text-sm sm:mt-5">
                 <div className="grid grid-cols-[minmax(0,0.42fr)_minmax(0,0.58fr)] items-start gap-4 border-b border-[color:var(--line)] pb-3">
                   <dt className="text-[var(--muted)]">Артикул</dt>
-                  <dd className="min-w-0 text-right font-medium break-words text-[var(--foreground)]">
+                  <dd className="min-w-0 text-right font-medium [overflow-wrap:anywhere] text-[var(--foreground)]">
                     {product.sku}
                   </dd>
                 </div>
@@ -487,7 +487,9 @@ export default async function ProductPage({ params }: ProductPageProps) {
                   image={item.image}
                   price={item.price}
                   oldPrice={item.oldPrice}
+                  sku={item.sku}
                   inStock={item.inStock}
+                  purchaseMode={item.purchaseMode}
                   isBundle={item.isBundle}
                   categoryName={item.categoryName}
                   productSlug={item.slug}

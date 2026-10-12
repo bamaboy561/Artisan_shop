@@ -19,10 +19,22 @@ type PromotionSnapshot = Pick<
 
 type LoyaltyProfile = {
   loyaltyTier: LoyaltyTier;
+  plateMaterialLoyaltyTier?: LoyaltyTier | null;
+  fittingsLoyaltyTier?: LoyaltyTier | null;
   personalDiscountPercent?: number | null;
   loyaltyPointsBalance?: number | null;
   loyaltyPointsLifetime?: number | null;
 };
+
+export type LoyaltyThresholdKind = "overall" | "plateMaterial" | "fittings";
+
+export type LoyaltyTierSource =
+  | LoyaltyTier
+  | {
+      loyaltyTier?: LoyaltyTier | null;
+      plateMaterialLoyaltyTier?: LoyaltyTier | null;
+      fittingsLoyaltyTier?: LoyaltyTier | null;
+    };
 
 export type LoyaltyTierBenefits = Record<
   LoyaltyTier,
@@ -33,6 +45,8 @@ export type LoyaltyTierBenefits = Record<
     plateMaterialAccrualPercent: number;
     fittingsAccrualPercent: number;
     threshold: number;
+    plateMaterialThreshold: number;
+    fittingsThreshold: number;
   }
 >;
 
@@ -50,30 +64,38 @@ export const loyaltyTierBenefits: LoyaltyTierBenefits = {
     plateMaterialAccrualPercent: 2,
     fittingsAccrualPercent: 3,
     threshold: 0,
+    plateMaterialThreshold: 0,
+    fittingsThreshold: 0,
   },
   SILVER: {
     label: "Silver",
     baseDiscountPercent: 0,
     accrualPercent: 3,
     plateMaterialAccrualPercent: 3,
-    fittingsAccrualPercent: 4,
-    threshold: 200000,
+    fittingsAccrualPercent: 5,
+    threshold: 450000,
+    plateMaterialThreshold: 500000,
+    fittingsThreshold: 450000,
   },
   GOLD: {
     label: "Gold",
     baseDiscountPercent: 0,
     accrualPercent: 4,
     plateMaterialAccrualPercent: 4,
-    fittingsAccrualPercent: 5,
-    threshold: 300000,
+    fittingsAccrualPercent: 6,
+    threshold: 650000,
+    plateMaterialThreshold: 800000,
+    fittingsThreshold: 650000,
   },
   PLATINUM: {
     label: "Platinum",
     baseDiscountPercent: 0,
-    accrualPercent: 5,
-    plateMaterialAccrualPercent: 5,
-    fittingsAccrualPercent: 6,
-    threshold: 400000,
+    accrualPercent: 6,
+    plateMaterialAccrualPercent: 6,
+    fittingsAccrualPercent: 7,
+    threshold: 900000,
+    plateMaterialThreshold: 1800000,
+    fittingsThreshold: 900000,
   },
 };
 
@@ -108,6 +130,36 @@ export function getLoyaltyTierBenefits(
   return getConfig(config).tiers[tier];
 }
 
+export function getLoyaltyTierRank(tier: LoyaltyTier) {
+  return loyaltyTierOrder.indexOf(tier);
+}
+
+export function getHighestLoyaltyTier(tiers: LoyaltyTier[]) {
+  return tiers.reduce(
+    (highest, tier) =>
+      getLoyaltyTierRank(tier) > getLoyaltyTierRank(highest) ? tier : highest,
+    LoyaltyTier.BRONZE,
+  );
+}
+
+function getTierThreshold(
+  tier: LoyaltyTier,
+  config?: LoyaltyProgramConfig,
+  thresholdKind: LoyaltyThresholdKind = "overall",
+) {
+  const benefits = getLoyaltyTierBenefits(tier, config);
+
+  if (thresholdKind === "plateMaterial") {
+    return benefits.plateMaterialThreshold;
+  }
+
+  if (thresholdKind === "fittings") {
+    return benefits.fittingsThreshold;
+  }
+
+  return benefits.threshold;
+}
+
 export function getLoyaltyTierForLifetimePoints(
   lifetimePoints: number,
   config?: LoyaltyProgramConfig,
@@ -118,15 +170,17 @@ export function getLoyaltyTierForLifetimePoints(
 export function getLoyaltyTierForMonthlyPurchaseTotal(
   purchaseTotal: number,
   config?: LoyaltyProgramConfig,
+  thresholdKind: LoyaltyThresholdKind = "overall",
 ) {
   const safePurchaseTotal = Math.max(0, Math.round(purchaseTotal));
-  const tiers = getConfig(config).tiers;
 
   return (
     [...loyaltyTierOrder]
       .reverse()
-      .find((tier) => safePurchaseTotal >= tiers[tier].threshold) ??
-    LoyaltyTier.BRONZE
+      .find(
+        (tier) =>
+          safePurchaseTotal >= getTierThreshold(tier, config, thresholdKind),
+      ) ?? LoyaltyTier.BRONZE
   );
 }
 
@@ -169,16 +223,38 @@ export function getLoyaltyAccrualPercent(
   return 0;
 }
 
+export function getLoyaltyTierForCategory(
+  categoryKind: CategoryKind | string | null | undefined,
+  tierSource: LoyaltyTierSource,
+) {
+  if (typeof tierSource === "string") {
+    return tierSource;
+  }
+
+  const fallbackTier = tierSource.loyaltyTier ?? LoyaltyTier.BRONZE;
+
+  if (categoryKind === CategoryKind.PLATE || categoryKind === "PLATE") {
+    return tierSource.plateMaterialLoyaltyTier ?? fallbackTier;
+  }
+
+  if (categoryKind === CategoryKind.FITTINGS || categoryKind === "FITTINGS") {
+    return tierSource.fittingsLoyaltyTier ?? fallbackTier;
+  }
+
+  return fallbackTier;
+}
+
 export function estimateLoyaltyPointsForLines(
   lines: Array<{
     total: number;
     categoryKind?: CategoryKind | string | null;
   }>,
-  tier: LoyaltyTier,
+  tierSource: LoyaltyTierSource,
   config?: LoyaltyProgramConfig,
 ) {
   return lines.reduce((sum, line) => {
     const safeTotal = Math.max(0, Math.round(line.total));
+    const tier = getLoyaltyTierForCategory(line.categoryKind, tierSource);
     const accrualPercent = getLoyaltyAccrualPercent(
       line.categoryKind,
       tier,
@@ -210,16 +286,16 @@ export function getLoyaltyProgress(
   purchaseTotal: number,
   tier: LoyaltyTier,
   config?: LoyaltyProgramConfig,
+  thresholdKind: LoyaltyThresholdKind = "overall",
 ) {
   const safePurchaseTotal = Math.max(0, purchaseTotal);
-  const tiers = getConfig(config).tiers;
   const currentTierIndex = loyaltyTierOrder.indexOf(tier);
-  const currentTier = tiers[tier];
   const nextTier = loyaltyTierOrder[currentTierIndex + 1];
+  const currentThreshold = getTierThreshold(tier, config, thresholdKind);
 
   if (!nextTier) {
     return {
-      currentThreshold: currentTier.threshold,
+      currentThreshold,
       nextThreshold: null,
       pointsToNext: 0,
       progressPercent: 100,
@@ -227,12 +303,12 @@ export function getLoyaltyProgress(
     };
   }
 
-  const nextThreshold = tiers[nextTier].threshold;
-  const coveredPoints = Math.max(0, safePurchaseTotal - currentTier.threshold);
-  const requiredPoints = Math.max(1, nextThreshold - currentTier.threshold);
+  const nextThreshold = getTierThreshold(nextTier, config, thresholdKind);
+  const coveredPoints = Math.max(0, safePurchaseTotal - currentThreshold);
+  const requiredPoints = Math.max(1, nextThreshold - currentThreshold);
 
   return {
-    currentThreshold: currentTier.threshold,
+    currentThreshold,
     nextThreshold,
     pointsToNext: Math.max(0, nextThreshold - safePurchaseTotal),
     progressPercent: Math.min(

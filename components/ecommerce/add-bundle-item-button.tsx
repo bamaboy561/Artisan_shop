@@ -55,9 +55,7 @@ export function AddBundleItemButton({
             ? "Добавлено в корзину"
             : "Добавить рекомендацию"
       }
-      title={
-        isDisabled ? unavailableLabel : added ? "Добавлено" : "Добавить"
-      }
+      title={isDisabled ? unavailableLabel : added ? "Добавлено" : "Добавить"}
     >
       {added ? <Check className="size-4" /> : <Plus className="size-4" />}
     </button>

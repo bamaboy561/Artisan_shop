@@ -1,6 +1,7 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { IBM_Plex_Mono, Manrope, Unbounded } from "next/font/google";
 
+import { PwaRegistration } from "@/components/pwa/pwa-registration";
 import { StructuredData } from "@/components/seo/structured-data";
 import { getSiteUrl, indexRobots, organizationJsonLd } from "@/lib/seo";
 import { companyName, siteDescription } from "@/lib/site-config";
@@ -42,6 +43,11 @@ export const metadata: Metadata = {
     address: false,
     telephone: false,
   },
+  appleWebApp: {
+    capable: true,
+    title: companyName,
+    statusBarStyle: "black",
+  },
   openGraph: {
     title: `${companyName} | Материалы и сервис для мебельных проектов`,
     description: siteDescription,
@@ -55,6 +61,13 @@ export const metadata: Metadata = {
     title: `${companyName} | Материалы и сервис для мебельных проектов`,
     description: siteDescription,
   },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  colorScheme: "light",
+  themeColor: "#171613",
 };
 
 export default function RootLayout({
@@ -73,6 +86,7 @@ export default function RootLayout({
         </a>
         <StructuredData data={organizationJsonLd()} />
         {children}
+        <PwaRegistration />
       </body>
     </html>
   );

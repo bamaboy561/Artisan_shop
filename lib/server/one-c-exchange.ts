@@ -15,8 +15,13 @@ import {
   ProductStatus,
   type Prisma,
 } from "@/generated/prisma";
+import { formatPrice } from "@/lib/commerce";
 import { getDb, hasDatabaseUrl } from "@/lib/db";
+import { syncOrderInventoryReservation } from "@/lib/server/inventory-reservations";
+import { cancelOrderLoyaltyTransactions } from "@/lib/server/order-loyalty-cancellation";
 import { logOperationEvent } from "@/lib/server/operation-events";
+import { applyApprovedLoyaltyDelta } from "@/lib/server/loyalty-ledger";
+import { sendTelegramDirectMessage } from "@/lib/server/telegram-bot";
 
 const nullableIntSchema = z
   .union([z.coerce.number().int().nonnegative(), z.null()])
@@ -363,6 +368,8 @@ export async function getOneCOrders(params: {
           email: true,
           phone: true,
           loyaltyTier: true,
+          plateMaterialLoyaltyTier: true,
+          fittingsLoyaltyTier: true,
           loyaltyPointsBalance: true,
         },
       },
@@ -445,6 +452,220 @@ export async function getOneCOrders(params: {
   }));
 }
 
+const oneCApprovedOrderStatuses = new Set<OrderStatus>([
+  OrderStatus.CONFIRMED,
+  OrderStatus.IN_PRODUCTION,
+  OrderStatus.READY_FOR_PICKUP,
+  OrderStatus.SHIPPED,
+  OrderStatus.COMPLETED,
+]);
+
+function getOrderStatusLabel(status: OrderStatus) {
+  const labels: Record<OrderStatus, string> = {
+    [OrderStatus.NEW]: "Новый",
+    [OrderStatus.CONFIRMED]: "Подтвержден",
+    [OrderStatus.IN_PRODUCTION]: "В производстве",
+    [OrderStatus.READY_FOR_PICKUP]: "Готов к выдаче",
+    [OrderStatus.SHIPPED]: "Отгружен",
+    [OrderStatus.COMPLETED]: "Завершен",
+    [OrderStatus.CANCELED]: "Отменен",
+  };
+
+  return labels[status];
+}
+
+async function applyOneCOrderStatus(params: {
+  orderId: string;
+  nextStatus: OrderStatus;
+  source: string;
+}) {
+  const now = new Date();
+
+  return getDb().$transaction(async (tx) => {
+    const lockedOrder = await tx.order.updateMany({
+      where: { id: params.orderId },
+      data: { updatedAt: now },
+    });
+
+    if (lockedOrder.count === 0) {
+      return null;
+    }
+
+    const order = await tx.order.findUnique({
+      where: { id: params.orderId },
+      select: {
+        id: true,
+        number: true,
+        status: true,
+        userId: true,
+        total: true,
+        loyaltyTransactions: {
+          where: {
+            type: {
+              in: [
+                LoyaltyTransactionType.ORDER_ACCRUAL,
+                LoyaltyTransactionType.REDEMPTION,
+              ],
+            },
+          },
+          orderBy: { createdAt: "asc" },
+          select: {
+            id: true,
+            type: true,
+            status: true,
+            points: true,
+          },
+        },
+      },
+    });
+
+    if (!order) {
+      return null;
+    }
+
+    const previousStatus = order.status;
+    const statusChanged = previousStatus !== params.nextStatus;
+    let reopenedOrderReservation = false;
+
+    if (statusChanged) {
+      if (
+        previousStatus !== OrderStatus.CANCELED &&
+        params.nextStatus === OrderStatus.CANCELED
+      ) {
+        await syncOrderInventoryReservation(tx, order.id, false);
+      } else if (
+        previousStatus === OrderStatus.CANCELED &&
+        params.nextStatus !== OrderStatus.CANCELED
+      ) {
+        reopenedOrderReservation = await syncOrderInventoryReservation(
+          tx,
+          order.id,
+          true,
+        );
+      }
+
+      await tx.order.update({
+        where: { id: order.id },
+        data: {
+          status: params.nextStatus,
+          ...(params.nextStatus === OrderStatus.READY_FOR_PICKUP
+            ? { readyAt: now }
+            : {}),
+          ...(params.nextStatus === OrderStatus.COMPLETED
+            ? { completedAt: now }
+            : {}),
+        },
+      });
+    }
+
+    let loyaltyChanged = false;
+
+    if (order.userId && params.nextStatus === OrderStatus.CANCELED) {
+      loyaltyChanged = Boolean(
+        await cancelOrderLoyaltyTransactions(tx, order.id),
+      );
+    } else if (order.userId && params.nextStatus !== OrderStatus.CANCELED) {
+      const approvedTarget = oneCApprovedOrderStatuses.has(params.nextStatus);
+      const pendingAccruals = order.loyaltyTransactions.filter(
+        (transaction) =>
+          transaction.type === LoyaltyTransactionType.ORDER_ACCRUAL &&
+          transaction.status === LoyaltyTransactionStatus.PENDING,
+      );
+      const canceledAccrual = order.loyaltyTransactions.find(
+        (transaction) =>
+          transaction.type === LoyaltyTransactionType.ORDER_ACCRUAL &&
+          transaction.status === LoyaltyTransactionStatus.CANCELED,
+      );
+      const canceledRedemption = order.loyaltyTransactions.find(
+        (transaction) =>
+          transaction.type === LoyaltyTransactionType.REDEMPTION &&
+          transaction.status === LoyaltyTransactionStatus.CANCELED,
+      );
+      const restoreAfterCancellation =
+        previousStatus === OrderStatus.CANCELED && reopenedOrderReservation;
+      const accrualsToApprove = [
+        ...pendingAccruals,
+        ...(restoreAfterCancellation && canceledAccrual
+          ? [canceledAccrual]
+          : []),
+      ].filter(
+        (transaction, index, list) =>
+          list.findIndex((item) => item.id === transaction.id) === index,
+      );
+      const redemptionsToRestore =
+        restoreAfterCancellation && canceledRedemption
+          ? [canceledRedemption]
+          : [];
+      const approvedAccruals = approvedTarget ? accrualsToApprove : [];
+      const balanceDelta = [
+        ...approvedAccruals,
+        ...redemptionsToRestore,
+      ].reduce((sum, transaction) => sum + transaction.points, 0);
+      const lifetimeDelta = approvedAccruals.reduce(
+        (sum, transaction) =>
+          transaction.points > 0 ? sum + transaction.points : sum,
+        0,
+      );
+      let balanceAfter: number | null = null;
+
+      if (balanceDelta !== 0 || lifetimeDelta !== 0) {
+        const user = await tx.user.update({
+          where: { id: order.userId },
+          data: {
+            loyaltyPointsBalance: { increment: balanceDelta },
+            loyaltyPointsLifetime: { increment: lifetimeDelta },
+          },
+          select: { loyaltyPointsBalance: true },
+        });
+        balanceAfter = user.loyaltyPointsBalance;
+      }
+
+      const approvedTransactionIds = [
+        ...approvedAccruals,
+        ...redemptionsToRestore,
+      ].map(({ id }) => id);
+
+      if (approvedTransactionIds.length > 0) {
+        await tx.loyaltyTransaction.updateMany({
+          where: { id: { in: approvedTransactionIds } },
+          data: {
+            status: LoyaltyTransactionStatus.APPROVED,
+            ...(balanceAfter !== null ? { balanceAfter } : {}),
+            approvedAt: now,
+            approvedById: null,
+            canceledAt: null,
+            canceledById: null,
+          },
+        });
+        loyaltyChanged = true;
+      }
+
+      if (restoreAfterCancellation && canceledAccrual && !approvedTarget) {
+        await tx.loyaltyTransaction.update({
+          where: { id: canceledAccrual.id },
+          data: {
+            status: LoyaltyTransactionStatus.PENDING,
+            approvedAt: null,
+            approvedById: null,
+            canceledAt: null,
+            canceledById: null,
+          },
+        });
+        loyaltyChanged = true;
+      }
+    }
+
+    return {
+      number: order.number,
+      userId: order.userId,
+      total: order.total,
+      previousStatus,
+      loyaltyChanged,
+      source: params.source,
+    };
+  });
+}
+
 export async function syncOneCOrderStatuses(
   input: z.output<typeof oneCOrderStatusSyncSchema>,
 ) {
@@ -456,11 +677,7 @@ export async function syncOneCOrderStatuses(
   for (const item of input.orders) {
     const order = await db.order.findFirst({
       where: item.id ? { id: item.id } : { number: item.number },
-      select: {
-        id: true,
-        number: true,
-        status: true,
-      },
+      select: { id: true, number: true, status: true },
     });
 
     if (!order) {
@@ -477,11 +694,26 @@ export async function syncOneCOrderStatuses(
       item.comment ? `Comment: ${item.comment}` : "",
     ].filter(Boolean);
 
-    if (item.status && item.status !== order.status) {
-      await db.order.update({
-        where: { id: order.id },
-        data: { status: item.status },
+    if (item.status) {
+      const transition = await applyOneCOrderStatus({
+        orderId: order.id,
+        nextStatus: item.status,
+        source: input.source ?? "1C",
       });
+
+      if (!transition) {
+        skipped += 1;
+        continue;
+      }
+
+      const statusChanged = transition.previousStatus !== item.status;
+
+      if (!statusChanged && !transition.loyaltyChanged) {
+        if (descriptionParts.length === 0) {
+          skipped += 1;
+          continue;
+        }
+      }
 
       await logOperationEvent({
         entityType: "order",
@@ -489,11 +721,24 @@ export async function syncOneCOrderStatuses(
         eventType: "status",
         title: `1C updated order ${order.number ?? order.id}`,
         description: descriptionParts.join("\n") || null,
-        fromStatus: order.status,
+        fromStatus: transition.previousStatus,
         toStatus: item.status,
         actorName: input.source ?? "1C",
         isVisibleToClient: true,
       });
+
+      if (statusChanged && transition.userId) {
+        await sendTelegramDirectMessage(transition.userId, {
+          title: `Статус заказа ${transition.number ?? order.id} обновлен`,
+          category: "orders",
+          lines: [
+            `Новый статус: ${getOrderStatusLabel(item.status)}`,
+            `Сумма: ${formatPrice(transition.total)}`,
+          ],
+          actions: [{ text: "Открыть заказ", url: "/account/orders" }],
+        }).catch((error) => console.error("[1c:telegram:order-status]", error));
+      }
+
       updated += 1;
     } else if (descriptionParts.length > 0) {
       await logOperationEvent({
@@ -558,6 +803,8 @@ export async function getOneCLoyaltyProfile(params: {
       lastName: true,
       companyName: true,
       loyaltyTier: true,
+      plateMaterialLoyaltyTier: true,
+      fittingsLoyaltyTier: true,
       loyaltyPointsBalance: true,
       loyaltyPointsLifetime: true,
       personalDiscountPercent: true,
@@ -599,6 +846,21 @@ export async function syncOneCLoyalty(
   const missingUsers: string[] = [];
 
   for (const operation of input.operations) {
+    const externalId = operation.externalId
+      ? `1c:${input.source ?? "default"}:${operation.externalId}`
+      : null;
+    if (externalId) {
+      const existingOperation = await db.loyaltyTransaction.findUnique({
+        where: { externalId },
+        select: { id: true },
+      });
+
+      if (existingOperation) {
+        skipped += 1;
+        continue;
+      }
+    }
+
     const user = await db.user.findFirst({
       where: {
         OR: [
@@ -622,41 +884,20 @@ export async function syncOneCLoyalty(
       continue;
     }
 
-    const nextBalance = Math.max(
-      0,
-      user.loyaltyPointsBalance + operation.pointsDelta,
+    await db.$transaction((tx) =>
+      applyApprovedLoyaltyDelta(tx, {
+        userId: user.id,
+        type: LoyaltyTransactionType.MANUAL_ADJUSTMENT,
+        points: operation.pointsDelta,
+        externalId,
+        title: operation.title ?? "1C loyalty adjustment",
+        description:
+          operation.description ??
+          (operation.externalId
+            ? `1C operation: ${operation.externalId}`
+            : null),
+      }),
     );
-    const appliedDelta = nextBalance - user.loyaltyPointsBalance;
-    const nextLifetime =
-      appliedDelta > 0
-        ? user.loyaltyPointsLifetime + appliedDelta
-        : user.loyaltyPointsLifetime;
-
-    await db.$transaction([
-      db.user.update({
-        where: { id: user.id },
-        data: {
-          loyaltyPointsBalance: nextBalance,
-          loyaltyPointsLifetime: nextLifetime,
-        },
-      }),
-      db.loyaltyTransaction.create({
-        data: {
-          userId: user.id,
-          type: LoyaltyTransactionType.MANUAL_ADJUSTMENT,
-          status: LoyaltyTransactionStatus.APPROVED,
-          points: appliedDelta,
-          balanceAfter: nextBalance,
-          approvedAt: new Date(),
-          title: operation.title ?? "1C loyalty adjustment",
-          description:
-            operation.description ??
-            (operation.externalId
-              ? `1C operation: ${operation.externalId}`
-              : null),
-        },
-      }),
-    ]);
 
     updated += 1;
   }

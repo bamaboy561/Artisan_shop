@@ -40,6 +40,22 @@ const roles = [
       "Партнер с перспективой оптовых условий и отдельной ценовой логики.",
   },
   {
+    code: RoleCode.CUTTING_MANAGER,
+    name: "Менеджер кроя",
+    description:
+      "Сотрудник производства с доступом только к очереди и заявкам на распил.",
+  },
+  {
+    code: RoleCode.PRODUCTION_MANAGER,
+    name: "Начальник производства",
+    description: "Полный контроль производственной очереди и этапов распила.",
+  },
+  {
+    code: RoleCode.PRODUCTION_OPERATOR,
+    name: "Оператор станции",
+    description: "Доступ к мобильному рабочему месту назначенной станции.",
+  },
+  {
     code: RoleCode.MANAGER,
     name: "Менеджер",
     description:
@@ -782,9 +798,9 @@ async function seedPagesAndSettings() {
     where: { key: "contact.primary" },
     update: {
       value: {
-        phone: "+7 (999) 000-00-00",
-        email: "hello@artisan.local",
-        whatsapp: "https://wa.me/79990000000",
+        phone: "+996 553 432 131",
+        email: "info@artisan.kg",
+        whatsapp: "https://wa.me/996553432131",
         telegram: "https://t.me/artisan_local",
       },
       description: "Основные контактные данные сайта.",
@@ -792,9 +808,9 @@ async function seedPagesAndSettings() {
     create: {
       key: "contact.primary",
       value: {
-        phone: "+7 (999) 000-00-00",
-        email: "hello@artisan.local",
-        whatsapp: "https://wa.me/79990000000",
+        phone: "+996 553 432 131",
+        email: "info@artisan.kg",
+        whatsapp: "https://wa.me/996553432131",
         telegram: "https://t.me/artisan_local",
       },
       description: "Основные контактные данные сайта.",

@@ -1,12 +1,15 @@
 import Form from "next/form";
 import Link from "next/link";
+import { Plus, Printer } from "lucide-react";
 
 import { RequestStatus, RequestType } from "@/generated/prisma";
 import { updateRequestAction } from "@/app/admin/actions";
 import { AdminSubmitButton } from "@/components/admin/admin-submit-button";
+import { DeleteRequestButton } from "@/components/admin/delete-request-button";
 import { MetricCard } from "@/components/admin/metric-card";
 import { SetupState } from "@/components/admin/setup-state";
 import { StatusBadge } from "@/components/admin/status-badge";
+import { getButtonClassName } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { SectionHeading } from "@/components/ui/section-heading";
@@ -15,7 +18,9 @@ import {
   getManagerDisplayName,
   requestStatusLabels,
 } from "@/features/admin/operations-filters";
+import { cuttingStageLabels } from "@/features/cutting/progress";
 import { requireAdminSession } from "@/lib/auth/dal";
+import { canDeleteRequests } from "@/lib/auth/roles";
 import { hasDatabaseUrl, isDemoModeEnabled } from "@/lib/db";
 import { getRequestInbox } from "@/lib/server/request-inbox";
 
@@ -88,7 +93,11 @@ export default async function AdminCuttingPage({
     );
   }
 
-  await requireAdminSession("/login?next=/admin/cutting");
+  const session = await requireAdminSession(
+    "/login?next=/admin/cutting",
+    "/admin/cutting",
+  );
+  const canDeleteRequest = canDeleteRequests(session.roleCode);
 
   const [requests, resolvedSearchParams] = await Promise.all([
     getRequestInbox(),
@@ -169,6 +178,20 @@ export default async function AdminCuttingPage({
           : "Без файлов"}
       </StatusBadge>
     ),
+    stage: (
+      <div className="space-y-2">
+        <StatusBadge tone={request.cuttingStage ? "accent" : "neutral"}>
+          {request.cuttingStage
+            ? cuttingStageLabels[request.cuttingStage]
+            : "Не запущен"}
+        </StatusBadge>
+        {request.cuttingPickupCell ? (
+          <p className="text-xs font-semibold text-emerald-700">
+            Ячейка № {request.cuttingPickupCell}
+          </p>
+        ) : null}
+      </div>
+    ),
     status: (
       <div className="space-y-2">
         <StatusBadge tone={getStatusTone(request.status)}>
@@ -183,40 +206,69 @@ export default async function AdminCuttingPage({
     ),
     budget: formatBudget(request.estimatedBudget),
     manage: (
-      <form action={updateRequestAction} className="grid gap-2">
-        <input type="hidden" name="id" value={request.id} />
-        <input type="hidden" name="managerId" value={request.managerId ?? ""} />
-        <Select
-          name="status"
-          defaultValue={request.status}
-          className="h-9 text-xs"
+      <div className="grid gap-2">
+        <Link
+          href={`/admin/requests/${request.id}/route-sheet`}
+          className="inline-flex h-9 items-center justify-center gap-2 border border-[color:var(--line-strong)] px-3 text-xs font-semibold transition hover:border-[color:var(--foreground)] hover:bg-[var(--foreground)] hover:text-white"
         >
-          <option value={RequestStatus.IN_REVIEW}>На расчете</option>
-          <option value={RequestStatus.QUOTE_SENT}>КП отправлено</option>
-          <option value={RequestStatus.IN_PROGRESS}>В производстве</option>
-          <option value={RequestStatus.COMPLETED}>Завершена</option>
-          <option value={RequestStatus.CANCELED}>Отменена</option>
-        </Select>
-        <AdminSubmitButton
-          type="submit"
-          variant="secondary"
-          size="sm"
-          idleLabel="Обновить"
-          pendingLabel="Сохраняем..."
-        />
-      </form>
+          <Printer className="size-3.5" />
+          Маршрут
+        </Link>
+        <form action={updateRequestAction} className="grid gap-2">
+          <input type="hidden" name="id" value={request.id} />
+          <input
+            type="hidden"
+            name="managerId"
+            value={request.managerId ?? ""}
+          />
+          <Select
+            name="status"
+            defaultValue={request.status}
+            className="h-9 text-xs"
+          >
+            <option value={RequestStatus.IN_REVIEW}>На расчете</option>
+            <option value={RequestStatus.QUOTE_SENT}>КП отправлено</option>
+            <option value={RequestStatus.IN_PROGRESS}>В производстве</option>
+            <option value={RequestStatus.COMPLETED}>Завершена</option>
+            <option value={RequestStatus.CANCELED}>Отменена</option>
+          </Select>
+          <AdminSubmitButton
+            type="submit"
+            variant="secondary"
+            size="sm"
+            idleLabel="Обновить"
+            pendingLabel="Сохраняем..."
+          />
+        </form>
+        {canDeleteRequest ? (
+          <DeleteRequestButton
+            requestId={request.id}
+            requestNumber={request.number ?? request.id.slice(0, 8)}
+            returnTo="/admin/cutting"
+          />
+        ) : null}
+      </div>
     ),
   }));
 
   return (
     <div className="space-y-5">
       <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-6 sm:p-7">
-        <SectionHeading
-          title="Распил"
-          description="Производственная очередь: клиентские файлы, расчет, Giblab-результат, карта раскроя и выдача заказа."
-          titleClassName="text-2xl sm:text-3xl"
-          descriptionClassName="max-w-3xl text-sm leading-7"
-        />
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <SectionHeading
+            title="Распил"
+            description="Производственная очередь: клиентские файлы, расчет, Giblab-результат, карта раскроя и выдача заказа."
+            titleClassName="text-2xl sm:text-3xl"
+            descriptionClassName="max-w-3xl text-sm leading-7"
+          />
+          <Link
+            href="/admin/cutting/new"
+            className={getButtonClassName("accent", "md", "shrink-0")}
+          >
+            <Plus className="size-4" />
+            Новый распил
+          </Link>
+        </div>
       </section>
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -274,6 +326,7 @@ export default async function AdminCuttingPage({
           { key: "request", label: "Заявка" },
           { key: "material", label: "Материал" },
           { key: "files", label: "Файлы" },
+          { key: "stage", label: "Этап распила" },
           { key: "status", label: "Статус" },
           { key: "budget", label: "Ориентир" },
           { key: "manage", label: "Быстро" },

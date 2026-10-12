@@ -111,13 +111,15 @@ export function getCatalogFilterOptions(products: FeaturedProduct[]) {
   const groupMap = new Map<string, CatalogFilterOption>();
 
   for (const product of products) {
-    const existingBrand = brandMap.get(product.brandSlug);
+    if (product.brandSlug && product.brand.trim()) {
+      const existingBrand = brandMap.get(product.brandSlug);
 
-    brandMap.set(product.brandSlug, {
-      value: product.brandSlug,
-      label: product.brand,
-      count: (existingBrand?.count ?? 0) + 1,
-    });
+      brandMap.set(product.brandSlug, {
+        value: product.brandSlug,
+        label: product.brand,
+        count: (existingBrand?.count ?? 0) + 1,
+      });
+    }
 
     if (!product.decorGroup || !product.decorGroupSlug) {
       continue;

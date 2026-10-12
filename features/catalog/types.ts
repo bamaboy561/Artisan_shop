@@ -70,6 +70,7 @@ export type FeaturedProduct = {
   oldPrice?: number;
   sku: string;
   inStock: boolean;
+  stockQuantity: number | null;
   format: string;
   summary: string;
   description: string;

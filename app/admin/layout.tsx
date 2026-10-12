@@ -4,6 +4,14 @@ import type { ReactNode } from "react";
 import { signOutAction } from "@/app/auth/actions";
 import { DashboardFrame } from "@/components/layout/dashboard-frame";
 import { requireAdminSession } from "@/lib/auth/dal";
+import {
+  canAccessAdminPath,
+  isCuttingManager,
+  isProductionManager,
+  isProductionOperator,
+  productionStationDefinitions,
+  roleDefinitions,
+} from "@/lib/auth/roles";
 import { noIndexRobots } from "@/lib/seo";
 import { adminNavigation } from "@/lib/site-config";
 import { getAdminDashboardMetrics } from "@/lib/server/admin-data";
@@ -13,41 +21,52 @@ export const metadata: Metadata = {
   robots: noIndexRobots,
 };
 
-function formatRoleLabel(roleCode: string) {
-  const labels: Record<string, string> = {
-    MANAGER: "Менеджер",
-    ADMIN: "Администратор",
-    SUPER_ADMIN: "Супер-админ",
-    CUSTOMER: "Клиент",
-  };
-
-  return labels[roleCode] ?? roleCode;
-}
-
 export default async function AdminLayout({
   children,
 }: Readonly<{ children: ReactNode }>) {
   const session = await requireAdminSession("/login?next=/admin");
-  const metrics = await getAdminDashboardMetrics().catch(() => null);
+  const cuttingManager = isCuttingManager(session.roleCode);
+  const productionManager = isProductionManager(session.roleCode);
+  const productionOperator = isProductionOperator(session.roleCode);
+  const productionWorkspace =
+    cuttingManager || productionManager || productionOperator;
+  const metrics = productionWorkspace
+    ? null
+    : await getAdminDashboardMetrics().catch(() => null);
   const adminName =
     [session.firstName, session.lastName].filter(Boolean).join(" ") ||
     session.email;
-  const adminItems = adminNavigation.map((item) => {
-    if (item.href === "/admin/orders" && metrics?.openOrders) {
-      return { ...item, badge: String(metrics.openOrders) };
-    }
+  const adminItems = adminNavigation
+    .filter((item) => canAccessAdminPath(session.roleCode, item.href))
+    .map((item) => {
+      if (item.href === "/admin/orders" && metrics?.openOrders) {
+        return { ...item, badge: String(metrics.openOrders) };
+      }
 
-    if (item.href === "/admin/requests" && metrics?.openRequests) {
-      return { ...item, badge: String(metrics.openRequests) };
-    }
+      if (item.href === "/admin/requests" && metrics?.openRequests) {
+        return { ...item, badge: String(metrics.openRequests) };
+      }
 
-    return item;
-  });
+      return item;
+    });
+  const workspaceTitle = cuttingManager
+    ? "Рабочее место кроя"
+    : productionManager
+      ? "Управление производством"
+      : productionOperator && session.productionStation
+        ? productionStationDefinitions[session.productionStation].label
+        : productionOperator
+          ? "Рабочее место станции"
+          : "Админка Artisan";
   return (
     <DashboardFrame
-      eyebrow="Панель управления"
-      title="Админка Artisan"
-      description="Рабочая среда команды: каталог, входящие заявки, заказы, клиенты и акции."
+      eyebrow={productionWorkspace ? "Производство" : "Панель управления"}
+      title={workspaceTitle}
+      description={
+        productionWorkspace
+          ? "Очередь, QR маршрутных листов, этапы производства и готовность к выдаче."
+          : "Рабочая среда команды: каталог, входящие заявки, заказы, клиенты и акции."
+      }
       items={adminItems}
       variant="admin"
       actions={
@@ -61,7 +80,7 @@ export default async function AdminLayout({
                 {adminName}
               </span>
               <span className="block truncate text-xs text-white/52">
-                {formatRoleLabel(session.roleCode)}
+                {roleDefinitions[session.roleCode].label}
               </span>
             </span>
           </div>

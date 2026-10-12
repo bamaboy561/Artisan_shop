@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { MessageCircle } from "lucide-react";
 
 import { Container } from "@/components/ui/container";
 import {
@@ -82,6 +83,19 @@ export function SiteFooter() {
                   className="transition hover:text-white"
                 >
                   {companyContacts.email}
+                </a>
+              </p>
+            ) : null}
+            {companyContacts.whatsapp ? (
+              <p>
+                <a
+                  href={companyContacts.whatsapp}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-2 transition hover:text-white"
+                >
+                  <MessageCircle className="size-4" />
+                  WhatsApp
                 </a>
               </p>
             ) : null}

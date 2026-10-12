@@ -7,13 +7,11 @@ import { getAccountSummary, getAccountUser } from "@/lib/server/account-data";
 import { getLoyaltyProgramConfig } from "@/lib/server/loyalty-settings";
 import {
   getCurrentLoyaltyReviewPeriod,
-  getUserLoyaltyPurchaseTotal,
+  getUserLoyaltyPurchaseBreakdown,
 } from "@/lib/server/loyalty-monthly-review";
-import {
-  getEffectiveDiscountPercent,
-  getLoyaltyProgress,
-} from "@/lib/server/pricing";
+import { getLoyaltyProgress } from "@/lib/server/pricing";
 import { buildTelegramStartLink } from "@/lib/server/telegram-bot";
+import { createClientQrPayload } from "@/lib/server/client-qr";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +20,7 @@ export default async function AccountPage() {
     return (
       <SetupState
         title="Личный кабинет станет рабочим после подключения базы данных"
-        description="Раздел уже готов к отображению уровня клиента, персональной скидки, истории заказов и накопленных баллов, но ему нужен PostgreSQL и реальные клиенты."
+        description="Раздел уже готов к отображению статусов клиента, истории заказов и накопленных баллов, но ему нужен PostgreSQL и реальные клиенты."
         steps={[
           "Добавьте DATABASE_URL в .env.",
           "Примените Prisma-схему через prisma db push или prisma migrate dev.",
@@ -39,7 +37,7 @@ export default async function AccountPage() {
       <section className="surface-glow rounded-[24px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-6 sm:p-8">
         <SectionHeading
           title="Кабинет появится после создания первого клиента"
-          description="Как только в базе появится клиентский аккаунт, здесь откроются персональные скидки, история заказов и программа лояльности."
+          description="Как только в базе появится клиентский аккаунт, здесь откроются история заказов, бонусы и программа лояльности."
           titleClassName="text-2xl sm:text-3xl"
           descriptionClassName="max-w-2xl text-sm leading-7"
         />
@@ -48,17 +46,25 @@ export default async function AccountPage() {
   }
 
   const currentLoyaltyPeriod = getCurrentLoyaltyReviewPeriod();
-  const [summary, loyaltyConfig, currentMonthPurchaseTotal] =
+  const [summary, loyaltyConfig, currentMonthPurchaseBreakdown] =
     await Promise.all([
-    getAccountSummary(user.id),
-    getLoyaltyProgramConfig(),
-    getUserLoyaltyPurchaseTotal(user.id, currentLoyaltyPeriod),
-  ]);
-  const effectiveDiscount = getEffectiveDiscountPercent(user, loyaltyConfig);
-  const progress = getLoyaltyProgress(
-    currentMonthPurchaseTotal,
-    user.loyaltyTier,
+      getAccountSummary(user),
+      getLoyaltyProgramConfig(),
+      getUserLoyaltyPurchaseBreakdown(user.id, currentLoyaltyPeriod),
+    ]);
+  const plateMaterialTier = user.plateMaterialLoyaltyTier ?? user.loyaltyTier;
+  const fittingsTier = user.fittingsLoyaltyTier ?? user.loyaltyTier;
+  const plateMaterialProgress = getLoyaltyProgress(
+    currentMonthPurchaseBreakdown.plateMaterialTotal,
+    plateMaterialTier,
     loyaltyConfig,
+    "plateMaterial",
+  );
+  const fittingsProgress = getLoyaltyProgress(
+    currentMonthPurchaseBreakdown.fittingsTotal,
+    fittingsTier,
+    loyaltyConfig,
+    "fittings",
   );
 
   return (
@@ -66,6 +72,7 @@ export default async function AccountPage() {
       <LoyaltyOverview
         user={{
           id: user.id,
+          clientQrPayload: createClientQrPayload(user.id),
           firstName: user.firstName,
           lastName: user.lastName,
           email: user.email,
@@ -79,13 +86,16 @@ export default async function AccountPage() {
           telegramNotifyLoyalty: user.telegramNotifyLoyalty,
           telegramNotifyPromotions: user.telegramNotifyPromotions,
           loyaltyTier: user.loyaltyTier,
+          plateMaterialLoyaltyTier: user.plateMaterialLoyaltyTier,
+          fittingsLoyaltyTier: user.fittingsLoyaltyTier,
           loyaltyPointsBalance: user.loyaltyPointsBalance,
           loyaltyPointsLifetime: user.loyaltyPointsLifetime,
-          currentMonthPurchaseTotal,
-          personalDiscountPercent: user.personalDiscountPercent,
+          currentMonthPlateMaterialTotal:
+            currentMonthPurchaseBreakdown.plateMaterialTotal,
+          currentMonthFittingsTotal:
+            currentMonthPurchaseBreakdown.fittingsTotal,
           roleName: user.role.name,
         }}
-        effectiveDiscount={effectiveDiscount}
         loyaltyConfig={loyaltyConfig}
         summary={{
           ordersCount: summary.ordersCount,
@@ -94,7 +104,10 @@ export default async function AccountPage() {
           activeRequestsCount: summary.activeRequestsCount,
           favoritesCount: summary.favoritesCount,
         }}
-        progress={progress}
+        progress={{
+          plateMaterial: plateMaterialProgress,
+          fittings: fittingsProgress,
+        }}
       />
 
       <AccountActivityPanel

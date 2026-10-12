@@ -200,7 +200,7 @@ export default async function AdminProductsPage({
     );
   }
 
-  await requireAdminSession("/login?next=/admin/products");
+  await requireAdminSession("/login?next=/admin/products", "/admin/products");
 
   const [
     {
@@ -759,7 +759,7 @@ export default async function AdminProductsPage({
                       ) : null}
                     </div>
 
-                    <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
+                    <p className="mt-1 text-xs leading-5 [overflow-wrap:anywhere] text-[var(--muted)]">
                       SKU: {product.sku} · /product/{product.slug}
                     </p>
 

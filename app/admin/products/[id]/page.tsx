@@ -63,7 +63,7 @@ export default async function EditProductPage({
 }: EditProductPageProps) {
   if (!hasDatabaseUrl()) notFound();
 
-  await requireAdminSession("/login?next=/admin/products");
+  await requireAdminSession("/login?next=/admin/products", "/admin/products");
 
   const { id } = await params;
   const db = getDb();
@@ -85,7 +85,6 @@ export default async function EditProductPage({
         },
         images: {
           orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-          take: 4,
         },
         attributes: {
           orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
@@ -141,7 +140,9 @@ export default async function EditProductPage({
     inventoryStatus: product.inventoryStatus,
     format: product.format,
     thicknessMm: product.thicknessMm,
-    imageUrls: product.images.map((image) => image.url).slice(0, 4),
+    edgeThicknessMm: product.edgeThicknessMm,
+    edgeWidthMm: product.edgeWidthMm,
+    imageUrls: product.images.map((image) => image.url),
     calculatorMaterialId: product.calculatorMaterialId,
     calculatorSheetPresetId: product.calculatorSheetPresetId,
     summary: product.summary,

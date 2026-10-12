@@ -201,6 +201,24 @@ function uniqueStrings(values: Array<string | null | undefined>) {
   return Array.from(new Set(values.filter(Boolean))) as string[];
 }
 
+function getStableBrandLogoUrl(
+  slug: string,
+  databaseLogoUrl: string | undefined,
+  seedLogoUrl?: string,
+) {
+  const logoUrl = databaseLogoUrl?.trim();
+
+  if (
+    slug === "albero" &&
+    logoUrl?.includes("usercontent.google.com") &&
+    seedLogoUrl
+  ) {
+    return seedLogoUrl;
+  }
+
+  return logoUrl || seedLogoUrl;
+}
+
 const emptyPromotionLookup: PromotionLookup = {
   productSlugs: new Set<string>(),
   categorySlugs: new Set<string>(),
@@ -350,7 +368,11 @@ function buildBrandProfilesFrom(
         products: brandProducts,
         productCount: brandProducts.length,
         country: activeBrand?.country,
-        logoUrl: activeBrand?.logoUrl ?? seed.logoUrl,
+        logoUrl: getStableBrandLogoUrl(
+          assignment.slug,
+          activeBrand?.logoUrl,
+          seed.logoUrl,
+        ),
         homeBannerImages:
           activeBrand?.homeBannerImages &&
           activeBrand.homeBannerImages.length > 0
@@ -416,7 +438,11 @@ function buildBrandProfilesFrom(
         products: brandProducts,
         productCount: brandProducts.length,
         country: brand.country,
-        logoUrl: brand.logoUrl,
+        logoUrl: getStableBrandLogoUrl(
+          canonicalSlug,
+          brand.logoUrl,
+          brandProfileSeeds[canonicalSlug]?.logoUrl,
+        ),
         homeBannerImages: brand.homeBannerImages,
         promotedProductSlugs: getPromotedProductSlugs(
           rawBrandProducts,

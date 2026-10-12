@@ -129,7 +129,7 @@ export function HomeCatalogSearch({ products }: HomeCatalogSearchProps) {
                 className="group min-w-0 rounded-[8px] border border-[#ddd3c7] bg-white/72 p-3 shadow-[0_8px_20px_rgba(37,31,24,0.04)] transition hover:border-[#c56c45] hover:bg-white"
               >
                 <div className="flex items-start justify-between gap-3">
-                  <p className="truncate text-sm font-semibold text-[var(--foreground)]">
+                  <p className="text-sm leading-5 font-semibold [overflow-wrap:anywhere] text-[var(--foreground)]">
                     {product.name}
                   </p>
                   <ArrowUpRight
@@ -137,7 +137,7 @@ export function HomeCatalogSearch({ products }: HomeCatalogSearchProps) {
                     className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--muted)] transition group-hover:text-[var(--accent)]"
                   />
                 </div>
-                <p className="mt-1 truncate text-xs text-[var(--muted)]">
+                <p className="mt-1 text-xs leading-4 [overflow-wrap:anywhere] text-[var(--muted)]">
                   {product.brand} · {product.sku || product.categoryName}
                 </p>
               </Link>

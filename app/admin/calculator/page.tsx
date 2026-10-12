@@ -93,7 +93,10 @@ export default async function AdminCalculatorPage() {
     );
   }
 
-  await requireAdminSession("/login?next=/admin/calculator");
+  await requireAdminSession(
+    "/login?next=/admin/calculator",
+    "/admin/calculator",
+  );
 
   const { materials, sheetFormats } = await getCalculatorAdminData();
 

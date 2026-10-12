@@ -5,6 +5,7 @@ import { OrderStatus } from "@/generated/prisma";
 import { bulkUpdateOrdersAction, updateOrderAction } from "@/app/admin/actions";
 import { AdminSubmitButton } from "@/components/admin/admin-submit-button";
 import { BulkSelectionTools } from "@/components/admin/bulk-selection-tools";
+import { DeleteOrderButton } from "@/components/admin/delete-order-button";
 import { MetricCard } from "@/components/admin/metric-card";
 import { SetupState } from "@/components/admin/setup-state";
 import { StatusBadge } from "@/components/admin/status-badge";
@@ -13,6 +14,7 @@ import { DataTable } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { requireAdminSession } from "@/lib/auth/dal";
+import { canDeleteOrders } from "@/lib/auth/roles";
 import { hasDatabaseUrl, isDemoModeEnabled } from "@/lib/db";
 import {
   getAdminManagers,
@@ -108,7 +110,11 @@ export default async function AdminOrdersPage({
     );
   }
 
-  await requireAdminSession("/login?next=/admin/orders");
+  const session = await requireAdminSession(
+    "/login?next=/admin/orders",
+    "/admin/orders",
+  );
+  const canDeleteOrder = canDeleteOrders(session.roleCode);
 
   const [orders, managers, resolvedSearchParams] = await Promise.all([
     getAdminOrders(),
@@ -204,12 +210,20 @@ export default async function AdminOrdersPage({
         <p className="text-xs text-[var(--muted)]">
           {formatDate(order.createdAt)} · {order._count.items} позиций
         </p>
-        <Link
-          href={`/admin/orders/${order.id}`}
-          className="inline-flex h-8 items-center justify-center border border-[color:var(--line-strong)] px-3 text-[11px] font-semibold tracking-[0.12em] text-[var(--foreground)] uppercase transition hover:border-[color:var(--foreground)] hover:bg-[var(--foreground)] hover:text-white"
-        >
-          Редактировать
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            href={`/admin/orders/${order.id}`}
+            className="inline-flex h-8 items-center justify-center border border-[color:var(--line-strong)] px-3 text-[11px] font-semibold tracking-[0.12em] text-[var(--foreground)] uppercase transition hover:border-[color:var(--foreground)] hover:bg-[var(--foreground)] hover:text-white"
+          >
+            Редактировать
+          </Link>
+          {canDeleteOrder ? (
+            <DeleteOrderButton
+              orderId={order.id}
+              orderNumber={order.number ?? order.id.slice(0, 8)}
+            />
+          ) : null}
+        </div>
       </div>
     ),
     client: (

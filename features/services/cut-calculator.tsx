@@ -282,7 +282,12 @@ function getGibLabPartGeometry(row: CalculatedDetailRow) {
   };
 }
 
-function getGibLabFileName(date: Date) {
+function getGibLabFileName(date: Date, projectReference?: string | null) {
+  if (projectReference) {
+    const safeReference = projectReference.replace(/[^a-zA-Z0-9_-]+/g, "-");
+    return `${safeReference}-giblab.project`;
+  }
+
   const stamp = new Intl.DateTimeFormat("sv-SE", {
     year: "numeric",
     month: "2-digit",
@@ -306,6 +311,7 @@ function buildGibLabProjectXml({
   sheetCount,
   edgeThicknessMm,
   edgeWidthMm,
+  projectReference,
 }: {
   material: MaterialOption;
   sheet: SheetFormat;
@@ -314,6 +320,7 @@ function buildGibLabProjectXml({
   sheetCount: number;
   edgeThicknessMm: number;
   edgeWidthMm: number;
+  projectReference?: string | null;
 }) {
   const validRows = rows.filter(
     (row) => row.width > 0 && row.height > 0 && row.quantity > 0,
@@ -363,18 +370,27 @@ function buildGibLabProjectXml({
 
   const comments = [
     `\t<!-- Artisan export for GibLab -->`,
+    projectReference
+      ? `\t<!-- Request: ${escapeXml(projectReference)} -->`
+      : null,
     `\t<!-- Kerf: ${basisSettings.kerf.toFixed(1)} mm -->`,
     `\t<!-- Edge trim: ${basisSettings.edgeTrim.toFixed(0)} mm -->`,
     `\t<!-- Min strip: ${basisSettings.minStrip.toFixed(0)} mm -->`,
     `\t<!-- First cut: ${basisSettings.firstCutDirection} -->`,
-  ].join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const projectName = projectReference
+    ? `Artisan ${projectReference}`
+    : "Artisan Cut Project";
 
   const edgeBlock =
     edgeOperationParts.length > 0
       ? `\n\t<good id="${edgeToolGoodId}" typeId="tool.edgeline" />\n\t<good id="${bandGoodId}" typeId="band" name="${escapeXml(`Кромка ${edgeThicknessMm} мм ${bandWidth}x${edgeThicknessMm}`)}" code="${escapeXml(`ARTISAN-EDGE-${String(edgeThicknessMm).replace(".", "_")}MM`)}" unit="м" cost="${material.edgeRatePerMeter.toFixed(2)}" t="${edgeThicknessMm}" w="${bandWidth}" />\n\t<operation id="${edgeOperationId}" typeId="EL" tool1="${edgeToolGoodId}">\n${edgeOperationParts}\n\t\t<material id="${bandGoodId}" />\n\t</operation>`
       : "";
 
-  return `<?xml version="1.0" encoding="UTF-8"?>\n<project currency="сом" version="1">\n${comments}\n\t<good id="${productGoodId}" typeId="product" count="1" name="Artisan Cut Project">\n${partEntries.map((part) => part.xml).join("\n")}\n\t</good>\n\t<good id="${cutToolGoodId}" typeId="tool.cutting" />\n\t<good id="${sheetMaterialGoodId}" typeId="sheet" name="${escapeXml(material.label)}" code="${escapeXml(`${material.id}-${sheet.id}`)}" unit="м2" cost="${material.pricePerSqM.toFixed(2)}">\n\t\t<part id="${sheetPartId}" l="${sheet.width}" w="${sheet.height}" count="${availableSheetCount}" usedCount="${Math.max(sheetCount, 0)}" />\n\t</good>\n\t<operation id="${cutOperationId}" typeId="CS" tool1="${cutToolGoodId}" cSizeMode="0">\n${cutOperationParts}\n\t\t<material id="${sheetMaterialGoodId}" />\n\t</operation>${edgeBlock}\n</project>\n`;
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<project currency="сом" version="1">\n${comments}\n\t<good id="${productGoodId}" typeId="product" count="1" name="${escapeXml(projectName)}">\n${partEntries.map((part) => part.xml).join("\n")}\n\t</good>\n\t<good id="${cutToolGoodId}" typeId="tool.cutting" />\n\t<good id="${sheetMaterialGoodId}" typeId="sheet" name="${escapeXml(material.label)}" code="${escapeXml(`${material.id}-${sheet.id}`)}" unit="м2" cost="${material.pricePerSqM.toFixed(2)}">\n\t\t<part id="${sheetPartId}" l="${sheet.width}" w="${sheet.height}" count="${availableSheetCount}" usedCount="${Math.max(sheetCount, 0)}" />\n\t</good>\n\t<operation id="${cutOperationId}" typeId="CS" tool1="${cutToolGoodId}" cSizeMode="0">\n${cutOperationParts}\n\t\t<material id="${sheetMaterialGoodId}" />\n\t</operation>${edgeBlock}\n</project>\n`;
 }
 
 function createDetailId(seed: number | string) {
@@ -1285,6 +1301,10 @@ export function CutCalculator({
     tone: "success" | "error";
     message: string;
   } | null>(null);
+  const [submittedProjectReference, setSubmittedProjectReference] = useState<{
+    number: string;
+    signature: string;
+  } | null>(null);
   const [isSubmittingRequest, startSubmittingRequest] = useTransition();
 
   const lockedPreset = findPresetByContext(presets, productContext);
@@ -1513,6 +1533,43 @@ export function CutCalculator({
     [calculation.rows],
   );
 
+  const gibLabProjectSignature = useMemo(
+    () =>
+      JSON.stringify({
+        material: {
+          id: material.id,
+          label: material.label,
+          thicknessMm: material.thicknessMm,
+        },
+        sheet: {
+          id: sheet.id,
+          width: sheet.width,
+          height: sheet.height,
+        },
+        rows: exportableRows.map((row) => ({
+          title: row.title,
+          width: row.width,
+          height: row.height,
+          quantity: row.quantity,
+          edgedSides: row.edgedSides,
+          orientationMode: row.orientationMode,
+        })),
+        edgeThicknessValue,
+        edgeWidthValue,
+      }),
+    [
+      edgeThicknessValue,
+      edgeWidthValue,
+      exportableRows,
+      material.id,
+      material.label,
+      material.thicknessMm,
+      sheet.height,
+      sheet.id,
+      sheet.width,
+    ],
+  );
+
   const edgeOptionLabel = useMemo(() => {
     if (calculation.totalEdgeMeters <= 0) {
       return "Без кромки";
@@ -1582,6 +1639,10 @@ export function CutCalculator({
       return;
     }
 
+    const projectReference =
+      submittedProjectReference?.signature === gibLabProjectSignature
+        ? submittedProjectReference.number
+        : null;
     const projectXml = buildGibLabProjectXml({
       material,
       sheet,
@@ -1590,6 +1651,7 @@ export function CutCalculator({
       sheetCount: Math.max(cutMap.sheets.length, estimate.sheetCount, 0),
       edgeThicknessMm: edgeThicknessValue,
       edgeWidthMm: edgeWidthValue,
+      projectReference,
     });
     const blob = new Blob([projectXml], {
       type: "application/xml;charset=utf-8",
@@ -1598,7 +1660,7 @@ export function CutCalculator({
     const link = document.createElement("a");
 
     link.href = url;
-    link.download = getGibLabFileName(new Date());
+    link.download = getGibLabFileName(new Date(), projectReference);
     document.body.append(link);
     link.click();
     link.remove();
@@ -1701,6 +1763,7 @@ export function CutCalculator({
     setManualSheetHeightMm("");
     setDetails(createInitialRows());
     setRequestFeedback(null);
+    setSubmittedProjectReference(null);
   };
 
   const handleRequestSubmit = () => {
@@ -1752,6 +1815,12 @@ export function CutCalculator({
             ? `Заявка ${result.number} отправлена в работу.`
             : "Заявка отправлена в работу.",
         });
+        if (result.number) {
+          setSubmittedProjectReference({
+            number: result.number,
+            signature: gibLabProjectSignature,
+          });
+        }
         setRequestDraft((current) => ({
           ...current,
           comment: "",

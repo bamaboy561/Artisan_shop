@@ -44,13 +44,17 @@ export type AdminPromotionItem = {
   endsAt: Date | null;
   updatedAt: Date;
   products: Array<{
+    productId: string;
     product: {
+      id: string;
       name: string;
       sku: string;
     };
   }>;
   categories: Array<{
+    categoryId: string;
     category: {
+      id: string;
       name: string;
     };
   }>;

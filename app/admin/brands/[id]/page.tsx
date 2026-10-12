@@ -44,7 +44,7 @@ function parseHomeBannerImageUrls(value: string | null) {
 export default async function EditBrandPage({ params }: EditBrandPageProps) {
   if (!hasDatabaseUrl()) notFound();
 
-  await requireAdminSession("/login?next=/admin/brands");
+  await requireAdminSession("/login?next=/admin/brands", "/admin/brands");
 
   const { id } = await params;
   const db = getDb();

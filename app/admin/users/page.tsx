@@ -1,39 +1,54 @@
 import Link from "next/link";
 import Image from "next/image";
+import { Search, X } from "lucide-react";
 
 import { LoyaltyTier } from "@/generated/prisma";
 import { MetricCard } from "@/components/admin/metric-card";
 import { SetupState } from "@/components/admin/setup-state";
 import { StatusBadge } from "@/components/admin/status-badge";
-import { Button } from "@/components/ui/button";
+import { Button, getButtonClassName } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { Select } from "@/components/ui/select";
 import { DataTable } from "@/components/ui/table";
+import { Textarea } from "@/components/ui/textarea";
 import { requireAdminSession } from "@/lib/auth/dal";
 import { hasDatabaseUrl } from "@/lib/db";
 import {
   adjustUserLoyaltyPointsAction,
   approveLoyaltyTransactionAction,
   cancelLoyaltyTransactionAction,
+  sendUserTelegramNoticeAction,
   updateLoyaltyProgramSettingsAction,
   updateUserLoyaltyAction,
 } from "@/app/admin/actions";
 import {
-  getEffectiveDiscountPercent,
   getLoyaltyTierBenefits,
   getLoyaltyTierLabel,
   loyaltyTierOrder,
 } from "@/lib/server/pricing";
 import { getLoyaltyProgramConfig } from "@/lib/server/loyalty-settings";
+import { createClientQrPayload } from "@/lib/server/client-qr";
 import { getAdminUsers } from "@/lib/server/users-admin";
 
 export const dynamic = "force-dynamic";
+
+type SearchParams = Record<string, string | string[] | undefined>;
+
+type AdminUsersPageProps = {
+  searchParams?: Promise<SearchParams>;
+};
 
 const vipTiers = new Set<LoyaltyTier>([LoyaltyTier.GOLD, LoyaltyTier.PLATINUM]);
 
 function formatNumber(value: number) {
   return new Intl.NumberFormat("ru-RU").format(value);
+}
+
+function getSearchValue(searchParams: SearchParams, key: string) {
+  const value = searchParams[key];
+  const rawValue = Array.isArray(value) ? value[0] : value;
+  return rawValue?.replace(/\s+/g, " ").trim().slice(0, 120) ?? "";
 }
 
 function getTierTone(tier: LoyaltyTier) {
@@ -52,12 +67,14 @@ function getTierTone(tier: LoyaltyTier) {
   return "neutral";
 }
 
-export default async function AdminUsersPage() {
+export default async function AdminUsersPage({
+  searchParams,
+}: AdminUsersPageProps) {
   if (!hasDatabaseUrl()) {
     return (
       <SetupState
         title="Программа лояльности заработает после подключения базы данных"
-        description="Раздел уже готов для управления уровнями клиентов, личными скидками и накопленными баллами, но ему нужен рабочий PostgreSQL и production bootstrap."
+        description="Раздел уже готов для управления статусами клиентов, начислениями и накопленными баллами, но ему нужен рабочий PostgreSQL и production bootstrap."
         steps={[
           "Добавьте DATABASE_URL в .env.",
           "Примените Prisma-схему через prisma db push или prisma migrate dev.",
@@ -67,10 +84,18 @@ export default async function AdminUsersPage() {
     );
   }
 
-  await requireAdminSession("/login?next=/admin/users");
+  await requireAdminSession("/login?next=/admin/users", "/admin/users");
+
+  const resolvedSearchParams = (await searchParams) ?? {};
+  const userSearchQuery = getSearchValue(resolvedSearchParams, "q");
+  const telegramNotice = getSearchValue(resolvedSearchParams, "telegramNotice");
+  const telegramMessage = getSearchValue(
+    resolvedSearchParams,
+    "telegramMessage",
+  );
 
   const [users, loyaltyConfig] = await Promise.all([
-    getAdminUsers(),
+    getAdminUsers({ query: userSearchQuery }),
     getLoyaltyProgramConfig(),
   ]);
 
@@ -81,19 +106,20 @@ export default async function AdminUsersPage() {
     0,
   );
 
-  const activeDiscounts = users.filter(
-    (user) => getEffectiveDiscountPercent(user, loyaltyConfig) > 0,
-  );
-
   const rows = users.map((user) => {
     const clientQrUrl = `/api/qr?size=96&margin=2&data=${encodeURIComponent(
-      `artisan-client:${user.id}`,
+      createClientQrPayload(user.id),
     )}`;
-    const tierBenefits = getLoyaltyTierBenefits(
-      user.loyaltyTier,
+    const plateMaterialTier = user.plateMaterialLoyaltyTier ?? user.loyaltyTier;
+    const fittingsTier = user.fittingsLoyaltyTier ?? user.loyaltyTier;
+    const plateMaterialBenefits = getLoyaltyTierBenefits(
+      plateMaterialTier,
       loyaltyConfig,
     );
-    const effectiveDiscount = getEffectiveDiscountPercent(user, loyaltyConfig);
+    const fittingsBenefits = getLoyaltyTierBenefits(
+      fittingsTier,
+      loyaltyConfig,
+    );
     const pendingPoints = user.loyaltyTransactions.reduce(
       (sum, transaction) => sum + transaction.points,
       0,
@@ -129,15 +155,25 @@ export default async function AdminUsersPage() {
           <StatusBadge tone={getTierTone(user.loyaltyTier)}>
             {getLoyaltyTierLabel(user.loyaltyTier, loyaltyConfig)}
           </StatusBadge>
+          <StatusBadge tone={getTierTone(plateMaterialTier)}>
+            Плиты: {getLoyaltyTierLabel(plateMaterialTier, loyaltyConfig)}
+          </StatusBadge>
+          <StatusBadge tone={getTierTone(fittingsTier)}>
+            Фурнитура: {getLoyaltyTierLabel(fittingsTier, loyaltyConfig)}
+          </StatusBadge>
           <StatusBadge tone="neutral">{user.role.name}</StatusBadge>
         </div>
       ),
       loyalty: (
         <div className="space-y-1 text-sm text-[var(--foreground)]">
-          <p>Скидка: {effectiveDiscount}%</p>
           <p className="text-xs text-[var(--muted)]">
-            База уровня {tierBenefits.baseDiscountPercent}% + персонально{" "}
-            {user.personalDiscountPercent}%
+            Плиты: начисление{" "}
+            {plateMaterialBenefits.plateMaterialAccrualPercent}%, порог{" "}
+            {formatNumber(plateMaterialBenefits.plateMaterialThreshold)} сом
+          </p>
+          <p className="text-xs text-[var(--muted)]">
+            Фурнитура: начисление {fittingsBenefits.fittingsAccrualPercent}%,
+            порог {formatNumber(fittingsBenefits.fittingsThreshold)} сом
           </p>
           <p className="text-xs text-[var(--muted)]">
             Баланс: {formatNumber(user.loyaltyPointsBalance)} баллов
@@ -178,21 +214,30 @@ export default async function AdminUsersPage() {
             className="grid gap-2 rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] p-3"
           >
             <input type="hidden" name="id" value={user.id} />
-            <Select name="loyaltyTier" defaultValue={user.loyaltyTier}>
-              {Object.values(LoyaltyTier).map((tier) => (
-                <option key={tier} value={tier}>
-                  {getLoyaltyTierLabel(tier, loyaltyConfig)}
-                </option>
-              ))}
-            </Select>
-            <Input
-              name="personalDiscountPercent"
-              type="number"
-              min="0"
-              max={loyaltyConfig.maxTotalDiscountPercent}
-              defaultValue={user.personalDiscountPercent}
-              placeholder="Персональная скидка"
-            />
+            <input type="hidden" name="loyaltyTier" value={user.loyaltyTier} />
+            <label className="grid gap-1 text-xs text-[var(--muted)]">
+              Статус плит
+              <Select
+                name="plateMaterialLoyaltyTier"
+                defaultValue={plateMaterialTier}
+              >
+                {Object.values(LoyaltyTier).map((tier) => (
+                  <option key={tier} value={tier}>
+                    {getLoyaltyTierLabel(tier, loyaltyConfig)}
+                  </option>
+                ))}
+              </Select>
+            </label>
+            <label className="grid gap-1 text-xs text-[var(--muted)]">
+              Статус фурнитуры
+              <Select name="fittingsLoyaltyTier" defaultValue={fittingsTier}>
+                {Object.values(LoyaltyTier).map((tier) => (
+                  <option key={tier} value={tier}>
+                    {getLoyaltyTierLabel(tier, loyaltyConfig)}
+                  </option>
+                ))}
+              </Select>
+            </label>
             <Button type="submit" variant="secondary" size="sm">
               Сохранить уровень
             </Button>
@@ -214,6 +259,49 @@ export default async function AdminUsersPage() {
               Начислить или списать
             </Button>
           </form>
+
+          <div className="grid gap-2 rounded-2xl border border-[#68a994]/35 bg-[#f4fffb] p-3">
+            <div className="space-y-1">
+              <p className="text-xs font-semibold text-[var(--foreground)]">
+                Личное Telegram-сообщение
+              </p>
+              <p className="text-xs leading-5 text-[var(--muted)]">
+                {user.telegramChatId
+                  ? "Сообщение уйдет только этому клиенту."
+                  : "Клиент еще не подключил Telegram-бота."}
+              </p>
+            </div>
+            {user.telegramChatId ? (
+              <form
+                action={sendUserTelegramNoticeAction}
+                className="grid gap-2"
+              >
+                <input type="hidden" name="id" value={user.id} />
+                <input
+                  type="hidden"
+                  name="returnQuery"
+                  value={userSearchQuery}
+                />
+                <Input
+                  name="telegramTitle"
+                  defaultValue="Сообщение от Artisan"
+                  maxLength={80}
+                  className="h-10 bg-white"
+                />
+                <Textarea
+                  name="telegramMessage"
+                  rows={3}
+                  maxLength={3000}
+                  placeholder="Напишите уведомление для клиента"
+                  required
+                  className="min-h-24 rounded-xl bg-white"
+                />
+                <Button type="submit" variant="secondary" size="sm">
+                  Отправить в Telegram
+                </Button>
+              </form>
+            ) : null}
+          </div>
 
           {user.loyaltyTransactions.length > 0 ? (
             <div className="grid gap-2 rounded-2xl border border-[color:var(--line)] bg-[#fff8f3] p-3">
@@ -264,17 +352,42 @@ export default async function AdminUsersPage() {
       <section className="surface-glow rounded-[24px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-6 sm:p-8">
         <SectionHeading
           title="Клиенты и программа лояльности"
-          description="Здесь команда управляет уровнями Bronze, Silver, Gold и Platinum, персональными скидками и накопленными баллами каждого клиента."
+          description="Здесь команда управляет уровнями Bronze, Silver, Gold и Platinum, балансами и ручными операциями по баллам каждого клиента."
           titleClassName="text-2xl sm:text-3xl"
           descriptionClassName="max-w-3xl text-sm leading-7"
         />
       </section>
 
+      {telegramNotice ? (
+        <section className="overflow-hidden rounded-[24px] border border-[#68a994]/40 bg-[#f4fffb] p-5 shadow-[0_16px_48px_rgba(74,137,118,0.12)]">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="font-mono text-[10px] tracking-[0.22em] text-[#2f7f68] uppercase">
+                Telegram клиенту
+              </p>
+              <p className="mt-2 text-base font-semibold text-[var(--foreground)]">
+                Личное уведомление
+              </p>
+              <p className="mt-1 text-sm leading-6 text-[var(--muted)]">
+                {telegramMessage || "Статус отправки обновлен."}
+              </p>
+            </div>
+            <StatusBadge tone={telegramNotice === "ok" ? "success" : "warning"}>
+              {telegramNotice === "ok" ? "Готово" : "Проверьте"}
+            </StatusBadge>
+          </div>
+        </section>
+      ) : null}
+
       <section className="grid gap-4 md:grid-cols-3">
         <MetricCard
-          label="Клиенты"
+          label={userSearchQuery ? "Найдено" : "Клиенты"}
           value={users.length}
-          detail="Все аккаунты клиентов и дилеров, доступные для персональных условий"
+          detail={
+            userSearchQuery
+              ? `По запросу: ${userSearchQuery}`
+              : "Все аккаунты клиентов и дилеров, доступные для бонусной программы"
+          }
         />
         <MetricCard
           label="VIP-уровни"
@@ -284,8 +397,57 @@ export default async function AdminUsersPage() {
         <MetricCard
           label="Баллы в обороте"
           value={formatNumber(outstandingPoints)}
-          detail={`${activeDiscounts.length} клиентов уже имеют активную скидку`}
+          detail="Доступный баланс клиентов для оплаты будущих заказов"
         />
+      </section>
+
+      <section className="surface-glow rounded-[20px] border border-[color:var(--line)] bg-white/88 p-4 sm:p-5">
+        <form
+          action="/admin/users"
+          className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto_auto]"
+        >
+          <label className="grid gap-1.5">
+            <span className="font-mono text-[10px] tracking-[0.18em] text-[var(--accent)] uppercase">
+              Поиск по клиентам
+            </span>
+            <div className="relative">
+              <Search
+                aria-hidden="true"
+                className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-[var(--muted)]"
+              />
+              <Input
+                name="q"
+                type="search"
+                defaultValue={userSearchQuery}
+                placeholder="Имя, телефон, email, компания или Telegram"
+                className="pl-10"
+              />
+            </div>
+          </label>
+
+          <Button
+            type="submit"
+            variant="accent"
+            className="self-end whitespace-nowrap"
+          >
+            <Search aria-hidden="true" className="size-4" />
+            Найти
+          </Button>
+
+          {userSearchQuery ? (
+            <Link
+              href="/admin/users"
+              className={getButtonClassName(
+                "secondary",
+                "md",
+                "self-end whitespace-nowrap",
+              )}
+            >
+              <X aria-hidden="true" className="size-4" />
+              Сбросить
+            </Link>
+          ) : null}
+        </form>
       </section>
 
       <section className="surface-glow rounded-[24px] border border-[color:var(--line)] bg-white/86 p-5 sm:p-6">
@@ -299,7 +461,8 @@ export default async function AdminUsersPage() {
             </h2>
             <p className="mt-1 max-w-3xl text-sm leading-6 text-[var(--muted)]">
               Эти значения влияют на checkout, личный кабинет и Telegram-ответы
-              клиента. 1 балл = 1 сом скидки.
+              клиента. 1 балл = 1 сом при списании, за заказ можно списать до
+              50% суммы.
             </p>
           </div>
           <Link
@@ -314,27 +477,14 @@ export default async function AdminUsersPage() {
           action={updateLoyaltyProgramSettingsAction}
           className="mt-5 grid gap-4"
         >
-          <div className="grid gap-3 md:grid-cols-2">
-            <label className="grid gap-2 text-sm text-[var(--foreground)]">
-              Максимальная суммарная скидка, %
-              <Input
-                name="maxTotalDiscountPercent"
-                type="number"
-                min="0"
-                max="50"
-                defaultValue={loyaltyConfig.maxTotalDiscountPercent}
-              />
-            </label>
-            <label className="grid gap-2 text-sm text-[var(--foreground)]">
-              Максимум списания баллами от заказа, %
-              <Input
-                name="maxRedeemPercent"
-                type="number"
-                min="0"
-                max="100"
-                defaultValue={loyaltyConfig.maxRedeemPercent}
-              />
-            </label>
+          <div className="rounded-[18px] border border-[color:var(--line)] bg-[var(--surface)] p-4">
+            <p className="text-sm font-semibold text-[var(--foreground)]">
+              Оплата бонусами до {loyaltyConfig.maxRedeemPercent}% заказа
+            </p>
+            <p className="mt-1 text-sm leading-6 text-[var(--muted)]">
+              Порог статуса считается отдельно по закупкам плит и фурнитуры за
+              месяц.
+            </p>
           </div>
 
           <div className="grid gap-3 xl:grid-cols-4">
@@ -359,17 +509,27 @@ export default async function AdminUsersPage() {
                       />
                     </label>
                     <label className="grid gap-1.5 text-xs text-[var(--muted)]">
-                      Порог накопленных баллов
+                      Порог плит
                       <Input
-                        name={`${tier}.threshold`}
+                        name={`${tier}.plateMaterialThreshold`}
                         type="number"
                         min="0"
-                        defaultValue={benefits.threshold}
+                        defaultValue={benefits.plateMaterialThreshold}
                         className="h-10"
                       />
                     </label>
                     <label className="grid gap-1.5 text-xs text-[var(--muted)]">
-                      Скидка уровня, %
+                      Порог фурнитуры
+                      <Input
+                        name={`${tier}.fittingsThreshold`}
+                        type="number"
+                        min="0"
+                        defaultValue={benefits.fittingsThreshold}
+                        className="h-10"
+                      />
+                    </label>
+                    <label className="grid gap-1.5 text-xs text-[var(--muted)]">
+                      Начисление по плитам, %
                       <Input
                         name={`${tier}.plateMaterialAccrualPercent`}
                         type="number"
@@ -380,7 +540,7 @@ export default async function AdminUsersPage() {
                       />
                     </label>
                     <label className="grid gap-1.5 text-xs text-[var(--muted)]">
-                      Начисление бонусов, %
+                      Начисление по фурнитуре, %
                       <Input
                         name={`${tier}.fittingsAccrualPercent`}
                         type="number"
@@ -406,13 +566,17 @@ export default async function AdminUsersPage() {
         columns={[
           { key: "client", label: "Клиент" },
           { key: "profile", label: "Уровень" },
-          { key: "loyalty", label: "Скидка и баллы" },
+          { key: "loyalty", label: "Статусы и баллы" },
           { key: "activity", label: "Активность" },
           { key: "actions", label: "Управление" },
         ]}
         rows={rows}
         caption="Клиенты и программа лояльности"
-        emptyMessage="После появления клиентов в базе здесь можно будет настраивать уровни, личные скидки и баллы."
+        emptyMessage={
+          userSearchQuery
+            ? `По запросу «${userSearchQuery}» клиентов не найдено.`
+            : "После появления клиентов в базе здесь можно будет настраивать уровни и баллы."
+        }
       />
     </div>
   );

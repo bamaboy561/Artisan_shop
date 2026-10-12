@@ -28,6 +28,8 @@ type CustomerOption = {
   phone: string | null;
   companyName: string | null;
   loyaltyTier: string;
+  plateMaterialLoyaltyTier: string | null;
+  fittingsLoyaltyTier: string | null;
   loyaltyPointsBalance: number;
   personalDiscountPercent: number;
 };
@@ -73,10 +75,30 @@ function getCustomerName(customer: CustomerOption) {
   );
 }
 
+function getDigits(value: string | null | undefined) {
+  return value?.replace(/\D/g, "") ?? "";
+}
+
+function isSamePhone(left: string | null | undefined, right: string) {
+  const leftDigits = getDigits(left);
+  const rightDigits = getDigits(right);
+
+  return (
+    leftDigits.length >= 3 &&
+    rightDigits.length >= 3 &&
+    (leftDigits === rightDigits ||
+      leftDigits.endsWith(rightDigits) ||
+      rightDigits.endsWith(leftDigits))
+  );
+}
+
 function getCustomerSearch(customer: CustomerOption) {
+  const phoneDigits = getDigits(customer.phone);
+
   return [
     customer.email,
     customer.phone,
+    phoneDigits,
     customer.firstName,
     customer.lastName,
     customer.companyName,
@@ -84,6 +106,78 @@ function getCustomerSearch(customer: CustomerOption) {
     .filter(Boolean)
     .join(" ")
     .toLocaleLowerCase("ru-RU");
+}
+
+function mergeCustomerOptions(
+  primary: CustomerOption[],
+  current: CustomerOption[],
+  selectedCustomerId: string,
+) {
+  const merged = new Map<string, CustomerOption>();
+
+  for (const customer of primary) {
+    merged.set(customer.id, customer);
+  }
+
+  const selectedCustomer = current.find(
+    (customer) => customer.id === selectedCustomerId,
+  );
+
+  if (selectedCustomer && !merged.has(selectedCustomer.id)) {
+    merged.set(selectedCustomer.id, selectedCustomer);
+  }
+
+  return Array.from(merged.values());
+}
+
+async function fetchCustomerOptions(query: string, signal?: AbortSignal) {
+  const response = await fetch(
+    `/api/admin/customers?q=${encodeURIComponent(query)}`,
+    {
+      headers: {
+        Accept: "application/json",
+      },
+      signal,
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error("Customer search failed");
+  }
+
+  const payload = (await response.json()) as { customers?: CustomerOption[] };
+
+  return Array.isArray(payload.customers) ? payload.customers : [];
+}
+
+function mergeProductOptions(
+  primary: ProductOption[],
+  current: ProductOption[],
+  selectedProductIds: Set<string>,
+) {
+  const merged = new Map(primary.map((product) => [product.id, product]));
+
+  for (const product of current) {
+    if (selectedProductIds.has(product.id) && !merged.has(product.id)) {
+      merged.set(product.id, product);
+    }
+  }
+
+  return Array.from(merged.values());
+}
+
+async function fetchProductOptions(query: string, signal?: AbortSignal) {
+  const response = await fetch(
+    `/api/admin/products?q=${encodeURIComponent(query)}`,
+    { headers: { Accept: "application/json" }, signal },
+  );
+
+  if (!response.ok) {
+    throw new Error("Product search failed");
+  }
+
+  const payload = (await response.json()) as { products?: ProductOption[] };
+  return Array.isArray(payload.products) ? payload.products : [];
 }
 
 function getProductSearch(product: ProductOption) {
@@ -94,8 +188,18 @@ function getProductSearch(product: ProductOption) {
 }
 
 export function SalesFloorForm({ customers, products }: SalesFloorFormProps) {
+  const [customerOptions, setCustomerOptions] = useState(customers);
   const [customerQuery, setCustomerQuery] = useState("");
+  const [customerLoading, setCustomerLoading] = useState(false);
+  const [customerSearchError, setCustomerSearchError] = useState<string | null>(
+    null,
+  );
   const [productQuery, setProductQuery] = useState("");
+  const [productOptions, setProductOptions] = useState(products);
+  const [productLoading, setProductLoading] = useState(false);
+  const [productSearchError, setProductSearchError] = useState<string | null>(
+    null,
+  );
   const [qrValue, setQrValue] = useState("");
   const [scannerActive, setScannerActive] = useState(false);
   const [scannerMessage, setScannerMessage] = useState<string | null>(null);
@@ -106,22 +210,19 @@ export function SalesFloorForm({ customers, products }: SalesFloorFormProps) {
   const [items, setItems] = useState<SelectedItem[]>([]);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const scannerControlsRef = useRef<IScannerControls | null>(null);
-  const selectedProductIds = new Set(items.map((item) => item.productId));
-  const selectedCustomer = customers.find(
-    (customer) => customer.id === selectedCustomerId,
+  const selectedProductIds = useMemo(
+    () => new Set(items.map((item) => item.productId)),
+    [items],
   );
   const productMap = useMemo(
-    () => new Map(products.map((product) => [product.id, product])),
-    [products],
+    () => new Map(productOptions.map((product) => [product.id, product])),
+    [productOptions],
   );
-  const customerResults = customers
-    .filter((customer) =>
-      getCustomerSearch(customer).includes(
-        customerQuery.trim().toLocaleLowerCase("ru-RU"),
-      ),
-    )
-    .slice(0, 8);
-  const productResults = products
+  const selectedCustomer = customerOptions.find(
+    (customer) => customer.id === selectedCustomerId,
+  );
+  const customerResults = customerOptions.slice(0, 12);
+  const productResults = productOptions
     .filter((product) => !selectedProductIds.has(product.id))
     .filter((product) =>
       getProductSearch(product).includes(
@@ -148,19 +249,147 @@ export function SalesFloorForm({ customers, products }: SalesFloorFormProps) {
     : 0;
   const total = Math.max(0, subtotal - redeemablePoints);
 
-  function selectCustomerByQr(rawValue: string) {
+  useEffect(() => {
+    const query = customerQuery.trim();
+
+    if (!query) {
+      return;
+    }
+
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      setCustomerLoading(true);
+      setCustomerSearchError(null);
+
+      try {
+        const nextCustomers = await fetchCustomerOptions(
+          query,
+          controller.signal,
+        );
+        setCustomerOptions((current) =>
+          mergeCustomerOptions(nextCustomers, current, selectedCustomerId),
+        );
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
+
+        setCustomerSearchError("Не удалось загрузить клиентов.");
+      } finally {
+        if (!controller.signal.aborted) {
+          setCustomerLoading(false);
+        }
+      }
+    }, 250);
+
+    return () => {
+      controller.abort();
+      window.clearTimeout(timer);
+    };
+  }, [customerQuery, customers, selectedCustomerId]);
+
+  useEffect(() => {
+    const query = productQuery.trim();
+
+    if (!query) {
+      return;
+    }
+
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      setProductLoading(true);
+      setProductSearchError(null);
+
+      try {
+        const nextProducts = await fetchProductOptions(
+          query,
+          controller.signal,
+        );
+        setProductOptions((current) =>
+          mergeProductOptions(nextProducts, current, selectedProductIds),
+        );
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError")
+          return;
+        setProductSearchError("Не удалось загрузить товары.");
+      } finally {
+        if (!controller.signal.aborted) setProductLoading(false);
+      }
+    }, 250);
+
+    return () => {
+      controller.abort();
+      window.clearTimeout(timer);
+    };
+  }, [productQuery, products, selectedProductIds]);
+
+  function updateProductQuery(value: string, preserveProductId?: string) {
+    setProductQuery(value);
+
+    if (!value.trim()) {
+      const retainedProductIds = new Set(selectedProductIds);
+
+      if (preserveProductId) {
+        retainedProductIds.add(preserveProductId);
+      }
+
+      setProductOptions((current) =>
+        mergeProductOptions(products, current, retainedProductIds),
+      );
+      setProductLoading(false);
+      setProductSearchError(null);
+    }
+  }
+
+  function updateCustomerQuery(value: string) {
+    setCustomerQuery(value);
+
+    if (!value.trim()) {
+      setCustomerOptions((current) =>
+        mergeCustomerOptions(customers, current, selectedCustomerId),
+      );
+      setCustomerLoading(false);
+      setCustomerSearchError(null);
+    }
+  }
+
+  async function selectCustomerByQr(rawValue: string) {
     const value = rawValue.trim();
     const customerId =
       value.match(/^artisan-client:([a-z0-9_-]+)$/i)?.[1] ?? value;
-    const customer = customers.find(
+    let customer = customerOptions.find(
       (item) =>
         item.id === customerId ||
         item.email.toLocaleLowerCase("ru-RU") ===
           value.toLocaleLowerCase("ru-RU") ||
-        item.phone === value,
+        isSamePhone(item.phone, value) ||
+        getCustomerSearch(item).includes(value.toLocaleLowerCase("ru-RU")),
     );
 
     setQrValue(value);
+
+    if (!customer) {
+      setScannerMessage("Ищем клиента в базе...");
+
+      try {
+        const nextCustomers = await fetchCustomerOptions(customerId);
+        customer =
+          nextCustomers.find(
+            (item) =>
+              item.id === customerId ||
+              item.email.toLocaleLowerCase("ru-RU") ===
+                value.toLocaleLowerCase("ru-RU") ||
+              isSamePhone(item.phone, value),
+          ) ?? nextCustomers[0];
+
+        setCustomerOptions((current) =>
+          mergeCustomerOptions(nextCustomers, current, customer?.id ?? ""),
+        );
+      } catch {
+        setScannerMessage("Не удалось проверить QR клиента.");
+        return false;
+      }
+    }
 
     if (!customer) {
       setScannerMessage("Клиент по QR не найден.");
@@ -197,8 +426,12 @@ export function SalesFloorForm({ customers, products }: SalesFloorFormProps) {
         (result) => {
           const value = result?.getText();
 
-          if (value && selectCustomerByQr(value)) {
-            stopScanner();
+          if (value) {
+            void selectCustomerByQr(value).then((isSelected) => {
+              if (isSelected) {
+                stopScanner();
+              }
+            });
           }
         },
       );
@@ -218,25 +451,39 @@ export function SalesFloorForm({ customers, products }: SalesFloorFormProps) {
   }, []);
 
   function addProduct(productId: string) {
-    if (selectedProductIds.has(productId)) {
+    const product = productMap.get(productId);
+
+    if (
+      !product ||
+      (product.stockQuantity !== null && product.stockQuantity <= 0)
+    ) {
       return;
     }
 
-    if (!productMap.has(productId)) {
-      return;
-    }
-
-    setItems((current) => [...current, { productId, quantity: 1 }]);
-    setProductQuery("");
+    setItems((current) =>
+      current.some((item) => item.productId === productId)
+        ? current
+        : [...current, { productId, quantity: 1 }],
+    );
+    updateProductQuery("", productId);
   }
 
   function updateQuantity(productId: string, nextQuantity: number) {
+    const stockQuantity = productMap.get(productId)?.stockQuantity;
+    const maximumQuantity =
+      stockQuantity === null || stockQuantity === undefined
+        ? 999
+        : Math.max(1, Math.min(999, stockQuantity));
+
     setItems((current) =>
       current.map((item) =>
         item.productId === productId
           ? {
               ...item,
-              quantity: Math.max(1, Math.min(999, nextQuantity || 1)),
+              quantity: Math.max(
+                1,
+                Math.min(maximumQuantity, nextQuantity || 1),
+              ),
             }
           : item,
       ),
@@ -277,12 +524,23 @@ export function SalesFloorForm({ customers, products }: SalesFloorFormProps) {
             <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-[var(--muted)]" />
             <Input
               value={customerQuery}
-              onChange={(event) => setCustomerQuery(event.target.value)}
+              onChange={(event) => updateCustomerQuery(event.target.value)}
               placeholder="Например: Уларa, 0999..."
               className="h-11 pl-10"
             />
+            {customerLoading ? (
+              <span className="absolute top-1/2 right-3 -translate-y-1/2 text-xs text-[var(--muted)]">
+                Поиск...
+              </span>
+            ) : null}
           </div>
         </label>
+
+        {customerSearchError ? (
+          <p className="mt-2 text-xs leading-5 text-[#b42318]">
+            {customerSearchError}
+          </p>
+        ) : null}
 
         <div className="mt-4 grid max-h-[520px] gap-2 overflow-y-auto pr-1">
           {customerResults.map((customer) => {
@@ -292,7 +550,10 @@ export function SalesFloorForm({ customers, products }: SalesFloorFormProps) {
               <button
                 key={customer.id}
                 type="button"
-                onClick={() => setSelectedCustomerId(customer.id)}
+                onClick={() => {
+                  setSelectedCustomerId(customer.id);
+                  setCustomerQuery(getCustomerName(customer));
+                }}
                 className={cn(
                   "rounded-2xl border p-3 text-left transition",
                   active
@@ -315,12 +576,24 @@ export function SalesFloorForm({ customers, products }: SalesFloorFormProps) {
                     active ? "bg-white/12" : "bg-white",
                   )}
                 >
-                  {customer.loyaltyTier} · {customer.personalDiscountPercent}% ·{" "}
+                  Плиты{" "}
+                  {customer.plateMaterialLoyaltyTier ?? customer.loyaltyTier} ·{" "}
+                  Фурн. {customer.fittingsLoyaltyTier ?? customer.loyaltyTier} ·{" "}
                   {customer.loyaltyPointsBalance} баллов
                 </p>
               </button>
             );
           })}
+          {customerLoading ? (
+            <div className="rounded-2xl border border-[color:var(--line)] bg-[#faf8f4] p-3 text-sm text-[var(--muted)]">
+              Ищем клиента...
+            </div>
+          ) : null}
+          {!customerLoading && customerResults.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-[color:var(--line-strong)] bg-[#faf8f4] p-3 text-sm text-[var(--muted)]">
+              Клиент не найден.
+            </div>
+          ) : null}
         </div>
 
         <div className="mt-4 rounded-2xl border border-[color:var(--line)] bg-[#faf8f4] p-3">
@@ -354,13 +627,15 @@ export function SalesFloorForm({ customers, products }: SalesFloorFormProps) {
               <Input
                 value={qrValue}
                 onChange={(event) => setQrValue(event.target.value)}
-                placeholder="artisan-client:..."
+                placeholder="Отсканируйте QR клиента"
                 className="h-10 pl-10"
               />
             </div>
             <button
               type="button"
-              onClick={() => selectCustomerByQr(qrValue)}
+              onClick={() => {
+                void selectCustomerByQr(qrValue);
+              }}
               className="h-10 rounded-xl border border-[color:var(--line-strong)] px-3 text-xs font-semibold transition hover:bg-white"
             >
               Найти
@@ -404,21 +679,33 @@ export function SalesFloorForm({ customers, products }: SalesFloorFormProps) {
             <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-[var(--muted)]" />
             <Input
               value={productQuery}
-              onChange={(event) => setProductQuery(event.target.value)}
+              onChange={(event) => updateProductQuery(event.target.value)}
               placeholder="Петля, направляющая, столешница..."
               className="h-11 pl-10"
             />
+            {productLoading ? (
+              <span className="absolute top-1/2 right-3 -translate-y-1/2 text-xs text-[var(--muted)]">
+                Поиск...
+              </span>
+            ) : null}
           </div>
+          {productSearchError ? (
+            <span className="text-xs text-red-600">{productSearchError}</span>
+          ) : null}
         </label>
 
         <div className="mt-4 grid max-h-[610px] gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
           {productResults.map((product) => {
+            const isOutOfStock =
+              product.stockQuantity !== null && product.stockQuantity <= 0;
+
             return (
               <button
                 key={product.id}
                 type="button"
                 onClick={() => addProduct(product.id)}
-                className="grid gap-3 rounded-2xl border border-[color:var(--line)] bg-[#faf8f4] p-2.5 text-left transition hover:border-[#c65b3a] hover:bg-white"
+                disabled={isOutOfStock}
+                className="grid gap-3 rounded-2xl border border-[color:var(--line)] bg-[#faf8f4] p-2.5 text-left transition hover:border-[#c65b3a] hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <div className="relative aspect-[1.25/1] overflow-hidden rounded-xl bg-[#eee8de]">
                   <ProductImage
@@ -431,8 +718,10 @@ export function SalesFloorForm({ customers, products }: SalesFloorFormProps) {
                   />
                 </div>
                 <div className="min-w-0">
-                  <p className="truncate font-semibold">{product.name}</p>
-                  <p className="mt-1 truncate text-xs text-[var(--muted)]">
+                  <p className="leading-5 font-semibold [overflow-wrap:anywhere]">
+                    {product.name}
+                  </p>
+                  <p className="mt-1 text-xs leading-4 [overflow-wrap:anywhere] text-[var(--muted)]">
                     {[product.brand?.name, product.sku]
                       .filter(Boolean)
                       .join(" · ")}
@@ -440,10 +729,27 @@ export function SalesFloorForm({ customers, products }: SalesFloorFormProps) {
                   <p className="mt-2 text-lg font-semibold">
                     {formatProductPrice(product.price)}
                   </p>
+                  <p className="mt-1 text-xs text-[var(--muted)]">
+                    {product.stockQuantity === null
+                      ? "Остаток не ограничен"
+                      : product.stockQuantity > 0
+                        ? `Остаток: ${product.stockQuantity} шт.`
+                        : "Нет в наличии"}
+                  </p>
                 </div>
               </button>
             );
           })}
+          {productLoading ? (
+            <div className="rounded-2xl border border-[color:var(--line)] bg-[#faf8f4] p-3 text-sm text-[var(--muted)] sm:col-span-2">
+              Ищем товары...
+            </div>
+          ) : null}
+          {!productLoading && productResults.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-[color:var(--line-strong)] bg-[#faf8f4] p-3 text-sm text-[var(--muted)] sm:col-span-2">
+              Товары не найдены. Проверьте название, артикул или бренд.
+            </div>
+          ) : null}
         </div>
       </section>
 
@@ -478,8 +784,10 @@ export function SalesFloorForm({ customers, products }: SalesFloorFormProps) {
                   />
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="truncate font-semibold">{product.name}</p>
-                      <p className="mt-1 text-xs text-white/46">
+                      <p className="leading-5 font-semibold [overflow-wrap:anywhere]">
+                        {product.name}
+                      </p>
+                      <p className="mt-1 text-xs leading-4 [overflow-wrap:anywhere] text-white/46">
                         {[product.brand?.name, product.sku]
                           .filter(Boolean)
                           .join(" · ")}
@@ -509,7 +817,7 @@ export function SalesFloorForm({ customers, products }: SalesFloorFormProps) {
                         name="quantity"
                         type="number"
                         min="1"
-                        max="999"
+                        max={product.stockQuantity ?? 999}
                         value={item.quantity}
                         onChange={(event) =>
                           updateQuantity(
@@ -561,9 +869,7 @@ export function SalesFloorForm({ customers, products }: SalesFloorFormProps) {
                   min="0"
                   max={maxRedeemablePoints}
                   value={redeemPointsInput}
-                  onChange={(event) =>
-                    setRedeemPointsInput(event.target.value)
-                  }
+                  onChange={(event) => setRedeemPointsInput(event.target.value)}
                   placeholder="0"
                   inputMode="numeric"
                   className="h-11 border-white/10 bg-white/10 text-white placeholder:text-white/34"
@@ -600,8 +906,8 @@ export function SalesFloorForm({ customers, products }: SalesFloorFormProps) {
             <Checkbox
               name="applyClientDiscount"
               defaultChecked
-              label="Применить скидку клиента"
-              description="Учитывается уровень и персональная скидка."
+              label="Учитывать бонусный профиль клиента"
+              description="Начисление считается по статусам плит и фурнитуры."
               className="hidden"
             />
             <Checkbox

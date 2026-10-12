@@ -6,6 +6,8 @@ node_modules
 .artisan-runtime
 public/uploads
 tmp-*.png
+tmp-*.log
+tmp-*.html
 .codex-*.png
 .codex-*.log
 .dev-server*.log

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import {
-  Archive,
+  BarChart3,
   Box,
   Calculator,
   FilePlus2,
@@ -11,25 +11,79 @@ import {
   ReceiptText,
   TrendingUp,
   Users2,
+  WalletCards,
+  Warehouse,
   type LucideIcon,
 } from "lucide-react";
 
+import { ExecutiveReportActions } from "@/components/admin/executive-report-actions";
 import { SetupState } from "@/components/admin/setup-state";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { DataTable } from "@/components/ui/table";
-import {
-  orderStatusLabels,
-  requestStatusLabels,
-} from "@/features/admin/operations-filters";
-import { OrderStatus, RequestStatus } from "@/generated/prisma";
+import { OrderStatus, RequestStatus, RequestType } from "@/generated/prisma";
+import { requireAdminSession } from "@/lib/auth/dal";
 import { hasDatabaseUrl, isDemoModeEnabled } from "@/lib/db";
 import {
+  adminReportPeriodKeys,
   getAdminDashboardMetrics,
+  getAdminExecutiveReport,
   getAdminOperationalQueues,
   getAdminStockMaterials,
+  normalizeAdminReportPeriod,
+  type AdminReportPeriodKey,
 } from "@/lib/server/admin-data";
+import {
+  getLatestInventoryValuation,
+  type LatestInventoryValuation,
+} from "@/lib/server/inventory-valuation";
 
 export const dynamic = "force-dynamic";
+
+type SearchParams = Record<string, string | string[] | undefined>;
+
+const orderStatusLabels: Record<OrderStatus, string> = {
+  [OrderStatus.NEW]: "Новый",
+  [OrderStatus.CONFIRMED]: "Подтвержден",
+  [OrderStatus.IN_PRODUCTION]: "В производстве",
+  [OrderStatus.READY_FOR_PICKUP]: "Готов к выдаче",
+  [OrderStatus.SHIPPED]: "Отгружен",
+  [OrderStatus.COMPLETED]: "Завершен",
+  [OrderStatus.CANCELED]: "Отменен",
+};
+
+const requestStatusLabels: Record<RequestStatus, string> = {
+  [RequestStatus.NEW]: "Новая",
+  [RequestStatus.IN_REVIEW]: "На расчете",
+  [RequestStatus.QUOTE_SENT]: "КП отправлено",
+  [RequestStatus.WAITING_FOR_CLIENT]: "Ждем клиента",
+  [RequestStatus.IN_PROGRESS]: "В работе",
+  [RequestStatus.COMPLETED]: "Завершена",
+  [RequestStatus.CANCELED]: "Отменена",
+};
+
+const requestTypeLabels: Record<RequestType, string> = {
+  [RequestType.PRICE_REQUEST]: "Запрос цены",
+  [RequestType.CONSULTATION]: "Консультация",
+  [RequestType.CUTTING_SERVICE]: "Распил",
+  [RequestType.CUSTOM_SERVICE]: "Индивидуальная услуга",
+};
+
+const reportPeriodLabels: Record<AdminReportPeriodKey, string> = {
+  today: "Сегодня",
+  "7d": "7 дней",
+  "30d": "30 дней",
+  month: "Месяц",
+};
+
+function getFirstSearchValue(searchParams: SearchParams, key: string) {
+  const value = searchParams[key];
+
+  if (Array.isArray(value)) {
+    return value[0] ?? "";
+  }
+
+  return value ?? "";
+}
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("ru-RU", {
@@ -48,6 +102,35 @@ function formatDate(date: Date) {
     day: "2-digit",
     month: "short",
   }).format(date);
+}
+
+function formatDateTime(date: Date) {
+  return new Intl.DateTimeFormat("ru-RU", {
+    day: "2-digit",
+    month: "long",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function formatPeriodRange(start: Date, end: Date) {
+  const formatter = new Intl.DateTimeFormat("ru-RU", {
+    day: "2-digit",
+    month: "short",
+  });
+
+  return `${formatter.format(start)} - ${formatter.format(end)}`;
+}
+
+function formatDelta(value: number) {
+  if (value > 0) return `+${value}%`;
+  return `${value}%`;
+}
+
+function getDeltaClassName(value: number) {
+  if (value > 0) return "text-emerald-700";
+  if (value < 0) return "text-red-700";
+  return "text-[#77736c]";
 }
 
 function getOrderStatusTone(status: OrderStatus) {
@@ -85,6 +168,59 @@ function getRequestStatusTone(status: RequestStatus) {
   }
 }
 
+function buildReportHref(period: AdminReportPeriodKey) {
+  return period === "month" ? "/admin" : `/admin?period=${period}`;
+}
+
+function buildExecutiveReportText(
+  report: Awaited<ReturnType<typeof getAdminExecutiveReport>>,
+  inventoryValuation: LatestInventoryValuation | null,
+) {
+  const topClient = report.breakdown.topClients[0];
+  const topBrand = report.breakdown.revenueByBrand[0];
+  const topCategory = report.breakdown.revenueByCategory[0];
+  const topProduct = report.breakdown.topProducts[0];
+
+  return [
+    `Отчет Artisan: ${report.period.label}`,
+    `Период: ${formatPeriodRange(report.period.start, report.period.end)}`,
+    `Сформировано: ${formatDateTime(report.generatedAt)}`,
+    "",
+    `Продажи: ${formatCurrency(report.sales.revenue)}`,
+    `Заказы: ${formatNumber(report.sales.orderCount)} оплачиваемых из ${formatNumber(report.sales.allOrderCount)} всего`,
+    `Средний чек: ${formatCurrency(report.sales.averageOrderTotal)}`,
+    `Продано: ${formatNumber(report.sales.itemsSold)} ед., ${formatNumber(report.breakdown.soldProducts.length)} позиций, ${formatNumber(report.breakdown.revenueByBrand.length)} брендов`,
+    `В работе: ${formatNumber(report.sales.activeOrders)}, завершено: ${formatNumber(report.sales.completedOrders)}, отменено: ${formatNumber(report.sales.canceledOrders)}`,
+    `Скидки: ${formatCurrency(report.sales.discounts)}, оплата бонусами: ${formatCurrency(report.sales.loyaltyRedemptionTotal)}`,
+    inventoryValuation
+      ? `Сумма склада: ${formatCurrency(inventoryValuation.amount)}`
+      : "Сумма склада: файл остатков еще не загружен",
+    inventoryValuation
+      ? `Источник склада: ${inventoryValuation.reportTitle ?? inventoryValuation.sourceFile}; загружено ${formatDateTime(inventoryValuation.importedAt)}`
+      : null,
+    "",
+    `Клиенты: всего ${formatNumber(report.clients.total)}, новых за период ${formatNumber(report.clients.new)}, покупали ${formatNumber(report.clients.activeBuying)}, повторных ${formatNumber(report.clients.repeat)}`,
+    `Telegram подключен: ${formatNumber(report.clients.telegramLinked)}`,
+    `Бонусный баланс клиентов: ${formatNumber(report.clients.loyaltyBalance)} баллов`,
+    "",
+    `Заявки: ${formatNumber(report.requests.total)}, активные ${formatNumber(report.requests.active)}, распил ${formatNumber(report.requests.cutting)}`,
+    topClient
+      ? `Топ клиент: ${topClient.name} - ${formatCurrency(topClient.revenue)}`
+      : "Топ клиент: данных пока нет",
+    topBrand
+      ? `Топ бренд: ${topBrand.name} - ${formatCurrency(topBrand.revenue)} (${topBrand.share}%)`
+      : "Топ бренд: данных пока нет",
+    topCategory
+      ? `Топ направление: ${topCategory.name} - ${formatCurrency(topCategory.revenue)}`
+      : "Топ направление: данных пока нет",
+    topProduct
+      ? `Топ товар: ${topProduct.name} - ${formatCurrency(topProduct.revenue)}`
+      : "Топ товар: данных пока нет",
+  ]
+    .filter((line): line is string => line !== null)
+    .join("\n");
+}
+
 function MiniChart() {
   return (
     <svg viewBox="0 0 180 44" className="mt-4 h-11 w-full text-[#c65b3a]">
@@ -113,12 +249,14 @@ function KpiCard({
   detail,
   icon: Icon,
   chart = false,
+  compactValue = false,
 }: {
   label: string;
   value: string | number;
   detail: string;
   icon: LucideIcon;
   chart?: boolean;
+  compactValue?: boolean;
 }) {
   return (
     <article className="rounded-xl border border-[#e6e2dc] bg-white p-5 shadow-[0_18px_50px_rgba(30,28,25,0.04)]">
@@ -126,12 +264,43 @@ function KpiCard({
         <span className="text-sm text-[#77736c]">{label}</span>
         <Icon className="size-6 text-[#c65b3a]" strokeWidth={1.75} />
       </div>
-      <p className="mt-4 text-[26px] leading-none font-semibold tracking-[-0.03em] text-[#24221f]">
+      <p
+        className={`mt-4 leading-none font-semibold text-[#24221f] ${
+          compactValue ? "text-xl" : "text-[26px]"
+        }`}
+      >
         {value}
       </p>
       <p className="mt-3 text-sm text-[#8a857d]">{detail}</p>
       {chart ? <MiniChart /> : null}
     </article>
+  );
+}
+
+function ReportStat({
+  label,
+  value,
+  detail,
+  icon: Icon,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+  icon: LucideIcon;
+}) {
+  return (
+    <div className="min-w-0 rounded-lg border border-[#ece8e2] bg-[#fbfaf8] p-4">
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-xs font-medium tracking-[0.12em] text-[#8a857d] uppercase">
+          {label}
+        </p>
+        <Icon className="size-5 shrink-0 text-[#c65b3a]" strokeWidth={1.8} />
+      </div>
+      <p className="mt-3 text-2xl leading-none font-semibold text-[#24221f]">
+        {value}
+      </p>
+      <p className="mt-2 text-xs leading-5 text-[#77736c]">{detail}</p>
+    </div>
   );
 }
 
@@ -149,9 +318,7 @@ function Panel({
   return (
     <section className="min-w-0 overflow-hidden rounded-xl border border-[#e6e2dc] bg-white shadow-[0_18px_50px_rgba(30,28,25,0.04)]">
       <div className="flex items-center justify-between gap-4 border-b border-[#e6e2dc] px-5 py-4">
-        <h2 className="text-lg font-semibold tracking-[-0.02em] text-[#24221f]">
-          {title}
-        </h2>
+        <h2 className="text-lg font-semibold text-[#24221f]">{title}</h2>
         {href && linkLabel ? (
           <Link
             href={href}
@@ -166,7 +333,13 @@ function Panel({
   );
 }
 
-export default async function AdminPage() {
+export default async function AdminPage({
+  searchParams,
+}: {
+  searchParams?: Promise<SearchParams>;
+}) {
+  await requireAdminSession("/login?next=/admin", "/admin");
+
   if (!hasDatabaseUrl() && !isDemoModeEnabled()) {
     return (
       <SetupState
@@ -181,12 +354,24 @@ export default async function AdminPage() {
     );
   }
 
-  const [metrics, queues, stockMaterials] = await Promise.all([
-    getAdminDashboardMetrics(),
-    getAdminOperationalQueues(),
-    getAdminStockMaterials(),
-  ]);
+  const resolvedSearchParams = (await searchParams) ?? {};
+  const reportPeriod = normalizeAdminReportPeriod(
+    getFirstSearchValue(resolvedSearchParams, "period"),
+  );
 
+  const [metrics, queues, stockMaterials, executiveReport, inventoryValuation] =
+    await Promise.all([
+      getAdminDashboardMetrics(),
+      getAdminOperationalQueues(),
+      getAdminStockMaterials(),
+      getAdminExecutiveReport(reportPeriod),
+      getLatestInventoryValuation(),
+    ]);
+
+  const reportText = buildExecutiveReportText(
+    executiveReport,
+    inventoryValuation,
+  );
   const orderRows = queues.recentOrders.map((order) => ({
     order: (
       <Link
@@ -204,7 +389,6 @@ export default async function AdminPage() {
     ),
     date: formatDate(order.createdAt),
     total: formatCurrency(order.total),
-    actions: <span className="text-[#8a857d]">•••</span>,
   }));
 
   const requestRows = queues.recentRequests.map((request) => ({
@@ -223,12 +407,94 @@ export default async function AdminPage() {
       </StatusBadge>
     ),
     created: formatDate(request.createdAt),
-    actions: <span className="text-[#8a857d]">•••</span>,
   }));
+
+  const topClientRows = executiveReport.breakdown.topClients.map((client) => ({
+    client: client.name,
+    orders: formatNumber(client.orders),
+    revenue: formatCurrency(client.revenue),
+    average: formatCurrency(Math.round(client.revenue / client.orders)),
+    lastOrder: formatDate(client.lastOrderAt),
+  }));
+
+  const categoryRows = executiveReport.breakdown.revenueByCategory.map(
+    (category) => ({
+      category: category.name,
+      revenue: formatCurrency(category.revenue),
+      quantity: formatNumber(category.quantity),
+      share: `${category.share}%`,
+    }),
+  );
+
+  const brandRows = executiveReport.breakdown.revenueByBrand.map((brand) => ({
+    brand: (
+      <span className="block min-w-40">
+        <span className="block font-medium text-[#24221f]">{brand.name}</span>
+        <span className="text-xs text-[#8a857d]">
+          {formatNumber(brand.products)} товаров
+        </span>
+      </span>
+    ),
+    quantity: formatNumber(brand.quantity),
+    orders: formatNumber(brand.orders),
+    revenue: formatCurrency(brand.revenue),
+    share: `${brand.share}%`,
+  }));
+
+  const soldProductRows = executiveReport.breakdown.soldProducts.map(
+    (product, index) => ({
+      product: (
+        <span className="block min-w-56">
+          <span className="block font-medium text-[#24221f]">
+            {index + 1}. {product.name}
+          </span>
+          <span className="text-xs text-[#8a857d]">
+            {product.sku ?? "Без артикула"}
+          </span>
+        </span>
+      ),
+      brand: product.brand ?? "Без бренда",
+      quantity: formatNumber(product.quantity),
+      orders: formatNumber(product.orders),
+      average: formatCurrency(product.averagePrice),
+      revenue: formatCurrency(product.revenue),
+      share: `${product.share}%`,
+    }),
+  );
+
+  const orderStatusRows = executiveReport.breakdown.ordersByStatus.map(
+    (item) => ({
+      status: (
+        <StatusBadge tone={getOrderStatusTone(item.status)}>
+          {orderStatusLabels[item.status]}
+        </StatusBadge>
+      ),
+      count: formatNumber(item.count),
+      revenue: formatCurrency(item.revenue),
+    }),
+  );
+
+  const requestStatusRows = executiveReport.breakdown.requestsByStatus.map(
+    (item) => ({
+      status: (
+        <StatusBadge tone={getRequestStatusTone(item.status)}>
+          {requestStatusLabels[item.status]}
+        </StatusBadge>
+      ),
+      count: formatNumber(item.count),
+    }),
+  );
+
+  const requestTypeRows = executiveReport.breakdown.requestsByType.map(
+    (item) => ({
+      type: requestTypeLabels[item.type],
+      count: formatNumber(item.count),
+    }),
+  );
 
   const quickActions = [
     { href: "/admin/orders", label: "Новый заказ", icon: FilePlus2 },
-    { href: "/admin/requests", label: "Запрос на расчёт", icon: FileStack },
+    { href: "/admin/requests", label: "Запрос на расчет", icon: FileStack },
     { href: "/calculator", label: "Раскрой детали", icon: Calculator },
     { href: "/admin/products", label: "Добавить материал", icon: PackagePlus },
     { href: "/admin/categories", label: "Каталог", icon: Layers3 },
@@ -243,55 +509,30 @@ export default async function AdminPage() {
     updatedAt: product.updatedAt,
   }));
 
-  const notifications = [
-    queues.recentRequests[0]
-      ? {
-          title: "Последняя заявка",
-          detail: queues.recentRequests[0].contactName,
-          time: formatDate(queues.recentRequests[0].createdAt),
-          icon: FileStack,
-          tone: "bg-blue-50 text-blue-700",
-        }
-      : null,
-    queues.recentOrders[0]
-      ? {
-          title: "Последний заказ",
-          detail:
-            queues.recentOrders[0].number ?? queues.recentOrders[0].contactName,
-          time: formatDate(queues.recentOrders[0].createdAt),
-          icon: ReceiptText,
-          tone: "bg-orange-50 text-orange-700",
-        }
-      : null,
-    stockMaterialRows[0]
-      ? {
-          title: "Последний остаток",
-          detail: stockMaterialRows[0].name,
-          time: formatDate(stockMaterialRows[0].updatedAt),
-          icon: Archive,
-          tone: "bg-neutral-100 text-neutral-700",
-        }
-      : null,
-  ].filter(
-    (
-      item,
-    ): item is {
-      title: string;
-      detail: string;
-      time: string;
-      icon: LucideIcon;
-      tone: string;
-    } => Boolean(item),
-  );
-
   return (
     <div className="space-y-5">
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
         <KpiCard
           label="Выручка по заказам"
           value={formatCurrency(metrics.ordersRevenue)}
           detail="все неотмененные заказы"
           icon={ReceiptText}
+        />
+        <KpiCard
+          label="Сумма склада"
+          value={
+            inventoryValuation
+              ? formatCurrency(inventoryValuation.amount)
+              : "Нет данных"
+          }
+          detail={
+            inventoryValuation
+              ? (inventoryValuation.reportTitle ??
+                inventoryValuation.sourceFile)
+              : "загрузите свежий файл цен и остатков"
+          }
+          icon={Warehouse}
+          compactValue
         />
         <KpiCard
           label="Заказы в работе"
@@ -300,7 +541,7 @@ export default async function AdminPage() {
           icon={PackagePlus}
         />
         <KpiCard
-          label="Запросы на расчёт"
+          label="Запросы на расчет"
           value={metrics.openRequests}
           detail="активные заявки клиентов"
           icon={Calculator}
@@ -319,22 +560,205 @@ export default async function AdminPage() {
         />
       </section>
 
+      <section className="rounded-xl border border-[#e6e2dc] bg-white p-5 shadow-[0_18px_50px_rgba(30,28,25,0.04)]">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <p className="font-mono text-[10px] tracking-[0.18em] text-[#8a857d] uppercase">
+              Управленческий отчет
+            </p>
+            <h1 className="mt-2 text-2xl font-semibold text-[#24221f]">
+              Клиенты и продажи для руководителя
+            </h1>
+            <p className="mt-2 text-sm leading-6 text-[#77736c]">
+              {executiveReport.period.label} ·{" "}
+              {formatPeriodRange(
+                executiveReport.period.start,
+                executiveReport.period.end,
+              )}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {adminReportPeriodKeys.map((period) => (
+              <Link
+                key={period}
+                href={buildReportHref(period)}
+                className={`inline-flex h-9 items-center justify-center rounded-lg border px-3 text-sm font-medium transition ${
+                  period === reportPeriod
+                    ? "border-[#24221f] bg-[#24221f] text-white"
+                    : "border-[#e6e2dc] bg-white text-[#5f5b55] hover:border-[#c65b3a] hover:text-[#c65b3a]"
+                }`}
+              >
+                {reportPeriodLabels[period]}
+              </Link>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+          <ReportStat
+            label="Продажи"
+            value={formatCurrency(executiveReport.sales.revenue)}
+            detail={`к прошлому периоду ${formatDelta(executiveReport.sales.revenueDeltaPercent)}`}
+            icon={BarChart3}
+          />
+          <ReportStat
+            label="Заказы"
+            value={formatNumber(executiveReport.sales.orderCount)}
+            detail={`к прошлому периоду ${formatDelta(executiveReport.sales.orderDeltaPercent)}`}
+            icon={ReceiptText}
+          />
+          <ReportStat
+            label="Новые клиенты"
+            value={formatNumber(executiveReport.clients.new)}
+            detail={`к прошлому периоду ${formatDelta(executiveReport.clients.newDeltaPercent)}`}
+            icon={Users2}
+          />
+          <ReportStat
+            label="Бонусный баланс"
+            value={formatNumber(executiveReport.clients.loyaltyBalance)}
+            detail={`${formatNumber(executiveReport.clients.telegramLinked)} клиентов подключили Telegram`}
+            icon={WalletCards}
+          />
+          <ReportStat
+            label="Бренды и товары"
+            value={`${formatNumber(executiveReport.breakdown.revenueByBrand.length)} / ${formatNumber(executiveReport.breakdown.soldProducts.length)}`}
+            detail={`${formatNumber(executiveReport.sales.itemsSold)} ед. продано за период`}
+            icon={Box}
+          />
+        </div>
+
+        <div className="mt-5 grid gap-4 xl:grid-cols-[1fr_0.8fr]">
+          <textarea
+            readOnly
+            value={reportText}
+            className="min-h-72 w-full resize-y rounded-lg border border-[#e6e2dc] bg-[#fbfaf8] p-4 font-mono text-sm leading-6 text-[#24221f] outline-none"
+          />
+          <div className="flex flex-col justify-between gap-4 rounded-lg border border-[#ece8e2] bg-[#fbfaf8] p-4">
+            <div className="space-y-3 text-sm leading-6 text-[#5f5b55]">
+              <p>
+                Отчет уже собран в формате, который можно отправить в Telegram
+                или вставить в письмо руководителю.
+              </p>
+              <p>
+                В расчет продаж входят все заказы периода кроме отмененных.
+                Оплата бонусами и скидки вынесены отдельными строками.
+              </p>
+              <p
+                className={`font-medium ${getDeltaClassName(executiveReport.sales.revenueDeltaPercent)}`}
+              >
+                Динамика выручки:{" "}
+                {formatDelta(executiveReport.sales.revenueDeltaPercent)}
+              </p>
+            </div>
+            <ExecutiveReportActions reportText={reportText} />
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
+        <Panel
+          title="Топ клиентов за период"
+          href="/admin/users"
+          linkLabel="Все клиенты"
+        >
+          <DataTable
+            caption="Топ клиентов за период"
+            variant="embedded"
+            columns={[
+              { key: "client", label: "Клиент" },
+              { key: "orders", label: "Заказы" },
+              { key: "revenue", label: "Выручка" },
+              { key: "average", label: "Средний чек" },
+              { key: "lastOrder", label: "Последний заказ" },
+            ]}
+            rows={topClientRows}
+            emptyMessage="За выбранный период еще нет продаж по клиентам."
+          />
+        </Panel>
+
+        <Panel title="Продажи по брендам">
+          <DataTable
+            caption="Продажи по брендам"
+            variant="embedded"
+            columns={[
+              { key: "brand", label: "Бренд" },
+              { key: "quantity", label: "Кол-во" },
+              { key: "orders", label: "Заказы" },
+              { key: "revenue", label: "Выручка" },
+              { key: "share", label: "Доля" },
+            ]}
+            rows={brandRows}
+            emptyMessage="Бренды появятся после заказов с товарами."
+          />
+        </Panel>
+      </section>
+
+      <section className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
+        <Panel title="Продажи по направлениям">
+          <DataTable
+            caption="Продажи по направлениям"
+            variant="embedded"
+            columns={[
+              { key: "category", label: "Направление" },
+              { key: "revenue", label: "Выручка" },
+              { key: "quantity", label: "Кол-во" },
+              { key: "share", label: "Доля" },
+            ]}
+            rows={categoryRows}
+            emptyMessage="Категории появятся после заказов с товарами."
+          />
+        </Panel>
+
+        <Panel title="Статусы продаж">
+          <DataTable
+            caption="Статусы продаж"
+            variant="embedded"
+            columns={[
+              { key: "status", label: "Статус" },
+              { key: "count", label: "Кол-во" },
+              { key: "revenue", label: "Выручка" },
+            ]}
+            rows={orderStatusRows}
+            emptyMessage="Заказов за выбранный период нет."
+          />
+        </Panel>
+      </section>
+
+      <Panel title="Все проданные товары">
+        <div className="max-h-[32rem] overflow-y-auto">
+          <DataTable
+            caption="Все проданные товары"
+            variant="embedded"
+            columns={[
+              { key: "product", label: "Товар / артикул" },
+              { key: "brand", label: "Бренд" },
+              { key: "quantity", label: "Кол-во" },
+              { key: "orders", label: "Заказы" },
+              { key: "average", label: "Средняя цена" },
+              { key: "revenue", label: "Выручка" },
+              { key: "share", label: "Доля" },
+            ]}
+            rows={soldProductRows}
+            emptyMessage="Проданные товары появятся после заказов с позициями."
+          />
+        </div>
+      </Panel>
+
       <section className="grid gap-5 xl:grid-cols-[1.05fr_1fr]">
         <Panel
-          title="Заказы в работе"
+          title="Последние заказы"
           href="/admin/orders"
           linkLabel="Все заказы"
         >
           <DataTable
-            caption="Заказы в работе"
+            caption="Последние заказы"
             variant="embedded"
             columns={[
-              { key: "order", label: "№ заказа" },
+              { key: "order", label: "Заказ" },
               { key: "client", label: "Клиент" },
               { key: "status", label: "Статус" },
-              { key: "date", label: "Срок" },
+              { key: "date", label: "Дата" },
               { key: "total", label: "Сумма" },
-              { key: "actions", label: "" },
             ]}
             rows={orderRows}
             emptyMessage="Первые заказы появятся здесь сразу после оформления через сайт."
@@ -342,19 +766,18 @@ export default async function AdminPage() {
         </Panel>
 
         <Panel
-          title="Запросы на расчёт"
+          title="Последние заявки"
           href="/admin/requests"
-          linkLabel="Все запросы"
+          linkLabel="Все заявки"
         >
           <DataTable
-            caption="Запросы на расчет"
+            caption="Последние заявки"
             variant="embedded"
             columns={[
-              { key: "request", label: "№ запроса" },
+              { key: "request", label: "Заявка" },
               { key: "client", label: "Клиент" },
               { key: "status", label: "Статус" },
-              { key: "created", label: "Создан" },
-              { key: "actions", label: "" },
+              { key: "created", label: "Создана" },
             ]}
             rows={requestRows}
             emptyMessage="Новые заявки и файлы клиентов появятся здесь."
@@ -405,7 +828,7 @@ export default async function AdminPage() {
                     {material.name}
                   </span>
                   <span className="truncate text-[#8a857d]">
-                    {material.format || "—"}
+                    {material.format || "-"}
                   </span>
                   <span className="text-right font-medium text-[#24221f]">
                     {formatNumber(material.stock)} шт.
@@ -420,43 +843,28 @@ export default async function AdminPage() {
           </div>
         </Panel>
 
-        <Panel
-          title="Оперативные уведомления"
-          href="/admin/requests"
-          linkLabel="Все уведомления"
-        >
-          <div className="space-y-1 p-4">
-            {notifications.length > 0 ? (
-              notifications.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <div
-                    key={`${item.title}-${item.detail}`}
-                    className="grid grid-cols-[38px_minmax(0,1fr)_auto] gap-3 rounded-xl px-2 py-3 text-sm"
-                  >
-                    <span
-                      className={`flex size-9 items-center justify-center rounded-xl ${item.tone}`}
-                    >
-                      <Icon className="size-4" strokeWidth={1.8} />
-                    </span>
-                    <span className="min-w-0">
-                      <span className="block font-medium text-[#24221f]">
-                        {item.title}
-                      </span>
-                      <span className="mt-0.5 block truncate text-xs text-[#8a857d]">
-                        {item.detail}
-                      </span>
-                    </span>
-                    <span className="text-xs text-[#8a857d]">{item.time}</span>
-                  </div>
-                );
-              })
-            ) : (
-              <p className="px-2 py-5 text-sm text-[#8a857d]">
-                Новые события появятся после заявок, заказов или обновления
-                остатков.
-              </p>
-            )}
+        <Panel title="Заявки по типам">
+          <div className="grid gap-4 p-4">
+            <DataTable
+              caption="Заявки по типам"
+              variant="embedded"
+              columns={[
+                { key: "type", label: "Тип" },
+                { key: "count", label: "Кол-во" },
+              ]}
+              rows={requestTypeRows}
+              emptyMessage="Заявок за выбранный период нет."
+            />
+            <DataTable
+              caption="Заявки по статусам"
+              variant="embedded"
+              columns={[
+                { key: "status", label: "Статус" },
+                { key: "count", label: "Кол-во" },
+              ]}
+              rows={requestStatusRows}
+              emptyMessage="Заявок за выбранный период нет."
+            />
           </div>
         </Panel>
       </section>

@@ -40,6 +40,22 @@ const roles = [
     description: "Партнер с отдельными условиями и будущей B2B-логикой.",
   },
   {
+    code: RoleCode.CUTTING_MANAGER,
+    name: "Менеджер кроя",
+    description:
+      "Работа с очередью распила, файлами, этапами производства и выдачей.",
+  },
+  {
+    code: RoleCode.PRODUCTION_MANAGER,
+    name: "Начальник производства",
+    description: "Полный контроль производственной очереди и этапов распила.",
+  },
+  {
+    code: RoleCode.PRODUCTION_OPERATOR,
+    name: "Оператор станции",
+    description: "Доступ к мобильному рабочему месту назначенной станции.",
+  },
+  {
     code: RoleCode.MANAGER,
     name: "Менеджер",
     description: "Обработка заявок, заказов, статусов и связи с клиентами.",

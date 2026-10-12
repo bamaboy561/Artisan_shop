@@ -1,4 +1,9 @@
-import { OrderStatus, RequestStatus, RequestType } from "@/generated/prisma";
+import {
+  CuttingStage,
+  OrderStatus,
+  RequestStatus,
+  RequestType,
+} from "@/generated/prisma";
 
 type SearchParamValue = string | string[] | undefined;
 type AdminSearchParams = Record<string, SearchParamValue>;
@@ -69,6 +74,7 @@ export type AdminOrderItem = {
   deliveryMethodId: string | null;
   appliedPromoCode: string | null;
   loyaltyRedemptionTotal: number;
+  deliveryTotal: number;
   total: number;
   createdAt: Date;
   updatedAt: Date;
@@ -101,6 +107,9 @@ export type AdminRequestItem = {
   material: string | null;
   edgeOption: string | null;
   estimatedBudget: number | null;
+  cuttingStage: CuttingStage | null;
+  cuttingPickupCell: string | null;
+  cuttingStageUpdatedAt: Date | null;
   contactName: string;
   contactPhone: string;
   contactEmail: string | null;

@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import {
+  CuttingStage,
   MessengerType,
   RequestFileKind,
   RequestStatus,
@@ -11,9 +12,13 @@ import { getDemoAdminSession } from "@/lib/auth/demo-access";
 import { getDb, hasDatabaseUrl, isDemoModeEnabled } from "@/lib/db";
 import type { AdminRequestItem } from "@/features/admin/operations-filters";
 
-type DemoRequestRecord = Omit<AdminRequestItem, "createdAt" | "updatedAt"> & {
+type DemoRequestRecord = Omit<
+  AdminRequestItem,
+  "createdAt" | "updatedAt" | "cuttingStageUpdatedAt"
+> & {
   createdAt: string;
   updatedAt: string;
+  cuttingStageUpdatedAt?: string | null;
   addressText?: string | null;
   userId?: string | null;
   quotedTotal?: number | null;
@@ -68,12 +73,22 @@ export type CuttingRequestSubmission = {
   messengerType?: string | null;
   messengerHandle?: string | null;
   material: string;
-  edgeOption: string;
+  edgeOption?: string | null;
   estimatedBudget: number | null;
   deliveryNeeded?: boolean;
   addressText?: string | null;
   userId?: string | null;
   uploadedFiles?: File[];
+};
+
+export type CreateCuttingRequestOptions = {
+  skipDuplicateCheck?: boolean;
+  status?: RequestStatus;
+  cuttingStage?: CuttingStage | null;
+  managerId?: string | null;
+  filesVisibleToClient?: boolean;
+  uploadedByUserId?: string | null;
+  uploadedByName?: string | null;
 };
 
 export type ContactRequestSubmission = {
@@ -143,6 +158,7 @@ export function isAllowedRequestFile(fileName: string) {
     ".webp",
     ".dwg",
     ".dxf",
+    ".project",
   ]).has(extension);
 }
 
@@ -218,6 +234,9 @@ function createDemoRequestRecord(
     material: record.material ?? null,
     edgeOption: record.edgeOption ?? null,
     estimatedBudget: record.estimatedBudget ?? null,
+    cuttingStage: record.cuttingStage ?? null,
+    cuttingPickupCell: record.cuttingPickupCell ?? null,
+    cuttingStageUpdatedAt: record.cuttingStageUpdatedAt ?? null,
     contactName: record.contactName,
     contactPhone: record.contactPhone,
     contactEmail: record.contactEmail ?? null,
@@ -270,11 +289,30 @@ async function writeDemoRequests(requests: DemoRequestRecord[]) {
   await writeFile(demoRequestsPath, JSON.stringify(requests, null, 2), "utf8");
 }
 
+export async function deleteDemoRequestInboxItem(id: string) {
+  if (hasDatabaseUrl() || !isDemoModeEnabled()) {
+    return false;
+  }
+
+  const requests = await readDemoRequests();
+  const remainingRequests = requests.filter((request) => request.id !== id);
+
+  if (remainingRequests.length === requests.length) {
+    return false;
+  }
+
+  await writeDemoRequests(remainingRequests);
+  return true;
+}
+
 function toAdminRequestItem(record: DemoRequestRecord): AdminRequestItem {
   return {
     ...record,
     createdAt: new Date(record.createdAt),
     updatedAt: new Date(record.updatedAt),
+    cuttingStageUpdatedAt: record.cuttingStageUpdatedAt
+      ? new Date(record.cuttingStageUpdatedAt)
+      : null,
   };
 }
 
@@ -577,6 +615,7 @@ export async function getRequestDetailById(
 
 export async function createCuttingRequest(
   input: CuttingRequestSubmission,
+  options: CreateCuttingRequestOptions = {},
 ): Promise<CreatedCuttingRequestResult> {
   const uploadedFiles = (input.uploadedFiles ?? []).filter(
     (file) =>
@@ -589,22 +628,24 @@ export async function createCuttingRequest(
 
   if (hasDatabaseUrl()) {
     const db = getDb();
-    const duplicateRequest = await db.request.findFirst({
-      where: {
-        type: RequestType.CUTTING_SERVICE,
-        contactPhone: input.contactPhone.trim(),
-        subject: input.subject.trim(),
-        material: input.material.trim(),
-        message: input.message.trim(),
-        contactEmail: input.contactEmail ?? null,
-      },
-      orderBy: { createdAt: "desc" },
-      select: {
-        id: true,
-        number: true,
-        createdAt: true,
-      },
-    });
+    const duplicateRequest = options.skipDuplicateCheck
+      ? null
+      : await db.request.findFirst({
+          where: {
+            type: RequestType.CUTTING_SERVICE,
+            contactPhone: input.contactPhone.trim(),
+            subject: input.subject.trim(),
+            material: input.material.trim(),
+            message: input.message.trim(),
+            contactEmail: input.contactEmail ?? null,
+          },
+          orderBy: { createdAt: "desc" },
+          select: {
+            id: true,
+            number: true,
+            createdAt: true,
+          },
+        });
 
     if (
       duplicateRequest &&
@@ -634,20 +675,23 @@ export async function createCuttingRequest(
       data: {
         number,
         type: RequestType.CUTTING_SERVICE,
-        status: RequestStatus.NEW,
+        status: options.status ?? RequestStatus.NEW,
         subject: input.subject,
         message: input.message,
         userId: input.userId ?? null,
+        managerId: options.managerId ?? null,
         contactName: input.contactName,
         contactPhone: input.contactPhone,
         contactEmail: input.contactEmail ?? null,
         messengerType: resolveMessengerType(input.messengerType),
         messengerHandle: input.messengerHandle ?? null,
         material: input.material,
-        edgeOption: input.edgeOption,
+        edgeOption: input.edgeOption ?? null,
         deliveryNeeded: input.deliveryNeeded ?? false,
         addressText: input.addressText ?? null,
         estimatedBudget: input.estimatedBudget,
+        cuttingStage: options.cuttingStage ?? null,
+        cuttingStageUpdatedAt: options.cuttingStage ? new Date() : null,
       },
       select: {
         id: true,
@@ -661,9 +705,10 @@ export async function createCuttingRequest(
         uploadedFiles,
         {
           kind: RequestFileKind.CLIENT_UPLOAD,
-          isVisibleToClient: Boolean(input.userId),
-          uploadedByUserId: input.userId ?? null,
-          uploadedByName: input.contactName,
+          isVisibleToClient:
+            options.filesVisibleToClient ?? Boolean(input.userId),
+          uploadedByUserId: options.uploadedByUserId ?? input.userId ?? null,
+          uploadedByName: options.uploadedByName ?? input.contactName,
         },
       );
 
@@ -689,11 +734,13 @@ export async function createCuttingRequest(
   }
 
   const requests = await readDemoRequests();
-  const duplicateRequest = requests.find(
-    (request) =>
-      isSameCuttingRequest(request, input) &&
-      isRecentRequest(request.createdAt, duplicateWindowMs),
-  );
+  const duplicateRequest = options.skipDuplicateCheck
+    ? null
+    : requests.find(
+        (request) =>
+          isSameCuttingRequest(request, input) &&
+          isRecentRequest(request.createdAt, duplicateWindowMs),
+      );
 
   if (duplicateRequest) {
     return {
@@ -714,7 +761,7 @@ export async function createCuttingRequest(
     subject: input.subject,
     message: input.message,
     material: input.material,
-    edgeOption: input.edgeOption,
+    edgeOption: input.edgeOption ?? null,
     estimatedBudget: input.estimatedBudget,
     contactName: input.contactName,
     contactPhone: input.contactPhone,
@@ -724,6 +771,10 @@ export async function createCuttingRequest(
     deliveryNeeded: input.deliveryNeeded ?? false,
     addressText: input.addressText ?? null,
     userId: input.userId ?? null,
+    managerId: options.managerId ?? null,
+    status: options.status ?? RequestStatus.NEW,
+    cuttingStage: options.cuttingStage ?? null,
+    cuttingStageUpdatedAt: options.cuttingStage ? now : null,
     createdAt: now,
     updatedAt: now,
   });
@@ -731,9 +782,9 @@ export async function createCuttingRequest(
   if (uploadedFiles.length > 0) {
     created.files = await persistRequestFiles(created.id, uploadedFiles, {
       kind: RequestFileKind.CLIENT_UPLOAD,
-      isVisibleToClient: Boolean(input.userId),
-      uploadedByUserId: input.userId ?? null,
-      uploadedByName: input.contactName,
+      isVisibleToClient: options.filesVisibleToClient ?? Boolean(input.userId),
+      uploadedByUserId: options.uploadedByUserId ?? input.userId ?? null,
+      uploadedByName: options.uploadedByName ?? input.contactName,
     });
     created._count.files = created.files.length;
   }

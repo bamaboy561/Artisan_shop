@@ -12,6 +12,7 @@ import {
 import type { FeaturedProduct } from "@/features/catalog/types";
 
 const STORAGE_KEY = "artisan-cart-v1";
+export const MAX_CART_ITEM_QUANTITY = 999;
 
 export type CartItem = {
   productSlug: string;
@@ -21,6 +22,8 @@ export type CartItem = {
 type CartContextValue = {
   items: CartItem[];
   itemCount: number;
+  beforeDiscountSubtotal: number;
+  promotionDiscountTotal: number;
   subtotal: number;
   addItem: (productSlug: string, quantity?: number) => boolean;
   canAddItem: (productSlug?: string) => boolean;
@@ -80,26 +83,79 @@ export function CartProvider({
 
   const value = useMemo<CartContextValue>(() => {
     const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
-    const subtotal = items.reduce((sum, item) => {
-      const product = products.find((p) => p.slug === item.productSlug);
-      return (
-        sum +
-        (typeof product?.price === "number" ? product.price * item.quantity : 0)
+    const totals = items.reduce(
+      (sum, item) => {
+        const product = products.find((p) => p.slug === item.productSlug);
+        const finalPrice =
+          typeof product?.price === "number" ? product.price : 0;
+        const basePrice =
+          product?.isPromotional &&
+          typeof product.oldPrice === "number" &&
+          product.oldPrice > finalPrice
+            ? product.oldPrice
+            : finalPrice;
+
+        return {
+          beforeDiscountSubtotal:
+            sum.beforeDiscountSubtotal + basePrice * item.quantity,
+          subtotal: sum.subtotal + finalPrice * item.quantity,
+        };
+      },
+      {
+        beforeDiscountSubtotal: 0,
+        subtotal: 0,
+      },
+    );
+    const promotionDiscountTotal = Math.max(
+      0,
+      totals.beforeDiscountSubtotal - totals.subtotal,
+    );
+    const subtotal = totals.subtotal;
+
+    const canAddItem = (productSlug?: string) => {
+      if (!productSlug) {
+        return false;
+      }
+
+      const product = products.find((item) => item.slug === productSlug);
+      const quantityInCart =
+        items.find((item) => item.productSlug === productSlug)?.quantity ?? 0;
+      return Boolean(
+        product &&
+        product.purchaseMode === "cart" &&
+        quantityInCart < MAX_CART_ITEM_QUANTITY &&
+        (product.stockQuantity === null ||
+          quantityInCart < product.stockQuantity),
       );
-    }, 0);
+    };
 
     return {
       items,
       itemCount,
+      beforeDiscountSubtotal: totals.beforeDiscountSubtotal,
+      promotionDiscountTotal,
       subtotal,
       addItem: (productSlug, quantity = 1) => {
         const found = products.find((item) => item.slug === productSlug);
 
-        if (!found) {
+        if (!found || found.purchaseMode !== "cart") {
           return false;
         }
 
-        const safeQuantity = Math.max(1, Math.floor(quantity || 1));
+        const safeQuantity = Math.min(
+          MAX_CART_ITEM_QUANTITY,
+          Math.max(1, Math.floor(quantity || 1)),
+        );
+        const currentQuantity =
+          items.find((item) => item.productSlug === productSlug)?.quantity ?? 0;
+
+        if (
+          currentQuantity + safeQuantity > MAX_CART_ITEM_QUANTITY ||
+          (found.stockQuantity !== null &&
+            currentQuantity + safeQuantity > found.stockQuantity)
+        ) {
+          return false;
+        }
 
         setItems((prev) => {
           const existing = prev.find(
@@ -119,24 +175,30 @@ export function CartProvider({
 
         return true;
       },
-      canAddItem: (productSlug) => {
-        if (!productSlug) {
-          return false;
-        }
-
-        return products.some((item) => item.slug === productSlug);
-      },
+      canAddItem,
       removeItem: (productSlug) => {
         setItems((prev) =>
           prev.filter((item) => item.productSlug !== productSlug),
         );
       },
       updateQuantity: (productSlug, quantity) => {
+        const product = products.find((item) => item.slug === productSlug);
+        const maximumQuantity = Math.min(
+          MAX_CART_ITEM_QUANTITY,
+          product?.stockQuantity ?? MAX_CART_ITEM_QUANTITY,
+        );
+
         setItems((prev) =>
           prev
             .map((item) =>
               item.productSlug === productSlug
-                ? { ...item, quantity: Math.max(0, quantity) }
+                ? {
+                    ...item,
+                    quantity: Math.min(
+                      maximumQuantity,
+                      Math.max(0, Math.floor(quantity)),
+                    ),
+                  }
                 : item,
             )
             .filter((item) => item.quantity > 0),

@@ -1,15 +1,23 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Printer } from "lucide-react";
 
-import { RequestFileKind, RequestStatus } from "@/generated/prisma";
+import {
+  RequestFileKind,
+  RequestStatus,
+  RequestType,
+} from "@/generated/prisma";
 import {
   addRequestManagerNoteAction,
   createOrderFromRequestAction,
   updateRequestAction,
+  updateRequestCuttingProgressAction,
   updateRequestProductionResultAction,
   uploadRequestResultFilesAction,
 } from "@/app/admin/actions";
 import { AdminSubmitButton } from "@/components/admin/admin-submit-button";
+import { DeleteRequestButton } from "@/components/admin/delete-request-button";
+import { CuttingProgress } from "@/components/cutting/cutting-progress";
 import { OperationTimeline } from "@/components/admin/operation-timeline";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { Input } from "@/components/ui/input";
@@ -17,6 +25,11 @@ import { Select } from "@/components/ui/select";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { Textarea } from "@/components/ui/textarea";
 import { requireAdminSession } from "@/lib/auth/dal";
+import {
+  canAccessRequestType,
+  canDeleteRequests,
+  isCuttingManager,
+} from "@/lib/auth/roles";
 import { getOrdersForRequest } from "@/lib/server/order-inbox";
 import { getOperationEvents } from "@/lib/server/operation-events";
 import { getAdminManagers } from "@/lib/server/operations-admin";
@@ -31,6 +44,7 @@ import {
   requestWorkflowSteps,
 } from "@/features/admin/workflow";
 import { cn } from "@/lib/utils";
+import { cuttingStageSteps } from "@/features/cutting/progress";
 
 type AdminRequestDetailPageProps = {
   params: Promise<{ id: string }>;
@@ -125,9 +139,11 @@ function RequestWorkflowTrail({ status }: { status: RequestStatus }) {
 export default async function AdminRequestDetailPage({
   params,
 }: AdminRequestDetailPageProps) {
-  await requireAdminSession("/login?next=/admin/requests");
-
   const { id } = await params;
+  const session = await requireAdminSession(
+    "/login?next=/admin/requests",
+    `/admin/requests/${id}`,
+  );
   const [request, managers, linkedOrders, events] = await Promise.all([
     getRequestDetailById(id),
     getAdminManagers().catch(() => []),
@@ -135,12 +151,16 @@ export default async function AdminRequestDetailPage({
     getOperationEvents("request", id),
   ]);
 
-  if (!request) {
+  if (!request || !canAccessRequestType(session.roleCode, request.type)) {
     notFound();
   }
 
+  const cuttingManager = isCuttingManager(session.roleCode);
+  const canDeleteRequest = canDeleteRequests(session.roleCode);
   const canCreateOrder =
-    request.status !== RequestStatus.CANCELED && linkedOrders.length === 0;
+    !cuttingManager &&
+    request.status !== RequestStatus.CANCELED &&
+    linkedOrders.length === 0;
   const clientFiles = request.files.filter(
     (file) =>
       (file.kind ?? RequestFileKind.CLIENT_UPLOAD) ===
@@ -158,7 +178,11 @@ export default async function AdminRequestDetailPage({
           <div className="max-w-3xl">
             <SectionHeading
               title={request.number ?? request.id}
-              description="Рабочая карточка менеджера: контакт клиента, материал, файлы, статус и перевод заявки в заказ."
+              description={
+                cuttingManager
+                  ? "Рабочая карточка распила: клиент, файлы, этап производства и готовность к выдаче."
+                  : "Рабочая карточка менеджера: контакт клиента, материал, файлы, статус и перевод заявки в заказ."
+              }
               titleClassName="text-2xl sm:text-3xl"
               descriptionClassName="max-w-2xl text-sm leading-7"
             />
@@ -180,12 +204,28 @@ export default async function AdminRequestDetailPage({
           </div>
 
           <div className="flex flex-wrap gap-2">
+            {request.type === RequestType.CUTTING_SERVICE ? (
+              <Link
+                href={`/admin/requests/${request.id}/route-sheet`}
+                className="inline-flex h-11 items-center justify-center gap-2 bg-[var(--foreground)] px-5 font-mono text-[11px] font-semibold tracking-[0.14em] text-white uppercase transition hover:bg-[var(--accent)]"
+              >
+                <Printer className="size-4" />
+                Маршрутный лист
+              </Link>
+            ) : null}
             <Link
-              href="/admin/requests"
+              href={cuttingManager ? "/admin/cutting" : "/admin/requests"}
               className="inline-flex h-11 items-center justify-center border border-[color:var(--line-strong)] px-5 font-mono text-[11px] font-semibold tracking-[0.14em] text-[var(--foreground)] uppercase transition hover:border-[color:var(--foreground)] hover:bg-[var(--foreground)] hover:text-white"
             >
-              К очереди заявок
+              {cuttingManager ? "К очереди распила" : "К очереди заявок"}
             </Link>
+            {canDeleteRequest ? (
+              <DeleteRequestButton
+                requestId={request.id}
+                requestNumber={request.number ?? request.id.slice(0, 8)}
+                returnTo="/admin/requests"
+              />
+            ) : null}
           </div>
         </div>
       </section>
@@ -322,6 +362,74 @@ export default async function AdminRequestDetailPage({
               ) : null}
             </div>
 
+            {request.type === RequestType.CUTTING_SERVICE ? (
+              <div className="mt-6 grid gap-6 border-t border-[color:var(--line)] pt-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(300px,1.1fr)]">
+                <div>
+                  <p className="font-mono text-[10px] tracking-[0.18em] text-[var(--accent)] uppercase">
+                    Трекинг производства
+                  </p>
+                  <div className="mt-4">
+                    <CuttingProgress
+                      stage={request.cuttingStage}
+                      pickupCell={request.cuttingPickupCell}
+                      updatedAt={request.cuttingStageUpdatedAt}
+                    />
+                  </div>
+                </div>
+
+                <form
+                  action={updateRequestCuttingProgressAction}
+                  className="grid content-start gap-3"
+                >
+                  <input type="hidden" name="requestId" value={request.id} />
+                  <label className="grid gap-2 text-sm font-medium text-[var(--foreground)]">
+                    Текущий этап
+                    <Select
+                      name="cuttingStage"
+                      defaultValue={request.cuttingStage ?? ""}
+                      required
+                    >
+                      <option value="" disabled>
+                        Выберите этап распила
+                      </option>
+                      {cuttingStageSteps.map((step) => (
+                        <option key={step.stage} value={step.stage}>
+                          {step.label}
+                        </option>
+                      ))}
+                    </Select>
+                  </label>
+                  <label className="grid gap-2 text-sm font-medium text-[var(--foreground)]">
+                    Ячейка выдачи
+                    <Input
+                      name="cuttingPickupCell"
+                      defaultValue={request.cuttingPickupCell ?? ""}
+                      maxLength={64}
+                      placeholder="Например: A-12"
+                    />
+                    <span className="text-xs font-normal text-[var(--muted)]">
+                      Укажите для этапа «Готов к выдаче».
+                    </span>
+                  </label>
+                  <label className="grid gap-2 text-sm font-medium text-[var(--foreground)]">
+                    Комментарий клиенту
+                    <Textarea
+                      name="cuttingStageNote"
+                      rows={2}
+                      placeholder="Необязательно: уточнение по готовности или выдаче."
+                    />
+                  </label>
+                  <AdminSubmitButton
+                    type="submit"
+                    variant="accent"
+                    size="sm"
+                    idleLabel="Обновить этап и уведомить"
+                    pendingLabel="Обновляем..."
+                  />
+                </form>
+              </div>
+            ) : null}
+
             <form
               action={updateRequestProductionResultAction}
               className="mt-5 grid gap-3 sm:grid-cols-[minmax(0,160px)_minmax(0,1fr)]"
@@ -378,7 +486,7 @@ export default async function AdminRequestDetailPage({
                   name="files"
                   type="file"
                   multiple
-                  accept=".pdf,.xls,.xlsx,.csv,.zip,.rar,.jpg,.jpeg,.png,.webp,.dwg,.dxf"
+                  accept=".pdf,.xls,.xlsx,.csv,.zip,.rar,.jpg,.jpeg,.png,.webp,.dwg,.dxf,.project"
                 />
               </label>
               <label className="grid gap-2 text-sm font-medium text-[var(--foreground)]">
@@ -592,55 +700,57 @@ export default async function AdminRequestDetailPage({
             )}
           </section>
 
-          <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-6">
-            <h2 className="text-lg font-semibold text-[var(--foreground)]">
-              Перевод в заказ
-            </h2>
-            <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
-              После расчета и подтверждения можно автоматически создать заказ.
-              Контакты, материал, комментарий и ссылки на файлы будут перенесены
-              в заказ.
-            </p>
-
-            {linkedOrders.length > 0 ? (
-              <div className="mt-5 space-y-2">
-                {linkedOrders.map((order) => (
-                  <Link
-                    key={order.id}
-                    href={`/admin/orders/${order.id}`}
-                    className="flex items-center justify-between rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] px-4 py-3 transition hover:border-[color:var(--line-strong)]"
-                  >
-                    <span className="font-medium text-[var(--foreground)]">
-                      {order.number ?? order.id}
-                    </span>
-                    <span className="text-xs text-[var(--muted)]">
-                      {typeof order.status === "string"
-                        ? (orderStatusLabels[
-                            order.status as keyof typeof orderStatusLabels
-                          ] ?? order.status)
-                        : "В работе"}
-                    </span>
-                  </Link>
-                ))}
-              </div>
-            ) : null}
-
-            {canCreateOrder ? (
-              <form action={createOrderFromRequestAction} className="mt-5">
-                <input type="hidden" name="requestId" value={request.id} />
-                <AdminSubmitButton
-                  type="submit"
-                  variant="accent"
-                  idleLabel="Создать заказ из заявки"
-                  pendingLabel="Создаем заказ..."
-                />
-              </form>
-            ) : (
-              <p className="mt-5 text-sm text-[var(--muted)]">
-                Для этой заявки заказ уже создан или она отменена.
+          {!cuttingManager ? (
+            <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-6">
+              <h2 className="text-lg font-semibold text-[var(--foreground)]">
+                Перевод в заказ
+              </h2>
+              <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
+                После расчета и подтверждения можно автоматически создать заказ.
+                Контакты, материал, комментарий и ссылки на файлы будут
+                перенесены в заказ.
               </p>
-            )}
-          </section>
+
+              {linkedOrders.length > 0 ? (
+                <div className="mt-5 space-y-2">
+                  {linkedOrders.map((order) => (
+                    <Link
+                      key={order.id}
+                      href={`/admin/orders/${order.id}`}
+                      className="flex items-center justify-between rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] px-4 py-3 transition hover:border-[color:var(--line-strong)]"
+                    >
+                      <span className="font-medium text-[var(--foreground)]">
+                        {order.number ?? order.id}
+                      </span>
+                      <span className="text-xs text-[var(--muted)]">
+                        {typeof order.status === "string"
+                          ? (orderStatusLabels[
+                              order.status as keyof typeof orderStatusLabels
+                            ] ?? order.status)
+                          : "В работе"}
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              ) : null}
+
+              {canCreateOrder ? (
+                <form action={createOrderFromRequestAction} className="mt-5">
+                  <input type="hidden" name="requestId" value={request.id} />
+                  <AdminSubmitButton
+                    type="submit"
+                    variant="accent"
+                    idleLabel="Создать заказ из заявки"
+                    pendingLabel="Создаем заказ..."
+                  />
+                </form>
+              ) : (
+                <p className="mt-5 text-sm text-[var(--muted)]">
+                  Для этой заявки заказ уже создан или она отменена.
+                </p>
+              )}
+            </section>
+          ) : null}
 
           <OperationTimeline
             events={events}

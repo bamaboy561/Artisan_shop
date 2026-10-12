@@ -18,6 +18,7 @@ import { BulkSelectionTools } from "@/components/admin/bulk-selection-tools";
 import { MetricCard } from "@/components/admin/metric-card";
 import { SetupState } from "@/components/admin/setup-state";
 import { StatusBadge } from "@/components/admin/status-badge";
+import { getButtonClassName } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { SectionHeading } from "@/components/ui/section-heading";
@@ -161,7 +162,10 @@ export default async function AdminPromotionsPage({
     );
   }
 
-  await requireAdminSession("/login?next=/admin/promotions");
+  await requireAdminSession(
+    "/login?next=/admin/promotions",
+    "/admin/promotions",
+  );
 
   const [promotions, options, resolvedSearchParams] = await Promise.all([
     getAdminPromotions(),
@@ -265,6 +269,12 @@ export default async function AdminPromotionsPage({
               {promotion.description}
             </p>
           ) : null}
+          <Link
+            href={`/admin/promotions/${promotion.id}`}
+            className={getButtonClassName("accent", "sm", "mt-2")}
+          >
+            Редактировать акцию
+          </Link>
         </div>
       ),
       target: (
@@ -328,65 +338,73 @@ export default async function AdminPromotionsPage({
         </div>
       ),
       manage: (
-        <form action={updatePromotionAction} className="grid gap-2">
-          <input type="hidden" name="id" value={promotion.id} />
-          <Select
-            name="status"
-            defaultValue={promotion.status}
-            className="h-9 text-xs"
+        <div className="grid gap-2">
+          <Link
+            href={`/admin/promotions/${promotion.id}`}
+            className={getButtonClassName("secondary", "sm", "w-full")}
           >
-            {Object.values(PromotionStatus).map((status) => (
-              <option key={status} value={status}>
-                {promotionStatusLabels[status]}
-              </option>
-            ))}
-          </Select>
-          <Input
-            name="promoCode"
-            defaultValue={promotion.promoCode ?? ""}
-            placeholder="Промокод"
-          />
-          <Input
-            name="badgeText"
-            defaultValue={promotion.badgeText ?? ""}
-            placeholder="Бейдж на витрине"
-          />
-          <label className="flex items-center gap-2 rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] px-3 py-2 text-xs text-[var(--foreground)]">
-            <input
-              name="isHighlighted"
-              type="checkbox"
-              value="on"
-              defaultChecked={promotion.isHighlighted}
-              className="size-4 rounded border-[color:var(--line-strong)] accent-[var(--accent)]"
-            />
-            Показывать на витрине
-          </label>
-          <div className="flex flex-wrap gap-2">
-            <AdminSubmitButton
-              type="submit"
-              variant="secondary"
-              size="sm"
-              idleLabel="Сохранить"
-              pendingLabel="Сохраняем..."
-            />
-            <AdminSubmitButton
-              type="submit"
-              formAction={sendPromotionTelegramBroadcastAction}
-              variant="accent"
-              size="sm"
-              disabled={promotion.status !== PromotionStatus.ACTIVE}
-              idleLabel="Telegram промо"
-              pendingLabel="Рассылаем..."
-            />
-            <button
-              type="submit"
-              formAction={deletePromotionAction}
-              className="inline-flex h-9 items-center justify-center px-4 text-sm font-medium text-red-600 transition hover:bg-red-50"
+            Редактировать
+          </Link>
+          <form action={updatePromotionAction} className="grid gap-2">
+            <input type="hidden" name="id" value={promotion.id} />
+            <Select
+              name="status"
+              defaultValue={promotion.status}
+              className="h-9 text-xs"
             >
-              Удалить
-            </button>
-          </div>
-        </form>
+              {Object.values(PromotionStatus).map((status) => (
+                <option key={status} value={status}>
+                  {promotionStatusLabels[status]}
+                </option>
+              ))}
+            </Select>
+            <Input
+              name="promoCode"
+              defaultValue={promotion.promoCode ?? ""}
+              placeholder="Промокод"
+            />
+            <Input
+              name="badgeText"
+              defaultValue={promotion.badgeText ?? ""}
+              placeholder="Бейдж на витрине"
+            />
+            <label className="flex items-center gap-2 rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] px-3 py-2 text-xs text-[var(--foreground)]">
+              <input
+                name="isHighlighted"
+                type="checkbox"
+                value="on"
+                defaultChecked={promotion.isHighlighted}
+                className="size-4 rounded border-[color:var(--line-strong)] accent-[var(--accent)]"
+              />
+              Показывать на витрине
+            </label>
+            <div className="flex flex-wrap gap-2">
+              <AdminSubmitButton
+                type="submit"
+                variant="secondary"
+                size="sm"
+                idleLabel="Сохранить"
+                pendingLabel="Сохраняем..."
+              />
+              <AdminSubmitButton
+                type="submit"
+                formAction={sendPromotionTelegramBroadcastAction}
+                variant="accent"
+                size="sm"
+                disabled={promotion.status !== PromotionStatus.ACTIVE}
+                idleLabel="Telegram промо"
+                pendingLabel="Рассылаем..."
+              />
+              <button
+                type="submit"
+                formAction={deletePromotionAction}
+                className="inline-flex h-9 items-center justify-center px-4 text-sm font-medium text-red-600 transition hover:bg-red-50"
+              >
+                Удалить
+              </button>
+            </div>
+          </form>
+        </div>
       ),
     };
   });
@@ -880,7 +898,7 @@ export default async function AdminPromotionsPage({
               { key: "offer", label: "Предложение" },
               { key: "timing", label: "Период и лимит" },
               { key: "status", label: "Статус" },
-              { key: "manage", label: "Быстрое управление" },
+              { key: "manage", label: "Управление" },
             ]}
             rows={rows}
             caption="Список акций и скидок"

@@ -16,6 +16,9 @@ const errorMessages: Record<string, string> = {
   empty: "Выберите клиента и хотя бы один товар.",
   "not-found":
     "Клиент или товары не найдены. Обновите страницу и попробуйте еще раз.",
+  stock: "Продажа не сохранена: выбранного количества товара нет в остатках.",
+  loyalty:
+    "Продажа не сохранена: бонусный баланс клиента уже изменился. Обновите страницу.",
 };
 
 function getErrorMessage(
@@ -44,7 +47,10 @@ export default async function SalesFloorPage({
     );
   }
 
-  await requireAdminSession("/login?next=/admin/sales-floor");
+  await requireAdminSession(
+    "/login?next=/admin/sales-floor",
+    "/admin/sales-floor",
+  );
 
   const [data, resolvedSearchParams] = await Promise.all([
     getSalesFloorData(),

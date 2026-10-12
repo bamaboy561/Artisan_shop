@@ -131,7 +131,7 @@ export default async function AdminLoyaltyPage() {
     );
   }
 
-  await requireAdminSession("/login?next=/admin/loyalty");
+  await requireAdminSession("/login?next=/admin/loyalty", "/admin/loyalty");
 
   const [stats, loyaltyConfig] = await Promise.all([
     getLoyaltyStats(),
@@ -147,19 +147,23 @@ export default async function AdminLoyaltyPage() {
           {getLoyaltyTierLabel(tier, loyaltyConfig)}
         </StatusBadge>
       ),
-      threshold:
-        benefits.threshold > 0
-          ? `${formatNumber(benefits.threshold)} баллов`
-          : "с первого заказа",
-      discount: formatPercent(benefits.baseDiscountPercent),
-      accrual: formatPercent(benefits.accrualPercent),
+      plateThreshold:
+        benefits.plateMaterialThreshold > 0
+          ? `${formatNumber(benefits.plateMaterialThreshold)} сом закупок`
+          : "с регистрации",
+      fittingsThreshold:
+        benefits.fittingsThreshold > 0
+          ? `${formatNumber(benefits.fittingsThreshold)} сом закупок`
+          : "с регистрации",
+      plateAccrual: formatPercent(benefits.plateMaterialAccrualPercent),
+      fittingsAccrual: formatPercent(benefits.fittingsAccrualPercent),
     };
   });
 
   const actionCards = [
     {
       title: "Клиенты",
-      text: "Уровень, персональная скидка и ручное начисление баллов.",
+      text: "Статусы по плитам и фурнитуре, баланс и ручные операции по баллам.",
       href: "/admin/users",
       action: "Открыть клиентов",
     },
@@ -182,7 +186,7 @@ export default async function AdminLoyaltyPage() {
       <section className="surface-glow rounded-[24px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-6 sm:p-8">
         <SectionHeading
           title="Бонусная система"
-          description="Здесь собраны правила уровней, начисления, списания и точки управления клиентскими баллами."
+          description="Здесь собраны правила уровней, начисления и списания бонусов. Статусы пересчитываются каждый месяц отдельно по закупкам плит и фурнитуры."
           titleClassName="text-2xl sm:text-3xl"
           descriptionClassName="max-w-3xl text-sm leading-7"
         />
@@ -218,7 +222,7 @@ export default async function AdminLoyaltyPage() {
         <div className="rounded-[22px] border border-[color:var(--line)] bg-white p-4 shadow-[0_18px_50px_rgba(30,28,25,0.04)] sm:p-5">
           <SectionHeading
             title="Правила уровней"
-            description="1 балл равен 1 сому при списании. Начисление считается от суммы оплаты по уровню клиента."
+            description="Только начисление бонусов: 1 балл равен 1 сому при списании, за один заказ можно оплатить бонусами не больше 50% суммы. Пороги считаются от суммы оплаченных закупок за месяц."
             titleClassName="text-xl"
             descriptionClassName="text-sm leading-6"
           />
@@ -228,9 +232,10 @@ export default async function AdminLoyaltyPage() {
               variant="embedded"
               columns={[
                 { key: "tier", label: "Уровень" },
-                { key: "threshold", label: "Порог" },
-                { key: "discount", label: "Скидка" },
-                { key: "accrual", label: "Начисление" },
+                { key: "plateThreshold", label: "Закупки плит" },
+                { key: "fittingsThreshold", label: "Закупки фурнитуры" },
+                { key: "plateAccrual", label: "% плит" },
+                { key: "fittingsAccrual", label: "% фурнитуры" },
               ]}
               rows={tierRows}
               caption="Правила уровней бонусной системы"
@@ -241,27 +246,14 @@ export default async function AdminLoyaltyPage() {
             action={updateLoyaltyProgramSettingsAction}
             className="mt-5 grid gap-4"
           >
-            <div className="grid gap-3 md:grid-cols-2">
-              <label className="grid gap-2 text-sm text-[var(--foreground)]">
-                Максимальная суммарная скидка, %
-                <Input
-                  name="maxTotalDiscountPercent"
-                  type="number"
-                  min="0"
-                  max="50"
-                  defaultValue={loyaltyConfig.maxTotalDiscountPercent}
-                />
-              </label>
-              <label className="grid gap-2 text-sm text-[var(--foreground)]">
-                Максимум списания баллами от заказа, %
-                <Input
-                  name="maxRedeemPercent"
-                  type="number"
-                  min="0"
-                  max="100"
-                  defaultValue={loyaltyConfig.maxRedeemPercent}
-                />
-              </label>
+            <div className="rounded-[18px] border border-[color:var(--line)] bg-[var(--surface)] p-4">
+              <p className="text-sm font-semibold text-[var(--foreground)]">
+                Оплата бонусами до {loyaltyConfig.maxRedeemPercent}% заказа
+              </p>
+              <p className="mt-1 text-sm leading-6 text-[var(--muted)]">
+                Это фиксированное правило программы: бонусы начисляются по
+                категории товара, а списание ограничено половиной суммы покупки.
+              </p>
             </div>
 
             <div className="grid gap-3 xl:grid-cols-2">
@@ -286,17 +278,27 @@ export default async function AdminLoyaltyPage() {
                         />
                       </label>
                       <label className="grid gap-1.5 text-xs text-[var(--muted)]">
-                        Порог
+                        Порог закупок плит, сом
                         <Input
-                          name={`${tier}.threshold`}
+                          name={`${tier}.plateMaterialThreshold`}
                           type="number"
                           min="0"
-                          defaultValue={benefits.threshold}
+                          defaultValue={benefits.plateMaterialThreshold}
                           className="h-10"
                         />
                       </label>
                       <label className="grid gap-1.5 text-xs text-[var(--muted)]">
-                        Скидка, %
+                        Порог закупок фурнитуры, сом
+                        <Input
+                          name={`${tier}.fittingsThreshold`}
+                          type="number"
+                          min="0"
+                          defaultValue={benefits.fittingsThreshold}
+                          className="h-10"
+                        />
+                      </label>
+                      <label className="grid gap-1.5 text-xs text-[var(--muted)]">
+                        Начисление по плитам, %
                         <Input
                           name={`${tier}.plateMaterialAccrualPercent`}
                           type="number"
@@ -307,7 +309,7 @@ export default async function AdminLoyaltyPage() {
                         />
                       </label>
                       <label className="grid gap-1.5 text-xs text-[var(--muted)]">
-                        Начисление, %
+                        Начисление по фурнитуре, %
                         <Input
                           name={`${tier}.fittingsAccrualPercent`}
                           type="number"

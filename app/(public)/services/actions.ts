@@ -64,6 +64,7 @@ function hasAllowedFileExtension(fileName: string) {
     ".webp",
     ".dwg",
     ".dxf",
+    ".project",
   ]).has(path.extname(fileName).toLowerCase());
 }
 
@@ -146,13 +147,6 @@ export async function submitServiceRequestAction(
     };
   }
 
-  if (files.length === 0 && !validated.data.comment.trim()) {
-    return {
-      message:
-        "Добавьте файл проекта или коротко опишите задачу для менеджера.",
-    };
-  }
-
   const session = await getOptionalSession();
   const contactEmail = normalizeOptionalText(validated.data.contactEmail);
   const messengerType = normalizeOptionalText(validated.data.messengerType);
@@ -162,8 +156,12 @@ export async function submitServiceRequestAction(
   const comment = normalizeOptionalText(validated.data.comment);
   const subject =
     validated.data.priority === "urgent"
-      ? "Срочно: распил по файлу"
-      : "Распил по файлу";
+      ? files.length > 0
+        ? "Срочно: распил по файлу"
+        : "Срочно: заявка на распил"
+      : files.length > 0
+        ? "Распил по файлу"
+        : "Заявка на распил";
   const requestMessage = buildServiceRequestMessage({
     material: validated.data.material,
     edgeOption,
@@ -240,8 +238,12 @@ export async function submitServiceRequestAction(
           ? `Заявка ${createdRequest.number} уже принята. Повторно отправлять не нужно.`
           : "Такая заявка уже принята. Повторно отправлять не нужно."
         : createdRequest.number
-          ? `Заявка ${createdRequest.number} отправлена. Менеджер увидит файл и свяжется с вами.`
-          : "Заявка отправлена. Менеджер увидит файл и свяжется с вами.",
+          ? files.length > 0
+            ? `Заявка ${createdRequest.number} отправлена. Менеджер увидит файлы и свяжется с вами.`
+            : `Заявка ${createdRequest.number} отправлена без файлов. Менеджер свяжется с вами для уточнения.`
+          : files.length > 0
+            ? "Заявка отправлена. Менеджер увидит файлы и свяжется с вами."
+            : "Заявка отправлена без файлов. Менеджер свяжется с вами для уточнения.",
     };
   } catch (error) {
     console.error("Failed to submit service request", error);

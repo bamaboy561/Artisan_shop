@@ -10,9 +10,18 @@ datasource db {
 enum RoleCode {
   CUSTOMER
   DEALER
+  CUTTING_MANAGER
+  PRODUCTION_MANAGER
+  PRODUCTION_OPERATOR
   MANAGER
   ADMIN
   SUPER_ADMIN
+}
+
+enum ProductionStation {
+  CUTTING
+  EDGING
+  DRILLING
 }
 
 enum MessengerType {
@@ -71,6 +80,14 @@ enum RequestStatus {
 enum RequestFileKind {
   CLIENT_UPLOAD
   MANAGER_RESULT
+}
+
+enum CuttingStage {
+  ACCEPTED
+  CUTTING
+  EDGING
+  DRILLING
+  READY_FOR_PICKUP
 }
 
 enum CategoryKind {
@@ -173,11 +190,14 @@ model User {
   telegramNotifyPromotions Boolean              @default(true)
   isActive                 Boolean              @default(true)
   loyaltyTier              LoyaltyTier          @default(BRONZE)
+  plateMaterialLoyaltyTier LoyaltyTier?
+  fittingsLoyaltyTier      LoyaltyTier?
   loyaltyPointsBalance     Int                  @default(0)
   loyaltyPointsLifetime    Int                  @default(0)
   personalDiscountPercent  Int                  @default(0)
   roleId                   String
   role                     Role                 @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  productionStation        ProductionStation?
   addresses                Address[]
   orders                   Order[]              @relation("CustomerOrders")
   managedOrders            Order[]              @relation("ManagerOrders")
@@ -190,6 +210,7 @@ model User {
   updatedAt                DateTime             @updatedAt
 
   @@index([roleId])
+  @@index([productionStation])
 }
 
 model Address {
@@ -270,6 +291,8 @@ model Product {
   stockQuantity           Int?
   format                  String?
   thicknessMm             Int?
+  edgeThicknessMm         Float?
+  edgeWidthMm             Float?
   isFeatured              Boolean             @default(false)
   seoTitle                String?
   seoDescription          String?
@@ -374,6 +397,7 @@ model Order {
   productionDueAt        DateTime?
   readyAt                DateTime?
   completedAt            DateTime?
+  inventoryReservedAt    DateTime?
   fulfillmentComment     String?              @db.Text
   items                  OrderItem[]
   loyaltyTransactions    LoyaltyTransaction[]
@@ -388,54 +412,58 @@ model Order {
 }
 
 model OrderItem {
-  id             String   @id @default(cuid())
-  orderId        String
-  order          Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  productId      String?
-  product        Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
-  quantity       Int      @default(1)
-  unitPrice      Int
-  discountAmount Int      @default(0)
-  total          Int
-  snapshotName   String
-  snapshotSku    String?
-  snapshotBrand  String?
-  createdAt      DateTime @default(now())
+  id                   String        @id @default(cuid())
+  orderId              String
+  order                Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId            String?
+  product              Product?      @relation(fields: [productId], references: [id], onDelete: SetNull)
+  quantity             Int           @default(1)
+  unitPrice            Int
+  discountAmount       Int           @default(0)
+  total                Int
+  snapshotName         String
+  snapshotSku          String?
+  snapshotBrand        String?
+  snapshotCategoryKind CategoryKind?
+  createdAt            DateTime      @default(now())
 
   @@index([orderId])
   @@index([productId])
 }
 
 model Request {
-  id                String         @id @default(cuid())
-  number            String?        @unique
-  type              RequestType
-  status            RequestStatus  @default(NEW)
-  subject           String
-  message           String?
-  userId            String?
-  user              User?          @relation("CustomerRequests", fields: [userId], references: [id], onDelete: SetNull)
-  managerId         String?
-  manager           User?          @relation("ManagerRequests", fields: [managerId], references: [id], onDelete: SetNull)
-  productId         String?
-  product           Product?       @relation(fields: [productId], references: [id], onDelete: SetNull)
-  contactName       String
-  contactPhone      String
-  contactEmail      String?
-  messengerType     MessengerType?
-  messengerHandle   String?
-  material          String?
-  edgeOption        String?
-  deliveryNeeded    Boolean        @default(false)
-  addressText       String?
-  estimatedBudget   Int?
-  quotedTotal       Int?
-  productionComment String?        @db.Text
-  files             RequestFile[]
-  managerNotes      ManagerNote[]
-  linkedOrders      Order[]        @relation("RequestLinkedOrders")
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
+  id                    String         @id @default(cuid())
+  number                String?        @unique
+  type                  RequestType
+  status                RequestStatus  @default(NEW)
+  subject               String
+  message               String?
+  userId                String?
+  user                  User?          @relation("CustomerRequests", fields: [userId], references: [id], onDelete: SetNull)
+  managerId             String?
+  manager               User?          @relation("ManagerRequests", fields: [managerId], references: [id], onDelete: SetNull)
+  productId             String?
+  product               Product?       @relation(fields: [productId], references: [id], onDelete: SetNull)
+  contactName           String
+  contactPhone          String
+  contactEmail          String?
+  messengerType         MessengerType?
+  messengerHandle       String?
+  material              String?
+  edgeOption            String?
+  deliveryNeeded        Boolean        @default(false)
+  addressText           String?
+  estimatedBudget       Int?
+  quotedTotal           Int?
+  productionComment     String?        @db.Text
+  cuttingStage          CuttingStage?
+  cuttingPickupCell     String?
+  cuttingStageUpdatedAt DateTime?
+  files                 RequestFile[]
+  managerNotes          ManagerNote[]
+  linkedOrders          Order[]        @relation("RequestLinkedOrders")
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
 
   @@index([userId, status, createdAt])
   @@index([managerId, status])
@@ -493,6 +521,7 @@ model Favorite {
 
 model LoyaltyTransaction {
   id           String                   @id @default(cuid())
+  externalId   String?                  @unique
   userId       String
   user         User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
   orderId      String?
@@ -513,6 +542,53 @@ model LoyaltyTransaction {
   @@index([userId, status, createdAt])
   @@index([orderId])
   @@index([status, createdAt])
+}
+
+model TelegramUpdateReceipt {
+  updateId    BigInt    @id
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([createdAt])
+}
+
+model DeletedOrderAudit {
+  id             String   @id @default(cuid())
+  orderId        String
+  orderNumber    String?
+  deletedById    String?
+  deletedByEmail String?
+  snapshot       Json
+  createdAt      DateTime @default(now())
+
+  @@index([orderId])
+  @@index([createdAt])
+}
+
+model DeletedRequestAudit {
+  id             String   @id @default(cuid())
+  requestId      String
+  requestNumber  String?
+  deletedById    String?
+  deletedByEmail String?
+  snapshot       Json
+  createdAt      DateTime @default(now())
+
+  @@index([requestId])
+  @@index([createdAt])
+}
+
+model LoyaltyMonthlyReviewReceipt {
+  periodKey String
+  userId    String
+  status    NotificationStatus
+  error     String?
+  sentAt    DateTime?
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  @@id([periodKey, userId])
+  @@index([status, updatedAt])
 }
 
 model Promotion {

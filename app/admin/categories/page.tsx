@@ -34,7 +34,10 @@ export default async function AdminCategoriesPage() {
     );
   }
 
-  await requireAdminSession("/login?next=/admin/categories");
+  await requireAdminSession(
+    "/login?next=/admin/categories",
+    "/admin/categories",
+  );
 
   const categories = await getAdminCategories();
 

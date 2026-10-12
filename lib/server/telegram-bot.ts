@@ -3,6 +3,7 @@ import "server-only";
 import crypto from "node:crypto";
 
 import {
+  CuttingStage,
   DiscountType,
   NotificationChannel,
   NotificationStatus,
@@ -13,15 +14,16 @@ import {
   type Prisma,
   RequestStatus,
 } from "@/generated/prisma";
+import { cuttingStageLabels } from "@/features/cutting/progress";
 import { formatPrice } from "@/lib/commerce";
 import { getDb, hasDatabaseUrl } from "@/lib/db";
 import { absoluteUrl, getSiteUrl } from "@/lib/seo";
+import { getCustomerOrderWhere } from "@/lib/server/customer-order-scope";
 import {
   getLoyaltyTierBenefits,
   getLoyaltyTierLabel,
 } from "@/lib/server/pricing";
 import { getLoyaltyProgramConfig } from "@/lib/server/loyalty-settings";
-import { ensureTelegramUserColumns } from "@/lib/server/telegram-user-schema";
 
 type TelegramKeyboardButton = {
   text: string;
@@ -43,6 +45,9 @@ type TelegramApiResponse<T = unknown> = {
   ok: boolean;
   result?: T;
   description?: string;
+  parameters?: {
+    retry_after?: number;
+  };
 };
 
 type TelegramUpdate = {
@@ -76,7 +81,12 @@ type TelegramUpdate = {
   };
 };
 
-type TelegramDirectCategory = "orders" | "requests" | "loyalty" | "promotions";
+type TelegramDirectCategory =
+  | "orders"
+  | "requests"
+  | "loyalty"
+  | "promotions"
+  | "manual";
 
 type TelegramDirectPayload = {
   title: string;
@@ -84,6 +94,26 @@ type TelegramDirectPayload = {
   category: TelegramDirectCategory;
   actions?: TelegramInlineButton[];
 };
+
+function maskTelegramChatId(chatId: string | number | null | undefined) {
+  const value = String(chatId ?? "");
+
+  if (!value) {
+    return "missing";
+  }
+
+  return value.length <= 4 ? "****" : `***${value.slice(-4)}`;
+}
+
+function maskUserId(userId: string | null | undefined) {
+  if (!userId) {
+    return "missing";
+  }
+
+  return userId.length <= 8
+    ? "****"
+    : `${userId.slice(0, 4)}...${userId.slice(-4)}`;
+}
 
 const orderStatusLabels: Record<OrderStatus | string, string> = {
   NEW: "Новый",
@@ -121,13 +151,18 @@ export function getTelegramBotUsername() {
 }
 
 function getTelegramLinkSecret() {
-  return (
+  const secret =
     process.env.TELEGRAM_LINK_SECRET?.trim() ||
     process.env.SESSION_SECRET?.trim() ||
-    process.env.TELEGRAM_WEBHOOK_SECRET?.trim() ||
-    getTelegramBotToken() ||
-    "artisan-local-telegram-link-secret"
-  );
+    process.env.TELEGRAM_WEBHOOK_SECRET?.trim();
+
+  if (!secret) {
+    throw new Error(
+      "TELEGRAM_LINK_SECRET or SESSION_SECRET is required for Telegram account links.",
+    );
+  }
+
+  return secret;
 }
 
 function signTelegramPayload(payload: string) {
@@ -138,15 +173,45 @@ function signTelegramPayload(payload: string) {
 }
 
 export function createTelegramLinkToken(userId: string) {
-  const payload = Buffer.from(`${userId}:${Date.now()}`, "utf8").toString(
-    "base64url",
-  );
-  const signature = signTelegramPayload(payload);
+  const expiresAt = Date.now() + 14 * 24 * 60 * 60 * 1000;
+  const expiresAtBase36 = expiresAt.toString(36);
+  const payload = `${userId}_${expiresAtBase36}`;
+  const signature = signTelegramPayload(payload).slice(0, 22);
 
-  return `${payload}.${signature}`;
+  return `t_${payload}_${signature}`;
 }
 
 function verifyTelegramLinkToken(token: string) {
+  if (token.startsWith("t_")) {
+    const [, userId, expiresAtBase36, ...signatureParts] = token.split("_");
+    const signature = signatureParts.join("_");
+
+    if (!userId || !expiresAtBase36 || !signature) {
+      return null;
+    }
+
+    const payload = `${userId}_${expiresAtBase36}`;
+    const expectedSignature = signTelegramPayload(payload).slice(0, 22);
+    const signatureBuffer = Buffer.from(signature);
+    const expectedSignatureBuffer = Buffer.from(expectedSignature);
+
+    if (signatureBuffer.length !== expectedSignatureBuffer.length) {
+      return null;
+    }
+
+    if (!crypto.timingSafeEqual(signatureBuffer, expectedSignatureBuffer)) {
+      return null;
+    }
+
+    const expiresAt = Number.parseInt(expiresAtBase36, 36);
+
+    if (!userId || Number.isNaN(expiresAt) || expiresAt < Date.now()) {
+      return null;
+    }
+
+    return { userId };
+  }
+
   const [payload, signature] = token.split(".");
 
   if (!payload || !signature) {
@@ -178,14 +243,14 @@ function verifyTelegramLinkToken(token: string) {
 }
 
 export function buildTelegramStartLink(userId: string) {
-  return `https://t.me/${getTelegramBotUsername()}?start=${createTelegramLinkToken(userId)}`;
+  return `https://t.me/${getTelegramBotUsername()}?start=${encodeURIComponent(createTelegramLinkToken(userId))}`;
 }
 
 function buildMenuKeyboard(): TelegramReplyMarkup {
   return {
     keyboard: [
       [{ text: "Мои заказы" }, { text: "Мои заявки" }],
-      [{ text: "Акции" }, { text: "Баллы и скидка" }],
+      [{ text: "Акции" }, { text: "Баллы и статусы" }],
       [{ text: "Открыть кабинет" }, { text: "Каталог" }],
       [{ text: "Помощь" }],
     ],
@@ -225,27 +290,47 @@ async function sendTelegramApi<T>(
     throw new Error("TELEGRAM_BOT_TOKEN is not configured.");
   }
 
-  const response = await fetch(
-    `https://api.telegram.org/bot${token}/${method}`,
-    {
+  const url = `https://api.telegram.org/bot${token}/${method}`;
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const response = await fetch(url, {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
+        "Content-Type": "application/json; charset=utf-8",
       },
       body: JSON.stringify(payload),
-    },
-  );
-  const json = (await response
-    .json()
-    .catch(() => null)) as TelegramApiResponse<T> | null;
+      signal: AbortSignal.timeout(12_000),
+    });
+    const json = (await response
+      .json()
+      .catch(() => null)) as TelegramApiResponse<T> | null;
 
-  if (!response.ok || !json?.ok) {
-    throw new Error(
-      json?.description ?? `Telegram API ${method} error: ${response.status}`,
+    if (response.ok && json?.ok) {
+      return json.result as T;
+    }
+
+    const canRetry =
+      attempt === 0 &&
+      (response.status === 429 ||
+        response.status === 500 ||
+        response.status === 502 ||
+        response.status === 503 ||
+        response.status === 504);
+
+    if (!canRetry) {
+      throw new Error(
+        json?.description ?? `Telegram API ${method} error: ${response.status}`,
+      );
+    }
+
+    const retryAfterMs = Math.min(
+      Math.max(json?.parameters?.retry_after ?? 1, 1) * 1000,
+      3000,
     );
+    await new Promise((resolve) => setTimeout(resolve, retryAfterMs));
   }
 
-  return json.result as T;
+  throw new Error(`Telegram API ${method} request failed.`);
 }
 
 export async function sendBotMessage(
@@ -270,6 +355,40 @@ function escapeTelegramHtml(value: string) {
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;");
+}
+
+function truncateTelegramLine(value: string, maxLength = 120) {
+  if (value.length <= maxLength) {
+    return value;
+  }
+
+  return `${value.slice(0, maxLength - 1).trimEnd()}…`;
+}
+
+function splitTelegramLines(lines: string[], maxLength = 3800) {
+  const chunks: string[] = [];
+  let current = "";
+
+  for (const line of lines) {
+    const next = current ? `${current}\n${line}` : line;
+
+    if (next.length <= maxLength) {
+      current = next;
+      continue;
+    }
+
+    if (current) {
+      chunks.push(current);
+    }
+
+    current = line.slice(0, maxLength);
+  }
+
+  if (current) {
+    chunks.push(current);
+  }
+
+  return chunks;
 }
 
 function normalizeTelegramCommand(value: string) {
@@ -299,8 +418,6 @@ async function getLinkedUserByChatId(chatId: string) {
   }
 
   const db = getDb();
-  await ensureTelegramUserColumns(db);
-
   return db.user.findUnique({
     where: { telegramChatId: chatId },
     select: {
@@ -311,6 +428,8 @@ async function getLinkedUserByChatId(chatId: string) {
       phone: true,
       companyName: true,
       loyaltyTier: true,
+      plateMaterialLoyaltyTier: true,
+      fittingsLoyaltyTier: true,
       loyaltyPointsBalance: true,
       loyaltyPointsLifetime: true,
       personalDiscountPercent: true,
@@ -328,8 +447,6 @@ async function linkTelegramAccount(
   username?: string | null,
 ) {
   const db = getDb();
-  await ensureTelegramUserColumns(db);
-
   const user = await db.user.findUnique({
     where: { id: userId },
     select: {
@@ -377,16 +494,48 @@ async function linkTelegramAccount(
 
 async function replyWithOrders(chatId: string, userId: string) {
   const db = getDb();
+  const user = await db.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      email: true,
+      phone: true,
+    },
+  });
+
+  if (!user) {
+    await sendBotMessage(
+      chatId,
+      "Аккаунт не найден. Откройте кабинет и подключите Telegram заново.",
+      {
+        replyMarkup: buildMenuKeyboard(),
+      },
+    );
+    return;
+  }
+
   const orders = await db.order.findMany({
-    where: { userId },
+    where: getCustomerOrderWhere(user),
     orderBy: { createdAt: "desc" },
-    take: 5,
+    take: 10,
     select: {
       id: true,
       number: true,
       status: true,
       total: true,
       createdAt: true,
+      items: {
+        orderBy: { createdAt: "asc" },
+        select: {
+          quantity: true,
+          unitPrice: true,
+          discountAmount: true,
+          total: true,
+          snapshotName: true,
+          snapshotSku: true,
+          snapshotBrand: true,
+        },
+      },
     },
   });
 
@@ -401,18 +550,60 @@ async function replyWithOrders(chatId: string, userId: string) {
     return;
   }
 
-  const lines = orders.flatMap((order) => [
-    `${order.number ?? order.id}`,
-    `Статус: ${orderStatusLabels[order.status] ?? order.status}`,
-    `Сумма: ${formatPrice(order.total)}`,
-    "",
-  ]);
-
-  await sendBotMessage(chatId, ["Последние заказы:", "", ...lines].join("\n"), {
-    replyMarkup: buildActionMarkup([
-      { text: "Открыть кабинет", url: absoluteUrl("/account/orders") },
-    ]),
+  const dateFormatter = new Intl.DateTimeFormat("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
   });
+  const lines = orders.flatMap((order) => {
+    const itemLines =
+      order.items.length > 0
+        ? order.items.flatMap((item) => {
+            const meta = [
+              item.snapshotBrand,
+              item.snapshotSku ? `арт. ${item.snapshotSku}` : "",
+            ]
+              .filter(Boolean)
+              .join(" · ");
+            const discount =
+              item.discountAmount > 0
+                ? ` · скидка ${formatPrice(item.discountAmount)}`
+                : "";
+
+            return [
+              `• ${truncateTelegramLine(item.snapshotName)}`,
+              truncateTelegramLine(
+                `  ${meta ? `${meta} · ` : ""}${item.quantity} шт. x ${formatPrice(item.unitPrice)}${discount} · ${formatPrice(item.total)}`,
+              ),
+            ];
+          })
+        : ["• Состав заказа уточняется менеджером."];
+    return [
+      `${order.number ?? order.id}`,
+      `Дата: ${dateFormatter.format(order.createdAt)}`,
+      `Статус: ${orderStatusLabels[order.status] ?? order.status}`,
+      "Состав:",
+      ...itemLines,
+      `Сумма: ${formatPrice(order.total)}`,
+      "",
+    ].filter(Boolean);
+  });
+
+  const chunks = splitTelegramLines(["Последние заказы:", "", ...lines]);
+
+  for (const [index, chunk] of chunks.entries()) {
+    await sendBotMessage(chatId, chunk, {
+      replyMarkup:
+        index === chunks.length - 1
+          ? buildActionMarkup([
+              {
+                text: "Открыть кабинет",
+                url: absoluteUrl("/account/orders"),
+              },
+            ])
+          : undefined,
+    });
+  }
 }
 
 async function replyWithRequests(chatId: string, userId: string) {
@@ -426,6 +617,8 @@ async function replyWithRequests(chatId: string, userId: string) {
       number: true,
       subject: true,
       status: true,
+      cuttingStage: true,
+      cuttingPickupCell: true,
       quotedTotal: true,
       createdAt: true,
     },
@@ -446,6 +639,13 @@ async function replyWithRequests(chatId: string, userId: string) {
     `${request.number ?? request.id}`,
     request.subject,
     `Статус: ${requestStatusLabels[request.status] ?? request.status}`,
+    request.cuttingStage
+      ? `Этап распила: ${cuttingStageLabels[request.cuttingStage]}`
+      : "",
+    request.cuttingStage === CuttingStage.READY_FOR_PICKUP &&
+    request.cuttingPickupCell
+      ? `Ячейка выдачи: № ${request.cuttingPickupCell}`
+      : "",
     request.quotedTotal ? `Сумма: ${formatPrice(request.quotedTotal)}` : "",
     "",
   ]);
@@ -466,13 +666,21 @@ async function replyWithLoyalty(
   user: NonNullable<Awaited<ReturnType<typeof getLinkedUserByChatId>>>,
 ) {
   const loyaltyConfig = await getLoyaltyProgramConfig();
-  const benefits = getLoyaltyTierBenefits(user.loyaltyTier, loyaltyConfig);
+  const plateMaterialTier = user.plateMaterialLoyaltyTier ?? user.loyaltyTier;
+  const fittingsTier = user.fittingsLoyaltyTier ?? user.loyaltyTier;
+  const plateMaterialBenefits = getLoyaltyTierBenefits(
+    plateMaterialTier,
+    loyaltyConfig,
+  );
+  const fittingsBenefits = getLoyaltyTierBenefits(fittingsTier, loyaltyConfig);
   const lines = [
     `Клиент: ${getUserDisplayName(user)}`,
     `Уровень: ${getLoyaltyTierLabel(user.loyaltyTier, loyaltyConfig)}`,
+    `Плиты: ${getLoyaltyTierLabel(plateMaterialTier, loyaltyConfig)}`,
+    `Фурнитура: ${getLoyaltyTierLabel(fittingsTier, loyaltyConfig)}`,
     `Баланс: ${user.loyaltyPointsBalance} баллов`,
     `Накоплено: ${user.loyaltyPointsLifetime} баллов`,
-    `Начисление: плитные материалы ${benefits.plateMaterialAccrualPercent}%, фурнитура ${benefits.fittingsAccrualPercent}%`,
+    `Начисление: плитные материалы ${plateMaterialBenefits.plateMaterialAccrualPercent}%, фурнитура ${fittingsBenefits.fittingsAccrualPercent}%`,
     "",
     "Баллы начисляются после подтверждения менеджером и сразу видны в кабинете.",
   ];
@@ -648,8 +856,6 @@ export async function sendTelegramPromotionBroadcast(promotionId: string) {
   }
 
   const db = getDb();
-  await ensureTelegramUserColumns(db);
-
   const promotion = await db.promotion.findUnique({
     where: { id: promotionId },
     select: {
@@ -851,10 +1057,18 @@ export async function handleTelegramUpdate(update: TelegramUpdate) {
   const text = message?.text?.trim() ?? "";
 
   if (!chatId || !text) {
+    console.info("[telegram:update:ignored]", {
+      hasChatId: Boolean(chatId),
+      hasText: Boolean(text),
+      hasCallbackQuery: Boolean(update.callback_query),
+    });
     return;
   }
 
   if (!hasDatabaseUrl()) {
+    console.warn("[telegram:update:no-db]", {
+      chatId: maskTelegramChatId(chatId),
+    });
     await sendBotMessage(
       chatId,
       "База данных сайта пока не подключена, поэтому кабинет Telegram временно недоступен.",
@@ -863,14 +1077,29 @@ export async function handleTelegramUpdate(update: TelegramUpdate) {
   }
 
   const normalizedText = normalizeTelegramCommand(text);
+  const isStartCommand = normalizedText.startsWith("/start");
 
-  if (normalizedText.startsWith("/start")) {
+  console.info("[telegram:update]", {
+    chatId: maskTelegramChatId(chatId),
+    command: isStartCommand ? "/start" : normalizedText.slice(0, 80),
+    hasStartPayload:
+      isStartCommand &&
+      text.replace(/^\/start(?:@\w+)?\s*/i, "").trim().length > 0,
+    username: message?.from?.username ?? null,
+  });
+
+  if (isStartCommand) {
     const token = text.replace(/^\/start(?:@\w+)?\s*/i, "").trim();
 
     if (token) {
       const payload = verifyTelegramLinkToken(token);
 
       if (!payload) {
+        console.warn("[telegram:link:invalid-token]", {
+          chatId: maskTelegramChatId(chatId),
+          tokenLength: token.length,
+          tokenPrefix: token.slice(0, 2),
+        });
         await sendBotMessage(
           chatId,
           "Ссылка привязки устарела. Откройте личный кабинет и нажмите «Подключить Telegram» еще раз.",
@@ -885,6 +1114,10 @@ export async function handleTelegramUpdate(update: TelegramUpdate) {
       );
 
       if (!linkedUser) {
+        console.warn("[telegram:link:user-not-found]", {
+          chatId: maskTelegramChatId(chatId),
+          userId: maskUserId(payload.userId),
+        });
         await sendBotMessage(
           chatId,
           "Не удалось найти активный аккаунт. Проверьте вход в личный кабинет.",
@@ -892,6 +1125,10 @@ export async function handleTelegramUpdate(update: TelegramUpdate) {
         return;
       }
 
+      console.info("[telegram:link:success]", {
+        chatId: maskTelegramChatId(chatId),
+        userId: maskUserId(linkedUser.id),
+      });
       await sendBotMessage(
         chatId,
         `Telegram подключен к кабинету ${getUserDisplayName(linkedUser)}.\nТеперь я буду присылать статусы заказов, распила и бонусов.`,
@@ -904,6 +1141,10 @@ export async function handleTelegramUpdate(update: TelegramUpdate) {
   const linkedUser = await getLinkedUserByChatId(chatId);
 
   if (!linkedUser) {
+    console.info("[telegram:link:missing]", {
+      chatId: maskTelegramChatId(chatId),
+      command: normalizedText.slice(0, 80),
+    });
     await replyWithHelp(chatId, false);
     return;
   }
@@ -928,6 +1169,7 @@ export async function handleTelegramUpdate(update: TelegramUpdate) {
   }
 
   if (
+    normalizedText === "баллы и статусы" ||
     normalizedText === "баллы и скидка" ||
     normalizedText === "/bonus" ||
     normalizedText === "/bonuses"
@@ -968,13 +1210,33 @@ export async function sendTelegramDirectMessage(
   userId: string | null | undefined,
   payload: TelegramDirectPayload,
 ) {
-  if (!userId || !hasDatabaseUrl() || !isTelegramBotConfigured()) {
+  if (!userId) {
+    console.info("[telegram:direct:skipped]", {
+      reason: "missing-user-id",
+      category: payload.category,
+    });
+    return false;
+  }
+
+  if (!hasDatabaseUrl()) {
+    console.warn("[telegram:direct:skipped]", {
+      reason: "database-unavailable",
+      userId: maskUserId(userId),
+      category: payload.category,
+    });
+    return false;
+  }
+
+  if (!isTelegramBotConfigured()) {
+    console.warn("[telegram:direct:skipped]", {
+      reason: "bot-token-missing",
+      userId: maskUserId(userId),
+      category: payload.category,
+    });
     return false;
   }
 
   const db = getDb();
-  await ensureTelegramUserColumns(db);
-
   const user = await db.user.findUnique({
     where: { id: userId },
     select: {
@@ -987,22 +1249,47 @@ export async function sendTelegramDirectMessage(
   });
 
   if (!user?.telegramChatId) {
+    console.info("[telegram:direct:skipped]", {
+      reason: "telegram-not-linked",
+      userId: maskUserId(userId),
+      category: payload.category,
+    });
     return false;
   }
 
   if (payload.category === "orders" && !user.telegramNotifyOrders) {
+    console.info("[telegram:direct:skipped]", {
+      reason: "orders-disabled",
+      userId: maskUserId(userId),
+      chatId: maskTelegramChatId(user.telegramChatId),
+    });
     return false;
   }
 
   if (payload.category === "requests" && !user.telegramNotifyRequests) {
+    console.info("[telegram:direct:skipped]", {
+      reason: "requests-disabled",
+      userId: maskUserId(userId),
+      chatId: maskTelegramChatId(user.telegramChatId),
+    });
     return false;
   }
 
   if (payload.category === "loyalty" && !user.telegramNotifyLoyalty) {
+    console.info("[telegram:direct:skipped]", {
+      reason: "loyalty-disabled",
+      userId: maskUserId(userId),
+      chatId: maskTelegramChatId(user.telegramChatId),
+    });
     return false;
   }
 
   if (payload.category === "promotions" && !user.telegramNotifyPromotions) {
+    console.info("[telegram:direct:skipped]", {
+      reason: "promotions-disabled",
+      userId: maskUserId(userId),
+      chatId: maskTelegramChatId(user.telegramChatId),
+    });
     return false;
   }
 
@@ -1014,6 +1301,12 @@ export async function sendTelegramDirectMessage(
     },
   );
 
+  console.info("[telegram:direct:sent]", {
+    userId: maskUserId(userId),
+    chatId: maskTelegramChatId(user.telegramChatId),
+    category: payload.category,
+  });
+
   return true;
 }
 
@@ -1021,11 +1314,17 @@ export async function configureTelegramWebhook() {
   const webhookUrl = `${getSiteUrl()}/api/telegram/webhook`;
   const secretToken = process.env.TELEGRAM_WEBHOOK_SECRET?.trim();
 
+  if (!secretToken) {
+    throw new Error(
+      "TELEGRAM_WEBHOOK_SECRET is required before configuring the webhook.",
+    );
+  }
+
   await sendTelegramApi("setWebhook", {
     url: webhookUrl,
     allowed_updates: ["message", "callback_query"],
     drop_pending_updates: false,
-    ...(secretToken ? { secret_token: secretToken } : {}),
+    secret_token: secretToken,
   });
 
   await sendTelegramApi("setMyCommands", {
@@ -1033,7 +1332,7 @@ export async function configureTelegramWebhook() {
       { command: "orders", description: "Мои заказы" },
       { command: "requests", description: "Мои заявки" },
       { command: "promotions", description: "Акции" },
-      { command: "bonus", description: "Баллы и скидка" },
+      { command: "bonus", description: "Баллы и статусы" },
       { command: "account", description: "Личный кабинет" },
       { command: "catalog", description: "Каталог" },
       { command: "help", description: "Помощь" },

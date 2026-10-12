@@ -172,7 +172,9 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
                       image={product.image}
                       price={product.price}
                       oldPrice={product.oldPrice}
+                      sku={product.sku}
                       inStock={product.inStock}
+                      purchaseMode={product.purchaseMode}
                       isBundle={product.isBundle}
                       categoryName={product.categoryName}
                       productSlug={product.slug}

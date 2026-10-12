@@ -7,6 +7,8 @@ import {
   LoyaltyTransactionStatus,
   LoyaltyTransactionType,
   OrderStatus,
+  ProductOrderMode,
+  ProductStatus,
   PromotionTargetType,
 } from "@/generated/prisma";
 import { getEffectiveProductPrice } from "@/features/catalog/bundle-pricing";
@@ -15,7 +17,19 @@ import { formatPrice } from "@/lib/commerce";
 import { getDb, hasDatabaseUrl } from "@/lib/db";
 import { handleOrderCreated } from "@/lib/server/commercial-integrations";
 import { getLoyaltyProgramConfig } from "@/lib/server/loyalty-settings";
+import {
+  applyApprovedLoyaltyDelta,
+  InsufficientLoyaltyBalanceError,
+} from "@/lib/server/loyalty-ledger";
+import {
+  InventoryAvailabilityError,
+  reserveInventoryItems,
+} from "@/lib/server/inventory-reservations";
 import { logOperationEvent } from "@/lib/server/operation-events";
+import {
+  getProductPromotionPrice,
+  PROMOTION_PRICE_SELECT,
+} from "@/lib/server/product-promotion-pricing";
 import type { CheckoutFormState } from "@/app/(public)/checkout/types";
 import {
   applyPromotion,
@@ -119,7 +133,24 @@ export async function submitCheckoutAction(
       };
     }
 
-    cartItems = parsedCartItems.data;
+    const quantityByProduct = new Map<string, number>();
+    for (const item of parsedCartItems.data) {
+      quantityByProduct.set(
+        item.productSlug,
+        (quantityByProduct.get(item.productSlug) ?? 0) + item.quantity,
+      );
+    }
+
+    if ([...quantityByProduct.values()].some((quantity) => quantity > 999)) {
+      return {
+        message: "Количество одного товара в заказе не может превышать 999 шт.",
+      };
+    }
+
+    cartItems = [...quantityByProduct].map(([productSlug, quantity]) => ({
+      productSlug,
+      quantity,
+    }));
   } catch {
     return {
       message:
@@ -154,6 +185,8 @@ export async function submitCheckoutAction(
             id: true,
             email: true,
             loyaltyTier: true,
+            plateMaterialLoyaltyTier: true,
+            fittingsLoyaltyTier: true,
             loyaltyPointsBalance: true,
             loyaltyPointsLifetime: true,
             personalDiscountPercent: true,
@@ -200,6 +233,8 @@ export async function submitCheckoutAction(
   const productSlugs = [...new Set(cartItems.map((item) => item.productSlug))];
   const products = await db.product.findMany({
     where: {
+      status: ProductStatus.ACTIVE,
+      orderMode: ProductOrderMode.CART,
       slug: {
         in: productSlugs,
       },
@@ -210,6 +245,12 @@ export async function submitCheckoutAction(
       name: true,
       sku: true,
       price: true,
+      stockQuantity: true,
+      promotions: {
+        select: {
+          promotion: { select: PROMOTION_PRICE_SELECT },
+        },
+      },
       bundleItems: {
         select: {
           quantity: true,
@@ -228,6 +269,11 @@ export async function submitCheckoutAction(
       category: {
         select: {
           kind: true,
+          promotions: {
+            select: {
+              promotion: { select: PROMOTION_PRICE_SELECT },
+            },
+          },
         },
       },
     },
@@ -250,14 +296,24 @@ export async function submitCheckoutAction(
   const orderItems = cartItems.map((item) => {
     const product = productMap.get(item.productSlug);
     const unitPrice = product ? (getEffectiveProductPrice(product) ?? 0) : 0;
+    const promotionPrice = product
+      ? getProductPromotionPrice(
+          unitPrice,
+          product.promotions,
+          product.category.promotions,
+        )
+      : null;
+    const discountAmount =
+      (promotionPrice?.unitDiscountAmount ?? 0) * item.quantity;
     const lineSubtotal = unitPrice * item.quantity;
+    const total = Math.max(0, lineSubtotal - discountAmount);
 
     return {
       productId: product?.id ?? null,
       quantity: item.quantity,
       unitPrice,
-      discountAmount: 0,
-      total: lineSubtotal,
+      discountAmount,
+      total,
       snapshotName: product?.name ?? item.productSlug,
       snapshotSku: product?.sku ?? null,
       snapshotBrand: product?.brand?.name ?? null,
@@ -274,10 +330,18 @@ export async function submitCheckoutAction(
 
   const loyaltyConfig = await getLoyaltyProgramConfig();
   const subtotal = orderItems.reduce((sum, item) => sum + item.lineSubtotal, 0);
+  const linePromotionDiscountTotal = orderItems.reduce(
+    (sum, item) => sum + item.discountAmount,
+    0,
+  );
   const personalDiscountTotal = 0;
+  const subtotalAfterLinePromotions = Math.max(
+    0,
+    subtotal - linePromotionDiscountTotal,
+  );
   const subtotalAfterPersonalDiscount = Math.max(
     0,
-    subtotal - personalDiscountTotal,
+    subtotalAfterLinePromotions - personalDiscountTotal,
   );
 
   if (normalizedPromoCode) {
@@ -294,7 +358,10 @@ export async function submitCheckoutAction(
       };
     }
 
-    if (promotion.minOrderTotal && subtotal < promotion.minOrderTotal) {
+    if (
+      promotion.minOrderTotal &&
+      subtotalAfterLinePromotions < promotion.minOrderTotal
+    ) {
       return {
         message: `Промокод действует для заказов от ${formatPrice(promotion.minOrderTotal)}.`,
       };
@@ -310,12 +377,14 @@ export async function submitCheckoutAction(
     }
   }
 
-  const promotionDiscountTotal = promotion
+  const orderPromotionDiscountTotal = promotion
     ? applyPromotion(subtotalAfterPersonalDiscount, promotion).discountAmount
     : 0;
+  const promotionDiscountTotal =
+    linePromotionDiscountTotal + orderPromotionDiscountTotal;
   const subtotalAfterPromotion = Math.max(
     0,
-    subtotalAfterPersonalDiscount - promotionDiscountTotal,
+    subtotalAfterPersonalDiscount - orderPromotionDiscountTotal,
   );
   const loyaltyRedemptionTotal = user
     ? getRedeemableLoyaltyPoints(
@@ -342,7 +411,7 @@ export async function submitCheckoutAction(
           total: item.lineSubtotal * accrualRatio,
           categoryKind: item.categoryKind,
         })),
-        user.loyaltyTier,
+        user,
         loyaltyConfig,
       )
     : 0;
@@ -357,6 +426,16 @@ export async function submitCheckoutAction(
 
   try {
     createdOrderForSync = await db.$transaction(async (tx) => {
+      await reserveInventoryItems(
+        tx,
+        orderItems.map((item) => ({
+          productId: item.productId,
+          quantity: item.quantity,
+          name: item.snapshotName,
+        })),
+        { requireOnlineAvailability: true },
+      );
+
       if (promotion) {
         if (promotion.usageLimit !== null) {
           const updatedPromotion = await tx.promotion.updateMany({
@@ -397,6 +476,7 @@ export async function submitCheckoutAction(
           appliedPromotionId: promotion?.id ?? null,
           appliedPromoCode: promotion?.promoCode ?? null,
           status: OrderStatus.NEW,
+          inventoryReservedAt: new Date(),
           contactName: parsed.data.name,
           contactPhone: parsed.data.phone,
           contactEmail:
@@ -420,6 +500,7 @@ export async function submitCheckoutAction(
               snapshotName: item.snapshotName,
               snapshotSku: item.snapshotSku,
               snapshotBrand: item.snapshotBrand,
+              snapshotCategoryKind: item.categoryKind,
             })),
           },
         },
@@ -430,34 +511,19 @@ export async function submitCheckoutAction(
       });
 
       if (user && (awardedPoints > 0 || loyaltyRedemptionTotal > 0)) {
-        const balanceAfterRedemption = Math.max(
-          0,
-          user.loyaltyPointsBalance - loyaltyRedemptionTotal,
-        );
+        let balanceAfterRedemption = user.loyaltyPointsBalance;
 
         if (loyaltyRedemptionTotal > 0) {
-          await tx.user.update({
-            where: { id: user.id },
-            data: {
-              loyaltyPointsBalance: balanceAfterRedemption,
-            },
+          const redemption = await applyApprovedLoyaltyDelta(tx, {
+            userId: user.id,
+            orderId: order.id,
+            type: LoyaltyTransactionType.REDEMPTION,
+            points: -loyaltyRedemptionTotal,
+            requireSufficientBalance: true,
+            title: "Списание баллов",
+            description: `Списание бонусов при оформлении заказа ${order.number ?? order.id}.`,
           });
-        }
-
-        if (loyaltyRedemptionTotal > 0) {
-          await tx.loyaltyTransaction.create({
-            data: {
-              userId: user.id,
-              orderId: order.id,
-              type: LoyaltyTransactionType.REDEMPTION,
-              status: LoyaltyTransactionStatus.APPROVED,
-              approvedAt: new Date(),
-              points: -loyaltyRedemptionTotal,
-              balanceAfter: balanceAfterRedemption,
-              title: "Списание баллов",
-              description: `Списание бонусов при оформлении заказа ${order.number ?? order.id}.`,
-            },
-          });
+          balanceAfterRedemption = redemption.balanceAfter;
         }
 
         if (awardedPoints > 0) {
@@ -479,10 +545,20 @@ export async function submitCheckoutAction(
       return order;
     });
   } catch (error) {
+    if (error instanceof InventoryAvailabilityError) {
+      return {
+        message: error.message,
+      };
+    }
+
     if (error instanceof CheckoutActionError) {
       return {
         message: error.message,
       };
+    }
+
+    if (error instanceof InsufficientLoyaltyBalanceError) {
+      return { message: error.message };
     }
 
     return {
@@ -534,6 +610,8 @@ export async function submitCheckoutAction(
 
   revalidatePath("/cart");
   revalidatePath("/checkout");
+  revalidatePath("/");
+  revalidatePath("/catalog");
   revalidatePath("/account");
   revalidatePath("/account/orders");
   revalidatePath("/admin");

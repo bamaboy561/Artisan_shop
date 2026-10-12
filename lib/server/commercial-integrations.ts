@@ -4,10 +4,12 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import {
+  CuttingStage,
   NotificationChannel,
   NotificationStatus,
   Prisma,
 } from "@/generated/prisma";
+import { cuttingStageLabels } from "@/features/cutting/progress";
 import { formatPrice } from "@/lib/commerce";
 import { getDb, hasDatabaseUrl, isDemoModeEnabled } from "@/lib/db";
 import { absoluteUrl } from "@/lib/seo";
@@ -80,6 +82,11 @@ type RequestIntegrationInput = {
   manager?: ManagerSnapshot | null;
   previousStatus?: string | null;
   previousManager?: ManagerSnapshot | null;
+  cuttingStage?: CuttingStage | null;
+  cuttingPickupCell?: string | null;
+  previousCuttingStage?: CuttingStage | null;
+  previousCuttingPickupCell?: string | null;
+  cuttingStageNote?: string | null;
 };
 
 type OrderIntegrationInput = {
@@ -271,10 +278,13 @@ async function persistNotification(params: {
   title: string;
   message: string;
   payload: Record<string, unknown>;
+  status?: NotificationStatus;
 }) {
   if (!hasDatabaseUrl()) {
     return;
   }
+
+  const status = params.status ?? NotificationStatus.SENT;
 
   await getDb().notification.create({
     data: {
@@ -282,8 +292,8 @@ async function persistNotification(params: {
       title: params.title,
       message: params.message,
       payload: params.payload as Prisma.InputJsonValue,
-      status: NotificationStatus.SENT,
-      sentAt: new Date(),
+      status,
+      sentAt: status === NotificationStatus.SENT ? new Date() : null,
     },
   });
 }
@@ -493,6 +503,21 @@ function buildOrderTelegramMessage(
   };
 }
 
+function hasCuttingProgressChanged(input: RequestIntegrationInput) {
+  if (!isCuttingRequest(input)) {
+    return false;
+  }
+
+  const stageChanged =
+    input.previousCuttingStage !== undefined &&
+    input.previousCuttingStage !== input.cuttingStage;
+  const pickupCellChanged =
+    input.previousCuttingPickupCell !== undefined &&
+    input.previousCuttingPickupCell !== input.cuttingPickupCell;
+
+  return stageChanged || pickupCellChanged;
+}
+
 function buildRequestStatusTelegramMessage(
   input: RequestIntegrationInput,
 ): TelegramMessagePayload | null {
@@ -510,19 +535,25 @@ function buildRequestStatusTelegramMessage(
     !areManagersEqual(input.previousManager, input.manager);
   const managerRemoved =
     hasManager(input.previousManager) && !hasManager(input.manager);
+  const cuttingProgressChanged = hasCuttingProgressChanged(input);
 
   if (
     (input.previousStatus !== undefined ||
-      input.previousManager !== undefined) &&
+      input.previousManager !== undefined ||
+      input.previousCuttingStage !== undefined ||
+      input.previousCuttingPickupCell !== undefined) &&
     !statusChanged &&
-    !managerChanged
+    !managerChanged &&
+    !cuttingProgressChanged
   ) {
     return null;
   }
 
   let title = `Artisan · заявка ${input.number ?? input.id} обновлена`;
 
-  if (managerAssigned) {
+  if (cuttingProgressChanged && input.cuttingStage) {
+    title = `Artisan · распил ${input.number ?? input.id}: ${cuttingStageLabels[input.cuttingStage]}`;
+  } else if (managerAssigned) {
     title = `Artisan · заявка ${input.number ?? input.id} назначена менеджеру`;
   } else if (managerReassigned) {
     title = `Artisan · заявка ${input.number ?? input.id} передана менеджеру`;
@@ -549,6 +580,17 @@ function buildRequestStatusTelegramMessage(
     ],
     lines: [
       `Статус: ${requestStatusLabels[input.status] ?? input.status}`,
+      input.cuttingStage
+        ? `Этап распила: ${cuttingStageLabels[input.cuttingStage]}`
+        : "",
+      input.cuttingStage === CuttingStage.READY_FOR_PICKUP
+        ? input.cuttingPickupCell
+          ? `Ячейка выдачи: № ${input.cuttingPickupCell}`
+          : "Ячейка выдачи пока не указана"
+        : "",
+      cuttingProgressChanged && input.cuttingStageNote
+        ? `Комментарий: ${input.cuttingStageNote}`
+        : "",
       `Клиент: ${input.contactName}`,
       `Телефон: ${input.contactPhone}`,
       buildMessengerLine(input),
@@ -628,6 +670,11 @@ function buildOrderStatusTelegramMessage(
 
 async function sendTelegramMessage(payload: TelegramMessagePayload) {
   if (!isTelegramEnabled()) {
+    console.warn("[telegram:manager:skipped]", {
+      reason: "env-not-configured",
+      missingEnv: getTelegramMissingEnv(),
+      threadKey: payload.threadKey ?? "default",
+    });
     await appendIntegrationLog({
       id: `telegram-skip-${Date.now()}`,
       channel: "telegram",
@@ -638,18 +685,29 @@ async function sendTelegramMessage(payload: TelegramMessagePayload) {
       createdAt: new Date().toISOString(),
       error: "Telegram env vars are not configured.",
     });
-    return;
+    throw new Error(
+      `Telegram is not configured: ${getTelegramMissingEnv().join(", ")}.`,
+    );
   }
 
   const text = [`${payload.title}`, ...payload.lines].join("\n");
   const threadId = getTypedTelegramThreadId(payload.threadKey);
 
-  const response = await fetch(
-    `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`,
-    {
+  console.info("[telegram:manager:send]", {
+    threadKey: payload.threadKey ?? "default",
+    hasThreadId: Boolean(threadId),
+    title: payload.title,
+  });
+
+  const url = `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`;
+  let response: Response | null = null;
+  let responseText = "";
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    response = await fetch(url, {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
+        "Content-Type": "application/json; charset=utf-8",
       },
       body: JSON.stringify({
         chat_id: process.env.TELEGRAM_CHAT_ID,
@@ -666,13 +724,45 @@ async function sendTelegramMessage(payload: TelegramMessagePayload) {
           : {}),
         ...(threadId ? { message_thread_id: threadId } : {}),
       }),
-    },
-  );
+      signal: AbortSignal.timeout(12_000),
+    });
 
-  if (!response.ok) {
-    const responseText = await response.text();
-    throw new Error(`Telegram API error: ${response.status} ${responseText}`);
+    if (response.ok) {
+      break;
+    }
+
+    responseText = await response.text();
+    const canRetry =
+      attempt === 0 &&
+      (response.status === 429 ||
+        response.status === 500 ||
+        response.status === 502 ||
+        response.status === 503 ||
+        response.status === 504);
+
+    if (!canRetry) {
+      break;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 1000));
   }
+
+  if (!response?.ok) {
+    console.error("[telegram:manager:failed]", {
+      status: response?.status,
+      threadKey: payload.threadKey ?? "default",
+      responseText,
+    });
+    throw new Error(
+      `Telegram API error: ${response?.status ?? "no-response"} ${responseText}`,
+    );
+  }
+
+  console.info("[telegram:manager:sent]", {
+    threadKey: payload.threadKey ?? "default",
+    hasThreadId: Boolean(threadId),
+    title: payload.title,
+  });
 
   await persistNotification({
     channel: NotificationChannel.TELEGRAM,
@@ -711,6 +801,34 @@ function buildClientRequestCreatedMessage(input: RequestIntegrationInput) {
     actions: [
       {
         text: "Открыть заявки",
+        url: absoluteUrl("/account/requests"),
+      },
+    ],
+  };
+}
+
+function buildClientCuttingProgressMessage(input: RequestIntegrationInput) {
+  const stageLabel = input.cuttingStage
+    ? cuttingStageLabels[input.cuttingStage]
+    : "Этап уточняется";
+
+  return {
+    title: `Распил ${input.number ?? input.id}: ${stageLabel}`,
+    lines: [
+      `Текущий этап: ${stageLabel}`,
+      input.cuttingStage === CuttingStage.READY_FOR_PICKUP
+        ? input.cuttingPickupCell
+          ? `Ячейка выдачи: № ${input.cuttingPickupCell}`
+          : "Ячейку выдачи сообщит менеджер"
+        : "",
+      input.cuttingStageNote
+        ? `Комментарий: ${input.cuttingStageNote}`
+        : "",
+      "Все этапы и история доступны в личном кабинете.",
+    ].filter(Boolean),
+    actions: [
+      {
+        text: "Открыть трекинг распила",
         url: absoluteUrl("/account/requests"),
       },
     ],
@@ -894,15 +1012,32 @@ async function safelyRunIntegration(
     await runner();
   } catch (error) {
     console.error(`[integrations:${channel}]`, error);
+    const errorMessage =
+      error instanceof Error
+        ? error.message
+        : `Unknown ${channel} integration error`;
+
+    if (channel === "telegram") {
+      await persistNotification({
+        channel: NotificationChannel.TELEGRAM,
+        title,
+        message: errorMessage,
+        payload,
+        status: NotificationStatus.FAILED,
+      }).catch((notificationError) =>
+        console.error(
+          "[integrations:telegram:persist-failed]",
+          notificationError,
+        ),
+      );
+    }
+
     await appendIntegrationLog({
       id: `${channel}-fail-${Date.now()}`,
       channel,
       status: "failed",
       title,
-      message:
-        error instanceof Error
-          ? error.message
-          : `Unknown ${channel} integration error`,
+      message: errorMessage,
       payload,
       createdAt: new Date().toISOString(),
       error: error instanceof Error ? error.stack : String(error),
@@ -925,6 +1060,9 @@ function buildRequestPayload(input: RequestIntegrationInput) {
     material: input.material ?? null,
     edgeOption: input.edgeOption ?? null,
     estimatedBudget: input.estimatedBudget ?? null,
+    cuttingStage: input.cuttingStage ?? null,
+    cuttingPickupCell: input.cuttingPickupCell ?? null,
+    cuttingStageNote: input.cuttingStageNote ?? null,
     deliveryNeeded: input.deliveryNeeded ?? false,
     message: input.message ?? null,
     product: input.product ?? null,
@@ -999,7 +1137,9 @@ export async function handleRequestUpdated(input: RequestIntegrationInput) {
   const requestPayload = buildRequestPayload(input);
   const telegramPayload = buildRequestStatusTelegramMessage(input);
   const clientPayload = telegramPayload
-    ? buildClientRequestStatusMessage(input)
+    ? hasCuttingProgressChanged(input)
+      ? buildClientCuttingProgressMessage(input)
+      : buildClientRequestStatusMessage(input)
     : null;
 
   await Promise.all([

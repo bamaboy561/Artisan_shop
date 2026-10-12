@@ -3,9 +3,11 @@ import type { Metadata } from "next";
 import { CheckoutForm } from "@/app/(public)/checkout/checkout-form";
 import { getOptionalSession } from "@/lib/auth/dal";
 import { getDb, hasDatabaseUrl } from "@/lib/db";
+import { getPublicProducts } from "@/lib/server/catalog-public";
 import {
   getLoyaltyTierBenefits,
   getLoyaltyTierLabel,
+  getLoyaltyTierForCategory,
 } from "@/lib/server/pricing";
 import { getLoyaltyProgramConfig } from "@/lib/server/loyalty-settings";
 import { noIndexRobots } from "@/lib/seo";
@@ -25,6 +27,7 @@ export default async function CheckoutPage() {
         databaseReady={false}
         customer={null}
         deliveryMethods={[]}
+        products={[]}
       />
     );
   }
@@ -32,38 +35,43 @@ export default async function CheckoutPage() {
   const db = getDb();
   const session = await getOptionalSession();
 
-  const [deliveryMethods, customer, loyaltyConfig] = await Promise.all([
-    db.deliveryMethod.findMany({
-      where: { isActive: true },
-      orderBy: [{ price: "asc" }, { createdAt: "asc" }],
-      select: {
-        id: true,
-        name: true,
-        price: true,
-      },
-    }),
-    session?.userId
-      ? db.user.findUnique({
-          where: { id: session.userId },
-          select: {
-            email: true,
-            firstName: true,
-            lastName: true,
-            phone: true,
-            companyName: true,
-            loyaltyTier: true,
-            loyaltyPointsBalance: true,
-            personalDiscountPercent: true,
-          },
-        })
-      : Promise.resolve(null),
-    getLoyaltyProgramConfig(),
-  ]);
+  const [deliveryMethods, customer, loyaltyConfig, products] =
+    await Promise.all([
+      db.deliveryMethod.findMany({
+        where: { isActive: true },
+        orderBy: [{ price: "asc" }, { createdAt: "asc" }],
+        select: {
+          id: true,
+          name: true,
+          price: true,
+        },
+      }),
+      session?.userId
+        ? db.user.findUnique({
+            where: { id: session.userId },
+            select: {
+              email: true,
+              firstName: true,
+              lastName: true,
+              phone: true,
+              companyName: true,
+              loyaltyTier: true,
+              plateMaterialLoyaltyTier: true,
+              fittingsLoyaltyTier: true,
+              loyaltyPointsBalance: true,
+              personalDiscountPercent: true,
+            },
+          })
+        : Promise.resolve(null),
+      getLoyaltyProgramConfig(),
+      getPublicProducts(),
+    ]);
 
   return (
     <CheckoutForm
       databaseReady
       deliveryMethods={deliveryMethods}
+      products={products}
       customer={
         customer
           ? {
@@ -81,11 +89,11 @@ export default async function CheckoutPage() {
               pointsBalance: customer.loyaltyPointsBalance,
               maxRedeemPercent: loyaltyConfig.maxRedeemPercent,
               plateMaterialAccrualPercent: getLoyaltyTierBenefits(
-                customer.loyaltyTier,
+                getLoyaltyTierForCategory("PLATE", customer),
                 loyaltyConfig,
               ).plateMaterialAccrualPercent,
               fittingsAccrualPercent: getLoyaltyTierBenefits(
-                customer.loyaltyTier,
+                getLoyaltyTierForCategory("FITTINGS", customer),
                 loyaltyConfig,
               ).fittingsAccrualPercent,
             }

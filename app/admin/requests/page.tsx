@@ -8,6 +8,7 @@ import {
 } from "@/app/admin/actions";
 import { AdminSubmitButton } from "@/components/admin/admin-submit-button";
 import { BulkSelectionTools } from "@/components/admin/bulk-selection-tools";
+import { DeleteRequestButton } from "@/components/admin/delete-request-button";
 import { MetricCard } from "@/components/admin/metric-card";
 import { SetupState } from "@/components/admin/setup-state";
 import { StatusBadge } from "@/components/admin/status-badge";
@@ -16,6 +17,7 @@ import { DataTable } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { requireAdminSession } from "@/lib/auth/dal";
+import { canDeleteRequests } from "@/lib/auth/roles";
 import { hasDatabaseUrl, isDemoModeEnabled } from "@/lib/db";
 import { getAdminManagers } from "@/lib/server/operations-admin";
 import { getRequestInbox } from "@/lib/server/request-inbox";
@@ -114,7 +116,11 @@ export default async function AdminRequestsPage({
     );
   }
 
-  await requireAdminSession("/login?next=/admin/requests");
+  const session = await requireAdminSession(
+    "/login?next=/admin/requests",
+    "/admin/requests",
+  );
+  const canDeleteRequest = canDeleteRequests(session.roleCode);
 
   const [requests, managers, resolvedSearchParams] = await Promise.all([
     getRequestInbox(),
@@ -279,39 +285,48 @@ export default async function AdminRequestsPage({
       </div>
     ),
     manage: (
-      <form action={updateRequestAction} className="grid gap-2">
-        <input type="hidden" name="id" value={request.id} />
-        <Select
-          name="status"
-          defaultValue={request.status}
-          className="h-9 text-xs"
-        >
-          {Object.values(RequestStatus).map((status) => (
-            <option key={status} value={status}>
-              {requestStatusLabels[status]}
-            </option>
-          ))}
-        </Select>
-        <Select
-          name="managerId"
-          defaultValue={request.managerId ?? ""}
-          className="h-9 text-xs"
-        >
-          <option value="">Без менеджера</option>
-          {managers.map((manager) => (
-            <option key={manager.id} value={manager.id}>
-              {getManagerDisplayName(manager)}
-            </option>
-          ))}
-        </Select>
-        <AdminSubmitButton
-          type="submit"
-          variant="secondary"
-          size="sm"
-          idleLabel="Сохранить"
-          pendingLabel="Сохраняем..."
-        />
-      </form>
+      <div className="grid gap-2">
+        <form action={updateRequestAction} className="grid gap-2">
+          <input type="hidden" name="id" value={request.id} />
+          <Select
+            name="status"
+            defaultValue={request.status}
+            className="h-9 text-xs"
+          >
+            {Object.values(RequestStatus).map((status) => (
+              <option key={status} value={status}>
+                {requestStatusLabels[status]}
+              </option>
+            ))}
+          </Select>
+          <Select
+            name="managerId"
+            defaultValue={request.managerId ?? ""}
+            className="h-9 text-xs"
+          >
+            <option value="">Без менеджера</option>
+            {managers.map((manager) => (
+              <option key={manager.id} value={manager.id}>
+                {getManagerDisplayName(manager)}
+              </option>
+            ))}
+          </Select>
+          <AdminSubmitButton
+            type="submit"
+            variant="secondary"
+            size="sm"
+            idleLabel="Сохранить"
+            pendingLabel="Сохраняем..."
+          />
+        </form>
+        {canDeleteRequest ? (
+          <DeleteRequestButton
+            requestId={request.id}
+            requestNumber={request.number ?? request.id.slice(0, 8)}
+            returnTo="/admin/requests"
+          />
+        ) : null}
+      </div>
     ),
   }));
 

@@ -5,6 +5,11 @@ import { OrderStatus } from "@/generated/prisma";
 import type { AdminOrderItem } from "@/features/admin/operations-filters";
 import { getDemoAdminSession } from "@/lib/auth/demo-access";
 import { getDb, hasDatabaseUrl, isDemoModeEnabled } from "@/lib/db";
+import { syncOrderInventoryReservation } from "@/lib/server/inventory-reservations";
+import {
+  cancelOrderLoyaltyTransactions,
+  type OrderLoyaltyCancellationResult,
+} from "@/lib/server/order-loyalty-cancellation";
 import type { RequestDetailItem } from "@/lib/server/request-inbox";
 
 type DemoOrderLine = {
@@ -431,6 +436,7 @@ export async function createOrderFromRequest(request: RequestDetailItem) {
               snapshotName: orderLine.name,
               snapshotSku: orderLine.sku ?? null,
               snapshotBrand: orderLine.brand ?? null,
+              snapshotCategoryKind: null,
             },
           ],
         },
@@ -478,6 +484,7 @@ export async function updateOrderInboxItem(input: {
   id: string;
   status: OrderStatus;
   managerId?: string | null;
+  actorId?: string | null;
 }) {
   const timestampFields =
     input.status === OrderStatus.READY_FOR_PICKUP
@@ -487,16 +494,57 @@ export async function updateOrderInboxItem(input: {
         : {};
 
   if (hasDatabaseUrl()) {
-    await getDb().order.update({
-      where: { id: input.id },
-      data: {
-        status: input.status,
-        managerId: input.managerId ?? null,
-        ...timestampFields,
-      },
-    });
+    return getDb().$transaction(async (tx) => {
+      const lockedOrder = await tx.order.updateMany({
+        where: { id: input.id },
+        data: { updatedAt: new Date() },
+      });
 
-    return;
+      if (lockedOrder.count === 0) {
+        return null;
+      }
+
+      const currentOrder = await tx.order.findUnique({
+        where: { id: input.id },
+        select: { status: true },
+      });
+
+      if (!currentOrder) {
+        return null;
+      }
+
+      let loyaltyCancellation: OrderLoyaltyCancellationResult | null = null;
+
+      if (
+        currentOrder.status !== OrderStatus.CANCELED &&
+        input.status === OrderStatus.CANCELED
+      ) {
+        await syncOrderInventoryReservation(tx, input.id, false);
+        loyaltyCancellation = await cancelOrderLoyaltyTransactions(
+          tx,
+          input.id,
+          input.actorId ?? null,
+        );
+      } else if (
+        currentOrder.status === OrderStatus.CANCELED &&
+        input.status !== OrderStatus.CANCELED
+      ) {
+        await syncOrderInventoryReservation(tx, input.id, true);
+      }
+
+      await tx.order.update({
+        where: { id: input.id },
+        data: {
+          status: input.status,
+          ...(input.managerId !== undefined
+            ? { managerId: input.managerId }
+            : {}),
+          ...timestampFields,
+        },
+      });
+
+      return { loyaltyCancellation };
+    });
   }
 
   if (!isDemoModeEnabled()) {
@@ -504,27 +552,33 @@ export async function updateOrderInboxItem(input: {
   }
 
   const orders = await readDemoOrders();
-  const updated = orders.map((order) =>
-    order.id === input.id
-      ? {
-          ...order,
-          status: input.status,
-          readyAt:
-            input.status === OrderStatus.READY_FOR_PICKUP
-              ? new Date().toISOString()
-              : order.readyAt,
-          completedAt:
-            input.status === OrderStatus.COMPLETED
-              ? new Date().toISOString()
-              : order.completedAt,
-          managerId: input.managerId ?? null,
-          manager: resolveDemoManager(input.managerId ?? null),
-          updatedAt: new Date().toISOString(),
-        }
-      : order,
-  );
+  const updated = orders.map((order) => {
+    if (order.id !== input.id) {
+      return order;
+    }
+
+    const managerId =
+      input.managerId !== undefined ? input.managerId : order.managerId;
+
+    return {
+      ...order,
+      status: input.status,
+      readyAt:
+        input.status === OrderStatus.READY_FOR_PICKUP
+          ? new Date().toISOString()
+          : order.readyAt,
+      completedAt:
+        input.status === OrderStatus.COMPLETED
+          ? new Date().toISOString()
+          : order.completedAt,
+      managerId,
+      manager: resolveDemoManager(managerId),
+      updatedAt: new Date().toISOString(),
+    };
+  });
 
   await writeDemoOrders(updated);
+  return null;
 }
 
 export async function bulkUpdateOrderInboxItems(input: {
@@ -532,6 +586,7 @@ export async function bulkUpdateOrderInboxItems(input: {
   status?: OrderStatus;
   managerId?: string | null;
   clearManager?: boolean;
+  actorId?: string | null;
 }) {
   if (input.orderIds.length === 0) {
     return;
@@ -545,20 +600,60 @@ export async function bulkUpdateOrderInboxItems(input: {
           ? { completedAt: new Date() }
           : {};
 
-    await getDb().order.updateMany({
-      where: { id: { in: input.orderIds } },
-      data: {
-        ...(input.status ? { status: input.status } : {}),
-        ...timestampFields,
-        ...(input.clearManager
-          ? { managerId: null }
-          : input.managerId
-            ? { managerId: input.managerId }
-            : {}),
-      },
-    });
+    return getDb().$transaction(async (tx) => {
+      const loyaltyCancellations = new Map<
+        string,
+        OrderLoyaltyCancellationResult
+      >();
+      await tx.order.updateMany({
+        where: { id: { in: input.orderIds } },
+        data: { updatedAt: new Date() },
+      });
 
-    return;
+      if (input.status) {
+        const currentOrders = await tx.order.findMany({
+          where: { id: { in: input.orderIds } },
+          select: { id: true, status: true },
+        });
+
+        for (const order of currentOrders) {
+          if (
+            order.status !== OrderStatus.CANCELED &&
+            input.status === OrderStatus.CANCELED
+          ) {
+            await syncOrderInventoryReservation(tx, order.id, false);
+            const loyaltyCancellation = await cancelOrderLoyaltyTransactions(
+              tx,
+              order.id,
+              input.actorId ?? null,
+            );
+            if (loyaltyCancellation) {
+              loyaltyCancellations.set(order.id, loyaltyCancellation);
+            }
+          } else if (
+            order.status === OrderStatus.CANCELED &&
+            input.status !== OrderStatus.CANCELED
+          ) {
+            await syncOrderInventoryReservation(tx, order.id, true);
+          }
+        }
+      }
+
+      await tx.order.updateMany({
+        where: { id: { in: input.orderIds } },
+        data: {
+          ...(input.status ? { status: input.status } : {}),
+          ...timestampFields,
+          ...(input.clearManager
+            ? { managerId: null }
+            : input.managerId
+              ? { managerId: input.managerId }
+              : {}),
+        },
+      });
+
+      return loyaltyCancellations;
+    });
   }
 
   if (!isDemoModeEnabled()) {
@@ -597,4 +692,5 @@ export async function bulkUpdateOrderInboxItems(input: {
   });
 
   await writeDemoOrders(updated);
+  return new Map<string, OrderLoyaltyCancellationResult>();
 }
