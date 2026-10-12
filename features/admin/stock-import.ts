@@ -273,8 +273,22 @@ export function buildStockImportPlan(
         : mode === "price"
           ? (["price", "compareAtPrice"] as const)
           : (["price", "compareAtPrice", "stockQuantity"] as const);
+    // Кромка и плинтус учитываются в 1С в метрах с дробной частью, а сайт
+    // хранит целый остаток: дробное количество округляем вниз.
+    const fractionalStock =
+      row.stockQuantity !== null &&
+      row.stockQuantity >= 0 &&
+      row.stockQuantity <= 2147483647 &&
+      !Number.isInteger(row.stockQuantity);
+    const stockQuantity =
+      row.stockQuantity !== null && fractionalStock
+        ? Math.floor(row.stockQuantity)
+        : row.stockQuantity;
     const errors = fields.flatMap((field) =>
-      row.stockImportErrors[field] ? [row.stockImportErrors[field]] : [],
+      row.stockImportErrors[field] &&
+      !(field === "stockQuantity" && fractionalStock)
+        ? [row.stockImportErrors[field]]
+        : [],
     );
     if (row.inventoryReport && mode === "price") {
       entry.reason =
@@ -287,14 +301,15 @@ export function buildStockImportPlan(
     }
     const proposed: Partial<StockValues> = {};
     for (const field of fields) {
-      if (row[field] !== null) proposed[field] = row[field];
+      const value = field === "stockQuantity" ? stockQuantity : row[field];
+      if (value !== null) proposed[field] = value;
     }
     if (mode !== "price") {
-      if (row.stockQuantity !== null) {
+      if (stockQuantity !== null) {
         proposed.inventoryStatus =
-          row.stockQuantity <= 0
+          stockQuantity <= 0
             ? InventoryStatus.OUT_OF_STOCK
-            : row.stockQuantity <= 5
+            : stockQuantity <= 5
               ? InventoryStatus.LIMITED
               : InventoryStatus.IN_STOCK;
       } else if (row.inventoryStatus) {
@@ -312,9 +327,16 @@ export function buildStockImportPlan(
       ),
     );
     entry.status = Object.keys(entry.changes).length ? "ready" : "unchanged";
-    entry.reason = row.sku
-      ? ""
-      : "Совпадение по уникальному названию (артикул в файле отсутствует)";
+    entry.reason = [
+      row.sku
+        ? ""
+        : "Совпадение по уникальному названию (артикул в файле отсутствует)",
+      fractionalStock && (fields as readonly string[]).includes("stockQuantity")
+        ? `Остаток округлён вниз: ${String(row.stockQuantity).replace(".", ",")} → ${stockQuantity}`
+        : "",
+    ]
+      .filter(Boolean)
+      .join(". ");
     return entry;
   });
   // Never silently choose the last warehouse/sheet row for the same product.

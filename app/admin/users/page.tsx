@@ -3,6 +3,9 @@ import Image from "next/image";
 import { Search, X } from "lucide-react";
 
 import { LoyaltyTier } from "@/generated/prisma";
+import { DownloadCsvButton } from "@/components/admin/download-csv-button";
+import { Pagination } from "@/components/ui/pagination";
+import { paginateItems, withPageParam } from "@/features/admin/paging";
 import { MetricCard } from "@/components/admin/metric-card";
 import { SetupState } from "@/components/admin/setup-state";
 import { StatusBadge } from "@/components/admin/status-badge";
@@ -30,6 +33,7 @@ import {
 } from "@/lib/server/pricing";
 import { getLoyaltyProgramConfig } from "@/lib/server/loyalty-settings";
 import { createClientQrPayload } from "@/lib/server/client-qr";
+import { canManageLoyalty } from "@/lib/server/loyalty-permissions";
 import { getAdminUsers } from "@/lib/server/users-admin";
 
 export const dynamic = "force-dynamic";
@@ -85,7 +89,11 @@ export default async function AdminUsersPage({
     );
   }
 
-  await requireAdminSession("/login?next=/admin/users", "/admin/users");
+  const session = await requireAdminSession(
+    "/login?next=/admin/users",
+    "/admin/users",
+  );
+  const mayManageLoyalty = await canManageLoyalty(session);
 
   const resolvedSearchParams = (await searchParams) ?? {};
   const userSearchQuery = getSearchValue(resolvedSearchParams, "q");
@@ -107,7 +115,40 @@ export default async function AdminUsersPage({
     0,
   );
 
-  const rows = users.map((user) => {
+  const csvCell = (value: string | number) =>
+    `"${String(value).replaceAll('"', '""')}"`;
+  const usersCsv = [
+    [
+      "Клиент",
+      "Компания",
+      "Телефон",
+      "Email",
+      "Уровень",
+      "Баланс баллов",
+      "Накоплено баллов",
+      "Заказов",
+      "Заявок",
+      "Telegram",
+    ],
+    ...users.map((user) => [
+      [user.firstName, user.lastName].filter(Boolean).join(" "),
+      user.companyName ?? "",
+      user.phone ?? "",
+      user.email,
+      getLoyaltyTierLabel(user.loyaltyTier, loyaltyConfig),
+      user.loyaltyPointsBalance,
+      user.loyaltyPointsLifetime,
+      user._count.orders,
+      user._count.requests,
+      user.telegramChatId ? "привязан" : "",
+    ]),
+  ]
+    .map((row) => row.map(csvCell).join(";"))
+    .join("\n");
+
+  const usersPage = paginateItems(users, resolvedSearchParams.page, 30);
+
+  const rows = usersPage.items.map((user) => {
     const clientName =
       [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email;
     const clientQrUrl = `/api/qr?size=96&margin=2&data=${encodeURIComponent(
@@ -377,6 +418,14 @@ export default async function AdminUsersPage({
         />
       </section>
 
+      {!mayManageLoyalty ? (
+        <section className="rounded-[18px] border border-orange-200 bg-orange-50 p-4 text-sm leading-6 text-orange-800">
+          Менять правила бонусов, уровни, баллы и личные скидки, а также удалять
+          клиентов может администратор или менеджер, которому он выдал это право
+          в разделе «Сотрудники». Ваши изменения в этих полях не сохранятся.
+        </section>
+      ) : null}
+
       {telegramNotice ? (
         <section className="overflow-hidden rounded-[24px] border border-[#68a994]/40 bg-[#f4fffb] p-5 shadow-[0_16px_48px_rgba(74,137,118,0.12)]">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -502,7 +551,7 @@ export default async function AdminUsersPage({
             </p>
             <p className="mt-1 text-sm leading-6 text-[var(--muted)]">
               Порог статуса считается отдельно по закупкам плит и фурнитуры за
-              месяц.
+              всё время.
             </p>
           </div>
 
@@ -581,6 +630,13 @@ export default async function AdminUsersPage({
         </form>
       </section>
 
+      <div className="flex justify-end">
+        <DownloadCsvButton
+          csvContent={usersCsv}
+          fileName={`artisan-clients-${new Date().toISOString().slice(0, 10)}.csv`}
+        />
+      </div>
+
       <DataTable
         columns={[
           { key: "client", label: "Клиент" },
@@ -597,6 +653,20 @@ export default async function AdminUsersPage({
             : "После появления клиентов в базе здесь можно будет настраивать уровни и баллы."
         }
       />
+      {usersPage.totalPages > 1 ? (
+        <Pagination
+          currentPage={usersPage.currentPage}
+          totalPages={usersPage.totalPages}
+          getHref={(page) =>
+            withPageParam(
+              userSearchQuery
+                ? `/admin/users?q=${encodeURIComponent(userSearchQuery)}`
+                : "/admin/users",
+              page,
+            )
+          }
+        />
+      ) : null}
     </div>
   );
 }

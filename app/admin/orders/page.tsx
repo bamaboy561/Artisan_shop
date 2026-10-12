@@ -8,6 +8,10 @@ import { BulkSelectionTools } from "@/components/admin/bulk-selection-tools";
 import { DeleteOrderButton } from "@/components/admin/delete-order-button";
 import { MetricCard } from "@/components/admin/metric-card";
 import { SetupState } from "@/components/admin/setup-state";
+import { DownloadCsvButton } from "@/components/admin/download-csv-button";
+import { Pagination } from "@/components/ui/pagination";
+import { WhatsappClientLink } from "@/components/admin/whatsapp-client-link";
+import { buildOrderWhatsappText } from "@/features/admin/whatsapp";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { Select } from "@/components/ui/select";
 import { DataTable } from "@/components/ui/table";
@@ -25,6 +29,7 @@ import {
   adminOrderSortOptions,
   buildAdminOrdersHref,
   filterAdminOrders,
+  isOrderOverdue,
   getManagerDisplayName,
   orderStatusLabels,
   parseAdminOrderSearchParams,
@@ -133,6 +138,39 @@ export default async function AdminOrdersPage({
     filterAdminOrders(orders, state),
     state.sort,
   );
+  const overdueCount = orders.filter((order) => isOrderOverdue(order)).length;
+  const csvCell = (value: string | number) =>
+    `"${String(value).replaceAll('"', '""')}"`;
+  const ordersCsv = [
+    [
+      "Номер",
+      "Дата",
+      "Статус",
+      "Клиент",
+      "Телефон",
+      "Компания",
+      "Менеджер",
+      "Позиций",
+      "Сумма, сом",
+      "Срок готовности",
+      "Просрочен",
+    ],
+    ...filteredOrders.map((order) => [
+      order.number ?? "",
+      formatDate(order.createdAt),
+      orderStatusLabels[order.status],
+      order.contactName,
+      order.contactPhone,
+      order.companyName ?? "",
+      order.manager ? getManagerDisplayName(order.manager) : "",
+      order._count.items,
+      order.total,
+      order.productionDueAt ? formatDate(new Date(order.productionDueAt)) : "",
+      isOrderOverdue(order) ? "да" : "",
+    ]),
+  ]
+    .map((row) => row.map(csvCell).join(";"))
+    .join("\n");
 
   const activeOrders = orders.filter((order) =>
     activeOrderStatuses.has(order.status),
@@ -192,7 +230,33 @@ export default async function AdminOrdersPage({
       : null,
   ].filter(Boolean) as Array<{ key: string; label: string; href: string }>;
 
-  const rows = filteredOrders.map((order) => ({
+  const pageSize = 30;
+  const totalPages = Math.max(1, Math.ceil(filteredOrders.length / pageSize));
+  const requestedPage = Number.parseInt(
+    String(
+      Array.isArray(resolvedSearchParams.page)
+        ? resolvedSearchParams.page[0]
+        : (resolvedSearchParams.page ?? "1"),
+    ),
+    10,
+  );
+  const currentPage =
+    Number.isFinite(requestedPage) && requestedPage >= 1
+      ? Math.min(requestedPage, totalPages)
+      : 1;
+  const pageOrders = filteredOrders.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize,
+  );
+  const getPageHref = (page: number) => {
+    const href = getStateHref(state, {});
+
+    return page > 1
+      ? `${href}${href.includes("?") ? "&" : "?"}page=${page}`
+      : href;
+  };
+
+  const rows = pageOrders.map((order) => ({
     select: (
       <input
         type="checkbox"
@@ -235,6 +299,17 @@ export default async function AdminOrdersPage({
       <div className="space-y-1">
         <p>{order.contactName}</p>
         <p className="text-xs text-[var(--muted)]">{order.contactPhone}</p>
+        <WhatsappClientLink
+          className="text-xs"
+          label="WhatsApp"
+          phone={order.contactPhone}
+          text={buildOrderWhatsappText({
+            number: order.number,
+            contactName: order.contactName,
+            statusLabel: orderStatusLabels[order.status],
+            isReady: order.status === OrderStatus.READY_FOR_PICKUP,
+          })}
+        />
         <p className="text-xs text-[var(--muted)]">
           {order.companyName ?? order.user?.companyName ?? "Частный клиент"}
         </p>
@@ -273,9 +348,17 @@ export default async function AdminOrdersPage({
               ? getManagerDisplayName(order.manager)
               : "Без менеджера"}
           </StatusBadge>
+          {isOrderOverdue(order) ? (
+            <StatusBadge className="border-red-200 bg-red-50 text-red-700">
+              Просрочен
+            </StatusBadge>
+          ) : null}
         </div>
         <p className="text-xs text-[var(--muted)]">
           Обновлен {formatDate(order.updatedAt)}
+          {order.productionDueAt
+            ? ` · срок ${formatDate(new Date(order.productionDueAt))}`
+            : ""}
         </p>
       </div>
     ),
@@ -452,6 +535,14 @@ export default async function AdminOrdersPage({
           </label>
 
           <label className="grid gap-2">
+            <span className="text-sm text-[var(--foreground)]">Срок</span>
+            <Select name="due" defaultValue={state.due}>
+              <option value="all">Любой</option>
+              <option value="overdue">Просроченные ({overdueCount})</option>
+            </Select>
+          </label>
+
+          <label className="grid gap-2">
             <span className="text-sm text-[var(--foreground)]">Сортировка</span>
             <Select name="sort" defaultValue={state.sort}>
               {adminOrderSortOptions.map((option) => (
@@ -475,8 +566,13 @@ export default async function AdminOrdersPage({
             >
               Сбросить всё
             </Link>
+            <DownloadCsvButton
+              csvContent={ordersCsv}
+              fileName={`artisan-orders-${new Date().toISOString().slice(0, 10)}.csv`}
+            />
             <span className="text-sm text-[var(--muted)]">
               Найдено {filteredOrders.length} из {orders.length} заказов
+              {overdueCount > 0 ? ` · просрочено ${overdueCount}` : ""}
             </span>
           </div>
         </Form>
@@ -560,6 +656,14 @@ export default async function AdminOrdersPage({
           caption="Таблица заказов"
           emptyMessage="По текущим фильтрам ничего не найдено. Измените срез или сбросьте параметры."
         />
+        {totalPages > 1 ? (
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            getHref={getPageHref}
+            className="mt-4"
+          />
+        ) : null}
       </section>
     </div>
   );

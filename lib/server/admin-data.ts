@@ -95,6 +95,11 @@ type ReportOrder = {
   deliveryTotal: number;
   total: number;
   createdAt: Date;
+  manager?: {
+    firstName: string | null;
+    lastName: string | null;
+    email: string;
+  } | null;
   items: ReportOrderItem[];
 };
 
@@ -558,6 +563,31 @@ function buildReportFromRecords({
     }))
     .sort((left, right) => right.revenue - left.revenue);
   const topProducts = soldProducts.slice(0, 6);
+  const managerMap = new Map<string, { orders: number; revenue: number }>();
+
+  for (const order of paidOrders) {
+    const name = order.manager
+      ? [order.manager.firstName, order.manager.lastName]
+          .filter(Boolean)
+          .join(" ") || order.manager.email
+      : "Без менеджера";
+    const entry = managerMap.get(name) ?? { orders: 0, revenue: 0 };
+
+    entry.orders += 1;
+    entry.revenue += order.total;
+    managerMap.set(name, entry);
+  }
+
+  const revenueByManager = [...managerMap.entries()]
+    .map(([name, value]) => ({
+      name,
+      orders: value.orders,
+      revenue: value.revenue,
+      averageOrder: Math.round(value.revenue / value.orders),
+      share: revenue > 0 ? Math.round((value.revenue / revenue) * 100) : 0,
+    }))
+    .sort((left, right) => right.revenue - left.revenue);
+
   // Выручка по дням периода; длинные произвольные диапазоны на график не выводим.
   const dailyMap = new Map<string, { revenue: number; orders: number }>();
 
@@ -718,8 +748,13 @@ function buildReportFromRecords({
       ),
     },
     cuttingReport: {
-      totalAmount: workloadCuttingRequests.reduce((sum, request) => sum + (request.quotedTotal ?? 0), 0),
-      amountSpecified: workloadCuttingRequests.filter((request) => request.quotedTotal !== null).length,
+      totalAmount: workloadCuttingRequests.reduce(
+        (sum, request) => sum + (request.quotedTotal ?? 0),
+        0,
+      ),
+      amountSpecified: workloadCuttingRequests.filter(
+        (request) => request.quotedTotal !== null,
+      ).length,
       totalRequests: cuttingRequests.length,
       workloadRequests: workloadCuttingRequests.length,
       activeRequests: cuttingRequests.filter((request) =>
@@ -778,6 +813,7 @@ function buildReportFromRecords({
       dailySales,
       revenueByBrand,
       revenueByCategory,
+      revenueByManager,
       soldProducts,
       topClients,
       topProducts,
@@ -905,6 +941,13 @@ export async function getAdminExecutiveReport(
             firstName: true,
             lastName: true,
             companyName: true,
+            email: true,
+          },
+        },
+        manager: {
+          select: {
+            firstName: true,
+            lastName: true,
             email: true,
           },
         },

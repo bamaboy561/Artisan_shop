@@ -222,6 +222,7 @@ function saleFixture({ stock = 20, missing = false } = {}) {
         return { id: "order1", number: "H1", createdAt: new Date() };
       },
     },
+    siteSetting: { create: async () => ({}) },
   };
   const deps = {
     ...enums,
@@ -242,6 +243,8 @@ function saleFixture({ stock = 20, missing = false } = {}) {
     },
     ensureProductBundleItemsTable: async () => {},
     getDb: () => ({
+      order: { findUnique: async () => null },
+      siteSetting: { findUnique: async () => null },
       user: {
         findFirst: async () => ({
           id: "customer",
@@ -265,6 +268,7 @@ function saleFixture({ stock = 20, missing = false } = {}) {
       $transaction: async (callback) => callback(tx),
     }),
     getLoyaltyProgramConfig: async () => ({}),
+    getEffectiveDiscountPercent: () => 0,
     getEffectiveProductPrice: (item) => item.price,
     getProductPromotionPrice: (price) => ({ unitDiscountAmount: price * 0.1 }),
     getRedeemableLoyaltyPoints: () => 0,

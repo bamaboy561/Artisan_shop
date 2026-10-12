@@ -106,7 +106,6 @@ export async function getAdminUsers(filters: AdminUserFilters = {}) {
       ...queryWhere,
     },
     orderBy: [{ loyaltyPointsBalance: "desc" }, { createdAt: "asc" }],
-    take: 250,
     select: {
       id: true,
       email: true,

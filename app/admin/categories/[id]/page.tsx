@@ -1,3 +1,4 @@
+import { ConfirmDeleteButton } from "@/components/admin/confirm-delete-button";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -6,7 +7,7 @@ import {
   updateCategoryAction,
 } from "@/app/admin/actions";
 import { AdminSubmitButton } from "@/components/admin/admin-submit-button";
-import { Button } from "@/components/ui/button";
+import { getButtonClassName } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { SectionHeading } from "@/components/ui/section-heading";
@@ -89,20 +90,22 @@ export default async function EditCategoryPage({
             </Link>
             <form action={deleteCategoryAction}>
               <input type="hidden" name="id" value={category.id} />
-              <Button
-                type="submit"
-                variant="ghost"
-                size="sm"
+              <ConfirmDeleteButton
+                confirmMessage="Удалить категорию? Это действие нельзя отменить."
                 disabled={category._count.products > 0}
                 title={
                   category._count.products > 0
                     ? "Нельзя удалить категорию, пока к ней привязаны товары"
                     : "Удалить категорию"
                 }
-                className="h-10 px-4 text-red-600 hover:bg-red-50 disabled:text-[var(--muted)]"
+                className={getButtonClassName(
+                  "ghost",
+                  "sm",
+                  "h-10 px-4 text-red-600 hover:bg-red-50 disabled:text-[var(--muted)]",
+                )}
               >
                 Удалить категорию
-              </Button>
+              </ConfirmDeleteButton>
             </form>
           </div>
         </div>

@@ -1,3 +1,4 @@
+import { ConfirmDeleteButton } from "@/components/admin/confirm-delete-button";
 import {
   BannerPlacement,
   PageStatus,
@@ -145,13 +146,13 @@ function PageEditor({ page }: { page: SitePage }) {
             idleLabel="Сохранить страницу"
             pendingLabel="Сохраняем..."
           />
-          <button
-            type="submit"
+          <ConfirmDeleteButton
+            confirmMessage="Удалить? Это действие нельзя отменить."
             formAction={deleteSitePageAction}
             className="inline-flex h-9 items-center justify-center px-4 text-sm font-medium text-red-600 transition hover:bg-red-50"
           >
             Удалить
-          </button>
+          </ConfirmDeleteButton>
         </div>
       </form>
     </article>
@@ -304,13 +305,13 @@ function BannerEditor({ banner }: { banner: Banner }) {
             idleLabel="Сохранить баннер"
             pendingLabel="Сохраняем..."
           />
-          <button
-            type="submit"
+          <ConfirmDeleteButton
+            confirmMessage="Удалить? Это действие нельзя отменить."
             formAction={deleteBannerAction}
             className="inline-flex h-9 items-center justify-center px-4 text-sm font-medium text-red-600 transition hover:bg-red-50"
           >
             Удалить
-          </button>
+          </ConfirmDeleteButton>
         </div>
       </form>
     </article>

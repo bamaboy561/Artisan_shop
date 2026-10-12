@@ -569,6 +569,15 @@ export default async function AdminPage({
     }),
   );
 
+  const managerRows = executiveReport.breakdown.revenueByManager.map(
+    (manager) => ({
+      manager: manager.name,
+      orders: formatNumber(manager.orders),
+      average: formatCurrency(manager.averageOrder),
+      revenue: formatCurrency(manager.revenue),
+      share: `${manager.share}%`,
+    }),
+  );
   const brandRows = executiveReport.breakdown.revenueByBrand.map((brand) => ({
     brand: (
       <span className="block min-w-40">
@@ -672,7 +681,10 @@ export default async function AdminPage({
       ),
       client: request.contactName,
       material: request.material ?? "Не указан",
-      amount: request.quotedTotal !== null ? formatCurrency(request.quotedTotal) : "Не рассчитана",
+      amount:
+        request.quotedTotal !== null
+          ? formatCurrency(request.quotedTotal)
+          : "Не рассчитана",
       sheets:
         request.cuttingSheetCount !== null
           ? `${formatNumber(request.cuttingSheetCount)} шт.`
@@ -941,8 +953,13 @@ export default async function AdminPage({
         <div className="grid border-y border-[#e6e2dc] bg-[#fbfaf8] md:grid-cols-2 md:divide-x md:divide-[#e6e2dc] xl:grid-cols-3">
           <div className="border-b border-[#e6e2dc] p-4">
             <p className="text-xs text-[#77736c]">Сумма работ без отменённых</p>
-            <p className="mt-2 break-words text-xl font-semibold text-[#24221f]">{formatCurrency(executiveReport.cuttingReport.totalAmount)}</p>
-            <p className="mt-1 text-xs text-[#8a857d]">Рассчитано: {executiveReport.cuttingReport.amountSpecified} / {executiveReport.cuttingReport.workloadRequests}</p>
+            <p className="mt-2 text-xl font-semibold break-words text-[#24221f]">
+              {formatCurrency(executiveReport.cuttingReport.totalAmount)}
+            </p>
+            <p className="mt-1 text-xs text-[#8a857d]">
+              Рассчитано: {executiveReport.cuttingReport.amountSpecified} /{" "}
+              {executiveReport.cuttingReport.workloadRequests}
+            </p>
           </div>
           <div className="border-b border-[#e6e2dc] p-4 xl:border-b-0">
             <p className="text-xs text-[#77736c]">Заявки на распил</p>
@@ -1091,6 +1108,22 @@ export default async function AdminPage({
             ]}
             rows={topClientRows}
             emptyMessage="За выбранный период еще нет продаж по клиентам."
+          />
+        </Panel>
+
+        <Panel title="Продажи по менеджерам">
+          <DataTable
+            caption="Продажи по менеджерам"
+            variant="embedded"
+            columns={[
+              { key: "manager", label: "Менеджер" },
+              { key: "orders", label: "Заказы" },
+              { key: "average", label: "Средний чек" },
+              { key: "revenue", label: "Выручка" },
+              { key: "share", label: "Доля" },
+            ]}
+            rows={managerRows}
+            emptyMessage="Появится после подтверждённых заказов за период."
           />
         </Panel>
 

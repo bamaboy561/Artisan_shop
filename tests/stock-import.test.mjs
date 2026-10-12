@@ -111,9 +111,10 @@ test("accounting report imports only item stock, preserving source row numbers a
       stockQuantity: 2,
       inventoryStatus: "LIMITED",
     });
-    assert.equal(entries[1].status, "skipped");
-    assert.match(entries[1].reason, /целое количество/);
-    assert.deepEqual(entries[1].changes, {});
+    // Дробный остаток (метры кромки) округляется вниз, а не отбрасывается.
+    assert.equal(entries[1].status, "ready");
+    assert.match(entries[1].reason, /округлён вниз: 127,1 → 127/);
+    assert.deepEqual(entries[1].changes, { stockQuantity: 127 });
     assert.equal(entries[2].status, "skipped");
   }
   const priceOnly = stock.buildStockImportPlan(parsed.rows, products, "price");
@@ -491,6 +492,12 @@ function actionFixture({
       requireAdminSession: async () => ({ userId: "actor", roleCode: role }),
     },
     "@/lib/auth/roles": roles,
+    "@/lib/server/inventory-reservations": {
+      getUnpaidReservedQuantities: async () =>
+        new Map(Object.entries(state.reserved ?? {})),
+      getInventoryStatusForStock: (quantity) =>
+        quantity <= 0 ? "OUT_OF_STOCK" : quantity <= 5 ? "LIMITED" : "IN_STOCK",
+    },
     "@/lib/db": {
       hasDatabaseUrl: () => database,
       getDb: () => ({
@@ -546,8 +553,8 @@ test("daily action previews and applies accounting report without changing catal
   state.products.push(product({ id: "edge", name: "Кромка", sku: "edge" }));
   const file = accountingReport();
   const preview = await action(data("preview", undefined, "all", file));
-  assert.equal(preview.counts.ready, 1);
-  assert.equal(preview.counts.skipped, 2);
+  assert.equal(preview.counts.ready, 2);
+  assert.equal(preview.counts.skipped, 1);
   assert.equal(state.writes.length, 0);
   const apply = data("apply", preview.fingerprint, "all", file);
   apply.set(
@@ -559,15 +566,15 @@ test("daily action previews and applies accounting report without changing catal
     ),
   );
   const done = await action(apply);
-  assert.equal(done.counts.updated, 1);
-  assert.equal(state.writes.length, 1);
+  assert.equal(done.counts.updated, 2);
+  assert.equal(state.writes.length, 2);
   assert.deepEqual(state.writes[0].data, {
     stockQuantity: 2,
     inventoryStatus: "LIMITED",
   });
+  assert.deepEqual(state.writes[1].data, { stockQuantity: 127 });
   assert.equal(state.products[0].price, 120);
   assert.equal(state.products[0].compareAtPrice, 150);
-  assert.equal(state.products[1].stockQuantity, 8);
 });
 
 test("preview never writes; apply requires matching preview, updates only approved fields and revalidates", async () => {
@@ -696,7 +703,7 @@ test("catalog managers and admins can preview without writes", async () => {
   }
 });
 
-test("reconciliation includes missing catalog items and exact fractional file quantities without making them writable", async () => {
+test("reconciliation includes missing catalog items and shows exact fractional file quantities that are saved rounded down", async () => {
   const { action, state, data } = actionFixture();
   state.products.push(
     product({ id: "edge", name: "Кромка", sku: "EDGE" }),
@@ -710,8 +717,9 @@ test("reconciliation includes missing catalog items and exact fractional file qu
   const edge = entries.find((entry) => entry.sku === "EDGE");
   assert.equal(edge.fileQuantity, 127.1);
   assert.equal(edge.unit, "пог. м");
-  assert.equal(edge.kind, "review");
-  assert.equal(edge.selectable, false);
+  assert.equal(edge.kind, "difference");
+  assert.equal(edge.selectable, true);
+  assert.match(edge.reason, /округлён вниз/);
   assert.equal(
     entries.find((entry) => entry.kind === "notFound").fileQuantity,
     1,

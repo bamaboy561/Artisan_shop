@@ -13,6 +13,8 @@ import {
 import { AdminSubmitButton } from "@/components/admin/admin-submit-button";
 import { OperationTimeline } from "@/components/admin/operation-timeline";
 import { OrderProductPicker } from "@/components/admin/order-product-picker";
+import { WhatsappClientLink } from "@/components/admin/whatsapp-client-link";
+import { buildOrderWhatsappText } from "@/features/admin/whatsapp";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -222,12 +224,20 @@ export default async function AdminOrderDetailPage({
             </div>
           </div>
 
-          <Link
-            href="/admin/orders"
-            className="inline-flex h-11 items-center justify-center border border-[color:var(--line-strong)] px-5 font-mono text-[11px] font-semibold tracking-[0.14em] text-[var(--foreground)] uppercase transition hover:border-[color:var(--foreground)] hover:bg-[var(--foreground)] hover:text-white"
-          >
-            К очереди заказов
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href={`/admin/orders/${order.id}/print`}
+              className="inline-flex h-11 items-center justify-center bg-[var(--foreground)] px-5 font-mono text-[11px] font-semibold tracking-[0.14em] text-white uppercase transition hover:bg-[var(--accent)]"
+            >
+              Печать заказа
+            </Link>
+            <Link
+              href="/admin/orders"
+              className="inline-flex h-11 items-center justify-center border border-[color:var(--line-strong)] px-5 font-mono text-[11px] font-semibold tracking-[0.14em] text-[var(--foreground)] uppercase transition hover:border-[color:var(--foreground)] hover:bg-[var(--foreground)] hover:text-white"
+            >
+              К очереди заказов
+            </Link>
+          </div>
         </div>
       </section>
 
@@ -260,6 +270,16 @@ export default async function AdminOrderDetailPage({
                 <p className="mt-1 text-sm text-[var(--muted)]">
                   {order.contactPhone}
                 </p>
+                <WhatsappClientLink
+                  className="mt-2"
+                  phone={order.contactPhone}
+                  text={buildOrderWhatsappText({
+                    number: order.number,
+                    contactName: order.contactName,
+                    statusLabel: orderStatusLabels[order.status],
+                    isReady: order.status === OrderStatus.READY_FOR_PICKUP,
+                  })}
+                />
                 {order.contactEmail ? (
                   <p className="mt-1 text-sm text-[var(--muted)]">
                     {order.contactEmail}

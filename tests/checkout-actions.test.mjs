@@ -78,6 +78,7 @@ function checkoutFixture({
   };
   const db = {
     product: { findMany: async () => [product] },
+    order: { findUnique: async () => null },
     user: { findUnique: async () => user },
     promotion: { findUnique: async () => promotion },
     $transaction: async (callback) => callback(tx),

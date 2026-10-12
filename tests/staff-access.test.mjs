@@ -20,6 +20,9 @@ test("staff directory exposes access controls for managers, never privileged acc
     "@/generated/prisma": enums,
     "@/lib/auth/roles": roles,
     "@/lib/db": { hasDatabaseUrl: () => true },
+    "@/lib/server/loyalty-permissions": {
+      getLoyaltyManagerIds: async () => new Set(),
+    },
   };
   const components = {
     "@/app/admin/staff/cutting-manager-form": "CuttingManagerForm",
