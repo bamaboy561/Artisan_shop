@@ -31,6 +31,8 @@ type EditProductPageProps = {
 const noticeMessages: Record<string, string> = {
   created: "Товар создан. Проверьте карточку и при необходимости дополните.",
   saved: "Изменения сохранены.",
+  duplicate:
+    "Такой товар уже есть: совпадают название, категория и бренд. Новый не создан, открыта существующая карточка.",
 };
 
 const statusLabels: Record<ProductStatus, string> = {

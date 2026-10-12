@@ -1918,6 +1918,21 @@ export async function createProductAction(formData: FormData) {
     return;
   }
 
+  // Такой же товар (название, категория и бренд совпадают) уже есть:
+  // открываем его карточку вместо создания дубля.
+  const duplicate = await db.product.findFirst({
+    where: {
+      name: { equals: name, mode: "insensitive" },
+      categoryId,
+      brandId: brandId ?? null,
+    },
+    select: { id: true },
+  });
+
+  if (duplicate) {
+    redirect(`/admin/products/${duplicate.id}?notice=duplicate`);
+  }
+
   const identity = [brand?.name, category.name, name].filter(Boolean).join(" ");
   const slug = await getUniqueProductSlug(
     db,
@@ -2456,6 +2471,22 @@ export async function importProductsFromExcelAction(formData: FormData) {
           : undefined);
       const productName = row.name || existingProduct?.name || "";
 
+      // Без артикула товар ищем по названию. Если с таким названием уже
+      // несколько товаров, непонятно, какой обновлять: не создаём ещё один.
+      if (
+        !skuKey &&
+        !existingProduct &&
+        row.name &&
+        (productsByName.get(normalizeImportLookup(row.name))?.length ?? 0) > 1
+      ) {
+        skipped += 1;
+        hiddenImportNotes += addImportNote(
+          importNotes,
+          `Строка ${row.rowNumber}: «${row.name}» без артикула, а товаров с таким названием несколько. Укажите артикул.`,
+        );
+        continue;
+      }
+
       if (!productName) {
         skipped += 1;
         hiddenImportNotes += addImportNote(
@@ -2684,10 +2715,21 @@ export async function importProductsFromExcelAction(formData: FormData) {
         data: createData,
         select: { id: true, sku: true, slug: true },
       });
-      productBySku.set(normalizeImportSkuKey(product.sku), {
-        ...product,
-        name: productName,
-      });
+      const createdProduct = { ...product, name: productName };
+      const createdNameKey = normalizeImportLookup(productName);
+
+      productBySku.set(normalizeImportSkuKey(product.sku), createdProduct);
+      // Повтор того же названия без артикула ниже в файле обновит этот
+      // товар, а не создаст второй такой же.
+      productsByName.set(createdNameKey, [
+        ...(productsByName.get(createdNameKey) ?? []),
+        createdProduct,
+      ]);
+      if (productsByName.get(createdNameKey)?.length === 1) {
+        productByUniqueName.set(createdNameKey, createdProduct);
+      } else {
+        productByUniqueName.delete(createdNameKey);
+      }
       created += 1;
     } catch (error) {
       errors += 1;
