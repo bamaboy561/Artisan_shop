@@ -1,9 +1,57 @@
 import {
   InventoryStatus,
+  OrderStatus,
   ProductOrderMode,
   ProductStatus,
   type Prisma,
 } from "@/generated/prisma";
+
+// Остатки ведёт 1С, и заказ попадает в неё только при полной оплате.
+// До оплаты товар зарезервирован только на сайте.
+export const unpaidReservedOrderStatuses: OrderStatus[] = [
+  OrderStatus.NEW,
+  OrderStatus.RESERVED,
+  OrderStatus.CONFIRMED,
+];
+
+// Сколько каждого товара держат неоплаченные заказы сайта. Эти количества
+// вычитаются из остатка, пришедшего из 1С, чтобы выгрузка не стирала резерв.
+export async function getUnpaidReservedQuantities(
+  db: Pick<Prisma.TransactionClient, "orderItem">,
+  productIds: string[],
+) {
+  const ids = [...new Set(productIds)];
+
+  if (ids.length === 0) {
+    return new Map<string, number>();
+  }
+
+  const rows = await db.orderItem.groupBy({
+    by: ["productId"],
+    where: {
+      productId: { in: ids },
+      order: {
+        inventoryReservedAt: { not: null },
+        status: { in: unpaidReservedOrderStatuses },
+      },
+    },
+    _sum: { quantity: true },
+  });
+
+  return new Map(
+    rows.flatMap((row) =>
+      row.productId ? [[row.productId, row._sum.quantity ?? 0] as const] : [],
+    ),
+  );
+}
+
+export function getInventoryStatusForStock(stockQuantity: number) {
+  return stockQuantity <= 0
+    ? InventoryStatus.OUT_OF_STOCK
+    : stockQuantity <= 5
+      ? InventoryStatus.LIMITED
+      : InventoryStatus.IN_STOCK;
+}
 
 export type InventoryReservationItem = {
   productId: string | null;
@@ -208,6 +256,7 @@ export async function syncOrderInventoryReservation(
     where: { id: orderId },
     select: {
       inventoryReservedAt: true,
+      status: true,
       items: {
         select: {
           productId: true,
@@ -219,6 +268,12 @@ export async function syncOrderInventoryReservation(
   });
 
   if (!order || Boolean(order.inventoryReservedAt) === shouldReserve) {
+    return false;
+  }
+
+  // Оплаченный заказ уже проведён в 1С. Его отмена не возвращает товар на
+  // сайте: возврат отразит следующая выгрузка остатков из 1С.
+  if (!shouldReserve && !unpaidReservedOrderStatuses.includes(order.status)) {
     return false;
   }
 

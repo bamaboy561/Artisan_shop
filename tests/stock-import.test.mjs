@@ -491,6 +491,12 @@ function actionFixture({
       requireAdminSession: async () => ({ userId: "actor", roleCode: role }),
     },
     "@/lib/auth/roles": roles,
+    "@/lib/server/inventory-reservations": {
+      getUnpaidReservedQuantities: async () =>
+        new Map(Object.entries(state.reserved ?? {})),
+      getInventoryStatusForStock: (quantity) =>
+        quantity <= 0 ? "OUT_OF_STOCK" : quantity <= 5 ? "LIMITED" : "IN_STOCK",
+    },
     "@/lib/db": {
       hasDatabaseUrl: () => database,
       getDb: () => ({

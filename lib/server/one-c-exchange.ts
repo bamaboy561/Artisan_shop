@@ -1,5 +1,6 @@
 import "server-only";
 
+import { getUnpaidReservedQuantities } from "@/lib/server/inventory-reservations";
 import crypto from "node:crypto";
 
 import { revalidatePath } from "next/cache";
@@ -269,6 +270,11 @@ export async function syncOneCProducts(
     ]),
   );
 
+  const reservedByProduct = await getUnpaidReservedQuantities(
+    db,
+    existingProducts.map((product) => product.id),
+  );
+
   let updated = 0;
   let skipped = 0;
   const missingSkus: string[] = [];
@@ -292,9 +298,18 @@ export async function syncOneCProducts(
       updateData.compareAtPrice = item.compareAtPrice;
     }
     if (stockQuantity !== undefined) {
-      updateData.stockQuantity = stockQuantity;
+      // Остаток из 1С минус то, что держат неоплаченные заказы сайта.
+      const availableQuantity =
+        stockQuantity === null
+          ? null
+          : Math.max(
+              0,
+              stockQuantity - (reservedByProduct.get(product.id) ?? 0),
+            );
+
+      updateData.stockQuantity = availableQuantity;
       updateData.inventoryStatus =
-        item.inventoryStatus ?? getInventoryStatusFromStock(stockQuantity);
+        item.inventoryStatus ?? getInventoryStatusFromStock(availableQuantity);
     } else if (item.inventoryStatus) {
       updateData.inventoryStatus = item.inventoryStatus;
     }

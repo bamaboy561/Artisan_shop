@@ -16,6 +16,10 @@ import {
 import { requireAdminSession } from "@/lib/auth/dal";
 import { canAccessGeneralAdmin } from "@/lib/auth/roles";
 import { getDb, hasDatabaseUrl } from "@/lib/db";
+import {
+  getInventoryStatusForStock,
+  getUnpaidReservedQuantities,
+} from "@/lib/server/inventory-reservations";
 
 export async function processStockImportAction(
   formData: FormData,
@@ -196,6 +200,33 @@ export async function processStockImportAction(
       }
     }
   }
+  // Остаток из файла 1С уменьшаем на то, что держат неоплаченные заказы
+  // сайта: в 1С они ещё не проведены, и выгрузка не должна стирать резерв.
+  const reservedByProduct = await getUnpaidReservedQuantities(
+    db,
+    ready.flatMap((entry) => (entry.productId ? [entry.productId] : [])),
+  );
+
+  for (const entry of ready) {
+    const reserved = entry.productId
+      ? (reservedByProduct.get(entry.productId) ?? 0)
+      : 0;
+
+    if (reserved > 0 && typeof entry.changes.stockQuantity === "number") {
+      const availableQuantity = Math.max(
+        0,
+        entry.changes.stockQuantity - reserved,
+      );
+
+      entry.changes = {
+        ...entry.changes,
+        stockQuantity: availableQuantity,
+        inventoryStatus: getInventoryStatusForStock(availableQuantity),
+      };
+      entry.reason = `Учтён резерв неоплаченных заказов сайта: ${reserved} шт.`;
+    }
+  }
+
   for (let offset = 0; offset < ready.length; offset += 100) {
     const batch = ready.slice(offset, offset + 100);
     try {
