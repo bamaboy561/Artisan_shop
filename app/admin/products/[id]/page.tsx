@@ -2,7 +2,10 @@ import { ConfirmDeleteButton } from "@/components/admin/confirm-delete-button";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { deleteProductAction } from "@/app/admin/actions";
+import {
+  deleteProductAction,
+  duplicateProductAction,
+} from "@/app/admin/actions";
 import {
   NewProductForm,
   type ProductFormDefaults,
@@ -31,6 +34,8 @@ type EditProductPageProps = {
 const noticeMessages: Record<string, string> = {
   created: "Товар создан. Проверьте карточку и при необходимости дополните.",
   saved: "Изменения сохранены.",
+  copied:
+    "Это копия товара. Она сохранена черновиком без остатка: поменяйте название, артикул и нужные поля, затем опубликуйте.",
   duplicate:
     "Такой товар уже есть: совпадают название, категория и бренд. Новый не создан, открыта существующая карточка.",
 };
@@ -231,6 +236,15 @@ export default async function EditProductPage({
             >
               Открыть на сайте
             </Link>
+            <form action={duplicateProductAction}>
+              <input type="hidden" name="id" value={product.id} />
+              <button
+                type="submit"
+                className={getButtonClassName("ghost", "sm", "h-10 px-4")}
+              >
+                Создать копию
+              </button>
+            </form>
             <form action={deleteProductAction}>
               <input type="hidden" name="id" value={product.id} />
               <input type="hidden" name="redirectTo" value="list" />

@@ -2056,6 +2056,92 @@ export async function deleteProductAction(formData: FormData) {
   }
 }
 
+// Копия товара: тот же набор полей, фото, характеристик и состава
+// комплекта. Создаётся черновиком с новым названием, артикулом и адресом,
+// остаток не переносится.
+export async function duplicateProductAction(formData: FormData) {
+  if (!hasDatabaseUrl()) {
+    return;
+  }
+
+  await ensureAdminAccess();
+
+  const id = getString(formData, "id");
+
+  if (!id) {
+    return;
+  }
+
+  const db = getDb();
+  await ensureProductBundleItemsTable(db);
+  const source = await db.product.findUnique({
+    where: { id },
+    include: {
+      images: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] },
+      attributes: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] },
+      bundleItems: { orderBy: [{ sortOrder: "asc" }] },
+    },
+  });
+
+  if (!source) {
+    return;
+  }
+
+  const name = `${source.name} (копия)`;
+  const slug = await getUniqueProductSlug(db, `${source.slug}-kopiya`);
+  const sku = await getUniqueProductSku(db, `${source.sku}-copy`);
+  const copy = await db.product.create({
+    data: {
+      name,
+      slug,
+      sku,
+      summary: source.summary,
+      description: source.description,
+      categoryId: source.categoryId,
+      brandId: source.brandId,
+      status: ProductStatus.DRAFT,
+      orderMode: source.orderMode,
+      inventoryStatus: source.inventoryStatus,
+      price: source.price,
+      compareAtPrice: source.compareAtPrice,
+      stockQuantity: null,
+      format: source.format,
+      thicknessMm: source.thicknessMm,
+      edgeThicknessMm: source.edgeThicknessMm,
+      edgeWidthMm: source.edgeWidthMm,
+      seoTitle: source.seoTitle,
+      seoDescription: source.seoDescription,
+      calculatorMaterialId: source.calculatorMaterialId,
+      calculatorSheetPresetId: source.calculatorSheetPresetId,
+      images: {
+        create: source.images.map((image) => ({
+          url: image.url,
+          alt: name,
+          sortOrder: image.sortOrder,
+        })),
+      },
+      attributes: {
+        create: source.attributes.map((attribute) => ({
+          name: attribute.name,
+          value: attribute.value,
+          sortOrder: attribute.sortOrder,
+        })),
+      },
+      bundleItems: {
+        create: source.bundleItems.map((item) => ({
+          componentProductId: item.componentProductId,
+          quantity: item.quantity,
+          sortOrder: item.sortOrder,
+        })),
+      },
+    },
+    select: { id: true },
+  });
+
+  revalidateAdminCatalog();
+  redirect(`/admin/products/${copy.id}?notice=copied`);
+}
+
 export async function updateProductAction(formData: FormData) {
   if (!hasDatabaseUrl()) {
     return;
