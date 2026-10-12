@@ -383,9 +383,15 @@ export function productDescription(product: FeaturedProduct) {
   );
 }
 
+function isKeywordList(title: string) {
+  return title.length > 90 || (title.match(/,/g) ?? []).length >= 3;
+}
+
 export function productSeoTitle(product: FeaturedProduct) {
-  if (product.seoTitle?.trim()) {
-    return product.seoTitle;
+  const seoTitle = product.seoTitle?.trim();
+
+  if (seoTitle && !isKeywordList(seoTitle)) {
+    return seoTitle;
   }
 
   const core = [product.name, product.brand, product.categoryName]

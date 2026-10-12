@@ -2541,3 +2541,17 @@
     min-height: 48px;
   }
 }
+@media (max-width: 600px) {
+  .previewBar {
+    display: none;
+  }
+  .headerMain {
+    height: 60px;
+  }
+  .nav a {
+    min-height: 42px;
+  }
+}
+.productVisual:has(.contain) {
+  background: #f4f6f4;
+}

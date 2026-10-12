@@ -76,10 +76,11 @@ export function StorefrontCatalog({
         {pagination.items.length > 0 ? (
           <>
             <div className={s.catalogProducts}>
-              {pagination.items.map((product) => (
+              {pagination.items.map((product, index) => (
                 <StorefrontCard
                   key={product.slug}
                   product={product}
+                  eager={index < 4}
                   isFavorite={favorites.has(product.slug)}
                   next={currentHref}
                 />

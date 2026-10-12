@@ -188,7 +188,6 @@ export default async function ProductPage({ params }: ProductPageProps) {
       (specification) =>
         !duplicatedSpecKeys.has(specification.key.trim().toLowerCase()),
     ),
-    { key: "Сценарий заказа", value: product.action },
   ];
 
   if (isPremiumStorefront())
