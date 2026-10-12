@@ -152,13 +152,15 @@ export function ProductPurchase({
 }) {
   const [quantity, setQuantity] = useState(1);
   const buyRowRef = useRef<HTMLDivElement>(null);
-  // Пока основная кнопка не видна, на телефоне снизу висит панель покупки.
+  // Когда основную кнопку прокрутили вверх, на телефоне снизу висит панель покупки.
   const [buyRowVisible, setBuyRowVisible] = useState(true);
   useEffect(() => {
     const node = buyRowRef.current;
     if (!node || typeof IntersectionObserver === "undefined") return;
     const observer = new IntersectionObserver(([entry]) =>
-      setBuyRowVisible(entry.isIntersecting),
+      setBuyRowVisible(
+        entry.isIntersecting || entry.boundingClientRect.top > 0,
+      ),
     );
     observer.observe(node);
     return () => observer.disconnect();
