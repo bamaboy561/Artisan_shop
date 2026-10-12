@@ -2576,7 +2576,7 @@ export function CutCalculator({
                 <p className="text-[13px] leading-5 font-semibold sm:text-sm">
                   {cuttingSiteIncentive.title}
                 </p>
-                <p className="text-[11px] leading-4.5 text-white/85 sm:text-[12px]">
+                <p className="hidden text-[12px] leading-4.5 text-white/85 sm:block">
                   {cuttingSiteIncentive.text}
                 </p>
               </div>
@@ -3074,7 +3074,8 @@ export function CutCalculator({
                                   key={offcut.id}
                                   className="inline-flex items-center border border-[color:var(--line)] bg-white px-2.5 py-1.5 text-[11px] text-[var(--foreground)]"
                                 >
-                                  {Math.floor(offcut.width)}×{Math.floor(offcut.height)} мм
+                                  {Math.floor(offcut.width)}×
+                                  {Math.floor(offcut.height)} мм
                                 </span>
                               ))}
                             </div>
@@ -3162,25 +3163,19 @@ export function CutCalculator({
                   </div>
                   <div className="mt-3 grid grid-cols-1 gap-2 text-[12px] leading-5 text-[var(--muted)] min-[380px]:grid-cols-2">
                     <div>
-                      <p className="text-xs font-medium">
-                        Кромка
-                      </p>
+                      <p className="text-xs font-medium">Кромка</p>
                       <p className="mt-0.5 text-[var(--foreground)]">
                         {row.edgeLabel}
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs font-medium">
-                        Ориентация
-                      </p>
+                      <p className="text-xs font-medium">Ориентация</p>
                       <p className="mt-0.5 text-[var(--foreground)]">
                         {row.orientationLabel}
                       </p>
                     </div>
                     <div className="min-[380px]:col-span-2">
-                      <p className="text-xs font-medium">
-                        Листы
-                      </p>
+                      <p className="text-xs font-medium">Листы</p>
                       <p className="mt-0.5 text-[var(--foreground)]">
                         {row.sheetsLabel}
                       </p>
@@ -3297,9 +3292,7 @@ export function CutCalculator({
                       <Icon className="size-4 text-[var(--accent)]" />
                     </span>
                     <div>
-                      <p className="text-xs text-[#6e6b63]">
-                        {card.label}
-                      </p>
+                      <p className="text-xs text-[#6e6b63]">{card.label}</p>
                       <p className="mt-0.5 text-base font-semibold text-[#151411]">
                         {card.value}
                       </p>
@@ -3354,7 +3347,7 @@ export function CutCalculator({
         </div>
         <a
           href="#cut-request-form"
-          className="inline-flex h-10 shrink-0 items-center rounded-xl bg-[#c4532b] px-4 text-[13px] font-semibold"
+          className="inline-flex h-11 shrink-0 items-center rounded-full bg-[#c4532b] px-5 text-sm font-semibold"
         >
           Отправить
         </a>

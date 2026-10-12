@@ -116,23 +116,23 @@ export function CalculatorHero() {
               менеджер.
             </p>
 
-            <div className="mt-7 flex flex-wrap gap-3">
+            <div className="mt-7 grid gap-3 sm:flex sm:flex-wrap">
               <a
                 href="#cut-calculator"
-                className="inline-flex items-center gap-2.5 rounded-md bg-[#a94730] px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-[#bf573e]"
+                className="inline-flex items-center justify-center gap-2.5 rounded-full bg-[#c4532b] px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-[#a8431f]"
               >
                 Начать раскрой <ArrowDown className="size-4" />
               </a>
               <a
                 href="#cut-request-form"
-                className="inline-flex items-center gap-2.5 rounded-md border border-white/25 px-6 py-3.5 text-sm font-semibold text-white transition hover:border-white/60"
+                className="inline-flex items-center justify-center gap-2.5 rounded-full border border-white/25 px-6 py-3.5 text-sm font-semibold text-white transition hover:border-white/60"
               >
                 <Paperclip className="size-4" /> Есть файл Базиса или фото
               </a>
             </div>
           </div>
 
-          <div className="relative mx-auto w-full max-w-[620px]">
+          <div className="relative mx-auto hidden w-full max-w-[620px] sm:block">
             <svg
               viewBox="0 0 560 380"
               role="img"
@@ -219,19 +219,26 @@ export function CalculatorHero() {
         </div>
       </section>
 
-      <section className="mx-auto grid max-w-[1600px] gap-3 px-4 py-6 sm:grid-cols-3 sm:gap-4 sm:px-8 sm:py-9 lg:px-10">
+      <section className="mx-auto grid max-w-[1600px] gap-2 px-4 py-4 sm:grid-cols-3 sm:gap-4 sm:px-8 sm:py-9 lg:px-10">
         {steps.map(({ icon: Icon, title, text }, index) => (
-          <div key={title} className={`${s.step} rounded-xl p-5 sm:p-6`}>
+          <div
+            key={title}
+            className={`${s.step} flex items-center gap-3 rounded-[20px] p-3 sm:block sm:p-6`}
+          >
             <div className="flex items-center justify-between">
               <span className="grid size-11 place-items-center rounded-lg bg-[#f6ece8] text-[#a94730]">
                 <Icon className="size-5" />
               </span>
-              <span className={`${s.stepNumber} text-2xl`}>0{index + 1}</span>
+              <span className={`${s.stepNumber} hidden text-2xl sm:inline`}>
+                0{index + 1}
+              </span>
             </div>
-            <h2 className="mt-4 text-base font-semibold text-[#252b29]">
+            <h2 className="text-[15px] font-semibold text-[#252b29] sm:mt-4 sm:text-base">
               {title}
             </h2>
-            <p className="mt-1.5 text-sm leading-6 text-[#69716d]">{text}</p>
+            <p className="mt-1.5 hidden text-sm leading-6 text-[#69716d] sm:block">
+              {text}
+            </p>
           </div>
         ))}
       </section>

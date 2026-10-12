@@ -59,11 +59,11 @@ function EdgePicker({
     <div className="flex items-center gap-2">
       <div
         className={cn(
-          "relative h-10 w-16 shrink-0",
+          "relative h-16 w-28 shrink-0 sm:h-10 sm:w-16",
           disabled && "pointer-events-none opacity-40",
         )}
       >
-        <span className="absolute inset-[7px] rounded-[3px] bg-[#f3ece1]" />
+        <span className="absolute inset-4 rounded-[3px] bg-[#f3ece1] sm:inset-[7px]" />
         {ALL_SIDES.map((side) => {
           const active = row.edgedSides.includes(side);
           const horizontal = side === "top" || side === "bottom";
@@ -78,7 +78,9 @@ function EdgePicker({
               onClick={() => onToggle(side)}
               className={cn(
                 "absolute flex items-center justify-center",
-                horizontal ? "inset-x-[7px] h-[9px]" : "inset-y-[7px] w-[9px]",
+                horizontal
+                  ? "inset-x-4 h-4 sm:inset-x-[7px] sm:h-[9px]"
+                  : "inset-y-4 w-4 sm:inset-y-[7px] sm:w-[9px]",
                 side === "top" && "top-0",
                 side === "bottom" && "bottom-0",
                 side === "left" && "left-0",
@@ -102,7 +104,7 @@ function EdgePicker({
         type="button"
         disabled={disabled}
         onClick={() => onSetAll(allActive ? [] : [...ALL_SIDES])}
-        className="text-[11px] whitespace-nowrap text-[var(--muted)] underline-offset-2 hover:text-[var(--foreground)] hover:underline disabled:opacity-40"
+        className="px-2 py-2.5 text-[13px] whitespace-nowrap text-[var(--muted)] underline-offset-2 hover:text-[var(--foreground)] hover:underline disabled:opacity-40 sm:p-0 sm:text-[11px]"
       >
         {allActive ? "Убрать" : "Кругом"}
       </button>
