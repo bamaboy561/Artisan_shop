@@ -12,6 +12,10 @@ import {
 import { getManagerDisplayName } from "@/features/admin/operations-filters";
 import { requireAdminSession } from "@/lib/auth/dal";
 import { absoluteUrl } from "@/lib/seo";
+import {
+  getProductionPlans,
+  productionPlanningAvailable,
+} from "@/lib/server/production-planning";
 import { getRequestDetailById } from "@/lib/server/request-inbox";
 
 type RouteSheetPageProps = {
@@ -25,7 +29,82 @@ function formatDate(value: Date | string) {
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: "Asia/Bishkek",
   }).format(value instanceof Date ? value : new Date(value));
+}
+
+function formatDueDate(value: string) {
+  const [year, month, day] = value.slice(0, 10).split("-");
+
+  return year && month && day ? `${day}.${month}.${year}` : value;
+}
+
+type RoutePart = {
+  sequence: string;
+  title: string;
+  size: string;
+  quantity: string;
+  edge: string;
+  orientation: string;
+  sheets: string;
+};
+
+// Заявка из калькулятора хранит детали текстом: «1. Название — размер ·
+// N шт. · кромка · ориентация · листы». Разбираем его в таблицу для цеха.
+function parseRouteMessage(message: string | null | undefined) {
+  const lines = (message ?? "").split(/\r?\n/);
+  const partsStart = lines.findIndex((line) => line.trim() === "Детали:");
+
+  if (partsStart === -1) {
+    return null;
+  }
+
+  const commentStart = lines.findIndex(
+    (line, index) =>
+      index > partsStart && line.trim() === "Комментарий клиента:",
+  );
+  const partLines = lines
+    .slice(partsStart + 1, commentStart === -1 ? undefined : commentStart)
+    .filter((line) => line.trim());
+  const parts: RoutePart[] = [];
+
+  for (const line of partLines) {
+    const match = line.match(/^(\d+)\.\s+(.*?)\s+—\s+(.*)$/);
+    const cells = match?.[3].split(" · ").map((cell) => cell.trim());
+
+    if (!match || !cells || cells.length < 2) {
+      return null;
+    }
+
+    parts.push({
+      sequence: match[1],
+      title: match[2],
+      size: cells[0],
+      quantity: cells[1].replace(/\s*шт\.?$/, ""),
+      edge: cells[2] ?? "",
+      orientation: cells[3] ?? "",
+      sheets: cells.slice(4).join(" · "),
+    });
+  }
+
+  if (parts.length === 0) {
+    return null;
+  }
+
+  return {
+    summary: lines
+      .slice(0, partsStart)
+      .filter((line) => line.trim())
+      .join("\n"),
+    parts,
+    comment:
+      commentStart === -1
+        ? ""
+        : lines
+            .slice(commentStart + 1)
+            .join("\n")
+            .trim(),
+  };
 }
 
 function RouteField({ label, value }: { label: string; value: string }) {
@@ -62,6 +141,16 @@ export default async function RouteSheetPage({ params }: RouteSheetPageProps) {
   const managerName = request.manager
     ? getManagerDisplayName(request.manager)
     : "Не назначен";
+  const plan = (await productionPlanningAvailable())
+    ? (await getProductionPlans([id])).get(id)
+    : undefined;
+  const parsedMessage = parseRouteMessage(request.message);
+  const isUrgent = /срочно/i.test(
+    `${request.subject} ${request.message ?? ""}`.replace(
+      /Приоритет:\s*стандарт/gi,
+      "",
+    ),
+  );
 
   return (
     <div className="mx-auto max-w-[210mm] bg-white text-[#171714] print:max-w-none">
@@ -88,8 +177,13 @@ export default async function RouteSheetPage({ params }: RouteSheetPageProps) {
               <p className="text-[34px] leading-none font-black">
                 {requestNumber}
               </p>
+              {isUrgent ? (
+                <p className="border-2 border-[#171714] px-3 py-1 text-[16px] leading-none font-black tracking-[0.08em] uppercase">
+                  Срочно
+                </p>
+              ) : null}
               <p className="pb-1 text-[11px] text-[#625f59]">
-                Проект Giblab: <strong>{requestNumber}</strong>
+                Напечатано: {formatDate(new Date())}
               </p>
             </div>
           </div>
@@ -112,7 +206,14 @@ export default async function RouteSheetPage({ params }: RouteSheetPageProps) {
         <section className="mt-[6mm] grid grid-cols-2 gap-x-[8mm] gap-y-[4mm]">
           <RouteField label="Клиент" value={request.contactName} />
           <RouteField label="Телефон" value={request.contactPhone} />
-          <RouteField label="Сумма работ, сом" value={request.quotedTotal != null ? request.quotedTotal.toLocaleString("ru-RU") : "Не рассчитана"} />
+          <RouteField
+            label="Сумма работ, сом"
+            value={
+              request.quotedTotal != null
+                ? request.quotedTotal.toLocaleString("ru-RU")
+                : "Не рассчитана"
+            }
+          />
           <RouteField
             label="Материал"
             value={request.material ?? request.product?.name ?? "Не указан"}
@@ -141,8 +242,12 @@ export default async function RouteSheetPage({ params }: RouteSheetPageProps) {
             label="Дата приема"
             value={formatDate(request.createdAt)}
           />
+          <RouteField
+            label="Срок готовности"
+            value={plan?.dueDate ? formatDueDate(plan.dueDate) : "Не назначен"}
+          />
           <RouteField label="Менеджер" value={managerName} />
-          <RouteField label="Текущий этап" value={currentStage} />
+          <RouteField label="Этап на момент печати" value={currentStage} />
           <RouteField
             label="Ячейка выдачи"
             value={request.cuttingPickupCell || "Назначается при готовности"}
@@ -183,14 +288,112 @@ export default async function RouteSheetPage({ params }: RouteSheetPageProps) {
           </div>
         </section>
 
-        <section className="mt-[7mm] break-inside-avoid">
-          <h2 className="text-[11px] font-bold tracking-[0.14em] uppercase">
-            Материал и детали
-          </h2>
-          <pre className="mt-3 border border-[#bdb9b1] bg-[#faf9f7] p-3 font-sans text-[9px] leading-[1.55] whitespace-pre-wrap text-[#302e2a]">
-            {request.message || request.subject}
-          </pre>
-        </section>
+        {request.productionComment ? (
+          <section className="mt-[7mm] break-inside-avoid border-2 border-[#171714] p-3">
+            <h2 className="text-[11px] font-bold tracking-[0.14em] uppercase">
+              Комментарий производства
+            </h2>
+            <p className="mt-2 text-[11px] leading-5 whitespace-pre-wrap">
+              {request.productionComment}
+            </p>
+          </section>
+        ) : null}
+
+        {parsedMessage ? (
+          <>
+            <section className="mt-[7mm] break-inside-avoid">
+              <h2 className="text-[11px] font-bold tracking-[0.14em] uppercase">
+                Материал и расчёт
+              </h2>
+              <pre className="mt-3 columns-2 gap-[8mm] border border-[#bdb9b1] bg-[#faf9f7] p-3 font-sans text-[9px] leading-[1.55] whitespace-pre-wrap text-[#302e2a]">
+                {parsedMessage.summary}
+              </pre>
+            </section>
+
+            <section className="mt-[7mm]">
+              <h2 className="text-[11px] font-bold tracking-[0.14em] uppercase">
+                Детали: {parsedMessage.parts.length} поз.
+              </h2>
+              <table className="mt-3 w-full border-collapse border border-[#bdb9b1] text-[9px] leading-[1.4]">
+                <thead>
+                  <tr className="bg-[#f0eeea] text-left">
+                    {[
+                      "№",
+                      "Деталь",
+                      "Размер",
+                      "Кол-во",
+                      "Кромка",
+                      "Ориентация",
+                      "Лист",
+                      "Распил ✓",
+                      "Кромка ✓",
+                    ].map((heading) => (
+                      <th
+                        key={heading}
+                        className="border border-[#bdb9b1] px-1.5 py-1 font-semibold"
+                      >
+                        {heading}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {parsedMessage.parts.map((part) => (
+                    <tr key={part.sequence} className="break-inside-avoid">
+                      <td className="border border-[#d7d4ce] px-1.5 py-1 font-semibold">
+                        {part.sequence}
+                      </td>
+                      <td className="border border-[#d7d4ce] px-1.5 py-1">
+                        {part.title}
+                      </td>
+                      <td className="border border-[#d7d4ce] px-1.5 py-1 font-semibold whitespace-nowrap">
+                        {part.size}
+                      </td>
+                      <td className="border border-[#d7d4ce] px-1.5 py-1 text-center font-semibold">
+                        {part.quantity}
+                      </td>
+                      <td className="border border-[#d7d4ce] px-1.5 py-1">
+                        {part.edge}
+                      </td>
+                      <td className="border border-[#d7d4ce] px-1.5 py-1">
+                        {part.orientation}
+                      </td>
+                      <td className="border border-[#d7d4ce] px-1.5 py-1">
+                        {part.sheets}
+                      </td>
+                      <td className="w-[13mm] border border-[#d7d4ce]" />
+                      <td className="w-[13mm] border border-[#d7d4ce]" />
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="mt-1 text-[8px] text-[#77736c]">
+                В двух последних колонках оператор отмечает готовность детали на
+                своей станции.
+              </p>
+            </section>
+
+            {parsedMessage.comment ? (
+              <section className="mt-[6mm] break-inside-avoid">
+                <h2 className="text-[11px] font-bold tracking-[0.14em] uppercase">
+                  Комментарий клиента
+                </h2>
+                <p className="mt-2 text-[10px] leading-5 whitespace-pre-wrap">
+                  {parsedMessage.comment}
+                </p>
+              </section>
+            ) : null}
+          </>
+        ) : (
+          <section className="mt-[7mm]">
+            <h2 className="text-[11px] font-bold tracking-[0.14em] uppercase">
+              Материал и детали
+            </h2>
+            <pre className="mt-3 border border-[#bdb9b1] bg-[#faf9f7] p-3 font-sans text-[9px] leading-[1.55] whitespace-pre-wrap text-[#302e2a]">
+              {request.message || request.subject}
+            </pre>
+          </section>
+        )}
 
         {request.files.length > 0 ? (
           <section className="mt-[6mm] break-inside-avoid">

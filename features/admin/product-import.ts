@@ -473,6 +473,13 @@ function extractInventoryValuation(
   return null;
 }
 
+const lookalikeHeaderPatterns: Partial<Record<ImportField, RegExp>> = {
+  price: /закуп|себестоим|входн|оптов|дилер/u,
+  compareAtPrice: /закуп|себестоим|входн|оптов|дилер/u,
+  stockQuantity: /упаков|кратн|минимальн/u,
+  sku: /цвет|поставщик/u,
+};
+
 function matchField(header: string) {
   const normalizedHeader = normalizeKey(header);
 
@@ -492,6 +499,15 @@ function matchField(header: string) {
       (item.name.length > 2 && normalizedHeader.includes(item.name)) ||
       (item.name.length > 4 && item.name.includes(normalizedHeader)),
   );
+
+  // Похожие по названию, но другие по смыслу колонки не подставляем:
+  // «Цена закупки» не цена продажи, «Количество в упаковке» не остаток.
+  if (
+    partial &&
+    lookalikeHeaderPatterns[partial.field]?.test(normalizedHeader)
+  ) {
+    return null;
+  }
 
   return partial?.field ?? null;
 }
@@ -736,7 +752,7 @@ function parseProductImportSheet(
   const warnings: string[] = [];
   if (inventoryReport) {
     warnings.push(
-      "Распознан отчёт остатков: цены и суммы игнорируются во всех режимах. Товары, отсутствующие в отчёте, не обнуляются.",
+      "Распознан отчёт остатков: цены и суммы игнорируются во всех режимах. Товары, отсутствующие в отчёте, обнуляются, только если включена галочка «Обнулить остаток у товаров, которых нет в файле».",
     );
   }
   if (!columnMap.has("name")) {
@@ -900,12 +916,26 @@ function parseProductImportSheet(
   });
 
   if (inventoryReport) {
-    const invalidStockRows = rows.filter(
+    const stockErrorRows = rows.filter(
       (row) => row.stockImportErrors.stockQuantity,
+    );
+    // Дробное количество (метры кромки) не ошибка: оно округляется вниз.
+    const fractionalStockRows = stockErrorRows.filter(
+      (row) =>
+        row.stockQuantity !== null &&
+        row.stockQuantity >= 0 &&
+        row.stockQuantity <= 2147483647 &&
+        !Number.isInteger(row.stockQuantity),
     ).length;
+    const invalidStockRows = stockErrorRows.length - fractionalStockRows;
+    if (fractionalStockRows) {
+      warnings.push(
+        `Дробных остатков: ${fractionalStockRows}, будут округлены вниз до целого.`,
+      );
+    }
     if (invalidStockRows) {
       warnings.push(
-        `Строк с некорректным или дробным остатком: ${invalidStockRows}. Они не будут обновлены; количества не округляются.`,
+        `Строк с некорректным остатком: ${invalidStockRows}. Они не будут обновлены.`,
       );
     }
   }

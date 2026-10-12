@@ -90,6 +90,7 @@ type RequestIntegrationInput = {
   previousCuttingStage?: CuttingStage | null;
   previousCuttingPickupCell?: string | null;
   cuttingStageNote?: string | null;
+  cuttingStageNoteInternal?: boolean;
 };
 
 type OrderIntegrationInput = {
@@ -832,7 +833,9 @@ function buildClientCuttingProgressMessage(input: RequestIntegrationInput) {
           ? `Ячейка выдачи: № ${input.cuttingPickupCell}`
           : "Ячейку выдачи сообщит менеджер"
         : "",
-      input.cuttingStageNote ? `Комментарий: ${input.cuttingStageNote}` : "",
+      input.cuttingStageNote && !input.cuttingStageNoteInternal
+        ? `Комментарий: ${input.cuttingStageNote}`
+        : "",
       "Все этапы и история доступны в личном кабинете.",
     ].filter(Boolean),
     actions: [

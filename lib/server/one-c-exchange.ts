@@ -1,5 +1,6 @@
 import "server-only";
 
+import { getUnpaidReservedQuantities } from "@/lib/server/inventory-reservations";
 import crypto from "node:crypto";
 
 import { revalidatePath } from "next/cache";
@@ -25,6 +26,18 @@ import { sendTelegramDirectMessage } from "@/lib/server/telegram-bot";
 
 const nullableIntSchema = z
   .union([z.coerce.number().int().nonnegative(), z.null()])
+  .optional();
+
+// Остаток из 1С бывает дробным (метры кромки): сайт хранит целое,
+// поэтому округляем вниз.
+const nullableStockSchema = z
+  .union([
+    z.coerce
+      .number()
+      .nonnegative()
+      .transform((value) => Math.floor(value)),
+    z.null(),
+  ])
   .optional();
 
 const productStatusSchema = z
@@ -53,9 +66,9 @@ export const oneCProductSyncSchema = z.object({
           name: z.string().trim().min(1).optional(),
           price: nullableIntSchema,
           compareAtPrice: nullableIntSchema,
-          stockQuantity: nullableIntSchema,
-          stock: nullableIntSchema,
-          quantity: nullableIntSchema,
+          stockQuantity: nullableStockSchema,
+          stock: nullableStockSchema,
+          quantity: nullableStockSchema,
           inventoryStatus: inventoryStatusSchema,
           status: productStatusSchema,
         })
@@ -269,6 +282,11 @@ export async function syncOneCProducts(
     ]),
   );
 
+  const reservedByProduct = await getUnpaidReservedQuantities(
+    db,
+    existingProducts.map((product) => product.id),
+  );
+
   let updated = 0;
   let skipped = 0;
   const missingSkus: string[] = [];
@@ -292,9 +310,18 @@ export async function syncOneCProducts(
       updateData.compareAtPrice = item.compareAtPrice;
     }
     if (stockQuantity !== undefined) {
-      updateData.stockQuantity = stockQuantity;
+      // Остаток из 1С минус то, что держат неоплаченные заказы сайта.
+      const availableQuantity =
+        stockQuantity === null
+          ? null
+          : Math.max(
+              0,
+              stockQuantity - (reservedByProduct.get(product.id) ?? 0),
+            );
+
+      updateData.stockQuantity = availableQuantity;
       updateData.inventoryStatus =
-        item.inventoryStatus ?? getInventoryStatusFromStock(stockQuantity);
+        item.inventoryStatus ?? getInventoryStatusFromStock(availableQuantity);
     } else if (item.inventoryStatus) {
       updateData.inventoryStatus = item.inventoryStatus;
     }

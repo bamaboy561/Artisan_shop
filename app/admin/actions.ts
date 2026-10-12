@@ -70,6 +70,7 @@ import {
   canManageLoyalty,
   setLoyaltyManagerAccess,
 } from "@/lib/server/loyalty-permissions";
+import { saveProductionPlan } from "@/lib/server/production-planning";
 import { hasDatabaseUrl, getDb } from "@/lib/db";
 import { ensureBrandLogoColumn } from "@/lib/server/brand-schema";
 import { sendClientDirectMessage } from "@/lib/server/client-notifications";
@@ -159,6 +160,7 @@ type TransitionSnapshot = {
   previousCuttingStage?: CuttingStage | null;
   previousCuttingPickupCell?: string | null;
   cuttingStageNote?: string | null;
+  cuttingStageNoteInternal?: boolean;
 };
 
 function getString(formData: FormData, key: string) {
@@ -226,6 +228,20 @@ function getOptionalDate(formData: FormData, key: string) {
   }
 
   const date = new Date(`${value}T00:00:00.000Z`);
+
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+// Дата окончания включительно: акция и баннер действуют до конца этого дня
+// по времени Бишкека, а не обрываются в его начале.
+function getOptionalEndDate(formData: FormData, key: string) {
+  const value = getString(formData, key);
+
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(`${value}T23:59:59.999+06:00`);
 
   return Number.isNaN(date.getTime()) ? null : date;
 }
@@ -881,6 +897,7 @@ async function syncRequestById(
     previousCuttingStage: transition?.previousCuttingStage,
     previousCuttingPickupCell: transition?.previousCuttingPickupCell,
     cuttingStageNote: transition?.cuttingStageNote,
+    cuttingStageNoteInternal: transition?.cuttingStageNoteInternal,
     product: request.product,
   });
 }
@@ -1901,6 +1918,21 @@ export async function createProductAction(formData: FormData) {
     return;
   }
 
+  // Такой же товар (название, категория и бренд совпадают) уже есть:
+  // открываем его карточку вместо создания дубля.
+  const duplicate = await db.product.findFirst({
+    where: {
+      name: { equals: name, mode: "insensitive" },
+      categoryId,
+      brandId: brandId ?? null,
+    },
+    select: { id: true },
+  });
+
+  if (duplicate) {
+    redirect(`/admin/products/${duplicate.id}?notice=duplicate`);
+  }
+
   const identity = [brand?.name, category.name, name].filter(Boolean).join(" ");
   const slug = await getUniqueProductSlug(
     db,
@@ -1915,7 +1947,7 @@ export async function createProductAction(formData: FormData) {
   );
   const imageUrls = await resolveProductImageUrls(formData, slug);
 
-  await db.product.create({
+  const createdProduct = await db.product.create({
     data: {
       name,
       slug,
@@ -1981,6 +2013,10 @@ export async function createProductAction(formData: FormData) {
   });
 
   revalidateAdminCatalog();
+
+  // Открываем карточку нового товара: видно, что он создан, а повторное
+  // нажатие в старой форме не создаст дубль.
+  redirect(`/admin/products/${createdProduct.id}?notice=created`);
 }
 
 export async function deleteProductAction(formData: FormData) {
@@ -2235,6 +2271,7 @@ export async function updateProductDetailsAction(formData: FormData) {
     revalidatePath(`/product/${previousProduct.slug}`);
   }
   revalidatePath(`/product/${slug}`);
+  redirect(`/admin/products/${id}?notice=saved`);
 }
 
 export async function importProductsFromExcelAction(formData: FormData) {
@@ -2434,6 +2471,22 @@ export async function importProductsFromExcelAction(formData: FormData) {
           : undefined);
       const productName = row.name || existingProduct?.name || "";
 
+      // Без артикула товар ищем по названию. Если с таким названием уже
+      // несколько товаров, непонятно, какой обновлять: не создаём ещё один.
+      if (
+        !skuKey &&
+        !existingProduct &&
+        row.name &&
+        (productsByName.get(normalizeImportLookup(row.name))?.length ?? 0) > 1
+      ) {
+        skipped += 1;
+        hiddenImportNotes += addImportNote(
+          importNotes,
+          `Строка ${row.rowNumber}: «${row.name}» без артикула, а товаров с таким названием несколько. Укажите артикул.`,
+        );
+        continue;
+      }
+
       if (!productName) {
         skipped += 1;
         hiddenImportNotes += addImportNote(
@@ -2536,9 +2589,13 @@ export async function importProductsFromExcelAction(formData: FormData) {
       }));
 
       if (existingProduct) {
+        // У существующего товара «Сценарий заказа» и «Наличие» меняем,
+        // только если они указаны в файле. Иначе оставляем как есть.
         const updateData: Prisma.ProductUpdateInput = {
-          orderMode: row.orderMode ?? defaultOrderMode,
-          inventoryStatus: row.inventoryStatus ?? defaultInventoryStatus,
+          ...(row.orderMode ? { orderMode: row.orderMode } : {}),
+          ...(row.inventoryStatus
+            ? { inventoryStatus: row.inventoryStatus }
+            : {}),
         };
 
         if (row.name) {
@@ -2562,7 +2619,7 @@ export async function importProductsFromExcelAction(formData: FormData) {
           updateData.compareAtPrice = row.compareAtPrice;
         }
         if (row.stockQuantity !== null) {
-          updateData.stockQuantity = row.stockQuantity;
+          updateData.stockQuantity = Math.floor(row.stockQuantity);
         }
         if (row.format) updateData.format = row.format;
         if (row.thicknessMm !== null) updateData.thicknessMm = row.thicknessMm;
@@ -2631,7 +2688,8 @@ export async function importProductsFromExcelAction(formData: FormData) {
         brand: brandId ? { connect: { id: brandId } } : undefined,
         price: row.price,
         compareAtPrice: row.compareAtPrice,
-        stockQuantity: row.stockQuantity,
+        stockQuantity:
+          row.stockQuantity === null ? null : Math.floor(row.stockQuantity),
         format: row.format,
         thicknessMm: row.thicknessMm,
         edgeThicknessMm: row.edgeThicknessMm,
@@ -2658,10 +2716,21 @@ export async function importProductsFromExcelAction(formData: FormData) {
         data: createData,
         select: { id: true, sku: true, slug: true },
       });
-      productBySku.set(normalizeImportSkuKey(product.sku), {
-        ...product,
-        name: productName,
-      });
+      const createdProduct = { ...product, name: productName };
+      const createdNameKey = normalizeImportLookup(productName);
+
+      productBySku.set(normalizeImportSkuKey(product.sku), createdProduct);
+      // Повтор того же названия без артикула ниже в файле обновит этот
+      // товар, а не создаст второй такой же.
+      productsByName.set(createdNameKey, [
+        ...(productsByName.get(createdNameKey) ?? []),
+        createdProduct,
+      ]);
+      if (productsByName.get(createdNameKey)?.length === 1) {
+        productByUniqueName.set(createdNameKey, createdProduct);
+      } else {
+        productByUniqueName.delete(createdNameKey);
+      }
       created += 1;
     } catch (error) {
       errors += 1;
@@ -2775,6 +2844,72 @@ export async function bulkUpdateProductsAction(formData: FormData) {
         data: { orderMode: ProductOrderMode.SERVICE },
       });
       break;
+    case "price-percent": {
+      // Изменение цены на процент: +10 дороже на 10%, -5 дешевле на 5%.
+      const percent = getOptionalFloat(formData, "pricePercent");
+
+      if (!percent || percent < -90 || percent > 300) {
+        return;
+      }
+
+      const priced = await db.product.findMany({
+        where: { id: { in: productIds }, price: { not: null } },
+        select: { id: true, price: true },
+      });
+
+      await db.$transaction(
+        priced.map((product) =>
+          db.product.update({
+            where: { id: product.id },
+            data: {
+              price: Math.max(
+                0,
+                Math.round(((product.price ?? 0) * (100 + percent)) / 100),
+              ),
+            },
+          }),
+        ),
+      );
+      break;
+    }
+    case "set-category": {
+      const categoryId = getString(formData, "bulkCategoryId");
+      const category = categoryId
+        ? await db.category.findUnique({
+            where: { id: categoryId },
+            select: { id: true },
+          })
+        : null;
+
+      if (!category) {
+        return;
+      }
+
+      await db.product.updateMany({
+        where: { id: { in: productIds } },
+        data: { categoryId: category.id },
+      });
+      break;
+    }
+    case "set-brand": {
+      const brandId = getString(formData, "bulkBrandId");
+      const brand = brandId
+        ? await db.brand.findUnique({
+            where: { id: brandId },
+            select: { id: true },
+          })
+        : null;
+
+      if (!brand) {
+        return;
+      }
+
+      await db.product.updateMany({
+        where: { id: { in: productIds } },
+        data: { brandId: brand.id },
+      });
+      break;
+    }
     default:
       return;
   }
@@ -2954,6 +3089,8 @@ export async function updateOrderItemsAction(formData: FormData) {
       tx.order.findUnique({
         where: { id: orderId },
         select: {
+          subtotal: true,
+          discountTotal: true,
           promotionDiscountTotal: true,
           loyaltyRedemptionTotal: true,
           deliveryTotal: true,
@@ -2981,6 +3118,7 @@ export async function updateOrderItemsAction(formData: FormData) {
           id: true,
           productId: true,
           quantity: true,
+          unitPrice: true,
           snapshotName: true,
           discountAmount: true,
         },
@@ -3169,6 +3307,10 @@ export async function updateOrderItemsAction(formData: FormData) {
     });
     const repricedItems = finalItems.map((item) => {
       const lineSubtotal = item.unitPrice * item.quantity;
+      const previousItem = currentItemMap.get(item.id);
+      const previousLineSubtotal = previousItem
+        ? previousItem.unitPrice * previousItem.quantity
+        : 0;
       const promotionPrice = item.product
         ? getProductPromotionPrice(
             item.unitPrice,
@@ -3176,9 +3318,22 @@ export async function updateOrderItemsAction(formData: FormData) {
             item.product.category.promotions,
           )
         : null;
-      const discountAmount = item.product
-        ? (promotionPrice?.unitDiscountAmount ?? 0) * item.quantity
-        : Math.min(item.discountAmount, lineSubtotal);
+      // Скидку строки, которая уже была в заказе, сохраняем в той же доле:
+      // правка количества не должна стирать личную скидку или цену из
+      // накладной. Акцию заново считаем только для новой строки.
+      const discountAmount = previousItem
+        ? previousLineSubtotal > 0
+          ? Math.min(
+              lineSubtotal,
+              Math.round(
+                (previousItem.discountAmount / previousLineSubtotal) *
+                  lineSubtotal,
+              ),
+            )
+          : 0
+        : item.product
+          ? (promotionPrice?.unitDiscountAmount ?? 0) * item.quantity
+          : Math.min(item.discountAmount, lineSubtotal);
 
       return {
         ...item,
@@ -3229,9 +3384,31 @@ export async function updateOrderItemsAction(formData: FormData) {
         : 0;
     const promotionDiscountTotal =
       linePromotionDiscountTotal + orderPromotionDiscountTotal;
+    // Личная скидка заказа с сайта хранится на уровне заказа, а не строк.
+    // Сохраняем её в той же доле от суммы после скидок строк.
+    const previousLineDiscountTotal = currentItems.reduce(
+      (sum, item) => sum + item.discountAmount,
+      0,
+    );
+    const previousPersonalDiscount = Math.max(
+      0,
+      order.discountTotal -
+        Math.max(order.promotionDiscountTotal, previousLineDiscountTotal),
+    );
+    const previousPersonalBase = order.subtotal - previousLineDiscountTotal;
+    const personalDiscountTotal =
+      previousPersonalDiscount > 0 && previousPersonalBase > 0
+        ? Math.min(
+            Math.max(0, subtotal - promotionDiscountTotal),
+            Math.round(
+              (previousPersonalDiscount / previousPersonalBase) *
+                subtotalAfterLinePromotions,
+            ),
+          )
+        : 0;
     const subtotalAfterPromotion = Math.max(
       0,
-      subtotal - promotionDiscountTotal,
+      subtotal - promotionDiscountTotal - personalDiscountTotal,
     );
     const loyaltyRedemptionTotal = Math.min(
       order.loyaltyRedemptionTotal,
@@ -3317,6 +3494,7 @@ export async function updateOrderItemsAction(formData: FormData) {
       0,
       subtotal -
         promotionDiscountTotal -
+        personalDiscountTotal -
         loyaltyRedemptionTotal +
         order.deliveryTotal,
     );
@@ -3325,7 +3503,7 @@ export async function updateOrderItemsAction(formData: FormData) {
       where: { id: orderId },
       data: {
         subtotal,
-        discountTotal: promotionDiscountTotal,
+        discountTotal: promotionDiscountTotal + personalDiscountTotal,
         promotionDiscountTotal,
         loyaltyRedemptionTotal,
         total,
@@ -4233,6 +4411,16 @@ export async function createAdminCuttingRequestAction(
       },
     );
 
+    // Срок из формы сразу попадает в план производства, а не только в текст.
+    if (deadlineValue && deadline) {
+      await saveProductionPlan({
+        requestId: createdRequest.id,
+        dueDate: deadlineValue,
+        expectedVersion: 0,
+        actor,
+      }).catch((error) => console.error("[cutting:deadline]", error));
+    }
+
     await Promise.all([
       logOperationEvent({
         entityType: "request",
@@ -4355,6 +4543,8 @@ type CuttingProgressMutationInput = {
   stage: CuttingStage;
   pickupCell?: string | null;
   note?: string | null;
+  // Комментарий оператора станции: виден сотрудникам, клиенту не уходит.
+  internalNote?: boolean;
   expectedStage?: CuttingStage | null;
   actor: Awaited<ReturnType<typeof ensureCuttingAdminAccess>>;
 };
@@ -4402,7 +4592,7 @@ async function applyRequestCuttingProgress(
         ? `Ячейка выдачи: № ${currentRequest.cuttingPickupCell}.`
         : "Ячейка выдачи пока не указана."
       : null,
-    input.note,
+    input.internalNote ? null : input.note,
   ]
     .filter(Boolean)
     .join(" ");
@@ -4418,6 +4608,17 @@ async function applyRequestCuttingProgress(
           fromStatus: previousRequest.cuttingStage,
           toStatus: currentRequest.cuttingStage,
           isVisibleToClient: true,
+          actor: input.actor,
+        })
+      : Promise.resolve(),
+    input.internalNote && input.note
+      ? logOperationEvent({
+          entityType: "request",
+          entityId: input.requestId,
+          eventType: "cutting_stage",
+          title: "Комментарий станции",
+          description: input.note,
+          isVisibleToClient: false,
           actor: input.actor,
         })
       : Promise.resolve(),
@@ -4444,6 +4645,7 @@ async function applyRequestCuttingProgress(
       previousCuttingStage: previousRequest.cuttingStage,
       previousCuttingPickupCell: previousRequest.cuttingPickupCell,
       cuttingStageNote: input.note,
+      cuttingStageNoteInternal: input.internalNote,
     });
   }
 
@@ -4502,6 +4704,11 @@ export async function advanceProductionStageAction(formData: FormData) {
     redirect(productionActionReturn(formData, requestId, "stage-conflict"));
   }
 
+  // Оператор берёт в работу только то, что менеджер запустил в производство.
+  if (!request.cuttingStage && request.status !== RequestStatus.IN_PROGRESS) {
+    redirect(productionActionReturn(formData, requestId, "not-launched"));
+  }
+
   const pickupCell = getOptionalString(formData, "cuttingPickupCell");
 
   if (transition.requiresPickupCell && !pickupCell) {
@@ -4513,6 +4720,7 @@ export async function advanceProductionStageAction(formData: FormData) {
     stage: transition.to,
     pickupCell,
     note: getOptionalString(formData, "cuttingStageNote"),
+    internalNote: true,
     expectedStage: request.cuttingStage,
     actor,
   });
@@ -5165,6 +5373,11 @@ export async function createPromotionAction(formData: FormData) {
     return;
   }
 
+  // Скидка больше 100% сделала бы цену отрицательной.
+  if (discountType === DiscountType.PERCENT && discountValue > 100) {
+    return;
+  }
+
   const normalizedTargetType =
     Object.values(PromotionTargetType).find((item) => item === targetType) ??
     PromotionTargetType.ORDER;
@@ -5191,7 +5404,7 @@ export async function createPromotionAction(formData: FormData) {
       badgeText: getOptionalString(formData, "badgeText"),
       isHighlighted: getString(formData, "isHighlighted") === "on",
       startsAt: getOptionalDate(formData, "startsAt"),
-      endsAt: getOptionalDate(formData, "endsAt"),
+      endsAt: getOptionalEndDate(formData, "endsAt"),
       products:
         normalizedTargetType === PromotionTargetType.PRODUCT &&
         selectedProductId
@@ -5257,6 +5470,11 @@ export async function updatePromotionAction(formData: FormData) {
     return;
   }
 
+  // Скидка больше 100% сделала бы цену отрицательной.
+  if (discountType === DiscountType.PERCENT && discountValue > 100) {
+    return;
+  }
+
   const normalizedTargetType =
     Object.values(PromotionTargetType).find((item) => item === targetType) ??
     PromotionTargetType.ORDER;
@@ -5287,7 +5505,7 @@ export async function updatePromotionAction(formData: FormData) {
         badgeText: getOptionalString(formData, "badgeText"),
         isHighlighted: getString(formData, "isHighlighted") === "on",
         startsAt: getOptionalDate(formData, "startsAt"),
-        endsAt: getOptionalDate(formData, "endsAt"),
+        endsAt: getOptionalEndDate(formData, "endsAt"),
         products:
           normalizedTargetType === PromotionTargetType.PRODUCT &&
           selectedProductId
@@ -5596,7 +5814,7 @@ export async function createBannerAction(formData: FormData) {
       isActive: getString(formData, "isActive") === "on",
       sortOrder: getOptionalInt(formData, "sortOrder") ?? 100,
       startsAt: getOptionalDate(formData, "startsAt"),
-      endsAt: getOptionalDate(formData, "endsAt"),
+      endsAt: getOptionalEndDate(formData, "endsAt"),
     },
   });
 
@@ -5634,7 +5852,7 @@ export async function updateBannerAction(formData: FormData) {
       isActive: getString(formData, "isActive") === "on",
       sortOrder: getOptionalInt(formData, "sortOrder") ?? 100,
       startsAt: getOptionalDate(formData, "startsAt"),
-      endsAt: getOptionalDate(formData, "endsAt"),
+      endsAt: getOptionalEndDate(formData, "endsAt"),
     },
   });
 
