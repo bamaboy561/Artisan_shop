@@ -204,10 +204,15 @@ export const cuttingSiteIncentive: {
   title: string;
   text: string;
   managerNote: string;
+  offers: Array<{ label: string; was: string; now: string; unit: string }>;
 } | null = {
   badge: "−50 сом",
   title: "Раскрой через сайт дешевле: распил 300 сом за лист вместо 350",
   text: "Кромление 28 сом за метр вместо 35. Соберите раскрой здесь сами, и мы посчитаем работу по сниженной цене. Материал по обычной цене, точную сумму подтвердит менеджер.",
   managerNote:
     "Заявка с сайта: распил 300 сом/лист (вместо 350), кромление 28 сом/м (вместо 35).",
+  offers: [
+    { label: "Распил", was: "350", now: "300", unit: "сом/лист" },
+    { label: "Кромление", was: "35", now: "28", unit: "сом/м" },
+  ],
 };

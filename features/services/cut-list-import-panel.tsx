@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { ClipboardPaste, FileSpreadsheet, Upload } from "lucide-react";
 
@@ -73,6 +73,17 @@ export function CutListImportPanel({ onImport }: CutListImportPanelProps) {
   } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    const openFromHash = () => {
+      if (window.location.hash === "#cut-import") {
+        setIsOpen(true);
+      }
+    };
+
+    window.addEventListener("hashchange", openFromHash);
+    return () => window.removeEventListener("hashchange", openFromHash);
+  }, []);
+
   const applyResult = (result: CutListImportResult) => {
     if (result.details.length === 0) {
       setFeedback({
@@ -118,7 +129,10 @@ export function CutListImportPanel({ onImport }: CutListImportPanelProps) {
   };
 
   return (
-    <div className="mt-3.5 border border-dashed border-[color:var(--line-strong)] bg-[#fcfaf6] p-3 sm:mt-5 sm:p-4">
+    <div
+      id="cut-import"
+      className="mt-3.5 scroll-mt-24 border border-dashed border-[color:var(--line-strong)] bg-[#fcfaf6] p-3 sm:mt-5 sm:p-4"
+    >
       <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <p className="font-mono text-[10px] tracking-[0.16em] text-[var(--accent)] uppercase">
