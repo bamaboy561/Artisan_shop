@@ -1215,7 +1215,7 @@ export default async function AdminPage({
         </Panel>
 
         <Panel
-          title="Остатки материалов"
+          title="Заканчиваются на складе"
           href="/admin/products"
           linkLabel="Все товары"
         >

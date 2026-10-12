@@ -1120,9 +1120,9 @@ export async function getAdminStockMaterials(limit = 5) {
   return db.product.findMany({
     where: {
       status: ProductStatus.ACTIVE,
-      stockQuantity: { not: null },
+      stockQuantity: { gt: 0 },
     },
-    orderBy: [{ stockQuantity: "desc" }, { updatedAt: "desc" }],
+    orderBy: [{ stockQuantity: "asc" }, { updatedAt: "desc" }],
     take: limit,
     select: {
       id: true,

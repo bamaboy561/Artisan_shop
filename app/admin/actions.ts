@@ -62,6 +62,7 @@ import {
   canManageProduction,
   canManageStaff,
   getAdminHomePath,
+  isCuttingManager,
   isProductionOperator,
   roleDefinitions,
 } from "@/lib/auth/roles";
@@ -4021,6 +4022,14 @@ export async function createAdminCuttingRequestAction(
   formData: FormData,
 ): Promise<AdminCuttingRequestFormState> {
   const actor = await ensureCuttingAdminAccess();
+
+  if (
+    !canAccessGeneralAdmin(actor.roleCode) &&
+    !isCuttingManager(actor.roleCode)
+  ) {
+    redirect(getAdminHomePath(actor.roleCode));
+  }
+
   const customerId = getOptionalString(formData, "customerId");
   const material = getString(formData, "material");
   const cuttingSheetCount = getOptionalInt(formData, "cuttingSheetCount");
