@@ -13,6 +13,8 @@ import {
 import { AdminSubmitButton } from "@/components/admin/admin-submit-button";
 import { OperationTimeline } from "@/components/admin/operation-timeline";
 import { OrderProductPicker } from "@/components/admin/order-product-picker";
+import { WhatsappClientLink } from "@/components/admin/whatsapp-client-link";
+import { buildOrderWhatsappText } from "@/features/admin/whatsapp";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -260,6 +262,16 @@ export default async function AdminOrderDetailPage({
                 <p className="mt-1 text-sm text-[var(--muted)]">
                   {order.contactPhone}
                 </p>
+                <WhatsappClientLink
+                  className="mt-2"
+                  phone={order.contactPhone}
+                  text={buildOrderWhatsappText({
+                    number: order.number,
+                    contactName: order.contactName,
+                    statusLabel: orderStatusLabels[order.status],
+                    isReady: order.status === OrderStatus.READY_FOR_PICKUP,
+                  })}
+                />
                 {order.contactEmail ? (
                   <p className="mt-1 text-sm text-[var(--muted)]">
                     {order.contactEmail}
