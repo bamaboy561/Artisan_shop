@@ -13,7 +13,6 @@ import {
   Search,
   Scissors,
   ShoppingCart,
-  Trash2,
   X,
 } from "lucide-react";
 
@@ -28,6 +27,7 @@ import {
 } from "@/app/(public)/calculator/actions";
 import type { CalculatorProductContext } from "@/features/catalog/data";
 import type { ImportedDetail } from "@/features/services/cut-list-import";
+import { CutDetailTable } from "@/features/services/cut-detail-table";
 import { CutListImportPanel } from "@/features/services/cut-list-import-panel";
 import type {
   CalculatorMaterialDto,
@@ -1307,42 +1307,6 @@ function MetricTile({
   );
 }
 
-function EdgeSideButton({
-  side,
-  active,
-  disabled,
-  onClick,
-}: {
-  side: EdgeSide;
-  active: boolean;
-  disabled?: boolean;
-  onClick: () => void;
-}) {
-  const isVertical = side === "left" || side === "right";
-
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      aria-pressed={active}
-      className={cn(
-        "flex items-center justify-center rounded-full border px-1.5 py-1.5 font-mono text-[8px] tracking-[0.14em] uppercase transition sm:px-2.5 sm:py-2 sm:text-[9px]",
-        isVertical
-          ? "min-h-[5rem] min-w-7 sm:min-h-[5.5rem] sm:min-w-9"
-          : "min-h-8 w-full sm:min-h-9",
-        active
-          ? "border-[var(--accent)] bg-[var(--accent)] text-white"
-          : "border-[color:var(--line)] bg-[var(--surface-strong)] text-[var(--muted)] hover:border-[color:var(--line-strong)] hover:text-[var(--foreground)]",
-        disabled && "cursor-not-allowed opacity-45",
-      )}
-      style={isVertical ? { writingMode: "vertical-rl" } : undefined}
-    >
-      {edgeSideMeta[side].label}
-    </button>
-  );
-}
-
 function ContextField({
   label,
   value,
@@ -1524,6 +1488,31 @@ export function CutCalculator({
   const [restoredDraftAt, setRestoredDraftAt] = useState<string | null>(null);
   const draftReadyRef = useRef(false);
   const attachmentInputRef = useRef<HTMLInputElement>(null);
+  const calculatorSectionRef = useRef<HTMLElement>(null);
+  const [showStickySummary, setShowStickySummary] = useState(false);
+
+  useEffect(() => {
+    const section = calculatorSectionRef.current;
+    const requestForm = document.getElementById("cut-request-form");
+
+    if (!section || !requestForm || !("IntersectionObserver" in window)) {
+      return;
+    }
+
+    let sectionVisible = false;
+    let formVisible = false;
+    const observer = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.target === section) sectionVisible = entry.isIntersecting;
+        if (entry.target === requestForm) formVisible = entry.isIntersecting;
+      }
+      setShowStickySummary(sectionVisible && !formVisible);
+    });
+
+    observer.observe(section);
+    observer.observe(requestForm);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     const draft = readCalculatorDraft();
@@ -2261,6 +2250,25 @@ export function CutCalculator({
     });
   };
 
+  const detailColors = Object.fromEntries(
+    details.map((detail, index) => [detail.id, getCutMapColor(index)]),
+  );
+  const detailLineTotals = Object.fromEntries(
+    calculation.rows.map((row) => [
+      row.id,
+      row.lineTotal > 0 ? formatPrice(Math.round(row.lineTotal)) : "—",
+    ]),
+  );
+  const detailEdgeLabels = Object.fromEntries(
+    details.map((detail) => [
+      detail.id,
+      getReadableEdgeSelection(detail.edgedSides, edgeSizeLabel),
+    ]),
+  );
+  const orientationOptions = (
+    Object.keys(orientationModeMeta) as OrientationMode[]
+  ).map((mode) => ({ value: mode, label: orientationModeMeta[mode].label }));
+
   const summaryCards = [
     {
       label: "Площадь деталей",
@@ -2297,6 +2305,7 @@ export function CutCalculator({
   return (
     <section
       id="cut-calculator"
+      ref={calculatorSectionRef}
       className="overflow-hidden border-t border-[#151411]/10 bg-white"
     >
       <div className="grid gap-0 xl:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[minmax(0,1fr)_360px]">
@@ -2519,37 +2528,41 @@ export function CutCalculator({
             </div>
           </div>
 
-          <div className="mt-3 space-y-2.5 xl:hidden">
-            <div className="grid grid-cols-2 gap-2">
-              {summaryCards.slice(0, 4).map((card) => (
-                <div
-                  key={card.label}
-                  className="min-w-0 border border-[color:var(--line)] bg-[var(--surface-strong)] px-2.5 py-2"
-                >
-                  <p className="truncate text-[9px] tracking-[0.12em] text-[var(--muted)] uppercase">
-                    {card.label}
-                  </p>
-                  <p className="mt-1 text-[12px] leading-4.5 font-semibold break-words text-[var(--foreground)]">
-                    {card.value}
-                  </p>
-                </div>
-              ))}
+          <div className="mt-4 rounded-2xl bg-[#1b1714] p-4 text-white xl:hidden">
+            <div className="flex items-end justify-between gap-3">
+              <div>
+                <p className="font-mono text-[10px] tracking-[0.16em] text-white/55 uppercase">
+                  Ориентир по раскрою
+                </p>
+                <p className="mt-1 font-[family-name:var(--font-unbounded)] text-[1.7rem] leading-none font-medium">
+                  {formatPrice(Math.round(estimate.totalEstimate))}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="font-[family-name:var(--font-unbounded)] text-[1.35rem] leading-none text-[#f08a55]">
+                  {estimate.sheetCount}
+                </p>
+                <p className="mt-1 text-[11px] text-white/55">
+                  {estimate.sheetCount === 1 ? "лист" : "листа"}
+                </p>
+              </div>
             </div>
-
-            <div className="border border-[color:var(--line)] bg-[var(--surface-strong)] p-3">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="font-mono text-[9px] tracking-[0.14em] text-[var(--muted)] uppercase">
-                    Итого ориентир
-                  </p>
-                  <p className="mt-1 text-[0.95rem] font-semibold text-[var(--foreground)]">
-                    {formatPrice(Math.round(estimate.totalEstimate))}
-                  </p>
-                </div>
-                <div className="text-right text-[11px] leading-[1.35] text-[var(--muted)]">
-                  <p>{estimate.sheetCount} лист.</p>
-                  <p>{cutMap.placedPieces} дет.</p>
-                </div>
+            <div className="mt-3 grid grid-cols-3 gap-2 border-t border-white/10 pt-3 text-[12px]">
+              <div>
+                <p className="text-white/50">Деталей</p>
+                <p className="mt-0.5 font-semibold">{cutMap.placedPieces}</p>
+              </div>
+              <div>
+                <p className="text-white/50">КИМ</p>
+                <p className="mt-0.5 font-semibold">
+                  {(cutMap.utilization * 100).toFixed(0)}%
+                </p>
+              </div>
+              <div>
+                <p className="text-white/50">Кромка</p>
+                <p className="mt-0.5 font-semibold">
+                  {calculation.totalEdgeMeters.toFixed(1)} м
+                </p>
               </div>
             </div>
           </div>
@@ -2585,310 +2598,21 @@ export function CutCalculator({
             </div>
           ) : null}
 
-          <div className="mt-3.5 space-y-2.5 sm:mt-5 sm:space-y-3.5">
-            {details.map((detail, index) => {
-              const lineCalculation =
-                calculation.rows.find((row) => row.id === detail.id) ??
-                calculation.rows[0];
-              const selectedEdgeLabel = getReadableEdgeSelection(
-                detail.edgedSides,
-                edgeSizeLabel,
-              );
-
-              return (
-                <article
-                  key={detail.id}
-                  className="border-t border-[#151411]/10 bg-[#fcfaf6] py-3 sm:py-4"
-                >
-                  <div className="flex flex-col gap-2.5 px-1 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-                    <div>
-                      <p className="text-[13px] font-semibold text-[var(--foreground)] sm:text-sm">
-                        {detail.title}
-                      </p>
-                      <p className="text-[11px] text-[var(--muted)]">
-                        Позиция {index + 1} в карте раскроя
-                      </p>
-                    </div>
-                    <div className="grid grid-cols-2 gap-1.5 sm:flex sm:flex-wrap sm:items-center sm:gap-2">
-                      <button
-                        type="button"
-                        onClick={() => duplicateRow(detail.id)}
-                        className="inline-flex min-w-0 items-center justify-center gap-1.5 border border-[color:var(--line)] px-2 py-1.5 text-[11px] font-medium text-[var(--muted)] transition hover:border-[color:var(--line-strong)] hover:text-[var(--foreground)]"
-                      >
-                        <Copy className="size-3.5" />
-                        Дублировать
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => removeRow(detail.id)}
-                        className={cn(
-                          "inline-flex min-w-0 items-center justify-center gap-1.5 border border-[color:var(--line)] px-2 py-1.5 text-[11px] font-medium text-[var(--muted)] transition hover:border-[color:var(--line-strong)] hover:text-[var(--foreground)]",
-                          details.length === 1 &&
-                            "cursor-not-allowed opacity-45",
-                        )}
-                      >
-                        <Trash2 className="size-3.5" />
-                        Удалить
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="mt-2.5 grid gap-2.5 xl:grid-cols-[minmax(0,1.32fr)_minmax(260px,0.68fr)] xl:items-start">
-                    <div className="space-y-2.5">
-                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.2fr)_110px_110px_96px] xl:gap-2">
-                        <label className="grid min-w-0 gap-1.5 text-[11px] leading-[1.2] text-[var(--foreground)] sm:col-span-2 sm:text-sm xl:col-span-1">
-                          Название
-                          <Input
-                            className="h-9 text-[13px] sm:h-11 sm:text-sm"
-                            value={detail.title}
-                            onChange={(event) =>
-                              updateRow(detail.id, {
-                                title: event.target.value,
-                              })
-                            }
-                            placeholder="Деталь"
-                          />
-                        </label>
-                        <label className="grid min-w-0 gap-1.5 text-[11px] leading-[1.2] text-[var(--foreground)] sm:text-sm">
-                          Ширина, мм
-                          <Input
-                            className="h-9 text-[13px] sm:h-11 sm:text-sm"
-                            value={detail.width}
-                            onChange={(event) =>
-                              updateRow(detail.id, {
-                                width: event.target.value,
-                              })
-                            }
-                            type="number"
-                            min="0"
-                            placeholder="560"
-                          />
-                        </label>
-                        <label className="grid min-w-0 gap-1.5 text-[11px] leading-[1.2] text-[var(--foreground)] sm:text-sm">
-                          Высота, мм
-                          <Input
-                            className="h-9 text-[13px] sm:h-11 sm:text-sm"
-                            value={detail.height}
-                            onChange={(event) =>
-                              updateRow(detail.id, {
-                                height: event.target.value,
-                              })
-                            }
-                            type="number"
-                            min="0"
-                            placeholder="420"
-                          />
-                        </label>
-                        <label className="grid min-w-0 gap-1.5 text-[11px] leading-[1.2] text-[var(--foreground)] sm:text-sm">
-                          Кол-во
-                          <Input
-                            className="h-9 text-[13px] sm:h-11 sm:text-sm"
-                            value={detail.quantity}
-                            onChange={(event) =>
-                              updateRow(detail.id, {
-                                quantity: event.target.value,
-                              })
-                            }
-                            type="number"
-                            min="1"
-                            placeholder="1"
-                          />
-                        </label>
-                        <label className="grid min-w-0 gap-1.5 text-[11px] text-[var(--foreground)] sm:col-span-2 sm:text-sm xl:col-span-4">
-                          Ориентация / текстура
-                          <Select
-                            className="h-9 text-[13px] sm:h-11 sm:text-sm"
-                            value={detail.orientationMode}
-                            onChange={(event) =>
-                              updateRow(detail.id, {
-                                orientationMode: event.target
-                                  .value as OrientationMode,
-                              })
-                            }
-                          >
-                            {(
-                              Object.keys(
-                                orientationModeMeta,
-                              ) as OrientationMode[]
-                            ).map((mode) => (
-                              <option key={mode} value={mode}>
-                                {orientationModeMeta[mode].label}
-                              </option>
-                            ))}
-                          </Select>
-                        </label>
-                      </div>
-
-                      <div className="hidden xl:grid xl:grid-cols-[minmax(220px,260px)_minmax(0,1fr)] xl:gap-2">
-                        <div className="border border-[color:var(--line)] bg-white px-3 py-2.5">
-                          <p className="font-mono text-[9px] tracking-[0.14em] text-[var(--muted)] uppercase">
-                            Параметры детали
-                          </p>
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            <span className="inline-flex min-h-7 items-center border border-[color:var(--line)] px-2 text-[11px] text-[var(--foreground)]">
-                              Кромка: {selectedEdgeLabel}
-                            </span>
-                            <span className="inline-flex min-h-7 items-center border border-[color:var(--line)] px-2 text-[11px] text-[var(--foreground)]">
-                              Режим:{" "}
-                              {getOrientationModeLabel(detail.orientationMode)}
-                            </span>
-                          </div>
-                          <p className="mt-2 text-[11px] leading-4 text-[var(--muted)]">
-                            {
-                              orientationModeMeta[detail.orientationMode]
-                                .description
-                            }
-                          </p>
-                          {!edgingAvailable ? (
-                            <p className="mt-2 text-[11px] leading-4 text-[var(--muted)]">
-                              Для этого материала кромка {edgeSizeLabel} в
-                              расчёте не учитывается.
-                            </p>
-                          ) : null}
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-2">
-                          <MetricTile
-                            label="Площадь"
-                            value={`${lineCalculation.areaSqM.toFixed(2)} м²`}
-                            muted
-                          />
-                          <MetricTile
-                            label="Контур"
-                            value={`${lineCalculation.perimeterMeters.toFixed(1)} м`}
-                            muted
-                          />
-                          <MetricTile
-                            label={`Кромка ${edgeSizeLabel}`}
-                            value={`${lineCalculation.edgeMeters.toFixed(1)} м`}
-                            muted
-                          />
-                          <MetricTile
-                            label="Ориентир по детали"
-                            value={formatPrice(
-                              Math.round(lineCalculation.lineTotal),
-                            )}
-                            muted
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="min-w-0 overflow-hidden border border-[color:var(--line)] bg-white p-2.5 sm:p-3">
-                      <p className="font-mono text-[10px] tracking-[0.16em] text-[var(--muted)] uppercase">
-                        Схема кромки
-                      </p>
-                      <p className="mt-1 text-[11px] text-[var(--muted)] sm:text-sm">
-                        Нажмите на нужные стороны детали.
-                      </p>
-
-                      <div className="mt-2 grid max-w-full grid-cols-[24px_minmax(0,1fr)_24px] grid-rows-[24px_minmax(96px,1fr)_24px] gap-1.5 sm:grid-cols-[34px_minmax(0,1fr)_34px] sm:grid-rows-[34px_minmax(120px,1fr)_34px] sm:gap-2">
-                        <div className="col-start-2 row-start-1">
-                          <EdgeSideButton
-                            side="top"
-                            active={detail.edgedSides.includes("top")}
-                            disabled={!edgingAvailable}
-                            onClick={() => toggleEdgeSide(detail.id, "top")}
-                          />
-                        </div>
-
-                        <div className="col-start-1 row-start-2">
-                          <EdgeSideButton
-                            side="left"
-                            active={detail.edgedSides.includes("left")}
-                            disabled={!edgingAvailable}
-                            onClick={() => toggleEdgeSide(detail.id, "left")}
-                          />
-                        </div>
-
-                        <div className="row-start-2 flex min-h-[96px] min-w-0 items-center justify-center overflow-hidden rounded-[14px] border-[3px] border-[var(--accent)]/85 bg-[#fbf8f1] px-2 text-center sm:min-h-[124px] sm:rounded-[20px] sm:px-3">
-                          <div className="min-w-0">
-                            <p className="truncate font-mono text-[9px] tracking-[0.12em] text-[var(--muted)] uppercase sm:text-[10px]">
-                              {lineCalculation.width || 0} ×{" "}
-                              {lineCalculation.height || 0} мм
-                            </p>
-                            <p className="mt-1 truncate text-[0.95rem] font-semibold text-[var(--foreground)] sm:mt-1.5 sm:text-[1.35rem]">
-                              {detail.title}
-                            </p>
-                            <p className="mt-0.5 text-[11px] text-[var(--muted)] sm:text-[12px]">
-                              {lineCalculation.quantity || 0} шт.
-                            </p>
-                            <p className="mt-1 text-[8px] font-medium text-[var(--accent)] sm:text-[9px]">
-                              {getOrientationModeLabel(detail.orientationMode)}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="col-start-3 row-start-2">
-                          <EdgeSideButton
-                            side="right"
-                            active={detail.edgedSides.includes("right")}
-                            disabled={!edgingAvailable}
-                            onClick={() => toggleEdgeSide(detail.id, "right")}
-                          />
-                        </div>
-
-                        <div className="col-start-2 row-start-3">
-                          <EdgeSideButton
-                            side="bottom"
-                            active={detail.edgedSides.includes("bottom")}
-                            disabled={!edgingAvailable}
-                            onClick={() => toggleEdgeSide(detail.id, "bottom")}
-                          />
-                        </div>
-                      </div>
-
-                      <div className="mt-2 space-y-1 border-t border-[color:var(--line)] pt-2">
-                        <div>
-                          <p className="font-mono text-[10px] tracking-[0.14em] text-[var(--muted)] uppercase">
-                            Выбрано
-                          </p>
-                          <p className="mt-1 text-[12px] leading-4.5 text-[var(--foreground)]">
-                            {selectedEdgeLabel}
-                          </p>
-                          <p className="mt-1 text-[11px] leading-4.5 text-[var(--muted)]">
-                            Ориентация:{" "}
-                            {getOrientationModeLabel(detail.orientationMode)}
-                          </p>
-                        </div>
-
-                        {!edgingAvailable ? (
-                          <p className="text-[11px] leading-4 text-[var(--muted)]">
-                            Для выбранного материала кромка 1 мм в этом расчете
-                            не учитывается, но разметку можно сохранить для
-                            заявки.
-                          </p>
-                        ) : null}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-2.5 grid grid-cols-1 gap-2 px-1 min-[380px]:grid-cols-2 sm:gap-2.5 xl:hidden">
-                    <MetricTile
-                      label="Площадь"
-                      value={`${lineCalculation.areaSqM.toFixed(2)} м²`}
-                      muted
-                    />
-                    <MetricTile
-                      label="Контур"
-                      value={`${lineCalculation.perimeterMeters.toFixed(1)} м`}
-                      muted
-                    />
-                    <MetricTile
-                      label={`Кромка ${edgeSizeLabel}`}
-                      value={`${lineCalculation.edgeMeters.toFixed(1)} м`}
-                      muted
-                    />
-                    <MetricTile
-                      label="Ориентир по детали"
-                      value={formatPrice(Math.round(lineCalculation.lineTotal))}
-                      muted
-                    />
-                  </div>
-                </article>
-              );
-            })}
-          </div>
+          <CutDetailTable
+            rows={details}
+            colors={detailColors}
+            lineTotals={detailLineTotals}
+            edgeLabels={detailEdgeLabels}
+            orientationOptions={orientationOptions}
+            edgingAvailable={edgingAvailable}
+            onChange={updateRow}
+            onToggleEdge={toggleEdgeSide}
+            onSetEdges={(id, sides) =>
+              updateRow(id, { edgedSides: normalizeEdgeSides(sides) })
+            }
+            onDuplicate={duplicateRow}
+            onRemove={removeRow}
+          />
 
           <div className="mt-4 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3">
             <Button
@@ -3261,7 +2985,10 @@ export function CutCalculator({
                                 (piece.height / sheet.height) * 100;
                               const showMeta =
                                 widthPercent > 16 && heightPercent > 12;
-                              const color = getCutMapColor(pieceIndex);
+                              const color =
+                                detailColors[
+                                  piece.id.slice(0, piece.id.lastIndexOf("-"))
+                                ] ?? getCutMapColor(pieceIndex);
 
                               return (
                                 <div
@@ -3531,17 +3258,31 @@ export function CutCalculator({
           </div>
         </div>
 
-        <aside className="hidden border-t border-[#151411]/10 bg-[#efe7db] p-4 text-[#151411] sm:p-5 lg:p-6 xl:sticky xl:top-20 xl:block xl:self-start xl:border-t-0 xl:border-l xl:border-[#151411]/10">
-          <p className="font-mono text-[10px] tracking-[0.2em] text-[#8a7867] uppercase">
-            Сводка
-          </p>
-          <h3 className="mt-2.5 text-[1.2rem] leading-[1.06] font-semibold text-balance sm:mt-3 sm:text-[1.45rem]">
-            Рабочая сводка по карте раскроя
-          </h3>
-          <p className="mt-2 text-[13px] leading-5 text-[#5f554c] sm:text-sm sm:leading-6">
-            Здесь собран только рабочий минимум: площадь, рез, листы, остатки и
-            ориентир по стоимости.
-          </p>
+        <aside className="hidden border-t border-[#151411]/10 bg-[#f6f2eb] p-4 text-[#151411] sm:p-5 lg:p-6 xl:sticky xl:top-20 xl:block xl:self-start xl:border-t-0 xl:border-l xl:border-[#151411]/10">
+          <div className="rounded-2xl bg-[#1b1714] p-5 text-white shadow-[0_18px_40px_rgba(21,20,17,0.25)]">
+            <p className="font-mono text-[10px] tracking-[0.18em] text-white/55 uppercase">
+              Ориентир по раскрою
+            </p>
+            <p className="mt-2 font-[family-name:var(--font-unbounded)] text-[2rem] leading-none font-medium">
+              {formatPrice(Math.round(estimate.totalEstimate))}
+            </p>
+            <p className="mt-3 text-[13px] text-white/70">
+              <span className="font-semibold text-[#f08a55]">
+                {estimate.sheetCount} лист.
+              </span>{" "}
+              · {cutMap.placedPieces} дет. · КИМ{" "}
+              {(cutMap.utilization * 100).toFixed(0)}%
+            </p>
+            <a
+              href="#cut-request-form"
+              className="mt-4 flex h-11 items-center justify-center rounded-xl bg-[#e0703f] text-[13px] font-semibold tracking-[0.04em] uppercase transition hover:bg-[#c95e30]"
+            >
+              Отправить заявку
+            </a>
+            <p className="mt-2 text-center text-[11px] text-white/45">
+              Точную сумму подтвердит менеджер
+            </p>
+          </div>
 
           <div className="mt-4 grid gap-2 sm:mt-5 sm:grid-cols-2 sm:gap-2.5 xl:grid-cols-1">
             {summaryCards.map((card) => {
@@ -3592,6 +3333,31 @@ export function CutCalculator({
             </div>
           </div>
         </aside>
+      </div>
+
+      <div
+        className={cn(
+          "fixed inset-x-3 bottom-[calc(4.4rem+env(safe-area-inset-bottom))] z-30 flex items-center gap-3 rounded-2xl bg-[#1b1714] px-4 py-3 text-white shadow-[0_18px_40px_rgba(21,20,17,0.35)] transition duration-300 xl:hidden",
+          showStickySummary
+            ? "translate-y-0 opacity-100"
+            : "pointer-events-none translate-y-4 opacity-0",
+        )}
+      >
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[11px] text-white/60">
+            {estimate.sheetCount} лист. · {cutMap.placedPieces} дет. · КИМ{" "}
+            {(cutMap.utilization * 100).toFixed(0)}%
+          </p>
+          <p className="text-[1.05rem] leading-tight font-semibold">
+            {formatPrice(Math.round(estimate.totalEstimate))}
+          </p>
+        </div>
+        <a
+          href="#cut-request-form"
+          className="inline-flex h-10 shrink-0 items-center rounded-xl bg-[#e0703f] px-4 text-[13px] font-semibold"
+        >
+          Отправить
+        </a>
       </div>
     </section>
   );
