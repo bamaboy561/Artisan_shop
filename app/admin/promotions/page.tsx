@@ -425,7 +425,7 @@ export default async function AdminPromotionsPage({
         <section className="overflow-hidden rounded-[24px] border border-[#f0a17f]/45 bg-[#fff7f1] p-5 shadow-[0_16px_48px_rgba(198,91,58,0.12)]">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="font-mono text-[10px] tracking-[0.22em] text-[#c65b3a] uppercase">
+              <p className="text-xs font-medium text-[#c4532b]">
                 Telegram промо
               </p>
               <p className="mt-2 text-base font-semibold text-[var(--foreground)]">
@@ -446,7 +446,7 @@ export default async function AdminPromotionsPage({
         </section>
       ) : null}
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <section className="grid grid-cols-2 gap-2.5 sm:gap-4 xl:grid-cols-4">
         <MetricCard
           label="Всего акций"
           value={promotions.length}
@@ -469,12 +469,10 @@ export default async function AdminPromotionsPage({
         />
       </section>
 
-      <section className="overflow-hidden rounded-[30px] border border-[#15110d]/10 bg-[#15110d] text-white shadow-[0_28px_80px_rgba(21,17,13,0.18)]">
+      <section className="overflow-hidden rounded-[24px] border border-[#1f2b25]/10 bg-[#1f2b25] text-white shadow-[0_28px_80px_rgba(21,17,13,0.18)]">
         <div className="grid gap-6 p-5 sm:p-7 xl:grid-cols-[0.86fr_1.14fr] xl:items-end">
           <div>
-            <p className="font-mono text-[10px] tracking-[0.24em] text-white/44 uppercase">
-              Витрина промо
-            </p>
+            <p className="text-xs font-medium text-white/44">Витрина промо</p>
             <h2 className="mt-3 max-w-xl text-3xl leading-none font-semibold tracking-[-0.06em] sm:text-5xl">
               Акции должны продавать с первого взгляда.
             </h2>
@@ -493,7 +491,7 @@ export default async function AdminPromotionsPage({
                   className="grid min-h-[14rem] content-between rounded-[24px] border border-white/12 bg-white/[0.08] p-4 backdrop-blur-sm"
                 >
                   <div>
-                    <p className="font-mono text-[9px] tracking-[0.18em] text-[#f0a17f] uppercase">
+                    <p className="text-xs font-medium text-[#f0a17f]">
                       {promotion.badgeText ?? "Акция"}
                     </p>
                     <h3 className="mt-3 text-xl leading-tight font-semibold tracking-[-0.04em]">
@@ -533,7 +531,7 @@ export default async function AdminPromotionsPage({
       <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-2xl">
-            <p className="font-mono text-[10px] tracking-[0.24em] text-[var(--accent)] uppercase">
+            <p className="text-xs font-medium text-[var(--accent)]">
               Фильтры кампаний
             </p>
             <h3 className="mt-3 text-xl font-semibold text-[var(--foreground)]">
@@ -549,7 +547,7 @@ export default async function AdminPromotionsPage({
           <div className="flex flex-wrap gap-2">
             <Link
               href={getStateHref(state, { status: PromotionStatus.ACTIVE })}
-              className="rounded-full border border-[color:var(--line)] bg-[var(--surface)] px-3 py-1.5 text-[11px] font-semibold tracking-[0.14em] text-[var(--muted)] uppercase transition hover:border-[color:var(--line-strong)]"
+              className="rounded-full border border-[color:var(--line)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[var(--muted)] transition hover:border-[color:var(--line-strong)]"
             >
               Активные
             </Link>
@@ -557,13 +555,13 @@ export default async function AdminPromotionsPage({
               href={getStateHref(state, {
                 highlighted: "highlighted",
               })}
-              className="rounded-full border border-[color:var(--line)] bg-[var(--surface)] px-3 py-1.5 text-[11px] font-semibold tracking-[0.14em] text-[var(--muted)] uppercase transition hover:border-[color:var(--line-strong)]"
+              className="rounded-full border border-[color:var(--line)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[var(--muted)] transition hover:border-[color:var(--line-strong)]"
             >
               Выделенные
             </Link>
             <Link
               href={getStateHref(state, { promoCode: "with-code" })}
-              className="rounded-full border border-[color:var(--line)] bg-[var(--surface)] px-3 py-1.5 text-[11px] font-semibold tracking-[0.14em] text-[var(--muted)] uppercase transition hover:border-[color:var(--line-strong)]"
+              className="rounded-full border border-[color:var(--line)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[var(--muted)] transition hover:border-[color:var(--line-strong)]"
             >
               С промокодом
             </Link>
@@ -571,7 +569,7 @@ export default async function AdminPromotionsPage({
               href={getStateHref(state, {
                 targetType: PromotionTargetType.ORDER,
               })}
-              className="rounded-full border border-[color:var(--line)] bg-[var(--surface)] px-3 py-1.5 text-[11px] font-semibold tracking-[0.14em] text-[var(--muted)] uppercase transition hover:border-[color:var(--line-strong)]"
+              className="rounded-full border border-[color:var(--line)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[var(--muted)] transition hover:border-[color:var(--line-strong)]"
             >
               По заказу
             </Link>
@@ -656,7 +654,7 @@ export default async function AdminPromotionsPage({
             />
             <Link
               href="/admin/promotions"
-              className="inline-flex h-11 items-center justify-center border border-[color:var(--line-strong)] px-5 font-mono text-[11px] font-semibold tracking-[0.14em] text-[var(--foreground)] uppercase transition hover:border-[color:var(--foreground)] hover:bg-[var(--foreground)] hover:text-white"
+              className="inline-flex h-11 items-center justify-center border border-[color:var(--line-strong)] px-5 text-xs font-semibold text-[var(--foreground)] transition hover:border-[color:var(--foreground)] hover:bg-[var(--foreground)] hover:text-white"
             >
               Сбросить всё
             </Link>
@@ -851,7 +849,7 @@ export default async function AdminPromotionsPage({
           <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-6">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div className="max-w-2xl">
-                <p className="font-mono text-[10px] tracking-[0.24em] text-[var(--accent)] uppercase">
+                <p className="text-xs font-medium text-[var(--accent)]">
                   Массовые действия
                 </p>
                 <h3 className="mt-3 text-xl font-semibold text-[var(--foreground)]">

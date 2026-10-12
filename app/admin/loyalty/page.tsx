@@ -435,7 +435,7 @@ export default async function AdminLoyaltyPage({
         </section>
       ) : null}
 
-      <section className="grid gap-4 md:grid-cols-4">
+      <section className="grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-4">
         <MetricCard
           label="Клиенты"
           value={formatNumber(stats.clients)}

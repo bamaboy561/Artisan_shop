@@ -57,7 +57,7 @@ export function Pagination({
   const prevPage = Math.max(1, currentPage - 1);
   const nextPage = Math.min(totalPages, currentPage + 1);
   const mobileButtonClassName =
-    "inline-flex h-10 items-center justify-center border border-[color:var(--line)] bg-white/80 px-4 font-mono text-[10px] font-semibold tracking-[0.14em] text-[var(--foreground)] uppercase transition";
+    "inline-flex h-10 items-center justify-center border border-[color:var(--line)] bg-white/80 px-4 text-xs font-semibold text-[var(--foreground)] transition";
 
   return (
     <nav aria-label="Пагинация" className={cn("w-full min-w-0", className)}>
@@ -85,7 +85,7 @@ export function Pagination({
           </span>
         )}
 
-        <span className="px-1 text-center font-mono text-[10px] tracking-[0.14em] whitespace-nowrap text-[var(--muted)] uppercase">
+        <span className="px-1 text-center text-xs whitespace-nowrap text-[var(--muted)] font-medium">
           {currentPage} / {totalPages}
         </span>
 

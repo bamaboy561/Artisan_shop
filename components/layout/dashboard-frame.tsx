@@ -1,14 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import {
-  Bell,
-  Calculator,
-  FileStack,
-  Home,
-  LogOut,
-  Menu,
-  Search,
-} from "lucide-react";
+import { Bell, Calculator, FileStack, Home, LogOut } from "lucide-react";
 
 import { Container } from "@/components/ui/container";
 import { DashboardNav } from "@/components/layout/dashboard-nav";
@@ -48,43 +40,53 @@ function AdminFrame({
   const requestBadge =
     items.find((item) => item.href === "/admin/requests")?.badge ?? "0";
   const notificationBadge = requestBadge;
+  const topLinkClass =
+    "inline-flex h-10 shrink-0 items-center gap-2 rounded-full border border-[#e3ddd2] bg-white px-4 font-medium transition hover:border-[#1b1c19]";
 
   return (
-    <div className="min-h-screen bg-[#f7f7f5] text-[#22201e] print:block print:bg-white lg:grid lg:grid-cols-[264px_minmax(0,1fr)]">
-      <aside className="relative z-30 bg-[#111210] text-white print:hidden lg:sticky lg:top-0 lg:h-screen lg:overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_8%_8%,rgba(197,89,53,0.22),transparent_28%),linear-gradient(180deg,rgba(255,255,255,0.035),rgba(255,255,255,0))]" />
-        <div className="relative flex flex-col px-3 py-3 lg:h-full lg:min-h-0 lg:py-4">
-          <Link href="/admin" className="flex items-center gap-3 px-1">
-            <span className="flex size-10 items-center justify-center rounded-xl bg-white text-[20px] font-black text-[#151513] shadow-[0_10px_30px_rgba(255,255,255,0.08)]">
-              A
-            </span>
-            <span>
-              <span className="block text-xl leading-none font-semibold">
-                Artisan
+    <div className="min-h-screen bg-[#f4f1eb] text-[#1b1c19] lg:grid lg:grid-cols-[256px_minmax(0,1fr)] print:block print:bg-white">
+      <aside className="sticky top-0 z-30 bg-[#1f2b25] text-white shadow-[0_8px_24px_rgba(31,43,37,0.18)] lg:h-screen lg:overflow-hidden lg:shadow-none print:hidden">
+        <div className="flex flex-col px-3 py-2.5 lg:h-full lg:min-h-0 lg:py-4">
+          <div className="flex items-center justify-between gap-3 px-1">
+            <Link href="/admin" className="flex min-w-0 items-center gap-3">
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[#f4f1eb] text-lg font-black text-[#1f2b25] lg:size-10">
+                A
               </span>
-              <span className="mt-1 block text-xs text-white/62">
-                Панель управления
+              <span className="min-w-0">
+                <span className="block text-lg leading-none font-bold">
+                  Artisan
+                </span>
+                <span className="mt-1 block text-xs text-white/60">
+                  Панель управления
+                </span>
               </span>
-            </span>
-          </Link>
+            </Link>
+            <Link
+              href="/"
+              className="inline-flex h-9 shrink-0 items-center gap-2 rounded-full border border-white/15 px-3 text-sm font-medium text-white/85 transition hover:bg-white hover:text-[#1f2b25] lg:hidden"
+            >
+              <Home className="size-4" strokeWidth={1.85} />
+              На сайт
+            </Link>
+          </div>
 
           <Link
             href="/"
-            className="mt-4 inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/[0.06] px-3 text-sm font-medium text-white/82 transition hover:border-white/30 hover:bg-white hover:text-[#111210]"
+            className="mt-4 hidden h-10 items-center justify-center gap-2 rounded-full border border-white/15 px-3 text-sm font-medium text-white/85 transition hover:bg-white hover:text-[#1f2b25] lg:inline-flex"
           >
             <Home className="size-4" strokeWidth={1.85} />
             На сайт
           </Link>
 
-          <div className="mt-4 min-h-0 overflow-hidden [scrollbar-width:none] lg:mt-6 lg:flex-1 lg:overflow-y-auto lg:pr-1 [&::-webkit-scrollbar]:hidden">
+          <div className="mt-2.5 min-h-0 [scrollbar-width:none] overflow-hidden lg:mt-6 lg:flex-1 lg:overflow-y-auto lg:pr-1 [&::-webkit-scrollbar]:hidden">
             <DashboardNav items={items} variant="admin" />
           </div>
 
-          <div className="mt-4 hidden border-t border-white/8 pt-4 lg:block">
+          <div className="mt-4 hidden border-t border-white/10 pt-4 lg:block">
             {actions ?? (
               <Link
                 href="/login"
-                className="flex items-center gap-3 rounded-lg px-3 py-3 text-sm text-white/70 hover:bg-white/[0.075] hover:text-white"
+                className="flex items-center gap-3 rounded-lg px-3 py-3 text-sm text-white/70 hover:bg-white/[0.08] hover:text-white"
               >
                 <LogOut className="size-[18px]" strokeWidth={1.8} />
                 Выйти
@@ -95,74 +97,36 @@ function AdminFrame({
       </aside>
 
       <div className="min-w-0 overflow-x-clip print:overflow-visible">
-        <header className="sticky top-0 z-20 border-b border-[#e6e2dc] bg-white/88 backdrop-blur-xl print:hidden">
-          <div className="flex min-h-[78px] flex-col gap-3 px-4 py-3 sm:px-6 xl:flex-row xl:items-center xl:justify-between xl:px-7">
-            <div className="flex min-w-0 flex-1 items-center gap-3">
-              <button
-                type="button"
-                className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-[#e6e2dc] bg-white text-[#2b2a28] shadow-sm"
-                aria-label="Открыть меню"
-              >
-                <Menu className="size-5" strokeWidth={1.75} />
-              </button>
-
-              <div className="flex h-11 min-w-0 flex-1 items-center gap-3 rounded-xl border border-[#e6e2dc] bg-white px-4 text-sm text-[#77736c] shadow-sm xl:max-w-[620px]">
-                <Search className="size-5 shrink-0" strokeWidth={1.75} />
-                <span className="truncate">
-                  Поиск по заказам, клиентам, материалам...
+        <header className="sticky top-0 z-20 hidden border-b border-[#e3ddd2] bg-[#f4f1eb]/90 backdrop-blur-xl lg:block print:hidden">
+          <nav className="flex min-h-16 items-center justify-end gap-2 px-6 text-sm xl:px-7">
+            <Link href="/calculator" className={topLinkClass}>
+              <Calculator className="size-4" strokeWidth={1.8} />
+              Калькулятор
+            </Link>
+            <Link href="/admin/requests" className={topLinkClass}>
+              <FileStack className="size-4" strokeWidth={1.8} />
+              Запросы
+              {requestBadge !== "0" ? (
+                <span className="rounded-full bg-[#c4532b] px-1.5 py-0.5 text-[11px] font-semibold text-white">
+                  {requestBadge}
                 </span>
-                <span className="ml-auto hidden rounded-md border border-[#e6e2dc] px-2 py-0.5 text-xs text-[#8a857d] sm:inline-flex">
-                  Ctrl K
+              ) : null}
+            </Link>
+            <Link href="/admin" className={topLinkClass}>
+              <Bell className="size-4" strokeWidth={1.8} />
+              Уведомления
+              {notificationBadge !== "0" ? (
+                <span className="rounded-full bg-[#c4532b] px-1.5 py-0.5 text-[11px] font-semibold text-white">
+                  {notificationBadge}
                 </span>
-              </div>
-            </div>
-
-            <nav className="flex min-w-0 items-center gap-2 overflow-x-auto text-sm text-[#2b2a28]">
-              <Link
-                href="/"
-                className="inline-flex h-10 shrink-0 items-center gap-2 rounded-xl border border-[#e6e2dc] bg-white px-3 font-medium transition hover:border-[#c65b3a] hover:text-[#c65b3a]"
-              >
-                <Home className="size-4" strokeWidth={1.8} />
-                На сайт
-              </Link>
-              <Link
-                href="/calculator"
-                className="inline-flex h-10 shrink-0 items-center gap-2 rounded-xl px-3 transition hover:bg-[#f4f1ed]"
-              >
-                <Calculator className="size-4" strokeWidth={1.8} />
-                Калькулятор
-              </Link>
-              <Link
-                href="/admin/requests"
-                className="inline-flex h-10 shrink-0 items-center gap-2 rounded-xl px-3 transition hover:bg-[#f4f1ed]"
-              >
-                <FileStack className="size-4" strokeWidth={1.8} />
-                Запросы
-                {requestBadge !== "0" ? (
-                  <span className="rounded-full bg-[#c65b3a] px-1.5 py-0.5 text-[11px] font-semibold text-white">
-                    {requestBadge}
-                  </span>
-                ) : null}
-              </Link>
-              <Link
-                href="/admin"
-                className="inline-flex h-10 shrink-0 items-center gap-2 rounded-xl px-3 transition hover:bg-[#f4f1ed]"
-              >
-                <Bell className="size-4" strokeWidth={1.8} />
-                Уведомления
-                {notificationBadge !== "0" ? (
-                  <span className="rounded-full bg-[#c65b3a] px-1.5 py-0.5 text-[11px] font-semibold text-white">
-                    {notificationBadge}
-                  </span>
-                ) : null}
-              </Link>
-            </nav>
-          </div>
+              ) : null}
+            </Link>
+          </nav>
         </header>
 
         <main
           id="main-content"
-          className="min-w-0 space-y-5 overflow-x-clip px-4 py-5 print:space-y-0 print:overflow-visible print:p-0 sm:px-6 xl:px-7 xl:py-6"
+          className="min-w-0 space-y-4 overflow-x-clip px-3 py-4 sm:space-y-5 sm:px-6 sm:py-5 xl:px-7 xl:py-6 print:space-y-0 print:overflow-visible print:p-0"
         >
           <div className="sr-only">
             <h1>{title}</h1>

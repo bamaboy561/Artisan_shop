@@ -67,7 +67,7 @@ export default async function EditCategoryPage({
           <div>
             <Link
               href="/admin/categories"
-              className="font-mono text-[10px] tracking-[0.18em] text-[var(--accent)] uppercase transition hover:text-[#9d573d]"
+              className="text-xs font-medium text-[var(--accent)] transition hover:text-[#9d573d]"
             >
               ← К списку категорий
             </Link>
@@ -84,7 +84,7 @@ export default async function EditCategoryPage({
               href={`/catalog/${category.slug}`}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex h-10 items-center border border-[var(--line-strong)] px-4 font-mono text-[11px] tracking-[0.16em] text-[var(--foreground)] uppercase transition hover:border-[var(--foreground)]"
+              className="inline-flex h-10 items-center border border-[var(--line-strong)] px-4 text-xs font-medium text-[var(--foreground)] transition hover:border-[var(--foreground)]"
             >
               Открыть на сайте
             </Link>
@@ -215,10 +215,8 @@ export default async function EditCategoryPage({
             </div>
           </article>
 
-          <aside className="surface-glow rounded-[24px] border border-[color:var(--line)] bg-[#171614] p-5 text-white sm:p-6">
-            <p className="font-mono text-[10px] tracking-[0.18em] text-white/45 uppercase">
-              Подсказка
-            </p>
+          <aside className="surface-glow rounded-[24px] border border-[color:var(--line)] bg-[#1f2b25] p-5 text-white sm:p-6">
+            <p className="text-xs font-medium text-white/45">Подсказка</p>
             <h2 className="mt-3 text-2xl font-semibold tracking-[-0.04em]">
               Что важно заполнить
             </h2>

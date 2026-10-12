@@ -44,7 +44,7 @@ const statusMeta: Record<
     label: "Доработать",
     icon: CircleDashed,
     tone: "warning",
-    className: "text-[#c65b3a]",
+    className: "text-[#c4532b]",
   },
   blocked: {
     label: "Блокер",
@@ -96,7 +96,7 @@ export default async function AdminLaunchPage({
           />
 
           <div className="rounded-2xl border border-[color:var(--line)] bg-white px-5 py-4">
-            <p className="font-mono text-[10px] tracking-[0.22em] text-[var(--muted)] uppercase">
+            <p className="text-xs font-medium text-[var(--muted)]">
               Готовность
             </p>
             <p className="mt-2 text-4xl font-semibold tracking-[-0.05em] text-[var(--foreground)]">

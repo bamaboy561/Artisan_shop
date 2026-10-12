@@ -90,7 +90,7 @@ export default async function AdminBrandsPage() {
 
             <div className="grid gap-3 rounded-[18px] border border-[color:var(--line)] bg-white/55 p-4">
               <div>
-                <p className="font-mono text-[10px] tracking-[0.18em] text-[var(--accent)] uppercase">
+                <p className="text-xs font-medium text-[var(--accent)]">
                   Баннер на главной
                 </p>
                 <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
@@ -175,7 +175,7 @@ export default async function AdminBrandsPage() {
                           >
                             {brand.name}
                           </Link>
-                          <span className="rounded-full border border-[color:var(--line)] bg-[#f7f4ef] px-3 py-1 font-mono text-[10px] tracking-[0.14em] text-[var(--muted)] uppercase">
+                          <span className="rounded-full border border-[color:var(--line)] bg-[#f7f4ef] px-3 py-1 text-xs font-medium text-[var(--muted)]">
                             {brand.slug}
                           </span>
                         </div>
@@ -215,7 +215,7 @@ export default async function AdminBrandsPage() {
 
                       <Link
                         href={`/admin/brands/${brand.id}`}
-                        className="inline-flex h-10 items-center justify-center border border-[var(--line-strong)] px-4 font-mono text-[11px] tracking-[0.16em] text-[var(--foreground)] uppercase transition hover:border-[var(--foreground)] hover:bg-[var(--foreground)] hover:text-white"
+                        className="inline-flex h-10 items-center justify-center border border-[var(--line-strong)] px-4 text-xs font-medium text-[var(--foreground)] transition hover:border-[var(--foreground)] hover:bg-[var(--foreground)] hover:text-white"
                       >
                         Редактировать
                       </Link>

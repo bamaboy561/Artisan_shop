@@ -168,7 +168,7 @@ export default async function EditProductPage({
           <div className="min-w-0">
             <Link
               href="/admin/products"
-              className="font-mono text-[10px] tracking-[0.18em] text-[var(--accent)] uppercase transition hover:text-[#9d573d]"
+              className="text-xs font-medium text-[var(--accent)] transition hover:text-[#9d573d]"
             >
               ← К списку товаров
             </Link>
@@ -204,7 +204,7 @@ export default async function EditProductPage({
               href={`/product/${product.slug}`}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex h-10 items-center border border-[var(--line-strong)] px-4 font-mono text-[11px] tracking-[0.16em] text-[var(--foreground)] uppercase transition hover:border-[var(--foreground)]"
+              className="inline-flex h-10 items-center border border-[var(--line-strong)] px-4 text-xs font-medium text-[var(--foreground)] transition hover:border-[var(--foreground)]"
             >
               Открыть на сайте
             </Link>
@@ -228,9 +228,7 @@ export default async function EditProductPage({
 
       <section className="grid gap-4 xl:grid-cols-4">
         <div className="surface-glow rounded-[20px] border border-[color:var(--line)] bg-white/90 p-4">
-          <p className="font-mono text-[10px] tracking-[0.18em] text-[var(--muted)] uppercase">
-            Цена
-          </p>
+          <p className="text-xs font-medium text-[var(--muted)]">Цена</p>
           <p className="mt-3 text-2xl font-semibold text-[var(--foreground)]">
             {formatPrice(effectivePrice)}
           </p>
@@ -241,25 +239,19 @@ export default async function EditProductPage({
           ) : null}
         </div>
         <div className="surface-glow rounded-[20px] border border-[color:var(--line)] bg-white/90 p-4">
-          <p className="font-mono text-[10px] tracking-[0.18em] text-[var(--muted)] uppercase">
-            Остаток
-          </p>
+          <p className="text-xs font-medium text-[var(--muted)]">Остаток</p>
           <p className="mt-3 text-2xl font-semibold text-[var(--foreground)]">
             {product.stockQuantity ?? "Не указан"}
           </p>
         </div>
         <div className="surface-glow rounded-[20px] border border-[color:var(--line)] bg-white/90 p-4">
-          <p className="font-mono text-[10px] tracking-[0.18em] text-[var(--muted)] uppercase">
-            Заказы
-          </p>
+          <p className="text-xs font-medium text-[var(--muted)]">Заказы</p>
           <p className="mt-3 text-2xl font-semibold text-[var(--foreground)]">
             {product._count.orderItems}
           </p>
         </div>
         <div className="surface-glow rounded-[20px] border border-[color:var(--line)] bg-white/90 p-4">
-          <p className="font-mono text-[10px] tracking-[0.18em] text-[var(--muted)] uppercase">
-            Избранное
-          </p>
+          <p className="text-xs font-medium text-[var(--muted)]">Избранное</p>
           <p className="mt-3 text-2xl font-semibold text-[var(--foreground)]">
             {product._count.favorites}
           </p>

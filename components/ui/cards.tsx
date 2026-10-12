@@ -215,7 +215,7 @@ export function ProductCard({
           />
 
           {isBundle ? (
-            <span className="absolute top-2.5 left-2.5 inline-flex items-center bg-white/92 px-2 py-1 font-mono text-[9px] tracking-[0.16em] text-[var(--foreground)] uppercase backdrop-blur-sm sm:top-3 sm:left-3 sm:text-[10px]">
+            <span className="absolute top-2.5 left-2.5 inline-flex items-center bg-white/92 px-2 py-1 text-xs text-[var(--foreground)] backdrop-blur-sm sm:top-3 sm:left-3 sm:text-xs font-medium">
               Комплект
             </span>
           ) : null}
@@ -223,7 +223,7 @@ export function ProductCard({
           {!inStock ? (
             <span
               className={cn(
-                "absolute left-2.5 inline-flex items-center gap-1.5 bg-white/92 px-2 py-1 font-mono text-[9px] tracking-[0.16em] text-[var(--foreground)] uppercase backdrop-blur-sm sm:left-3 sm:text-[10px]",
+                "absolute left-2.5 inline-flex items-center gap-1.5 bg-white/92 px-2 py-1 text-xs text-[var(--foreground)] backdrop-blur-sm sm:left-3 sm:text-xs font-medium",
                 isBundle ? "top-10 sm:top-11" : "top-2.5 sm:top-3",
               )}
             >
@@ -245,7 +245,7 @@ export function ProductCard({
         >
           <p
             className={cn(
-              "font-mono tracking-[0.22em] text-[var(--muted)] uppercase",
+              "text-[var(--muted)] font-medium",
               mobileList
                 ? "text-[9px] sm:text-[10px]"
                 : "text-[10px] sm:text-[11px]",
@@ -271,7 +271,7 @@ export function ProductCard({
           {sku ? (
             <p
               className={cn(
-                "mt-2 font-mono leading-4 tracking-[0.1em] [overflow-wrap:anywhere] text-[var(--muted)] uppercase",
+                "mt-2 leading-4 [overflow-wrap:anywhere] text-[var(--muted)] font-medium",
                 compact ? "text-[9px]" : "text-[9px] sm:text-[10px]",
               )}
             >
@@ -316,7 +316,7 @@ export function ProductCard({
 
             <span
               className={cn(
-                "block max-w-full font-mono leading-4 tracking-[0.12em] [overflow-wrap:anywhere] text-[var(--muted)] uppercase",
+                "block max-w-full leading-4 [overflow-wrap:anywhere] text-[var(--muted)] font-medium",
                 compact ? "text-[9px]" : "text-[9px] sm:text-[10px]",
               )}
             >
@@ -355,7 +355,7 @@ export function CategoryCard({
       )}
     >
       <span className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[var(--accent)]/50 to-transparent opacity-0 transition group-hover:opacity-100" />
-      <p className="font-mono text-[11px] tracking-[0.24em] text-[var(--accent)] uppercase">
+      <p className="text-xs text-[var(--accent)] font-medium">
         {indicator}
       </p>
       <h3 className="mt-3 text-lg font-semibold text-[var(--foreground)]">
@@ -403,7 +403,7 @@ export function BrandCard({ brand, className }: BrandCardProps) {
         className,
       )}
     >
-      <p className="font-mono text-[11px] tracking-[0.24em] text-[var(--accent)] uppercase">
+      <p className="text-xs text-[var(--accent)] font-medium">
         Партнерский бренд
       </p>
       <h3 className="mt-3 text-base font-semibold text-[var(--foreground)]">

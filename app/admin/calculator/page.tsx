@@ -109,7 +109,7 @@ export default async function AdminCalculatorPage() {
         className="grid gap-2"
       >
         <input type="hidden" name="id" value={material.id} />
-        <p className="font-mono text-[10px] tracking-[0.16em] text-[var(--muted)] uppercase">
+        <p className="text-xs font-medium text-[var(--muted)]">
           {material.slug}
         </p>
         <Input
@@ -230,9 +230,7 @@ export default async function AdminCalculatorPage() {
         className="grid gap-2"
       >
         <input type="hidden" name="id" value={sheet.id} />
-        <p className="font-mono text-[10px] tracking-[0.16em] text-[var(--muted)] uppercase">
-          {sheet.slug}
-        </p>
+        <p className="text-xs font-medium text-[var(--muted)]">{sheet.slug}</p>
         <Input
           name="label"
           defaultValue={sheet.label}

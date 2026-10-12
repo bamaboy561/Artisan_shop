@@ -430,7 +430,7 @@ export default async function AdminUsersPage({
         <section className="overflow-hidden rounded-[24px] border border-[#68a994]/40 bg-[#f4fffb] p-5 shadow-[0_16px_48px_rgba(74,137,118,0.12)]">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="font-mono text-[10px] tracking-[0.22em] text-[#2f7f68] uppercase">
+              <p className="text-xs font-medium text-[#2f7f68]">
                 Telegram клиенту
               </p>
               <p className="mt-2 text-base font-semibold text-[var(--foreground)]">
@@ -447,7 +447,7 @@ export default async function AdminUsersPage({
         </section>
       ) : null}
 
-      <section className="grid gap-4 md:grid-cols-3">
+      <section className="grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-3">
         <MetricCard
           label={userSearchQuery ? "Найдено" : "Клиенты"}
           value={users.length}
@@ -475,7 +475,7 @@ export default async function AdminUsersPage({
           className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto_auto]"
         >
           <label className="grid gap-1.5">
-            <span className="font-mono text-[10px] tracking-[0.18em] text-[var(--accent)] uppercase">
+            <span className="text-xs font-medium text-[var(--accent)]">
               Поиск по клиентам
             </span>
             <div className="relative">
@@ -521,7 +521,7 @@ export default async function AdminUsersPage({
       <section className="surface-glow rounded-[24px] border border-[color:var(--line)] bg-white/86 p-5 sm:p-6">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <p className="font-mono text-[10px] tracking-[0.24em] text-[var(--accent)] uppercase">
+            <p className="text-xs font-medium text-[var(--accent)]">
               Правила бонусов
             </p>
             <h2 className="mt-2 text-xl font-semibold text-[var(--foreground)]">
@@ -535,7 +535,7 @@ export default async function AdminUsersPage({
           </div>
           <Link
             href="/admin/loyalty"
-            className="inline-flex h-10 items-center justify-center rounded-xl border border-[color:var(--line-strong)] px-4 font-mono text-[10px] font-semibold tracking-[0.14em] text-[var(--foreground)] uppercase transition hover:border-[color:var(--foreground)] hover:bg-[var(--foreground)] hover:text-white"
+            className="inline-flex h-10 items-center justify-center rounded-xl border border-[color:var(--line-strong)] px-4 text-xs font-semibold text-[var(--foreground)] transition hover:border-[color:var(--foreground)] hover:bg-[var(--foreground)] hover:text-white"
           >
             Сводка бонусов
           </Link>

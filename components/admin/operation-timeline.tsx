@@ -21,7 +21,7 @@ function getEventDotClass(eventType: string) {
       return "bg-blue-500";
     case "status":
     case "cutting_stage":
-      return "bg-[#c65b3a]";
+      return "bg-[#c4532b]";
     case "manager":
       return "bg-amber-500";
     case "converted":

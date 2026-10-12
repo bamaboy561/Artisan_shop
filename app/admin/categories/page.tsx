@@ -97,7 +97,7 @@ export default async function AdminCategoriesPage() {
                         >
                           {category.name}
                         </Link>
-                        <span className="rounded-full border border-[color:var(--line)] bg-[#f7f4ef] px-3 py-1 font-mono text-[10px] tracking-[0.14em] text-[var(--muted)] uppercase">
+                        <span className="rounded-full border border-[color:var(--line)] bg-[#f7f4ef] px-3 py-1 text-xs font-medium text-[var(--muted)]">
                           /catalog/{category.slug}
                         </span>
                         <StatusBadge tone="neutral">
@@ -110,7 +110,7 @@ export default async function AdminCategoriesPage() {
 
                       <div className="mt-4 grid gap-3 text-sm leading-6 text-[var(--muted)] md:grid-cols-2">
                         <div className="rounded-2xl border border-[color:var(--line)] bg-[#faf8f4] p-3">
-                          <p className="font-mono text-[10px] tracking-[0.16em] text-[var(--muted)] uppercase">
+                          <p className="text-xs font-medium text-[var(--muted)]">
                             Индикатор
                           </p>
                           <p className="mt-1 text-[var(--foreground)]">
@@ -118,7 +118,7 @@ export default async function AdminCategoriesPage() {
                           </p>
                         </div>
                         <div className="rounded-2xl border border-[color:var(--line)] bg-[#faf8f4] p-3">
-                          <p className="font-mono text-[10px] tracking-[0.16em] text-[var(--muted)] uppercase">
+                          <p className="text-xs font-medium text-[var(--muted)]">
                             Сценарий заказа
                           </p>
                           <p className="mt-1 text-[var(--foreground)]">
@@ -143,7 +143,7 @@ export default async function AdminCategoriesPage() {
 
                       <Link
                         href={`/admin/categories/${category.id}`}
-                        className="inline-flex h-10 items-center justify-center border border-[var(--line-strong)] px-4 font-mono text-[11px] tracking-[0.16em] text-[var(--foreground)] uppercase transition hover:border-[var(--foreground)] hover:bg-[var(--foreground)] hover:text-white"
+                        className="inline-flex h-10 items-center justify-center border border-[var(--line-strong)] px-4 text-xs font-medium text-[var(--foreground)] transition hover:border-[var(--foreground)] hover:bg-[var(--foreground)] hover:text-white"
                       >
                         Редактировать
                       </Link>
