@@ -184,8 +184,8 @@ export function LoyaltyOverview({
 
   return (
     <section className="reveal-up space-y-3 sm:space-y-4">
-      <article className="relative overflow-hidden rounded-[26px] bg-[#111111] p-4 text-white shadow-[0_22px_58px_rgba(17,17,17,0.18)] sm:rounded-[32px] sm:p-6">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_0%,rgba(199,106,63,0.3),transparent_32%),linear-gradient(135deg,rgba(255,255,255,0.05),transparent_42%)]" />
+      <article className="relative overflow-hidden rounded-[20px] bg-[#1f2b25] p-4 text-white sm:rounded-[24px] sm:p-6">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_0%,rgba(232,119,76,0.22),transparent_34%)]" />
 
         <div className="relative grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-stretch">
           <div className="min-w-0 space-y-4">
@@ -394,8 +394,8 @@ export function LoyaltyOverview({
           </h3>
           <p className="mt-1 text-sm leading-6 text-[var(--muted)]">
             {user.telegramLinked
-              ? "Клиент получает обновления по заказам, заявкам на распил, бонусам и акциям прямо в Telegram."
-              : "После подключения клиент увидит кнопки «Мои заказы», «Мои заявки», «Баллы и статусы» без ручных команд."}
+              ? "Обновления по заказам, распилу, бонусам и акциям приходят вам в Telegram."
+              : "Бот сам напишет, когда заказ подтвердят и когда распил будет готов. В нём же можно посмотреть заказы и баллы."}
           </p>
         </div>
 

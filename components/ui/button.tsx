@@ -12,9 +12,9 @@ const buttonVariants = {
 } as const;
 
 const buttonSizes = {
-  sm: "h-8.5 px-3.5 text-xs sm:h-9 sm:px-4 sm:text-sm",
-  md: "h-10 px-4 text-xs sm:h-11 sm:px-5 sm:text-sm",
-  lg: "h-11 px-5 text-sm sm:h-12 sm:px-6 sm:text-base",
+  sm: "h-9 px-4 text-sm",
+  md: "h-11 px-5 text-sm",
+  lg: "h-12 px-6 text-base",
   icon: "size-10 sm:size-11",
 } as const;
 
@@ -27,7 +27,7 @@ export function getButtonClassName(
   className?: string,
 ) {
   return cn(
-    "inline-flex items-center justify-center gap-2 font-mono text-[10px] font-semibold tracking-[0.14em] uppercase shadow-none transition duration-200 sm:text-[11px] focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] focus-visible:outline-none disabled:pointer-events-none disabled:opacity-45",
+    "inline-flex items-center justify-center gap-2 rounded-full font-semibold shadow-none transition duration-200 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] focus-visible:outline-none disabled:pointer-events-none disabled:opacity-45",
     buttonVariants[variant],
     buttonSizes[size],
     className,

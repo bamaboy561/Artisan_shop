@@ -16,6 +16,11 @@ import {
   RequestType,
 } from "@/generated/prisma";
 import { StatusBadge } from "@/components/admin/status-badge";
+import {
+  orderStatusLabels,
+  requestStatusLabels,
+  requestTypeLabels,
+} from "@/features/admin/operations-filters";
 import { formatPrice } from "@/lib/commerce";
 
 type LoyaltyTransactionItem = {
@@ -274,7 +279,7 @@ export function AccountActivityPanel({
                       </p>
                     </div>
                     <StatusBadge tone={getOrderTone(order.status)}>
-                      {order.status}
+                      {orderStatusLabels[order.status]}
                     </StatusBadge>
                   </div>
                   <p className="mt-2 text-base font-semibold text-[var(--foreground)]">
@@ -316,11 +321,12 @@ export function AccountActivityPanel({
                         {request.number ?? request.id.slice(0, 8)}
                       </p>
                       <p className="mt-1 text-xs text-[var(--muted)]">
-                        {request.type} · {formatDate(request.createdAt)}
+                        {requestTypeLabels[request.type]} ·{" "}
+                        {formatDate(request.createdAt)}
                       </p>
                     </div>
                     <StatusBadge tone={getRequestTone(request.status)}>
-                      {request.status}
+                      {requestStatusLabels[request.status]}
                     </StatusBadge>
                   </div>
                 </div>

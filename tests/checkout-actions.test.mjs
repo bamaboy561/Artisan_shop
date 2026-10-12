@@ -207,7 +207,7 @@ function reorderFixture({
   const queries = [];
   const slugQueries = [];
   const { prepareReorderAction } = loadAction(
-    "../app/account/orders/actions.ts",
+    "../app/(public)/account/orders/actions.ts",
     {
       "@/lib/auth/dal": { getOptionalSession: async () => session },
       "@/lib/db": {

@@ -1,6 +1,6 @@
 import { CheckCircle2, UserRound } from "lucide-react";
 
-import { updateAccountProfileAction } from "@/app/account/profile/actions";
+import { updateAccountProfileAction } from "@/app/(public)/account/profile/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SectionHeading } from "@/components/ui/section-heading";
