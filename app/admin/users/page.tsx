@@ -3,6 +3,7 @@ import Image from "next/image";
 import { Search, X } from "lucide-react";
 
 import { LoyaltyTier } from "@/generated/prisma";
+import { DownloadCsvButton } from "@/components/admin/download-csv-button";
 import { MetricCard } from "@/components/admin/metric-card";
 import { SetupState } from "@/components/admin/setup-state";
 import { StatusBadge } from "@/components/admin/status-badge";
@@ -106,6 +107,37 @@ export default async function AdminUsersPage({
     (sum, user) => sum + user.loyaltyPointsBalance,
     0,
   );
+
+  const csvCell = (value: string | number) =>
+    `"${String(value).replaceAll('"', '""')}"`;
+  const usersCsv = [
+    [
+      "Клиент",
+      "Компания",
+      "Телефон",
+      "Email",
+      "Уровень",
+      "Баланс баллов",
+      "Накоплено баллов",
+      "Заказов",
+      "Заявок",
+      "Telegram",
+    ],
+    ...users.map((user) => [
+      [user.firstName, user.lastName].filter(Boolean).join(" "),
+      user.companyName ?? "",
+      user.phone ?? "",
+      user.email,
+      getLoyaltyTierLabel(user.loyaltyTier, loyaltyConfig),
+      user.loyaltyPointsBalance,
+      user.loyaltyPointsLifetime,
+      user._count.orders,
+      user._count.requests,
+      user.telegramChatId ? "привязан" : "",
+    ]),
+  ]
+    .map((row) => row.map(csvCell).join(";"))
+    .join("\n");
 
   const rows = users.map((user) => {
     const clientName =
@@ -580,6 +612,13 @@ export default async function AdminUsersPage({
           </Button>
         </form>
       </section>
+
+      <div className="flex justify-end">
+        <DownloadCsvButton
+          csvContent={usersCsv}
+          fileName={`artisan-clients-${new Date().toISOString().slice(0, 10)}.csv`}
+        />
+      </div>
 
       <DataTable
         columns={[
