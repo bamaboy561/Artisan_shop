@@ -4550,6 +4550,60 @@ export async function setProductionStageAction(formData: FormData) {
   );
 }
 
+// «Выдано»: готовый заказ отдан клиенту, заявка закрывается.
+export async function markCuttingRequestIssuedAction(formData: FormData) {
+  const requestId = getString(formData, "requestId");
+
+  if (!requestId) {
+    redirect("/admin/production?notice=request-missing");
+  }
+
+  const actor = await ensureProductionAdminAccess(requestId);
+
+  if (!canManageProduction(actor.roleCode)) {
+    redirect(productionActionReturn(formData, requestId, "action-forbidden"));
+  }
+
+  const previousRequest = await getRequestInboxItemById(requestId);
+
+  if (
+    !previousRequest ||
+    previousRequest.cuttingStage !== CuttingStage.READY_FOR_PICKUP ||
+    previousRequest.status === RequestStatus.COMPLETED ||
+    previousRequest.status === RequestStatus.CANCELED
+  ) {
+    redirect(productionActionReturn(formData, requestId, "action-forbidden"));
+  }
+
+  await updateRequestInboxItem({
+    id: requestId,
+    status: RequestStatus.COMPLETED,
+    managerId: previousRequest.managerId,
+  });
+
+  await logOperationEvent({
+    entityType: "request",
+    entityId: requestId,
+    eventType: "status",
+    title: "Заказ выдан клиенту",
+    description: previousRequest.cuttingPickupCell
+      ? `Выдан из ячейки ${previousRequest.cuttingPickupCell}.`
+      : "Готовый заказ передан клиенту.",
+    fromStatus: previousRequest.status,
+    toStatus: RequestStatus.COMPLETED,
+    isVisibleToClient: true,
+    actor,
+  });
+
+  await syncRequestById(requestId, {
+    previousStatus: previousRequest.status,
+    previousManager: previousRequest.manager,
+  });
+
+  revalidateAdminOperations();
+  redirect(productionActionReturn(formData, requestId, "issued"));
+}
+
 export async function uploadRequestResultFilesAction(formData: FormData) {
   const requestId = getString(formData, "requestId");
   const files = getFileList(formData, "files");
