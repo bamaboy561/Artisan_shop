@@ -66,6 +66,10 @@ import {
   isProductionOperator,
   roleDefinitions,
 } from "@/lib/auth/roles";
+import {
+  canManageLoyalty,
+  setLoyaltyManagerAccess,
+} from "@/lib/server/loyalty-permissions";
 import { hasDatabaseUrl, getDb } from "@/lib/db";
 import { ensureBrandLogoColumn } from "@/lib/server/brand-schema";
 import { sendClientDirectMessage } from "@/lib/server/client-notifications";
@@ -886,6 +890,18 @@ async function ensureAdminAccess() {
 
   if (!canAccessGeneralAdmin(session.roleCode)) {
     redirect(getAdminHomePath(session.roleCode));
+  }
+
+  return session;
+}
+
+// Правила бонусов, баллы, уровни, личные скидки и удаление клиентов:
+// администратор или менеджер, которому администратор выдал это право.
+async function ensureLoyaltyManageAccess() {
+  const session = await ensureAdminAccess();
+
+  if (!(await canManageLoyalty(session))) {
+    redirect("/admin/users?loyaltyDenied=1");
   }
 
   return session;
@@ -5531,12 +5547,30 @@ export async function deleteBannerAction(formData: FormData) {
   revalidateAdminContent();
 }
 
+export async function setLoyaltyManagerAccessAction(formData: FormData) {
+  if (!hasDatabaseUrl()) {
+    return;
+  }
+
+  await ensureStaffAdminAccess();
+
+  const id = getString(formData, "id");
+
+  if (!id) {
+    return;
+  }
+
+  await setLoyaltyManagerAccess(id, getString(formData, "allowed") === "1");
+  revalidatePath("/admin/staff");
+  revalidatePath("/admin/users");
+}
+
 export async function updateLoyaltyProgramSettingsAction(formData: FormData) {
   if (!hasDatabaseUrl()) {
     return;
   }
 
-  await ensureAdminAccess();
+  await ensureLoyaltyManageAccess();
 
   const currentConfig = await getLoyaltyProgramConfig();
   await saveLoyaltyProgramConfig({
@@ -5614,7 +5648,7 @@ export async function recalculateLoyaltyStatusesAction() {
     return;
   }
 
-  await ensureAdminAccess();
+  await ensureLoyaltyManageAccess();
 
   const review = await runMonthlyLoyaltyReview({
     force: true,
@@ -5637,7 +5671,7 @@ export async function updateUserLoyaltyAction(formData: FormData) {
     return;
   }
 
-  await ensureAdminAccess();
+  await ensureLoyaltyManageAccess();
 
   const id = getString(formData, "id");
   const loyaltyTier = getString(formData, "loyaltyTier");
@@ -5688,7 +5722,7 @@ export async function deleteClientAction(formData: FormData) {
     return;
   }
 
-  const session = await ensureAdminAccess();
+  const session = await ensureLoyaltyManageAccess();
   const id = getString(formData, "id");
 
   if (!id || id === session.userId) {
@@ -5794,7 +5828,7 @@ export async function adjustUserLoyaltyPointsAction(formData: FormData) {
     return;
   }
 
-  const session = await ensureAdminAccess();
+  const session = await ensureLoyaltyManageAccess();
 
   const id = getString(formData, "id");
   const pointsDelta = getOptionalInt(formData, "pointsDelta");

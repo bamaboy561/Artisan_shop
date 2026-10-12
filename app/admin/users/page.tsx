@@ -33,6 +33,7 @@ import {
 } from "@/lib/server/pricing";
 import { getLoyaltyProgramConfig } from "@/lib/server/loyalty-settings";
 import { createClientQrPayload } from "@/lib/server/client-qr";
+import { canManageLoyalty } from "@/lib/server/loyalty-permissions";
 import { getAdminUsers } from "@/lib/server/users-admin";
 
 export const dynamic = "force-dynamic";
@@ -88,7 +89,11 @@ export default async function AdminUsersPage({
     );
   }
 
-  await requireAdminSession("/login?next=/admin/users", "/admin/users");
+  const session = await requireAdminSession(
+    "/login?next=/admin/users",
+    "/admin/users",
+  );
+  const mayManageLoyalty = await canManageLoyalty(session);
 
   const resolvedSearchParams = (await searchParams) ?? {};
   const userSearchQuery = getSearchValue(resolvedSearchParams, "q");
@@ -413,6 +418,14 @@ export default async function AdminUsersPage({
         />
       </section>
 
+      {!mayManageLoyalty ? (
+        <section className="rounded-[18px] border border-orange-200 bg-orange-50 p-4 text-sm leading-6 text-orange-800">
+          Менять правила бонусов, уровни, баллы и личные скидки, а также удалять
+          клиентов может администратор или менеджер, которому он выдал это право
+          в разделе «Сотрудники». Ваши изменения в этих полях не сохранятся.
+        </section>
+      ) : null}
+
       {telegramNotice ? (
         <section className="overflow-hidden rounded-[24px] border border-[#68a994]/40 bg-[#f4fffb] p-5 shadow-[0_16px_48px_rgba(74,137,118,0.12)]">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -538,7 +551,7 @@ export default async function AdminUsersPage({
             </p>
             <p className="mt-1 text-sm leading-6 text-[var(--muted)]">
               Порог статуса считается отдельно по закупкам плит и фурнитуры за
-              месяц.
+              всё время.
             </p>
           </div>
 
