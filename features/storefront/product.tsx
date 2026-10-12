@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowUpRight, MapPin } from "lucide-react";
+import { ArrowUpRight, MapPin, MessageCircle } from "lucide-react";
 import { FavoriteToggle } from "@/components/catalog/favorite-toggle";
 import { ProductImage } from "@/components/catalog/product-image";
 import { AddBundleItemButton } from "@/components/ecommerce/add-bundle-item-button";
@@ -7,7 +7,7 @@ import { PurchaseInfo } from "@/components/ecommerce/purchase-info";
 import { StructuredData } from "@/components/seo/structured-data";
 import type { FeaturedProduct } from "@/features/catalog/types";
 import { formatPrice } from "@/lib/commerce";
-import { breadcrumbJsonLd, productJsonLd } from "@/lib/seo";
+import { breadcrumbJsonLd, canonicalUrl, productJsonLd } from "@/lib/seo";
 import { companyContacts } from "@/lib/site-config";
 import { StorefrontCard } from "./card";
 import {
@@ -118,6 +118,16 @@ export function StorefrontProduct({
           >
             Рассчитать распил <ArrowUpRight size={17} />
           </Link>
+          <a
+            href={`${companyContacts.whatsapp}?text=${encodeURIComponent(
+              `Здравствуйте! Интересует: ${product.name}, артикул ${product.sku}. ${canonicalUrl(`/product/${product.slug}`)}`,
+            )}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={s.textLink}
+          >
+            <MessageCircle size={17} /> Спросить в WhatsApp
+          </a>
           <Link href="/contacts" className={s.fulfillment}>
             <MapPin size={23} />
             <div>

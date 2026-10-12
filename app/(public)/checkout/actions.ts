@@ -395,7 +395,18 @@ export async function submitCheckoutAction(
 
   const commentParts = [parsed.data.comment].filter(Boolean);
 
-  const orderNumber = buildOrderNumber();
+  let orderNumber = buildOrderNumber();
+
+  // Номер уникален в базе: при совпадении берём другой, а не роняем заказ.
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const taken = await db.order.findUnique({
+      where: { number: orderNumber },
+      select: { id: true },
+    });
+
+    if (!taken) break;
+    orderNumber = buildOrderNumber();
+  }
   let createdOrderForSync: { id: string; number: string | null } | null = null;
 
   try {

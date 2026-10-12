@@ -226,7 +226,7 @@ export function filterCatalogProducts(
   products: FeaturedProduct[],
   state: CatalogFilterState,
 ) {
-  const query = normalizeSearchValue(state.q);
+  const queryTokens = normalizeSearchValue(state.q).split(" ").filter(Boolean);
 
   return products.filter((product) => {
     if (state.brands.length > 0 && !state.brands.includes(product.brandSlug)) {
@@ -243,7 +243,7 @@ export function filterCatalogProducts(
       }
     }
 
-    if (query && !product.searchText.includes(query)) {
+    if (!queryTokens.every((token) => product.searchText.includes(token))) {
       return false;
     }
 

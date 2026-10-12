@@ -274,7 +274,7 @@ export function LiveSearch({
                           product.inStock ? s.searchInStock : undefined
                         }
                       >
-                        {product.inStock ? "В наличии" : "Под заказ"}
+                        {product.inStock ? "В наличии" : "По запросу"}
                       </span>
                     </div>
                   </div>

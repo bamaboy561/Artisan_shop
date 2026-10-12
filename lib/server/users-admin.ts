@@ -152,3 +152,91 @@ export async function getAdminUsers(filters: AdminUserFilters = {}) {
     },
   });
 }
+
+export async function getAdminUserProfile(id: string) {
+  const db = getDb();
+
+  return db.user.findFirst({
+    where: {
+      id,
+      role: {
+        code: {
+          in: [RoleCode.CUSTOMER, RoleCode.DEALER],
+        },
+      },
+    },
+    select: {
+      id: true,
+      email: true,
+      firstName: true,
+      lastName: true,
+      phone: true,
+      companyName: true,
+      loyaltyTier: true,
+      loyaltyPointsBalance: true,
+      loyaltyPointsLifetime: true,
+      personalDiscountPercent: true,
+      telegramChatId: true,
+      telegramUsername: true,
+      createdAt: true,
+      role: {
+        select: {
+          name: true,
+        },
+      },
+      orders: {
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 100,
+        select: {
+          id: true,
+          number: true,
+          status: true,
+          total: true,
+          createdAt: true,
+          _count: {
+            select: {
+              items: true,
+            },
+          },
+        },
+      },
+      requests: {
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 100,
+        select: {
+          id: true,
+          number: true,
+          type: true,
+          status: true,
+          subject: true,
+          quotedTotal: true,
+          createdAt: true,
+        },
+      },
+      loyaltyTransactions: {
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 30,
+        select: {
+          id: true,
+          title: true,
+          points: true,
+          status: true,
+          balanceAfter: true,
+          createdAt: true,
+        },
+      },
+      _count: {
+        select: {
+          orders: true,
+          requests: true,
+        },
+      },
+    },
+  });
+}

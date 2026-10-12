@@ -36,7 +36,7 @@ export function LoginForm({ next }: LoginFormProps) {
         <Input
           name="email"
           type="email"
-          placeholder="you@artisan.local"
+          placeholder="name@example.com"
           autoComplete="email"
           required
         />

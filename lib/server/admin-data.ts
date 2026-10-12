@@ -21,7 +21,7 @@ const activeOrderStatuses = new Set<OrderStatus>([
   OrderStatus.SHIPPED,
 ]);
 
-const revenueOrderStatuses = new Set<OrderStatus>([
+export const revenueOrderStatuses = new Set<OrderStatus>([
   OrderStatus.CONFIRMED,
   OrderStatus.PAID,
   OrderStatus.IN_PRODUCTION,
@@ -1120,9 +1120,9 @@ export async function getAdminStockMaterials(limit = 5) {
   return db.product.findMany({
     where: {
       status: ProductStatus.ACTIVE,
-      stockQuantity: { not: null },
+      stockQuantity: { gt: 0 },
     },
-    orderBy: [{ stockQuantity: "desc" }, { updatedAt: "desc" }],
+    orderBy: [{ stockQuantity: "asc" }, { updatedAt: "desc" }],
     take: limit,
     select: {
       id: true,
