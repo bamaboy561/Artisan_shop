@@ -70,6 +70,7 @@ import {
   canManageLoyalty,
   setLoyaltyManagerAccess,
 } from "@/lib/server/loyalty-permissions";
+import { saveProductionPlan } from "@/lib/server/production-planning";
 import { hasDatabaseUrl, getDb } from "@/lib/db";
 import { ensureBrandLogoColumn } from "@/lib/server/brand-schema";
 import { sendClientDirectMessage } from "@/lib/server/client-notifications";
@@ -4234,6 +4235,16 @@ export async function createAdminCuttingRequestAction(
         uploadedByName: actorName,
       },
     );
+
+    // Срок из формы сразу попадает в план производства, а не только в текст.
+    if (deadlineValue && deadline) {
+      await saveProductionPlan({
+        requestId: createdRequest.id,
+        dueDate: deadlineValue,
+        expectedVersion: 0,
+        actor,
+      }).catch((error) => console.error("[cutting:deadline]", error));
+    }
 
     await Promise.all([
       logOperationEvent({
