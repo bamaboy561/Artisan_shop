@@ -669,6 +669,22 @@ export default async function AdminProductsPage({
               </Select>
             </label>
 
+            <label className="grid min-w-0 gap-1.5">
+              <span className="text-xs font-medium text-[var(--foreground)]">
+                Что не заполнено
+              </span>
+              <Select
+                name="issue"
+                defaultValue={state.issue}
+                className="h-9 sm:h-9"
+              >
+                <option value="all">Не важно</option>
+                <option value="no-photo">Без фото</option>
+                <option value="no-price">Без цены</option>
+                <option value="zero-stock">Остаток ноль</option>
+              </Select>
+            </label>
+
             <div className="flex flex-wrap items-end gap-2 xl:col-span-6">
               <Button type="submit" variant="accent" size="sm" className="h-9">
                 Применить
