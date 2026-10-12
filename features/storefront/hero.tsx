@@ -43,7 +43,13 @@ export function StorefrontHero() {
       <div className={`${s.container} ${s.heroContent}`}>
         <div>
           <p className={s.heroEyebrow}>Для тех, кто создаёт пространство</p>
-          <h1>ARTISAN</h1>
+          <h1>
+            ARTISAN
+            <span className={s.srOnly}>
+              {" "}
+              — ЛДСП, МДФ, мебельная фурнитура и распил в Бишкеке
+            </span>
+          </h1>
           <p className={s.heroSubtitle}>
             Материалы для мебели.
             <br />

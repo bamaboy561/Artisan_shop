@@ -3,6 +3,7 @@ import { ArrowUpRight, MapPin } from "lucide-react";
 import { FavoriteToggle } from "@/components/catalog/favorite-toggle";
 import { ProductImage } from "@/components/catalog/product-image";
 import { AddBundleItemButton } from "@/components/ecommerce/add-bundle-item-button";
+import { PurchaseInfo } from "@/components/ecommerce/purchase-info";
 import { StructuredData } from "@/components/seo/structured-data";
 import type { FeaturedProduct } from "@/features/catalog/types";
 import { formatPrice } from "@/lib/commerce";
@@ -125,6 +126,7 @@ export function StorefrontProduct({
             </div>
             <ArrowUpRight size={19} />
           </Link>
+          <PurchaseInfo className="mt-5" />
         </div>
       </section>
       {product.bundleItems.length > 0 && (

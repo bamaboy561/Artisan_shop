@@ -106,7 +106,7 @@ export function ProductImage({
         sizes={sizes}
         loading={loading ?? (priority ? "eager" : "lazy")}
         decoding={decoding ?? "async"}
-        fetchPriority={priority ? "high" : undefined}
+        fetchPriority={priority ? "high" : imgProps.fetchPriority}
         className={cn(fill && "absolute inset-0 h-full w-full", className)}
         onError={() => setFailedSrc(src)}
       />

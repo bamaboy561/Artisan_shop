@@ -11,10 +11,12 @@ export function StorefrontCard({
   product,
   isFavorite = false,
   next = "/catalog",
+  eager = false,
 }: {
   product: FeaturedProduct;
   isFavorite?: boolean;
   next?: string;
+  eager?: boolean;
 }) {
   return (
     <article className={s.productCard} data-product={product.slug}>
@@ -26,6 +28,8 @@ export function StorefrontCard({
             fallbackLabel={product.name}
             fill
             sizes="(max-width: 600px) 50vw, (max-width: 1150px) 40vw, 28vw"
+            loading={eager ? "eager" : undefined}
+            fetchPriority={eager ? "high" : undefined}
             className={s.contain}
           />
         </Link>
