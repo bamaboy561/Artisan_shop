@@ -404,8 +404,8 @@ function KpiCard({
         />
       </div>
       <p
-        className={`mt-4 leading-none font-semibold text-[#1b1c19] ${
-          compactValue ? "text-lg sm:text-xl" : "text-xl sm:text-[26px]"
+        className={`mt-4 leading-tight font-semibold [overflow-wrap:anywhere] text-[#1b1c19] ${
+          compactValue ? "text-base sm:text-xl" : "text-lg sm:text-[26px]"
         }`}
       >
         {value}
@@ -433,7 +433,7 @@ function ReportStat({
         <p className="text-xs font-medium text-[#8a857d]">{label}</p>
         <Icon className="size-5 shrink-0 text-[#c4532b]" strokeWidth={1.8} />
       </div>
-      <p className="mt-3 text-2xl leading-none font-semibold text-[#1b1c19]">
+      <p className="mt-3 text-lg leading-tight font-semibold [overflow-wrap:anywhere] text-[#1b1c19] sm:text-2xl">
         {value}
       </p>
       <p className="mt-2 text-xs leading-5 text-[#6e6b63]">{detail}</p>
