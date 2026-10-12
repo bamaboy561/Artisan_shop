@@ -4,6 +4,8 @@ import { Search, X } from "lucide-react";
 
 import { LoyaltyTier } from "@/generated/prisma";
 import { DownloadCsvButton } from "@/components/admin/download-csv-button";
+import { Pagination } from "@/components/ui/pagination";
+import { paginateItems, withPageParam } from "@/features/admin/paging";
 import { MetricCard } from "@/components/admin/metric-card";
 import { SetupState } from "@/components/admin/setup-state";
 import { StatusBadge } from "@/components/admin/status-badge";
@@ -139,7 +141,9 @@ export default async function AdminUsersPage({
     .map((row) => row.map(csvCell).join(";"))
     .join("\n");
 
-  const rows = users.map((user) => {
+  const usersPage = paginateItems(users, resolvedSearchParams.page, 30);
+
+  const rows = usersPage.items.map((user) => {
     const clientName =
       [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email;
     const clientQrUrl = `/api/qr?size=96&margin=2&data=${encodeURIComponent(
@@ -636,6 +640,20 @@ export default async function AdminUsersPage({
             : "После появления клиентов в базе здесь можно будет настраивать уровни и баллы."
         }
       />
+      {usersPage.totalPages > 1 ? (
+        <Pagination
+          currentPage={usersPage.currentPage}
+          totalPages={usersPage.totalPages}
+          getHref={(page) =>
+            withPageParam(
+              userSearchQuery
+                ? `/admin/users?q=${encodeURIComponent(userSearchQuery)}`
+                : "/admin/users",
+              page,
+            )
+          }
+        />
+      ) : null}
     </div>
   );
 }

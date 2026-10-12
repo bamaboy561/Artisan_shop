@@ -1,5 +1,7 @@
 import Form from "next/form";
 import Link from "next/link";
+import { Pagination } from "@/components/ui/pagination";
+import { paginateItems, withPageParam } from "@/features/admin/paging";
 import { ListFilter, PackagePlus, UploadCloud } from "lucide-react";
 
 import {
@@ -229,6 +231,11 @@ export default async function AdminProductsPage({
     filterAdminProducts(products, state),
     state.sort,
   );
+  const productsPage = paginateItems(
+    filteredProducts,
+    resolvedSearchParams.page,
+    40,
+  );
   const importSummary = {
     created: getImportNumber(resolvedSearchParams, "importCreated"),
     updated: getImportNumber(resolvedSearchParams, "importUpdated"),
@@ -446,7 +453,10 @@ export default async function AdminProductsPage({
       </section>
 
       <section id="import-products" className="grid min-w-0 gap-3">
-        <details id="stock-import" className="min-w-0 border-y border-[color:var(--line)] bg-white p-3 sm:p-4">
+        <details
+          id="stock-import"
+          className="min-w-0 border-y border-[color:var(--line)] bg-white p-3 sm:p-4"
+        >
           <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
             <span className="flex min-w-0 items-center gap-3">
               <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-[#171613] text-white">
@@ -716,7 +726,7 @@ export default async function AdminProductsPage({
 
         {filteredProducts.length > 0 ? (
           <div className="grid gap-2">
-            {filteredProducts.map((product) => {
+            {productsPage.items.map((product) => {
               const imageUrl = product.images[0]?.url ?? "";
               const imageStyle = imageUrl
                 ? { backgroundImage: `url(${imageUrl})` }
@@ -833,6 +843,19 @@ export default async function AdminProductsPage({
                 </article>
               );
             })}
+            {productsPage.totalPages > 1 ? (
+              <Pagination
+                currentPage={productsPage.currentPage}
+                totalPages={productsPage.totalPages}
+                getHref={(page) =>
+                  withPageParam(
+                    buildAdminProductsHref("/admin/products", state),
+                    page,
+                  )
+                }
+                className="mt-3"
+              />
+            ) : null}
           </div>
         ) : (
           <div className="surface-glow rounded-[22px] border border-[color:var(--line)] bg-white/88 p-8 text-center">
