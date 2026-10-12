@@ -192,14 +192,28 @@ export function getLoyaltyTierForMonthlyPurchaseTotal(
   return getLoyaltyTierForPurchaseTotal(purchaseTotal, config, thresholdKind);
 }
 
+export const MAX_PERSONAL_DISCOUNT_PERCENT = 50;
+
+export function clampPersonalDiscountPercent(value?: number | null) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return 0;
+  }
+
+  return Math.min(
+    MAX_PERSONAL_DISCOUNT_PERCENT,
+    Math.max(0, Math.round(value)),
+  );
+}
+
+// Личная скидка клиента из админки. Скидки уровней лояльности не используются:
+// уровни дают только процент начисления баллов.
 export function getEffectiveDiscountPercent(
   profile: LoyaltyProfile,
   config?: LoyaltyProgramConfig,
 ) {
-  void profile;
   void config;
 
-  return 0;
+  return clampPersonalDiscountPercent(profile.personalDiscountPercent);
 }
 
 export function estimateLoyaltyPoints(

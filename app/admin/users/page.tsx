@@ -241,8 +241,19 @@ export default async function AdminUsersPage({
                 ))}
               </Select>
             </label>
+            <label className="grid gap-1 text-xs text-[var(--muted)]">
+              Личная скидка, %
+              <Input
+                name="personalDiscountPercent"
+                type="number"
+                min="0"
+                max="50"
+                inputMode="numeric"
+                defaultValue={user.personalDiscountPercent ?? 0}
+              />
+            </label>
             <Button type="submit" variant="secondary" size="sm">
-              Сохранить уровень
+              Сохранить уровень и скидку
             </Button>
           </form>
 

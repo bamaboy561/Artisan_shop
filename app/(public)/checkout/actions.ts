@@ -34,6 +34,7 @@ import type { CheckoutFormState } from "@/app/(public)/checkout/types";
 import {
   applyPromotion,
   estimateLoyaltyPointsForLines,
+  getEffectiveDiscountPercent,
   getRedeemableLoyaltyPoints,
   isPromotionActive,
 } from "@/lib/server/pricing";
@@ -310,10 +311,13 @@ export async function submitCheckoutAction(
     (sum, item) => sum + item.discountAmount,
     0,
   );
-  const personalDiscountTotal = 0;
   const subtotalAfterLinePromotions = Math.max(
     0,
     subtotal - linePromotionDiscountTotal,
+  );
+  const personalDiscountPercent = user ? getEffectiveDiscountPercent(user) : 0;
+  const personalDiscountTotal = Math.round(
+    (subtotalAfterLinePromotions * personalDiscountPercent) / 100,
   );
   const subtotalAfterPersonalDiscount = Math.max(
     0,

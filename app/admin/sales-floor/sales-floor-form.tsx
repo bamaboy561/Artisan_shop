@@ -235,6 +235,22 @@ export function SalesFloorForm({
     const product = productMap.get(item.productId);
     return sum + (item.invoicePrice ?? product?.price ?? 0) * item.quantity;
   }, 0);
+  // Личная скидка не действует на строки с ценой из счёта: это уже итоговая цена.
+  const personalDiscountPercent =
+    selectedCustomer?.personalDiscountPercent ?? 0;
+  const personalDiscountTotal = Math.round(
+    (items.reduce((sum, item) => {
+      if (item.invoicePrice !== undefined) return sum;
+      const product = productMap.get(item.productId);
+      return sum + (product?.price ?? 0) * item.quantity;
+    }, 0) *
+      personalDiscountPercent) /
+      100,
+  );
+  const subtotalAfterPersonalDiscount = Math.max(
+    0,
+    subtotal - personalDiscountTotal,
+  );
   const requestedRedeemPoints = Math.max(
     0,
     Number.parseInt(redeemPointsInput || "0", 10) || 0,
@@ -242,13 +258,13 @@ export function SalesFloorForm({
   const maxRedeemablePoints = selectedCustomer
     ? Math.min(
         selectedCustomer.loyaltyPointsBalance,
-        Math.floor(subtotal * 0.5),
+        Math.floor(subtotalAfterPersonalDiscount * 0.5),
       )
     : 0;
   const redeemablePoints = selectedCustomer
     ? Math.min(requestedRedeemPoints, maxRedeemablePoints)
     : 0;
-  const total = Math.max(0, subtotal - redeemablePoints);
+  const total = Math.max(0, subtotalAfterPersonalDiscount - redeemablePoints);
 
   useEffect(() => {
     const query = customerQuery.trim();
@@ -906,6 +922,12 @@ export function SalesFloorForm({
         </div>
 
         <div className="mt-5 border-t border-white/10 pt-5">
+          {personalDiscountTotal > 0 ? (
+            <div className="mb-2 flex items-center justify-between gap-4 text-sm text-white/62">
+              <span>Личная скидка {personalDiscountPercent}%</span>
+              <span>−{formatPrice(personalDiscountTotal)}</span>
+            </div>
+          ) : null}
           <div className="flex items-center justify-between gap-4">
             <span className="text-sm text-white/50">Итого</span>
             <strong className="text-3xl tracking-[-0.05em]">

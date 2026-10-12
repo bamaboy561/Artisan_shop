@@ -89,7 +89,9 @@ import type { OrderLoyaltyCancellationResult } from "@/lib/server/order-loyalty-
 import { ensureProductBundleItemsTable } from "@/lib/server/product-bundle-schema";
 import {
   applyPromotion,
+  clampPersonalDiscountPercent,
   estimateLoyaltyPointsForLines,
+  getEffectiveDiscountPercent,
   getHighestLoyaltyTier,
   getRedeemableLoyaltyPoints,
 } from "@/lib/server/pricing";
@@ -4740,7 +4742,7 @@ export async function createSalesFloorOrderAction(formData: FormData) {
 
   const loyaltyConfig = await getLoyaltyProgramConfig();
   const productMap = new Map(products.map((product) => [product.id, product]));
-  const discountPercent = 0;
+  const discountPercent = getEffectiveDiscountPercent(customer);
   const orderItems = requestedItems.flatMap((requestedItem) => {
     const product = productMap.get(requestedItem.productId);
     const unitPrice = requestedItem.invoicePrice ?? (product ? (getEffectiveProductPrice(product) ?? 0) : null);
@@ -4758,9 +4760,12 @@ export async function createSalesFloorOrderAction(formData: FormData) {
     // Invoice prices are the agreed final unit prices, not catalog prices to discount again.
     const promotionDiscountAmount = requestedItem.invoicePrice !== null ? 0 :
       promotionPrice.unitDiscountAmount * requestedItem.quantity;
-    const personalDiscountAmount = Math.round(
-      ((lineSubtotal - promotionDiscountAmount) * discountPercent) / 100,
-    );
+    const personalDiscountAmount =
+      requestedItem.invoicePrice !== null
+        ? 0
+        : Math.round(
+            ((lineSubtotal - promotionDiscountAmount) * discountPercent) / 100,
+          );
     const discountAmount = promotionDiscountAmount + personalDiscountAmount;
     const total = Math.max(0, lineSubtotal - discountAmount);
 
@@ -5608,7 +5613,6 @@ export async function updateUserLoyaltyAction(formData: FormData) {
     return;
   }
 
-  const loyaltyConfig = await getLoyaltyProgramConfig();
   const selectedLegacyTier =
     Object.values(LoyaltyTier).find((item) => item === loyaltyTier) ??
     LoyaltyTier.BRONZE;
@@ -5629,10 +5633,8 @@ export async function updateUserLoyaltyAction(formData: FormData) {
       ]),
       plateMaterialLoyaltyTier: selectedPlateMaterialTier,
       fittingsLoyaltyTier: selectedFittingsTier,
-      personalDiscountPercent: Math.min(
-        loyaltyConfig.maxTotalDiscountPercent,
-        personalDiscountPercent,
-      ),
+      personalDiscountPercent:
+        clampPersonalDiscountPercent(personalDiscountPercent),
     },
   });
 
