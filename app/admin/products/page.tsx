@@ -17,7 +17,7 @@ import {
 import { ProductImportForm } from "@/app/admin/products/product-import-form";
 import { ProductStockImportForm } from "@/app/admin/products/product-stock-import-form";
 import { NewProductForm } from "@/app/admin/products/new-product-form";
-import { AdminSubmitButton } from "@/components/admin/admin-submit-button";
+import { BulkProductsSubmitButton } from "@/components/admin/bulk-products-submit-button";
 import { BulkSelectionTools } from "@/components/admin/bulk-selection-tools";
 import { CatalogExportButton } from "@/components/admin/catalog-export-button";
 import { PhotoCatalogExport } from "@/components/admin/photo-catalog-export";
@@ -769,13 +769,7 @@ export default async function AdminProductsPage({
                   </option>
                 ))}
               </Select>
-              <AdminSubmitButton
-                type="submit"
-                variant="secondary"
-                className="h-9 w-full lg:w-auto"
-                idleLabel="Применить"
-                pendingLabel="Применяем..."
-              />
+              <BulkProductsSubmitButton checkboxSelector="[data-product-bulk-checkbox='true']" />
             </form>
           </div>
         </section>
