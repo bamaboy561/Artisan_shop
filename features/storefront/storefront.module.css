@@ -3562,3 +3562,131 @@
     padding: 0 16px 4px;
   }
 }
+
+/* Каталог на телефоне: меньше шапки, панель поиска и фильтров всегда под рукой */
+.catalogBar {
+  display: contents;
+}
+.foundUnit {
+  display: none;
+}
+@media (max-width: 600px) {
+  .catalogPage .breadcrumbs,
+  .catalogLead {
+    display: none;
+  }
+  .catalogHeading {
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 10px;
+    margin: 14px 0 12px;
+  }
+  .catalogHeading h1 {
+    font-size: 26px;
+    line-height: 1.15;
+  }
+  .cutPill {
+    min-height: 36px;
+    padding: 0 12px;
+    gap: 6px;
+    font-size: 12px;
+  }
+  .cutPill svg:last-child {
+    display: none;
+  }
+  .categoryRail {
+    margin-bottom: 4px;
+  }
+  .categoryRail a {
+    min-height: 36px;
+    padding: 0 14px;
+    font-size: 13px;
+  }
+  .catalogBar {
+    display: block;
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    margin: 0 -16px 14px;
+    padding: 8px 16px;
+    background: #f4f1eb;
+    box-shadow: 0 1px 0 #e3ddd2;
+  }
+  .catalogSearch {
+    height: 44px;
+    padding: 0 6px 0 14px;
+    border: 1px solid #e3ddd2;
+    border-radius: 999px;
+    background: #fff;
+  }
+  .catalogSearch input {
+    height: 42px;
+    font-size: 16px;
+  }
+  .catalogSearch .iconButton {
+    display: none;
+  }
+  .catalogToolbar {
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 8px;
+    margin: 8px 0 0;
+    padding: 0;
+    border: 0;
+  }
+  .catalogToolbar > span {
+    margin-right: auto;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+  .foundLabel {
+    display: none;
+  }
+  .foundUnit {
+    display: inline;
+  }
+  .mobileFilter,
+  .sort select {
+    height: 36px;
+    border: 1px solid #e3ddd2;
+    border-radius: 999px;
+    background: #fff;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .mobileFilter {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    padding: 0 12px;
+  }
+  .sort {
+    margin: 0;
+  }
+  .sort select {
+    max-width: 150px;
+    padding: 0 8px 0 12px;
+  }
+  .filterChips {
+    padding-bottom: 12px;
+  }
+  .productInfo .productFormat {
+    display: none;
+  }
+  .productInfo h3 {
+    margin-top: 4px;
+    font-size: 14px;
+    line-height: 1.3;
+  }
+  .productInfo h3 a {
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+  }
+  .specChips {
+    margin: 8px 0 10px;
+  }
+  .productBottom strong {
+    font-size: 15px;
+  }
+}
