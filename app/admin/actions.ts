@@ -4728,6 +4728,32 @@ export async function createSalesFloorOrderAction(formData: FormData) {
   }
 
   const db = getDb();
+
+  // Повторная отправка той же формы открывает уже созданную продажу.
+  const submissionId = getString(formData, "submissionId");
+  const submissionKey = /^[A-Za-z0-9-]{16,64}$/.test(submissionId)
+    ? `sales-floor:submission:${submissionId}`
+    : null;
+
+  if (submissionKey) {
+    const saved = await db.siteSetting.findUnique({
+      where: { key: submissionKey },
+    });
+
+    if (saved) {
+      const savedOrderId =
+        saved.value && typeof saved.value === "object"
+          ? (saved.value as { orderId?: unknown }).orderId
+          : null;
+
+      redirect(
+        typeof savedOrderId === "string"
+          ? `/admin/orders/${savedOrderId}`
+          : "/admin/orders",
+      );
+    }
+  }
+
   await ensureProductBundleItemsTable(db);
   const uniqueProductIds = [
     ...new Set(requestedItems.map((item) => item.productId)),
@@ -4891,7 +4917,20 @@ export async function createSalesFloorOrderAction(formData: FormData) {
     awardedPoints > 0 ? `Начислено бонусов: ${awardedPoints}` : "",
     managerComment,
   ].filter(Boolean);
-  const orderNumber = buildAdminOrderNumber("H");
+  let orderNumber = buildAdminOrderNumber("H");
+
+  // Номер уникален в базе: при совпадении берём другой.
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const taken = await db.order.findUnique({
+      where: { number: orderNumber },
+      select: { id: true },
+    });
+
+    if (!taken) break;
+    orderNumber = buildAdminOrderNumber("H");
+  }
+
+  const soldAt = new Date();
 
   let createdOrder: {
     id: string;
@@ -4915,8 +4954,11 @@ export async function createSalesFloorOrderAction(formData: FormData) {
           number: orderNumber,
           userId: customer.id,
           managerId: actor.userId,
-          status: OrderStatus.NEW,
-          inventoryReservedAt: new Date(),
+          // Продажа в зале сразу оплачена и выдана.
+          status: OrderStatus.COMPLETED,
+          readyAt: soldAt,
+          completedAt: soldAt,
+          inventoryReservedAt: soldAt,
           contactName: customerName,
           contactPhone: customer.phone ?? "",
           contactEmail: customer.email,
@@ -4946,6 +4988,12 @@ export async function createSalesFloorOrderAction(formData: FormData) {
           createdAt: true,
         },
       });
+
+      if (submissionKey) {
+        await tx.siteSetting.create({
+          data: { key: submissionKey, value: { orderId: order.id } },
+        });
+      }
 
       if (awardedPoints > 0 || loyaltyRedemptionTotal > 0) {
         if (loyaltyRedemptionTotal > 0) {
@@ -4985,6 +5033,16 @@ export async function createSalesFloorOrderAction(formData: FormData) {
       redirect("/admin/sales-floor?error=loyalty");
     }
 
+    // Та же продажа сохранилась параллельным запросом.
+    if (
+      submissionKey &&
+      typeof error === "object" &&
+      error !== null &&
+      (error as { code?: unknown }).code === "P2002"
+    ) {
+      redirect("/admin/orders");
+    }
+
     throw error;
   }
 
@@ -4992,9 +5050,9 @@ export async function createSalesFloorOrderAction(formData: FormData) {
     entityType: "order",
     entityId: createdOrder.id,
     eventType: "status",
-    title: "Заказ создан в продаже в зале",
+    title: "Продажа в зале: оплачено и выдано",
     description: "Менеджер собрал продажу на планшете и привязал ее к клиенту.",
-    toStatus: OrderStatus.NEW,
+    toStatus: OrderStatus.COMPLETED,
     isVisibleToClient: true,
     actor,
   });
@@ -5003,7 +5061,7 @@ export async function createSalesFloorOrderAction(formData: FormData) {
     id: createdOrder.id,
     userId: customer.id,
     number: createdOrder.number,
-    status: OrderStatus.NEW,
+    status: OrderStatus.COMPLETED,
     contactName: customerName,
     contactPhone: customer.phone ?? "",
     contactEmail: customer.email,
