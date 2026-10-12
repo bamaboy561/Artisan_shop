@@ -20,6 +20,7 @@ function getEventDotClass(eventType: string) {
     case "created":
       return "bg-blue-500";
     case "status":
+    case "cutting_stage":
       return "bg-[#c65b3a]";
     case "manager":
       return "bg-amber-500";
@@ -35,7 +36,7 @@ export function OperationTimeline({
   emptyMessage,
 }: OperationTimelineProps) {
   return (
-    <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-6">
+    <section className="border border-[color:var(--line)] bg-white p-6">
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-lg font-semibold text-[var(--foreground)]">
           Журнал действий

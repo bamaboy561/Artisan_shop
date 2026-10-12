@@ -11,7 +11,6 @@ import {
 import { HomeCatalogSearch } from "@/features/home/home-catalog-search";
 import {
   getCatalogMetrics,
-  getPublicProducts,
   getPublicProductsByBrand,
   getPublicProductsByCategory,
 } from "@/lib/server/catalog-public";
@@ -44,19 +43,26 @@ const fallbackVisuals = {
     "https://img.edilportale.com/product-thumbs/b_elefant-italiana-ferramenta-561898-rel93c39c1b.jpg",
   hettich:
     "https://images.unsplash.com/photo-1582582429416-47f57f66a8cf?auto=format&fit=crop&w=1200&q=80",
+  slotex:
+    "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1200&q=80",
 };
 
 const homeBrandPriority = new Map([
   ["italiana-ferramenta", 0],
   ["nuomi", 1],
   ["hettich", 2],
+  ["slotex", 3],
 ]);
 
 function pickImage(images: Array<string | undefined>, fallback: string) {
   return images.find((image) => image && image.length > 0) ?? fallback;
 }
 
+import { isPremiumStorefront } from "@/features/storefront/config";
+import { StorefrontHome } from "@/features/storefront/home";
+
 export default async function HomePage() {
+  if (isPremiumStorefront()) return <StorefrontHome />;
   const [
     catalogMetrics,
     extravertProducts,
@@ -65,29 +71,22 @@ export default async function HomePage() {
     hettichProducts,
     ldspProducts,
     mdfProducts,
-    allProducts,
     profiles,
   ] = await Promise.all([
     getCatalogMetrics(),
-    getPublicProductsByBrand("extravert"),
-    getPublicProductsByBrand("swiss-krono"),
-    getPublicProductsByBrand("agt"),
-    getPublicProductsByBrand("hettich"),
-    getPublicProductsByCategory("ldsp"),
-    getPublicProductsByCategory("mdf-panels"),
-    getPublicProducts(),
+    getPublicProductsByBrand("extravert", 5),
+    getPublicProductsByBrand("swiss-krono", 5),
+    getPublicProductsByBrand("agt", 5),
+    getPublicProductsByBrand("hettich", 1),
+    getPublicProductsByCategory("ldsp", 1),
+    getPublicProductsByCategory("mdf-panels", 1),
     getBrandProfiles(),
   ]);
 
-  const fallbackImage = allProducts[0]?.image ?? fallbackVisuals.extravert;
-  const searchProducts = allProducts.map((product) => ({
-    slug: product.slug,
-    name: product.name,
-    sku: product.sku,
-    brand: product.brand,
-    categoryName: product.categoryName,
-    searchText: product.searchText,
-  }));
+  const fallbackImage =
+    extravertProducts[0]?.image ??
+    swissKronoProducts[0]?.image ??
+    fallbackVisuals.extravert;
 
   const heroSlides: HomeHeroSlide[] = [
     {
@@ -118,11 +117,11 @@ export default async function HomePage() {
       title: "AGT Trendy и Supramat.",
       description: "Фасадные панели для кухни, шкафов и интерьера.",
       primaryAction: {
-        href: "/catalog/mdf-panels?brand=agt",
+        href: "/catalog?q=AGT",
         label: "Смотреть AGT",
       },
       secondaryAction: {
-        href: "/catalog/mdf-panels?brand=agt&group=supramat",
+        href: "/catalog?q=AGT+Supramat",
         label: "Supramat",
       },
       images: [
@@ -178,6 +177,7 @@ export default async function HomePage() {
   );
   const nuomiProfile = profiles.find((profile) => profile.slug === "nuomi");
   const hettichProfile = profiles.find((profile) => profile.slug === "hettich");
+  const slotexProfile = profiles.find((profile) => profile.slug === "slotex");
 
   const categoryTiles: CategoryTile[] = [
     {
@@ -199,6 +199,19 @@ export default async function HomePage() {
       image: pickImage(
         [swissKronoProducts[0]?.image],
         fallbackVisuals.swissKrono,
+      ),
+    },
+    {
+      title: "Slotex",
+      label: "Столешницы и поверхности",
+      href: "/brands/slotex",
+      image: pickImage(
+        [
+          slotexProfile?.homeBannerImages?.[0],
+          slotexProfile?.products[0]?.image,
+          slotexProfile?.logoUrl,
+        ],
+        fallbackVisuals.slotex,
       ),
     },
     {
@@ -258,6 +271,7 @@ export default async function HomePage() {
       if (left.contentStatus === right.contentStatus) {
         return 0;
       }
+
       return left.contentStatus === "active" ? -1 : 1;
     })
     .map((profile) => ({
@@ -279,10 +293,10 @@ export default async function HomePage() {
   return (
     <div className="bg-background">
       <HomeHeroCarousel slides={heroSlides} />
-      <HomeCatalogSearch products={searchProducts} />
+      <HomeCatalogSearch />
 
       <section className="bg-background px-4 py-3.5 sm:px-8 lg:px-10">
-        <div className="mx-auto grid max-w-[1500px] grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3 xl:grid-cols-7">
+        <div className="mx-auto grid max-w-[1500px] grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-3 xl:grid-cols-8">
           {categoryTiles.map((tile, index) => (
             <Link
               key={tile.href}

@@ -1,11 +1,18 @@
-import { OrderStatus, RequestStatus, RequestType } from "@/generated/prisma";
+import {
+  CuttingStage,
+  OrderStatus,
+  RequestStatus,
+  RequestType,
+} from "@/generated/prisma";
 
 type SearchParamValue = string | string[] | undefined;
 type AdminSearchParams = Record<string, SearchParamValue>;
 
 export const orderStatusLabels: Record<OrderStatus, string> = {
   [OrderStatus.NEW]: "Новый",
+  [OrderStatus.RESERVED]: "Бронь",
   [OrderStatus.CONFIRMED]: "Подтвержден",
+  [OrderStatus.PAID]: "Оплачено",
   [OrderStatus.IN_PRODUCTION]: "В производстве",
   [OrderStatus.READY_FOR_PICKUP]: "Готов к выдаче",
   [OrderStatus.SHIPPED]: "Отгружен",
@@ -69,12 +76,16 @@ export type AdminOrderItem = {
   deliveryMethodId: string | null;
   appliedPromoCode: string | null;
   loyaltyRedemptionTotal: number;
+  deliveryTotal: number;
   total: number;
   createdAt: Date;
   updatedAt: Date;
   managerId: string | null;
   user: {
+    firstName?: string | null;
+    lastName?: string | null;
     companyName: string | null;
+    email?: string | null;
   } | null;
   manager: {
     id: string;
@@ -99,8 +110,13 @@ export type AdminRequestItem = {
   subject: string;
   message: string | null;
   material: string | null;
+  cuttingSheetCount: number | null;
+  cuttingEdgeMeters: number | null;
   edgeOption: string | null;
   estimatedBudget: number | null;
+  cuttingStage: CuttingStage | null;
+  cuttingPickupCell: string | null;
+  cuttingStageUpdatedAt: Date | null;
   contactName: string;
   contactPhone: string;
   contactEmail: string | null;
@@ -127,7 +143,9 @@ export type AdminRequestItem = {
 
 export const activeOrderStatuses = new Set<OrderStatus>([
   OrderStatus.NEW,
+  OrderStatus.RESERVED,
   OrderStatus.CONFIRMED,
+  OrderStatus.PAID,
   OrderStatus.IN_PRODUCTION,
   OrderStatus.READY_FOR_PICKUP,
   OrderStatus.SHIPPED,
@@ -293,7 +311,10 @@ export function filterAdminOrders(
         order.contactPhone,
         order.contactEmail ?? "",
         order.companyName ?? "",
+        order.user?.firstName ?? "",
+        order.user?.lastName ?? "",
         order.user?.companyName ?? "",
+        order.user?.email ?? "",
         order.deliveryMethod?.name ?? "",
         order.appliedPromoCode ?? "",
       ].join(" "),
@@ -451,6 +472,8 @@ export function filterAdminRequests(
         request.contactPhone,
         request.contactEmail ?? "",
         request.material ?? "",
+        request.cuttingSheetCount?.toString() ?? "",
+        request.cuttingEdgeMeters?.toString() ?? "",
         request.product?.name ?? "",
         request.product?.sku ?? "",
         request.edgeOption ?? "",

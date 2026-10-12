@@ -245,11 +245,14 @@ function ProductEditorialCard({ product }: { product: FeaturedProduct }) {
         <h3 className="mt-1.5 line-clamp-2 text-[15px] leading-[1.25] font-medium tracking-[-0.02em] text-[var(--foreground)] transition group-hover:text-[var(--accent)] sm:text-base">
           {product.name}
         </h3>
+        <p className="mt-2 font-mono text-[9px] leading-4 tracking-[0.1em] [overflow-wrap:anywhere] text-[var(--muted)] uppercase">
+          SKU: {product.sku}
+        </p>
         <div className="mt-3 flex min-w-0 items-end justify-between gap-3">
           <p className="text-sm font-semibold text-[var(--foreground)]">
             {product.price ? formatPrice(product.price) : product.action}
           </p>
-          <span className="truncate font-mono text-[9px] tracking-[0.12em] text-[var(--muted)] uppercase">
+          <span className="font-mono text-[9px] leading-4 tracking-[0.12em] [overflow-wrap:anywhere] text-[var(--muted)] uppercase">
             {product.format}
           </span>
         </div>

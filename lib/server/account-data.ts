@@ -7,13 +7,18 @@ import { getEffectiveProductPrice } from "@/features/catalog/bundle-pricing";
 
 import { verifySession } from "@/lib/auth/dal";
 import { getDb } from "@/lib/db";
+import {
+  getCustomerOrderWhere,
+  type CustomerOrderIdentity,
+} from "@/lib/server/customer-order-scope";
 import { getClientOperationEvents } from "@/lib/server/operation-events";
 import { ensureProductBundleItemsTable } from "@/lib/server/product-bundle-schema";
-import { ensureTelegramUserColumns } from "@/lib/server/telegram-user-schema";
 
 const activeOrderStatuses = [
   OrderStatus.NEW,
+  OrderStatus.RESERVED,
   OrderStatus.CONFIRMED,
+  OrderStatus.PAID,
   OrderStatus.IN_PRODUCTION,
   OrderStatus.READY_FOR_PICKUP,
   OrderStatus.SHIPPED,
@@ -30,8 +35,6 @@ const activeRequestStatuses = [
 export async function getAccountUser() {
   const db = getDb();
   const session = await verifySession("/login?next=/account");
-  await ensureTelegramUserColumns(db);
-
   return db.user.findUnique({
     where: { id: session.userId },
     select: {
@@ -48,6 +51,8 @@ export async function getAccountUser() {
       telegramNotifyLoyalty: true,
       telegramNotifyPromotions: true,
       loyaltyTier: true,
+      plateMaterialLoyaltyTier: true,
+      fittingsLoyaltyTier: true,
       loyaltyPointsBalance: true,
       loyaltyPointsLifetime: true,
       personalDiscountPercent: true,
@@ -61,8 +66,9 @@ export async function getAccountUser() {
   });
 }
 
-export async function getAccountSummary(userId: string) {
+export async function getAccountSummary(user: CustomerOrderIdentity) {
   const db = getDb();
+  const orderWhere = getCustomerOrderWhere(user);
 
   const [
     ordersCount,
@@ -74,27 +80,31 @@ export async function getAccountSummary(userId: string) {
     recentRequests,
     recentTransactions,
   ] = await Promise.all([
-    db.order.count({ where: { userId } }),
+    db.order.count({ where: orderWhere }),
     db.order.count({
       where: {
-        userId,
-        status: {
-          in: activeOrderStatuses,
-        },
+        AND: [
+          orderWhere,
+          {
+            status: {
+              in: activeOrderStatuses,
+            },
+          },
+        ],
       },
     }),
-    db.request.count({ where: { userId } }),
+    db.request.count({ where: { userId: user.id } }),
     db.request.count({
       where: {
-        userId,
+        userId: user.id,
         status: {
           in: activeRequestStatuses,
         },
       },
     }),
-    db.favorite.count({ where: { userId } }),
+    db.favorite.count({ where: { userId: user.id } }),
     db.order.findMany({
-      where: { userId },
+      where: orderWhere,
       orderBy: { createdAt: "desc" },
       take: 5,
       select: {
@@ -106,7 +116,7 @@ export async function getAccountSummary(userId: string) {
       },
     }),
     db.request.findMany({
-      where: { userId },
+      where: { userId: user.id },
       orderBy: { createdAt: "desc" },
       take: 5,
       select: {
@@ -118,7 +128,7 @@ export async function getAccountSummary(userId: string) {
       },
     }),
     db.loyaltyTransaction.findMany({
-      where: { userId },
+      where: { userId: user.id },
       orderBy: { createdAt: "desc" },
       take: 8,
       select: {
@@ -150,11 +160,11 @@ export async function getAccountSummary(userId: string) {
   };
 }
 
-export async function getAccountOrders(userId: string) {
+export async function getAccountOrders(user: CustomerOrderIdentity) {
   const db = getDb();
 
   const orders = await db.order.findMany({
-    where: { userId },
+    where: getCustomerOrderWhere(user),
     orderBy: { createdAt: "desc" },
     select: {
       id: true,
@@ -174,6 +184,19 @@ export async function getAccountOrders(userId: string) {
       deliveryMethod: {
         select: {
           name: true,
+        },
+      },
+      items: {
+        orderBy: { createdAt: "asc" },
+        select: {
+          id: true,
+          quantity: true,
+          unitPrice: true,
+          discountAmount: true,
+          total: true,
+          snapshotName: true,
+          snapshotSku: true,
+          snapshotBrand: true,
         },
       },
       loyaltyTransactions: {
@@ -222,6 +245,9 @@ export async function getAccountRequests(userId: string) {
       subject: true,
       quotedTotal: true,
       productionComment: true,
+      cuttingStage: true,
+      cuttingPickupCell: true,
+      cuttingStageUpdatedAt: true,
       createdAt: true,
       manager: {
         select: {

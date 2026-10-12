@@ -1,28 +1,29 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import {
+  useActionState,
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+} from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-
-import { submitCheckoutAction } from "@/app/(public)/checkout/actions";
-import type { CheckoutFormState } from "@/app/(public)/checkout/types";
+import {
+  ArrowLeft,
+  ArrowRight,
+  ChevronDown,
+  LoaderCircle,
+  Store,
+} from "lucide-react";
+import { submitCheckoutAction } from "./actions";
+import type { CheckoutFormState } from "./types";
 import { useCart } from "@/components/providers/cart-provider";
-import { Button } from "@/components/ui/button";
-import { Container } from "@/components/ui/container";
-import { Input } from "@/components/ui/input";
-import { SectionHeading } from "@/components/ui/section-heading";
-import { Select } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
+import { ProductImage } from "@/components/catalog/product-image";
 import { formatPrice } from "@/lib/commerce";
+import s from "./checkout.module.css";
 
 const initialState: CheckoutFormState = {};
-
-type DeliveryMethodOption = {
-  id: string;
-  name: string;
-  price: number;
-};
-
 type CheckoutCustomer = {
   email: string;
   name: string;
@@ -35,314 +36,380 @@ type CheckoutCustomer = {
   fittingsAccrualPercent: number;
 };
 
-type CheckoutFormProps = {
-  databaseReady: boolean;
-  customer: CheckoutCustomer | null;
-  deliveryMethods: DeliveryMethodOption[];
-};
-
 export function CheckoutForm({
   databaseReady,
   customer,
-  deliveryMethods,
-}: CheckoutFormProps) {
+}: {
+  databaseReady: boolean;
+  customer: CheckoutCustomer | null;
+}) {
   const router = useRouter();
-  const { items, itemCount, subtotal, clearCart } = useCart();
+  const {
+    items,
+    products,
+    isLoading,
+    error,
+    refreshProducts,
+    itemCount,
+    clearCart,
+    subtotal,
+    beforeDiscountSubtotal,
+    promotionDiscountTotal,
+  } = useCart();
   const [state, formAction, pending] = useActionState(
     submitCheckoutAction,
     initialState,
   );
-  const [deliveryMethodId, setDeliveryMethodId] = useState(
-    () => deliveryMethods[0]?.id ?? "",
-  );
-  const [redeemPointsInput, setRedeemPointsInput] = useState("");
+  const [fields, setFields] = useState({
+    name: customer?.name ?? "",
+    phone: customer?.phone ?? "",
+    email: customer?.email ?? "",
+    companyName: customer?.companyName ?? "",
+    comment: "",
+    promoCode: "",
+    redeemPoints: "",
+  });
   const handledSuccessRef = useRef(false);
-
-  useEffect(() => {
-    if (!state.success || !state.redirectTo || handledSuccessRef.current) {
-      return;
-    }
-
-    handledSuccessRef.current = true;
-    clearCart();
-    router.push(state.redirectTo);
-    router.refresh();
-  }, [clearCart, router, state.redirectTo, state.success]);
-
-  const selectedDeliveryPrice =
-    deliveryMethods.find((item) => item.id === deliveryMethodId)?.price ?? 0;
-  const requestedRedeemPoints = Math.max(
-    0,
-    Number.parseInt(redeemPointsInput || "0", 10) || 0,
-  );
+  const errorRef = useRef<HTMLDivElement>(null);
+  const detailsRef = useRef<HTMLDetailsElement>(null);
   const maxRedeemablePoints = customer
     ? Math.min(
         customer.pointsBalance,
         Math.floor((subtotal * customer.maxRedeemPercent) / 100),
       )
     : 0;
-  const redeemablePoints = customer
-    ? Math.min(requestedRedeemPoints, maxRedeemablePoints)
-    : 0;
-  const total = Math.max(
-    0,
-    subtotal - redeemablePoints + selectedDeliveryPrice,
+  const redeemablePoints = Math.min(
+    maxRedeemablePoints,
+    Math.max(0, Number.parseInt(fields.redeemPoints, 10) || 0),
   );
-  const estimatedPoints = customer
-    ? Math.floor(
-        (Math.max(0, subtotal - redeemablePoints) *
-          customer.plateMaterialAccrualPercent) /
-          100,
-      )
-    : 0;
-  const cartSnapshot = JSON.stringify(items);
+  const total = Math.max(0, subtotal - redeemablePoints);
+  const stockIssues = items.flatMap((item) => {
+    const product = products.find((entry) => entry.slug === item.productSlug);
+    if (
+      !product ||
+      product.purchaseMode !== "cart" ||
+      !product.inStock ||
+      typeof product.price !== "number" ||
+      !Number.isFinite(product.price)
+    )
+      return [`${product?.name ?? item.productSlug}: товар недоступен.`];
+    return product.stockQuantity !== null &&
+      item.quantity > product.stockQuantity
+      ? [
+          `${product.name}: доступно ${product.stockQuantity} шт., в корзине ${item.quantity} шт.`,
+        ]
+      : [];
+  });
+  const disabled =
+    pending || state.success || !databaseReady || stockIssues.length > 0;
+
+  useEffect(() => {
+    if (!state.success || !state.redirectTo || handledSuccessRef.current)
+      return;
+    handledSuccessRef.current = true;
+    clearCart();
+    router.push(state.redirectTo);
+    router.refresh();
+  }, [clearCart, router, state.redirectTo, state.success]);
+
+  useEffect(() => {
+    if (!state.message) return;
+    if (
+      ["email", "companyName", "comment", "promoCode"].some(
+        (key) => state.fieldErrors?.[key],
+      ) &&
+      detailsRef.current
+    )
+      detailsRef.current.open = true;
+    errorRef.current?.focus();
+  }, [state]);
+
+  function field(name: keyof typeof fields) {
+    return {
+      name,
+      value: fields[name],
+      onChange: (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+        setFields((previous) => ({ ...previous, [name]: event.target.value })),
+    };
+  }
 
   return (
-    <Container className="space-y-8 py-10 sm:py-14">
-      <SectionHeading
-        title="Оформление заказа"
-        description="Проверьте состав корзины, заполните контакты и отправьте заказ менеджеру."
-      />
-
-      {itemCount === 0 ? (
-        <section className="surface-glow rounded-[24px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-8 text-center">
-          <p className="text-lg font-semibold text-[var(--foreground)]">
-            В корзине пока нет товаров
-          </p>
-          <p className="mt-2 text-sm text-[var(--muted)]">
-            Добавьте материалы или фурнитуру из каталога, чтобы перейти к
-            оформлению.
-          </p>
-          <Link href="/catalog" className="mt-6 inline-flex">
-            <Button>Перейти в каталог</Button>
+    <div className={s.checkout}>
+      <Link href="/cart" className={s.back}>
+        <ArrowLeft size={17} /> Корзина
+      </Link>
+      <h1>Оформление заказа</h1>
+      {isLoading ? (
+        <p role="status" className={s.empty}>
+          Обновляем цены и остатки…
+        </p>
+      ) : error ? (
+        <div role="alert" className={s.empty}>
+          <p>{error} Корзина сохранена.</p>
+          <button className={s.secondary} onClick={refreshProducts}>
+            Повторить
+          </button>
+        </div>
+      ) : itemCount === 0 ? (
+        <div className={s.empty}>
+          <h2>Корзина пока пуста</h2>
+          <Link className={s.primary} href="/catalog">
+            В каталог <ArrowRight size={18} />
           </Link>
-        </section>
+        </div>
       ) : (
-        <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
-          <section className="surface-glow rounded-[24px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-6 sm:p-8">
-            {!databaseReady ? (
-              <div className="rounded-[20px] border border-amber-200 bg-amber-50 px-4 py-4 text-sm leading-7 text-amber-900">
-                Для реального оформления заказа подключите PostgreSQL и
-                примените Prisma-схему. После этого форма начнет создавать
-                заказы в базе.
-              </div>
-            ) : null}
-
-            <form action={formAction} className="mt-6 grid gap-4">
-              <input type="hidden" name="cartSnapshot" value={cartSnapshot} />
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <label className="grid gap-2 text-sm text-[var(--foreground)]">
+        <div className={s.layout}>
+          <form
+            id="checkout-form"
+            action={formAction}
+            onInvalidCapture={(event) => {
+              const details = (event.target as HTMLElement).closest("details");
+              if (details) details.open = true;
+            }}
+          >
+            <input
+              type="hidden"
+              name="cartSnapshot"
+              value={JSON.stringify(items)}
+            />
+            <section className={s.section} aria-labelledby="checkout-contact">
+              <h2 id="checkout-contact">Контактные данные</h2>
+              {!customer && (
+                <p className={s.login}>
+                  <Link href="/login?next=/checkout">Войти в аккаунт</Link>
+                  <span> или оформить без регистрации</span>
+                </p>
+              )}
+              <div className={s.fields}>
+                <label>
                   Имя
-                  <Input
-                    name="name"
-                    placeholder="Иван Иванов"
-                    defaultValue={customer?.name}
+                  <input
+                    {...field("name")}
+                    autoComplete="name"
                     required
-                  />
-                </label>
-                <label className="grid gap-2 text-sm text-[var(--foreground)]">
-                  Телефон
-                  <Input
-                    name="phone"
-                    type="tel"
-                    placeholder="+7 900 000-00-00"
-                    defaultValue={customer?.phone}
-                    required
-                  />
-                </label>
-                <label className="grid gap-2 text-sm text-[var(--foreground)]">
-                  Email
-                  <Input
-                    name="email"
-                    type="email"
-                    placeholder="project@artisan.pro"
-                    defaultValue={customer?.email}
-                  />
-                </label>
-                <label className="grid gap-2 text-sm text-[var(--foreground)]">
-                  Компания / объект
-                  <Input
-                    name="companyName"
-                    placeholder="Студия, объект или компания"
-                    defaultValue={customer?.companyName}
-                  />
-                </label>
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <label className="grid gap-2 text-sm text-[var(--foreground)]">
-                  Город
-                  <Input name="city" placeholder="Бишкек" />
-                </label>
-                <label className="grid gap-2 text-sm text-[var(--foreground)]">
-                  Способ доставки
-                  <Select
-                    name="deliveryMethodId"
-                    value={deliveryMethodId}
-                    onChange={(event) =>
-                      setDeliveryMethodId(event.target.value)
+                    minLength={2}
+                    placeholder="Ваше имя"
+                    aria-invalid={!!state.fieldErrors?.name}
+                    aria-describedby={
+                      state.fieldErrors?.name ? "name-error" : undefined
                     }
-                  >
-                    <option value="">Выберите способ доставки</option>
-                    {deliveryMethods.map((method) => (
-                      <option key={method.id} value={method.id}>
-                        {method.name}
-                      </option>
-                    ))}
-                  </Select>
+                  />
+                  {state.fieldErrors?.name && (
+                    <span id="name-error" className={s.errorText}>
+                      {state.fieldErrors.name[0]}
+                    </span>
+                  )}
+                </label>
+                <label>
+                  Телефон
+                  <input
+                    {...field("phone")}
+                    type="tel"
+                    inputMode="tel"
+                    autoComplete="tel"
+                    required
+                    minLength={6}
+                    placeholder="+996 ___ ___ ___"
+                    aria-invalid={!!state.fieldErrors?.phone}
+                    aria-describedby={
+                      state.fieldErrors?.phone ? "phone-error" : undefined
+                    }
+                  />
+                  {state.fieldErrors?.phone && (
+                    <span id="phone-error" className={s.errorText}>
+                      {state.fieldErrors.phone[0]}
+                    </span>
+                  )}
                 </label>
               </div>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <label className="grid gap-2 text-sm text-[var(--foreground)]">
+            </section>
+            <section
+              className={`${s.section} ${s.pickup}`}
+              aria-label="Получение заказа"
+            >
+              <Store size={23} />
+              <div>
+                <h2>Самовывоз</h2>
+                <Link href="/contacts" target="_blank" rel="noreferrer">
+                  Адреса магазинов
+                </Link>
+              </div>
+              <strong>Бесплатно</strong>
+            </section>
+            {customer && (
+              <section className={s.section} aria-labelledby="checkout-bonuses">
+                <h2 id="checkout-bonuses">Бонусы</h2>
+                <p className={s.muted}>
+                  Баланс: {customer.pointsBalance} баллов · Доступно к списанию:{" "}
+                  {maxRedeemablePoints}
+                </p>
+                <label className={s.bonusField}>
+                  Списать баллы
+                  <input
+                    {...field("redeemPoints")}
+                    type="number"
+                    min={0}
+                    max={maxRedeemablePoints}
+                    inputMode="numeric"
+                    placeholder="0"
+                  />
+                </label>
+              </section>
+            )}
+            <details ref={detailsRef} className={s.details}>
+              <summary>
+                Дополнительно <ChevronDown size={18} />
+              </summary>
+              <div className={s.fields}>
+                <label>
+                  Email
+                  <input
+                    {...field("email")}
+                    type="email"
+                    autoComplete="email"
+                    placeholder="mail@example.com"
+                  />
+                  {state.fieldErrors?.email && (
+                    <span className={s.errorText}>
+                      {state.fieldErrors.email[0]}
+                    </span>
+                  )}
+                </label>
+                <label>
+                  Компания / объект
+                  <input
+                    {...field("companyName")}
+                    autoComplete="organization"
+                  />
+                </label>
+                <label>
                   Промокод
-                  <Input
-                    name="promoCode"
-                    placeholder="ARTISAN1000"
+                  <input
+                    {...field("promoCode")}
+                    maxLength={64}
                     autoCapitalize="characters"
                     spellCheck={false}
                   />
-                  <span className="text-xs leading-6 text-[var(--muted)]">
-                    Скидка применится после проверки кода.
+                  <span className={s.muted}>
+                    Проверяется при подтверждении заказа.
                   </span>
                 </label>
-
-                {customer ? (
-                  <label className="grid gap-2 rounded-[20px] border border-[color:var(--line)] bg-[var(--surface)] px-4 py-4 text-sm text-[var(--foreground)]">
-                    <span className="font-semibold">Списать бонусы</span>
-                    <Input
-                      name="redeemPoints"
-                      type="number"
-                      min="0"
-                      max={maxRedeemablePoints}
-                      value={redeemPointsInput}
-                      onChange={(event) =>
-                        setRedeemPointsInput(event.target.value)
-                      }
-                      placeholder="0"
-                      inputMode="numeric"
-                    />
-                    <span className="text-xs leading-6 text-[var(--muted)]">
-                      Доступно {customer.pointsBalance} баллов. За эту покупку
-                      можно списать до {formatPrice(maxRedeemablePoints)} (
-                      {customer.maxRedeemPercent}% суммы).
-                    </span>
-                  </label>
-                ) : (
-                  <div className="rounded-[20px] border border-[color:var(--line)] bg-[var(--surface)] px-4 py-4 text-sm text-[var(--muted)]">
-                    <p>
-                      Войдите или создайте кабинет, чтобы использовать личные
-                      скидки и накопленные баллы.
-                    </p>
-                    <div className="mt-3 flex flex-wrap gap-3">
-                      <Link href="/login?next=/checkout">
-                        <Button variant="secondary" size="sm">
-                          Войти
-                        </Button>
-                      </Link>
-                      <Link href="/register?next=/checkout">
-                        <Button variant="ghost" size="sm">
-                          Регистрация
-                        </Button>
-                      </Link>
-                    </div>
-                  </div>
-                )}
+                <label className={s.full}>
+                  Комментарий
+                  <textarea {...field("comment")} rows={3} />
+                </label>
               </div>
-
-              <label className="grid gap-2 text-sm text-[var(--foreground)]">
-                Комментарий к заказу
-                <Textarea
-                  name="comment"
-                  className="min-h-32"
-                  placeholder="Уточнения по отгрузке, времени связи или проекту."
-                />
-              </label>
-
-              {state.message ? (
-                <p className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                  {state.message}
-                </p>
-              ) : null}
-
-              <Button
-                type="submit"
-                className="w-full sm:w-auto"
-                variant="accent"
-                disabled={pending || !databaseReady}
+            </details>
+            {state.message && (
+              <div
+                ref={errorRef}
+                tabIndex={-1}
+                role="alert"
+                className={s.alert}
               >
-                {pending ? "Оформляем заказ..." : "Подтвердить заказ"}
-              </Button>
-            </form>
-          </section>
-
-          <aside className="surface-glow h-fit rounded-[24px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-6">
-            <h3 className="text-lg font-semibold text-[var(--foreground)]">
-              Сводка заказа
-            </h3>
-            <div className="mt-5 space-y-3 text-sm text-[var(--foreground)]">
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-[var(--muted)]">Товаров</span>
-                <span>{itemCount}</span>
+                {state.message}
               </div>
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-[var(--muted)]">Сумма</span>
-                <span>{formatPrice(subtotal)}</span>
+            )}
+            {!databaseReady && (
+              <p role="alert" className={s.alert}>
+                Оформление временно недоступно. Корзина сохранена.
+              </p>
+            )}
+            {stockIssues.length > 0 && (
+              <div role="alert" className={s.alert}>
+                {stockIssues.map((issue) => (
+                  <p key={issue}>{issue}</p>
+                ))}
+                <Link href="/cart">Исправить корзину</Link>
               </div>
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-[var(--muted)]">Доставка</span>
-                <span>
-                  {deliveryMethodId ? formatPrice(selectedDeliveryPrice) : "—"}
-                </span>
+            )}
+          </form>
+          <aside className={s.summary} aria-label="Сводка заказа">
+            <div className={s.summaryHeading}>
+              <h2>Ваш заказ</h2>
+              <Link href="/cart">Изменить</Link>
+            </div>
+            <ul className={s.products}>
+              {items.map((item) => {
+                const product = products.find(
+                  (entry) => entry.slug === item.productSlug,
+                );
+                return (
+                  <li key={item.productSlug}>
+                    <div className={s.thumbnail}>
+                      <ProductImage
+                        src={product?.image}
+                        alt={product?.name ?? item.productSlug}
+                        fallbackLabel=""
+                        width={56}
+                        height={56}
+                      />
+                    </div>
+                    <div>
+                      <p>{product?.name ?? item.productSlug}</p>
+                      <span>
+                        {item.quantity} шт. × {formatPrice(product?.price ?? 0)}
+                      </span>
+                    </div>
+                    <strong>
+                      {formatPrice((product?.price ?? 0) * item.quantity)}
+                    </strong>
+                  </li>
+                );
+              })}
+            </ul>
+            <dl className={s.totals}>
+              <div>
+                <dt>Товары · {itemCount} шт.</dt>
+                <dd>{formatPrice(beforeDiscountSubtotal)}</dd>
               </div>
-              {customer ? (
-                <div className="flex items-center justify-between gap-4">
-                  <span className="text-[var(--muted)]">Списание бонусов</span>
-                  <span>
-                    {redeemablePoints > 0
-                      ? `-${formatPrice(redeemablePoints)}`
-                      : "—"}
-                  </span>
+              {promotionDiscountTotal > 0 && (
+                <div className={s.saving}>
+                  <dt>Скидка акции</dt>
+                  <dd>−{formatPrice(promotionDiscountTotal)}</dd>
                 </div>
-              ) : null}
-            </div>
-
-            <div className="mt-5 rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] px-4 py-4">
-              <p className="text-xs tracking-[0.16em] text-[var(--muted)] uppercase">
-                Итого
-              </p>
-              <p className="mt-2 text-3xl font-semibold text-[var(--foreground)]">
-                {formatPrice(total)}
-              </p>
-            </div>
-
-            {customer ? (
-              <div className="mt-5 rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] px-4 py-4 text-sm text-[var(--foreground)]">
-                <p className="font-semibold">
-                  Ваш уровень: {customer.loyaltyTierLabel}
-                </p>
-                <p className="mt-2 text-[var(--muted)]">
-                  Баланс: {customer.pointsBalance} баллов. Начисление: плитные
-                  материалы {customer.plateMaterialAccrualPercent}%, фурнитура{" "}
-                  {customer.fittingsAccrualPercent}%.
-                  {maxRedeemablePoints > 0
-                    ? ` Сейчас можно списать до ${formatPrice(maxRedeemablePoints)}.`
-                    : ""}
-                  {estimatedPoints > 0
-                    ? ` После оформления начислим около ${estimatedPoints} баллов.`
-                    : " Баллы начнут копиться после первого заказа."}
-                </p>
+              )}
+              <div>
+                <dt>Самовывоз</dt>
+                <dd>Бесплатно</dd>
               </div>
-            ) : (
-              <div className="mt-5 rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] px-4 py-4 text-sm text-[var(--muted)]">
-                После входа в личный кабинет здесь появятся персональная скидка,
-                баллы и история заказов.
+              {redeemablePoints > 0 && (
+                <div>
+                  <dt>Списание баллов</dt>
+                  <dd>−{formatPrice(redeemablePoints)}</dd>
+                </div>
+              )}
+            </dl>
+            <div className={s.submitBar}>
+              <div>
+                <span>Итого</span>
+                <strong aria-live="polite">{formatPrice(total)}</strong>
               </div>
+              <button
+                type="submit"
+                form="checkout-form"
+                className={s.primary}
+                disabled={disabled}
+                aria-busy={pending}
+              >
+                {pending ? (
+                  <LoaderCircle size={18} className={s.spinner} />
+                ) : (
+                  <ArrowRight size={18} />
+                )}
+                <span>{pending ? "Оформляем…" : "Подтвердить заказ"}</span>
+              </button>
+            </div>
+            {customer && (
+              <p className={s.loyalty}>
+                Начисление: плиты {customer.plateMaterialAccrualPercent}%,
+                фурнитура {customer.fittingsAccrualPercent}%. Баллы после
+                подтверждения заказа.
+              </p>
             )}
           </aside>
         </div>
       )}
-    </Container>
+    </div>
   );
 }

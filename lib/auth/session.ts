@@ -1,7 +1,7 @@
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 
-import type { RoleCode } from "@/generated/prisma";
+import type { ProductionStation, RoleCode } from "@/generated/prisma";
 
 export const sessionCookieName = "artisan-session";
 
@@ -11,6 +11,8 @@ export type SessionPayload = {
   email: string;
   firstName?: string | null;
   lastName?: string | null;
+  productionStation?: ProductionStation | null;
+  issuedAtMilliseconds?: number;
 };
 
 function getSessionSecret() {
@@ -30,7 +32,7 @@ export function isSessionConfigured() {
 }
 
 export async function encryptSession(payload: SessionPayload) {
-  return new SignJWT(payload)
+  return new SignJWT({ ...payload, issuedAtMilliseconds: Date.now() })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("7d")
@@ -53,9 +55,16 @@ export async function decryptSession(
       userId: String(payload.userId),
       roleCode: payload.roleCode as RoleCode,
       email: String(payload.email),
+      issuedAtMilliseconds: typeof payload.issuedAtMilliseconds === "number"
+        ? payload.issuedAtMilliseconds
+        : typeof payload.iat === "number" ? payload.iat * 1000 : 0,
       firstName:
         typeof payload.firstName === "string" ? payload.firstName : null,
       lastName: typeof payload.lastName === "string" ? payload.lastName : null,
+      productionStation:
+        typeof payload.productionStation === "string"
+          ? (payload.productionStation as ProductionStation)
+          : null,
     };
   } catch {
     return null;

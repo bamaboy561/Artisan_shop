@@ -12,6 +12,7 @@ import {
 } from "@/app/admin/actions";
 import { AdminSubmitButton } from "@/components/admin/admin-submit-button";
 import { OperationTimeline } from "@/components/admin/operation-timeline";
+import { OrderProductPicker } from "@/components/admin/order-product-picker";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -106,8 +107,11 @@ function getOrderCommentWithoutReceipt(comment: string | null) {
 function getStatusTone(status: OrderStatus) {
   switch (status) {
     case OrderStatus.NEW:
+    case OrderStatus.RESERVED:
     case OrderStatus.CONFIRMED:
       return "warning" as const;
+    case OrderStatus.PAID:
+      return "success" as const;
     case OrderStatus.IN_PRODUCTION:
     case OrderStatus.READY_FOR_PICKUP:
     case OrderStatus.SHIPPED:
@@ -169,7 +173,10 @@ function OrderWorkflowTrail({ status }: { status: OrderStatus }) {
 export default async function AdminOrderDetailPage({
   params,
 }: AdminOrderDetailPageProps) {
-  const session = await requireAdminSession("/login?next=/admin/orders");
+  const session = await requireAdminSession(
+    "/login?next=/admin/orders",
+    "/admin/orders",
+  );
 
   const { id } = await params;
   const [order, managers, events, productFormOptions] = await Promise.all([
@@ -437,6 +444,8 @@ export default async function AdminOrderDetailPage({
                 Статус после сохранения
                 <Select name="status" defaultValue="">
                   <option value="">Не менять статус</option>
+                  <option value={OrderStatus.RESERVED}>Бронь</option>
+                  <option value={OrderStatus.PAID}>Оплачено</option>
                   <option value={OrderStatus.IN_PRODUCTION}>
                     В производстве
                   </option>
@@ -462,10 +471,7 @@ export default async function AdminOrderDetailPage({
             <h2 className="text-lg font-semibold text-[var(--foreground)]">
               Состав заказа
             </h2>
-            <form
-              action={updateOrderItemsAction}
-              className="mt-5 space-y-4"
-            >
+            <form action={updateOrderItemsAction} className="mt-5 space-y-4">
               <input type="hidden" name="orderId" value={order.id} />
               <div className="divide-y divide-[color:var(--line)] border-y border-[color:var(--line)]">
                 {order.items.map((item) => (
@@ -483,7 +489,7 @@ export default async function AdminOrderDetailPage({
                         defaultValue={item.name}
                         className="h-10 font-medium"
                       />
-                      <p className="mt-1 text-xs text-[var(--muted)]">
+                      <p className="mt-1 text-xs leading-4 [overflow-wrap:anywhere] text-[var(--muted)]">
                         {[item.sku, item.brand].filter(Boolean).join(" · ") ||
                           "Без артикула"}
                       </p>
@@ -533,19 +539,7 @@ export default async function AdminOrderDetailPage({
                   Добавить позицию
                 </h3>
                 <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_90px_130px]">
-                  <label className="grid gap-2 text-sm font-medium text-[var(--foreground)]">
-                    Товар из каталога
-                    <Select name="newProductId" defaultValue="">
-                      <option value="">Не выбран</option>
-                      {productOptions.map((product) => (
-                        <option key={product.id} value={product.id}>
-                          {[product.name, product.sku, product.brandName]
-                            .filter(Boolean)
-                            .join(" · ")}
-                        </option>
-                      ))}
-                    </Select>
-                  </label>
+                  <OrderProductPicker products={productOptions} />
                   <label className="grid gap-2 text-sm font-medium text-[var(--foreground)]">
                     Или название вручную
                     <Input

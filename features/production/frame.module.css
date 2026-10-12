@@ -1,0 +1,172 @@
+.frame {
+  min-height: 100vh;
+  background: #f6f8f6;
+  color: #28382f;
+  letter-spacing: 0;
+}
+.sidebar {
+  display: none;
+}
+.header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 60px;
+  padding: 8px 16px;
+  border-bottom: 1px solid #dde4de;
+  background: white;
+}
+.mobileBrand {
+  font-weight: 750;
+  font-size: 18px;
+}
+.title {
+  min-width: 0;
+  flex: 1;
+  font-size: 12px;
+  line-height: 1.3;
+}
+.homeIcon,
+.menu summary {
+  display: flex;
+  width: 44px;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #dce2dd;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.menu {
+  position: relative;
+}
+.menu summary {
+  list-style: none;
+}
+.menu summary::-webkit-details-marker {
+  display: none;
+}
+.menu > nav {
+  position: absolute;
+  right: 0;
+  top: 50px;
+  width: min(290px, calc(100vw - 32px));
+  z-index: 40;
+  padding: 16px;
+  background: #202d26;
+  color: white;
+  border-radius: 6px;
+  box-shadow: 0 8px 24px #0002;
+}
+.menu > nav > nav {
+  display: flex;
+  flex-direction: column;
+}
+.content {
+  min-width: 0;
+  padding: 20px 16px;
+}
+.account {
+  display: grid;
+  gap: 4px;
+  margin-top: auto;
+  padding-top: 24px;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.account span {
+  color: #afc2b5;
+  font-size: 12px;
+}
+.account button {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 12px;
+  min-height: 44px;
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ffffff30;
+  border-radius: 4px;
+}
+.home {
+  display: flex;
+  min-height: 44px;
+  gap: 8px;
+  align-items: center;
+  padding: 12px;
+  font-size: 13px;
+  color: #cedbd2;
+}
+.main {
+  min-width: 0;
+}
+@media (min-width: 1024px) {
+  .frame {
+    display: grid;
+    grid-template-columns: 232px minmax(0, 1fr);
+  }
+  .sidebar {
+    display: flex;
+    flex-direction: column;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    padding: 24px 12px;
+    background: #202d26;
+    color: white;
+  }
+  .brand {
+    font-size: 24px;
+    font-weight: 700;
+    padding: 0 12px 28px;
+  }
+  .brand span {
+    display: block;
+    margin-top: 4px;
+    color: #b5c9bc;
+    font-size: 12px;
+    font-weight: 400;
+  }
+  .account {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+  .mobileBrand,
+  .menu {
+    display: none;
+  }
+  .header {
+    padding: 8px 24px;
+  }
+  .title {
+    font-size: 14px;
+  }
+  .content {
+    padding: 24px;
+  }
+}
+@media (max-width: 360px) {
+  .title {
+    font-size: 11px;
+  }
+  .header {
+    gap: 8px;
+  }
+  .mobileBrand {
+    font-size: 16px;
+  }
+}
+@media print {
+  .sidebar,
+  .header {
+    display: none;
+  }
+  .frame {
+    display: block;
+  }
+  .content {
+    padding: 0;
+  }
+}

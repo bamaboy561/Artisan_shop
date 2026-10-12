@@ -19,12 +19,13 @@ import {
   sortCatalogProducts,
 } from "@/features/catalog/filters";
 import {
-  getCatalogMetrics,
   getPublicCategories,
   getPublicProducts,
 } from "@/lib/server/catalog-public";
 import { getCurrentFavoriteProductSlugs } from "@/lib/server/favorites";
 import { collectionJsonLd, createSeoMetadata } from "@/lib/seo";
+import { isPremiumStorefront } from "@/features/storefront/config";
+import { StorefrontCatalog } from "@/features/storefront/catalog";
 
 export const metadata: Metadata = createSeoMetadata({
   title: "Каталог ЛДСП, МДФ, панелей и мебельной фурнитуры",
@@ -41,16 +42,23 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
   const [
     catalogProducts,
     catalogCategories,
-    catalogMetrics,
     favoriteSlugs,
     parsedSearchParams,
   ] = await Promise.all([
     getPublicProducts(),
     getPublicCategories(),
-    getCatalogMetrics(),
     getCurrentFavoriteProductSlugs(),
     searchParams,
   ]);
+  if (isPremiumStorefront())
+    return (
+      <StorefrontCatalog
+        products={catalogProducts}
+        categories={catalogCategories}
+        favorites={favoriteSlugs}
+        searchParams={parsedSearchParams}
+      />
+    );
   const parsedState = parseCatalogSearchParams(parsedSearchParams);
   const availableFilterOptions = getCatalogFilterOptions(catalogProducts);
   const state = sanitizeCatalogFilterState(parsedState, availableFilterOptions);
@@ -70,56 +78,20 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
           name: "Каталог Artisan",
           description: catalogDescription,
           path: "/catalog",
-          products: sortedProducts,
+          products: pagination.items,
         })}
       />
-      <section className="relative overflow-hidden border-b border-[color:var(--line)] bg-gradient-to-b from-[#f6f1e7] via-[#efeadf] to-[#f1eee8]">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[var(--foreground)]/12 to-transparent" />
-        <div className="pointer-events-none absolute inset-0 [background-image:radial-gradient(circle_at_1px_1px,#151411_1px,transparent_0)] [background-size:18px_18px] opacity-[0.035]" />
-
-        <div className="relative mx-auto flex max-w-[1500px] flex-col gap-6 px-4 pt-12 pb-10 sm:gap-8 sm:px-8 sm:pt-20 sm:pb-14 lg:flex-row lg:items-end lg:justify-between lg:gap-12 lg:px-10 lg:pt-24 lg:pb-16">
-          <div className="max-w-[42rem]">
-            <p className="font-mono text-[10px] tracking-[0.28em] text-[var(--accent)] uppercase sm:text-[11px]">
-              Каталог Artisan
-            </p>
-            <h1 className="mt-3 text-[2.1rem] leading-[0.96] font-semibold tracking-[-0.045em] text-balance text-[var(--foreground)] sm:mt-4 sm:text-[3.4rem] lg:text-[3.8rem]">
-              Материалы для проектной мебели.
-            </h1>
-            <p className="mt-4 max-w-[36rem] text-[14px] leading-[1.7] text-[var(--muted)] sm:mt-5 sm:text-[15px]">
-              Подбор плитных материалов, фасадных панелей и кромок под
-              конкретный проект — с прозрачным сценарием заказа и сервисом
-              распила.
-            </p>
-          </div>
-
-          {catalogProducts.length > 0 ? (
-            <dl className="grid grid-cols-3 gap-x-6 gap-y-1 border-t border-[color:var(--line-strong)]/40 pt-5 lg:border-none lg:pt-0">
-              <div>
-                <dt className="font-mono text-[9px] tracking-[0.16em] text-[var(--muted)] uppercase">
-                  Позиций
-                </dt>
-                <dd className="mt-1 text-[1.6rem] leading-none font-semibold text-[var(--foreground)] sm:text-[2rem]">
-                  {catalogProducts.length}
-                </dd>
-              </div>
-              <div>
-                <dt className="font-mono text-[9px] tracking-[0.16em] text-[var(--muted)] uppercase">
-                  Брендов
-                </dt>
-                <dd className="mt-1 text-[1.6rem] leading-none font-semibold text-[var(--foreground)] sm:text-[2rem]">
-                  {catalogMetrics.brandCount}
-                </dd>
-              </div>
-              <div>
-                <dt className="font-mono text-[9px] tracking-[0.16em] text-[var(--muted)] uppercase">
-                  Разделов
-                </dt>
-                <dd className="mt-1 text-[1.6rem] leading-none font-semibold text-[var(--foreground)] sm:text-[2rem]">
-                  {catalogCategories.length}
-                </dd>
-              </div>
-            </dl>
-          ) : null}
+      <section className="border-b border-[color:var(--line)] bg-white px-4 py-5 sm:px-8 lg:px-10">
+        <div className="mx-auto flex max-w-[1500px] flex-wrap items-baseline justify-between gap-3">
+          <h1 className="text-2xl font-semibold text-[var(--foreground)] sm:text-3xl">
+            Каталог
+          </h1>
+          <Link
+            href="/calculator"
+            className="text-sm text-[var(--accent)] hover:underline"
+          >
+            Рассчитать распил
+          </Link>
         </div>
       </section>
 
@@ -146,7 +118,7 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
       </section>
 
       <section className="px-4 pt-2.5 pb-5 sm:px-8 sm:py-8 lg:px-10">
-        <div className="mx-auto grid max-w-[1500px] min-w-0 gap-5 lg:grid-cols-[280px_minmax(0,1fr)]">
+        <div className="mx-auto grid max-w-[1500px] min-w-0 gap-5 lg:grid-cols-[230px_minmax(0,1fr)]">
           <CatalogSidebar state={resolvedState} options={filterOptions} />
 
           <div className="min-w-0 space-y-5 sm:space-y-6">
@@ -172,7 +144,9 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
                       image={product.image}
                       price={product.price}
                       oldPrice={product.oldPrice}
+                      sku={product.sku}
                       inStock={product.inStock}
+                      purchaseMode={product.purchaseMode}
                       isBundle={product.isBundle}
                       categoryName={product.categoryName}
                       productSlug={product.slug}

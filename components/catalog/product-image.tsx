@@ -6,7 +6,10 @@ import { type ImgHTMLAttributes, useState } from "react";
 
 import Image, { type ImageProps } from "next/image";
 
-import { shouldBypassNextImageOptimization } from "@/lib/image-optimization";
+import {
+  canUseNextImageOptimization,
+  shouldBypassNextImageOptimization,
+} from "@/lib/image-optimization";
 import { cn } from "@/lib/utils";
 
 type ProductImageProps = Omit<
@@ -40,7 +43,17 @@ export function ProductImage({
   ...props
 }: ProductImageProps) {
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  const [optimizedFailedSrc, setOptimizedFailedSrc] = useState<string | null>(
+    null,
+  );
   const hasError = Boolean(src && failedSrc === src);
+  const optimizedHasError = Boolean(src && optimizedFailedSrc === src);
+  const shouldUseNativeImage =
+    typeof src === "string" &&
+    isRemoteImage(src) &&
+    (optimizedHasError ||
+      shouldBypassNextImageOptimization(src) ||
+      !canUseNextImageOptimization(src));
 
   if (!src || hasError) {
     return (
@@ -60,7 +73,7 @@ export function ProductImage({
     );
   }
 
-  if (isRemoteImage(src)) {
+  if (shouldUseNativeImage) {
     const nativeProps = { ...props } as Record<string, unknown>;
     const priority = props.priority;
     const loading = props.loading;
@@ -107,7 +120,7 @@ export function ProductImage({
       fill={fill}
       className={className}
       unoptimized={unoptimized ?? shouldBypassNextImageOptimization(src)}
-      onError={() => setFailedSrc(src)}
+      onError={() => setOptimizedFailedSrc(src)}
       {...props}
     />
   );

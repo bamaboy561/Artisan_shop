@@ -13,6 +13,7 @@ import {
 import { AdminSubmitButton } from "@/components/admin/admin-submit-button";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { SectionHeading } from "@/components/ui/section-heading";
+import { requireAdminSession } from "@/lib/auth/dal";
 import {
   getLaunchReadiness,
   type LaunchCheckStatus,
@@ -64,6 +65,8 @@ function getSearchValue(
 export default async function AdminLaunchPage({
   searchParams,
 }: AdminLaunchPageProps) {
+  await requireAdminSession("/login?next=/admin/launch", "/admin/launch");
+
   const readiness = await getLaunchReadiness();
   const resolvedSearchParams = await searchParams;
   const telegramTest = getSearchValue(resolvedSearchParams, "telegramTest");

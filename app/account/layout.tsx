@@ -25,7 +25,7 @@ export default async function AccountLayout({
     <DashboardFrame
       eyebrow="Кабинет клиента"
       title="Личный кабинет"
-      description="Скидки, баллы, заказы и заявки в одном рабочем экране."
+      description="Статусы, баллы, заказы и заявки в одном рабочем экране."
       items={accountNavigation}
       variant="account"
       actions={

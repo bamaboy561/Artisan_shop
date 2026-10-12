@@ -2,7 +2,7 @@ import { runMonthlyLoyaltyReview } from "@/lib/server/loyalty-monthly-review";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 function getCronAuthError(request: Request) {
   const cronSecret = process.env.CRON_SECRET?.trim();

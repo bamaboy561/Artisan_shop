@@ -9,10 +9,13 @@ import {
   FileDown,
   Layers3,
   Plus,
+  Search,
   Scissors,
+  ShoppingCart,
   Trash2,
 } from "lucide-react";
 
+import { useCart } from "@/components/providers/cart-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -220,6 +223,7 @@ type MaterialOption = CalculatorMaterialDto;
 type SheetFormat = CalculatorSheetFormatDto;
 type CalculatorPreset = CalculatorPresetDto;
 type CalculatorPresetId = string;
+type MaterialPresetScope = "all" | "cart";
 
 const giblabEdgeAttributeBySide: Record<EdgeSide, string> = {
   top: "elt",
@@ -282,7 +286,12 @@ function getGibLabPartGeometry(row: CalculatedDetailRow) {
   };
 }
 
-function getGibLabFileName(date: Date) {
+function getGibLabFileName(date: Date, projectReference?: string | null) {
+  if (projectReference) {
+    const safeReference = projectReference.replace(/[^a-zA-Z0-9_-]+/g, "-");
+    return `${safeReference}-giblab.project`;
+  }
+
   const stamp = new Intl.DateTimeFormat("sv-SE", {
     year: "numeric",
     month: "2-digit",
@@ -306,6 +315,7 @@ function buildGibLabProjectXml({
   sheetCount,
   edgeThicknessMm,
   edgeWidthMm,
+  projectReference,
 }: {
   material: MaterialOption;
   sheet: SheetFormat;
@@ -314,6 +324,7 @@ function buildGibLabProjectXml({
   sheetCount: number;
   edgeThicknessMm: number;
   edgeWidthMm: number;
+  projectReference?: string | null;
 }) {
   const validRows = rows.filter(
     (row) => row.width > 0 && row.height > 0 && row.quantity > 0,
@@ -363,18 +374,27 @@ function buildGibLabProjectXml({
 
   const comments = [
     `\t<!-- Artisan export for GibLab -->`,
+    projectReference
+      ? `\t<!-- Request: ${escapeXml(projectReference)} -->`
+      : null,
     `\t<!-- Kerf: ${basisSettings.kerf.toFixed(1)} mm -->`,
     `\t<!-- Edge trim: ${basisSettings.edgeTrim.toFixed(0)} mm -->`,
     `\t<!-- Min strip: ${basisSettings.minStrip.toFixed(0)} mm -->`,
     `\t<!-- First cut: ${basisSettings.firstCutDirection} -->`,
-  ].join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const projectName = projectReference
+    ? `Artisan ${projectReference}`
+    : "Artisan Cut Project";
 
   const edgeBlock =
     edgeOperationParts.length > 0
       ? `\n\t<good id="${edgeToolGoodId}" typeId="tool.edgeline" />\n\t<good id="${bandGoodId}" typeId="band" name="${escapeXml(`Кромка ${edgeThicknessMm} мм ${bandWidth}x${edgeThicknessMm}`)}" code="${escapeXml(`ARTISAN-EDGE-${String(edgeThicknessMm).replace(".", "_")}MM`)}" unit="м" cost="${material.edgeRatePerMeter.toFixed(2)}" t="${edgeThicknessMm}" w="${bandWidth}" />\n\t<operation id="${edgeOperationId}" typeId="EL" tool1="${edgeToolGoodId}">\n${edgeOperationParts}\n\t\t<material id="${bandGoodId}" />\n\t</operation>`
       : "";
 
-  return `<?xml version="1.0" encoding="UTF-8"?>\n<project currency="сом" version="1">\n${comments}\n\t<good id="${productGoodId}" typeId="product" count="1" name="Artisan Cut Project">\n${partEntries.map((part) => part.xml).join("\n")}\n\t</good>\n\t<good id="${cutToolGoodId}" typeId="tool.cutting" />\n\t<good id="${sheetMaterialGoodId}" typeId="sheet" name="${escapeXml(material.label)}" code="${escapeXml(`${material.id}-${sheet.id}`)}" unit="м2" cost="${material.pricePerSqM.toFixed(2)}">\n\t\t<part id="${sheetPartId}" l="${sheet.width}" w="${sheet.height}" count="${availableSheetCount}" usedCount="${Math.max(sheetCount, 0)}" />\n\t</good>\n\t<operation id="${cutOperationId}" typeId="CS" tool1="${cutToolGoodId}" cSizeMode="0">\n${cutOperationParts}\n\t\t<material id="${sheetMaterialGoodId}" />\n\t</operation>${edgeBlock}\n</project>\n`;
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<project currency="сом" version="1">\n${comments}\n\t<good id="${productGoodId}" typeId="product" count="1" name="${escapeXml(projectName)}">\n${partEntries.map((part) => part.xml).join("\n")}\n\t</good>\n\t<good id="${cutToolGoodId}" typeId="tool.cutting" />\n\t<good id="${sheetMaterialGoodId}" typeId="sheet" name="${escapeXml(material.label)}" code="${escapeXml(`${material.id}-${sheet.id}`)}" unit="м2" cost="${material.pricePerSqM.toFixed(2)}">\n\t\t<part id="${sheetPartId}" l="${sheet.width}" w="${sheet.height}" count="${availableSheetCount}" usedCount="${Math.max(sheetCount, 0)}" />\n\t</good>\n\t<operation id="${cutOperationId}" typeId="CS" tool1="${cutToolGoodId}" cSizeMode="0">\n${cutOperationParts}\n\t\t<material id="${sheetMaterialGoodId}" />\n\t</operation>${edgeBlock}\n</project>\n`;
 }
 
 function createDetailId(seed: number | string) {
@@ -537,6 +557,64 @@ function findPresetByContext(
         preset.sheetPresetId === productContext.sheetPresetId,
     ) ?? null
   );
+}
+
+function normalizeMaterialSearch(value: string) {
+  return value
+    .toLocaleLowerCase("ru-RU")
+    .replaceAll("ё", "е")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
+}
+
+function normalizeArticle(value: string) {
+  return value.toLocaleLowerCase("ru-RU").replace(/[^\p{L}\p{N}]+/gu, "");
+}
+
+function matchesMaterialSearch(
+  preset: CalculatorPreset,
+  query: string,
+  materials: MaterialOption[],
+  sheets: SheetFormat[],
+) {
+  const normalizedQuery = normalizeMaterialSearch(query);
+
+  if (!normalizedQuery) {
+    return true;
+  }
+
+  const normalizedArticleQuery = normalizeArticle(query);
+  const normalizedSku = normalizeArticle(preset.sku);
+
+  if (
+    normalizedArticleQuery.length >= 3 &&
+    normalizedSku.includes(normalizedArticleQuery)
+  ) {
+    return true;
+  }
+
+  const material = materials.find((item) => item.id === preset.materialId);
+  const sheet = sheets.find((item) => item.id === preset.sheetPresetId);
+  const searchableText = normalizeMaterialSearch(
+    [
+      preset.label,
+      preset.brand,
+      preset.sku,
+      preset.materialName,
+      material?.label,
+      material?.thicknessMm ? `${material.thicknessMm} мм` : "",
+      sheet?.label,
+    ].join(" "),
+  );
+  const searchableTerms = searchableText.split(/\s+/);
+
+  return normalizedQuery
+    .split(/\s+/)
+    .every((term) =>
+      /^\d+$/.test(term)
+        ? searchableTerms.includes(term)
+        : searchableText.includes(term),
+    );
 }
 
 function buildCutMap(
@@ -1266,12 +1344,16 @@ export function CutCalculator({
   sheets,
   presets,
 }: CutCalculatorProps) {
+  const { items: cartItems } = useCart();
   const fallbackMaterial = materials[0];
   const fallbackSheet = sheets[0];
   const defaultPresetId = presets[0]?.id ?? null;
 
   const [manualPresetId, setManualPresetId] =
     useState<CalculatorPresetId | null>(defaultPresetId);
+  const [materialPresetScope, setMaterialPresetScope] =
+    useState<MaterialPresetScope>("all");
+  const [materialSearch, setMaterialSearch] = useState("");
   const [manualThicknessMm, setManualThicknessMm] = useState("");
   const [manualSheetWidthMm, setManualSheetWidthMm] = useState("");
   const [manualSheetHeightMm, setManualSheetHeightMm] = useState("");
@@ -1285,7 +1367,27 @@ export function CutCalculator({
     tone: "success" | "error";
     message: string;
   } | null>(null);
+  const [submittedProjectReference, setSubmittedProjectReference] = useState<{
+    number: string;
+    signature: string;
+  } | null>(null);
   const [isSubmittingRequest, startSubmittingRequest] = useTransition();
+  const cartProductSlugs = useMemo(
+    () => new Set(cartItems.map((item) => item.productSlug)),
+    [cartItems],
+  );
+  const cartPresets = useMemo(
+    () => presets.filter((preset) => cartProductSlugs.has(preset.id)),
+    [cartProductSlugs, presets],
+  );
+  const scopedPresets = materialPresetScope === "cart" ? cartPresets : presets;
+  const visiblePresets = useMemo(
+    () =>
+      scopedPresets.filter((preset) =>
+        matchesMaterialSearch(preset, materialSearch, materials, sheets),
+      ),
+    [materialSearch, materials, scopedPresets, sheets],
+  );
 
   const lockedPreset = findPresetByContext(presets, productContext);
   const activePreset =
@@ -1513,6 +1615,43 @@ export function CutCalculator({
     [calculation.rows],
   );
 
+  const gibLabProjectSignature = useMemo(
+    () =>
+      JSON.stringify({
+        material: {
+          id: material.id,
+          label: material.label,
+          thicknessMm: material.thicknessMm,
+        },
+        sheet: {
+          id: sheet.id,
+          width: sheet.width,
+          height: sheet.height,
+        },
+        rows: exportableRows.map((row) => ({
+          title: row.title,
+          width: row.width,
+          height: row.height,
+          quantity: row.quantity,
+          edgedSides: row.edgedSides,
+          orientationMode: row.orientationMode,
+        })),
+        edgeThicknessValue,
+        edgeWidthValue,
+      }),
+    [
+      edgeThicknessValue,
+      edgeWidthValue,
+      exportableRows,
+      material.id,
+      material.label,
+      material.thicknessMm,
+      sheet.height,
+      sheet.id,
+      sheet.width,
+    ],
+  );
+
   const edgeOptionLabel = useMemo(() => {
     if (calculation.totalEdgeMeters <= 0) {
       return "Без кромки";
@@ -1553,6 +1692,8 @@ export function CutCalculator({
         material,
         sheet,
       }),
+      cuttingSheetCount: cutMap.sheets.length || null,
+      cuttingEdgeMeters: calculation.totalEdgeMeters || null,
       edgeOption: edgeOptionLabel,
       estimatedBudget: Math.round(estimate.totalEstimate),
     }),
@@ -1582,6 +1723,10 @@ export function CutCalculator({
       return;
     }
 
+    const projectReference =
+      submittedProjectReference?.signature === gibLabProjectSignature
+        ? submittedProjectReference.number
+        : null;
     const projectXml = buildGibLabProjectXml({
       material,
       sheet,
@@ -1590,6 +1735,7 @@ export function CutCalculator({
       sheetCount: Math.max(cutMap.sheets.length, estimate.sheetCount, 0),
       edgeThicknessMm: edgeThicknessValue,
       edgeWidthMm: edgeWidthValue,
+      projectReference,
     });
     const blob = new Blob([projectXml], {
       type: "application/xml;charset=utf-8",
@@ -1598,7 +1744,7 @@ export function CutCalculator({
     const link = document.createElement("a");
 
     link.href = url;
-    link.download = getGibLabFileName(new Date());
+    link.download = getGibLabFileName(new Date(), projectReference);
     document.body.append(link);
     link.click();
     link.remove();
@@ -1667,6 +1813,35 @@ export function CutCalculator({
     }
   };
 
+  const handleMaterialScopeChange = (scope: MaterialPresetScope) => {
+    const nextPresets = scope === "cart" ? cartPresets : presets;
+
+    setMaterialPresetScope(scope);
+    setMaterialSearch("");
+
+    if (
+      nextPresets.length > 0 &&
+      !nextPresets.some((preset) => preset.id === manualPresetId)
+    ) {
+      handlePresetChange(nextPresets[0].id);
+    }
+  };
+
+  const handleMaterialSearchChange = (query: string) => {
+    const nextVisiblePresets = scopedPresets.filter((preset) =>
+      matchesMaterialSearch(preset, query, materials, sheets),
+    );
+
+    setMaterialSearch(query);
+
+    if (
+      nextVisiblePresets.length > 0 &&
+      !nextVisiblePresets.some((preset) => preset.id === manualPresetId)
+    ) {
+      handlePresetChange(nextVisiblePresets[0].id);
+    }
+  };
+
   const removeRow = (id: string) => {
     setDetails((current) =>
       current.length === 1 ? current : current.filter((row) => row.id !== id),
@@ -1701,6 +1876,7 @@ export function CutCalculator({
     setManualSheetHeightMm("");
     setDetails(createInitialRows());
     setRequestFeedback(null);
+    setSubmittedProjectReference(null);
   };
 
   const handleRequestSubmit = () => {
@@ -1752,6 +1928,12 @@ export function CutCalculator({
             ? `Заявка ${result.number} отправлена в работу.`
             : "Заявка отправлена в работу.",
         });
+        if (result.number) {
+          setSubmittedProjectReference({
+            number: result.number,
+            signature: gibLabProjectSignature,
+          });
+        }
         setRequestDraft((current) => ({
           ...current,
           comment: "",
@@ -1821,28 +2003,117 @@ export function CutCalculator({
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-2 sm:gap-3 lg:grid-cols-[minmax(0,1.15fr)_minmax(220px,0.85fr)]">
-                <div className="min-w-0 space-y-1.5">
-                  <label className="min-w-0 text-[12px] font-medium text-[var(--foreground)] sm:text-sm">
-                    Материал из каталога
-                  </label>
+                <div className="min-w-0 space-y-2.5">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <label
+                      htmlFor="calculator-material-search"
+                      className="min-w-0 text-[12px] font-medium text-[var(--foreground)] sm:text-sm"
+                    >
+                      Материал из каталога
+                    </label>
+
+                    <div
+                      className="grid h-8 grid-cols-2 border border-[color:var(--line)] bg-[var(--surface-strong)]"
+                      role="group"
+                      aria-label="Источник материалов"
+                    >
+                      <button
+                        type="button"
+                        className={cn(
+                          "inline-flex min-w-0 items-center justify-center gap-1.5 px-2.5 text-[10px] font-semibold text-[var(--muted)] transition sm:px-3 sm:text-xs",
+                          materialPresetScope === "all" &&
+                            "bg-[var(--foreground)] text-white",
+                        )}
+                        aria-pressed={materialPresetScope === "all"}
+                        onClick={() => handleMaterialScopeChange("all")}
+                      >
+                        <Layers3 aria-hidden="true" className="size-3.5" />
+                        Все плиты
+                      </button>
+                      <button
+                        type="button"
+                        className={cn(
+                          "inline-flex min-w-0 items-center justify-center gap-1.5 border-l border-[color:var(--line)] px-2.5 text-[10px] font-semibold text-[var(--muted)] transition sm:px-3 sm:text-xs",
+                          materialPresetScope === "cart" &&
+                            "border-l-transparent bg-[var(--foreground)] text-white",
+                        )}
+                        aria-pressed={materialPresetScope === "cart"}
+                        onClick={() => handleMaterialScopeChange("cart")}
+                      >
+                        <ShoppingCart aria-hidden="true" className="size-3.5" />
+                        В корзине {cartPresets.length}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="relative">
+                    <Search
+                      aria-hidden="true"
+                      className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-[var(--muted)]"
+                    />
+                    <Input
+                      id="calculator-material-search"
+                      type="search"
+                      className="h-9 min-w-0 pl-10 text-[13px] sm:h-10 sm:text-sm"
+                      placeholder="Название, артикул, бренд, толщина или формат"
+                      value={materialSearch}
+                      onChange={(event) =>
+                        handleMaterialSearchChange(event.target.value)
+                      }
+                    />
+                  </div>
+
                   <Select
                     className="h-9 min-w-0 text-[13px] sm:h-11 sm:text-sm"
-                    value={manualPresetId ?? ""}
-                    disabled={presets.length === 0}
+                    value={
+                      visiblePresets.some(
+                        (preset) => preset.id === manualPresetId,
+                      )
+                        ? (manualPresetId ?? "")
+                        : ""
+                    }
+                    disabled={visiblePresets.length === 0}
                     onChange={(event) => handlePresetChange(event.target.value)}
                   >
-                    {presets.length === 0 ? (
+                    {visiblePresets.length === 0 ? (
                       <option value="">
-                        Подбор появится после публикации товаров
+                        {materialPresetScope === "cart"
+                          ? cartPresets.length === 0
+                            ? "В корзине нет плитных материалов"
+                            : "По запросу ничего не найдено"
+                          : presets.length === 0
+                            ? "Подбор появится после публикации товаров"
+                            : "По запросу ничего не найдено"}
                       </option>
                     ) : (
-                      presets.map((preset) => (
-                        <option key={preset.id} value={preset.id}>
-                          {preset.label}
-                        </option>
-                      ))
+                      <>
+                        {!visiblePresets.some(
+                          (preset) => preset.id === manualPresetId,
+                        ) ? (
+                          <option value="" disabled>
+                            Выберите найденный материал
+                          </option>
+                        ) : null}
+                        {visiblePresets.map((preset) => (
+                          <option key={preset.id} value={preset.id}>
+                            {preset.sku
+                              ? `${preset.label} · арт. ${preset.sku}`
+                              : preset.label}
+                          </option>
+                        ))}
+                      </>
                     )}
                   </Select>
+
+                  <p className="text-[10px] leading-4 text-[var(--muted)] sm:text-xs">
+                    {materialPresetScope === "cart"
+                      ? cartPresets.length > 0
+                        ? `Доступно плит из корзины: ${cartPresets.length}.`
+                        : "Добавьте плитный материал в корзину, и он появится здесь."
+                      : materialSearch
+                        ? `Найдено: ${visiblePresets.length}.`
+                        : `Доступно материалов: ${presets.length}.`}
+                  </p>
                 </div>
 
                 <ContextField label="Формат листа" value={sheet.label} />

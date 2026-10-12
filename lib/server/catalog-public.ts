@@ -27,13 +27,23 @@ import type {
   CatalogCategory,
   FeaturedProduct,
   ProductBundleItem,
+  PublicProductSearchItem,
 } from "@/features/catalog/types";
+import {
+  getProductPromotionPrice,
+  getPromotionCompareAtPrice,
+  PROMOTION_PRICE_SELECT,
+  type PromotionPricingRelation,
+} from "@/lib/server/product-promotion-pricing";
 
 type PrismaProductWithRelations = PrismaProduct & {
-  category: Pick<PrismaCategory, "slug" | "name">;
+  category: Pick<PrismaCategory, "slug" | "name"> & {
+    promotions: PromotionPricingRelation[];
+  };
   brand: Pick<PrismaBrand, "slug" | "name"> | null;
   images: Pick<ProductImage, "url" | "alt" | "sortOrder">[];
   attributes: Pick<ProductAttribute, "name" | "value" | "sortOrder">[];
+  promotions: PromotionPricingRelation[];
   bundleItems: Array<
     Pick<PrismaProductBundleItem, "quantity" | "sortOrder"> & {
       componentProduct: Pick<
@@ -48,7 +58,17 @@ type PrismaProductWithRelations = PrismaProduct & {
 };
 
 const PRODUCT_INCLUDE = {
-  category: { select: { slug: true, name: true } },
+  category: {
+    select: {
+      slug: true,
+      name: true,
+      promotions: {
+        select: {
+          promotion: { select: PROMOTION_PRICE_SELECT },
+        },
+      },
+    },
+  },
   brand: { select: { slug: true, name: true } },
   images: {
     orderBy: [{ sortOrder: "asc" as const }, { createdAt: "asc" as const }],
@@ -57,6 +77,11 @@ const PRODUCT_INCLUDE = {
   attributes: {
     orderBy: [{ sortOrder: "asc" as const }, { createdAt: "asc" as const }],
     select: { name: true, value: true, sortOrder: true },
+  },
+  promotions: {
+    select: {
+      promotion: { select: PROMOTION_PRICE_SELECT },
+    },
   },
   bundleItems: {
     orderBy: [{ sortOrder: "asc" as const }, { createdAt: "asc" as const }],
@@ -436,9 +461,12 @@ function mapCatalogBundleItems(
 function mapProduct(product: PrismaProductWithRelations): FeaturedProduct {
   const gallery = product.images.map((image) => image.url);
   const displayFormat = getProductFormatLabel(product);
+  const stockQuantity = product.stockQuantity;
   const inStock =
-    product.inventoryStatus === "IN_STOCK" ||
-    product.inventoryStatus === "LIMITED";
+    stockQuantity === null
+      ? product.inventoryStatus === "IN_STOCK" ||
+        product.inventoryStatus === "LIMITED"
+      : stockQuantity > 0;
   const purchaseMode: FeaturedProduct["purchaseMode"] =
     product.orderMode === "CART" ? "cart" : "request";
   const action =
@@ -448,13 +476,17 @@ function mapProduct(product: PrismaProductWithRelations): FeaturedProduct {
         ? "Оставить заявку"
         : "Запросить цену";
   const availabilityText =
-    product.inventoryStatus === "IN_STOCK"
-      ? "В наличии."
-      : product.inventoryStatus === "LIMITED"
-        ? "Остаток ограничен — уточните партию у менеджера."
-        : product.inventoryStatus === "OUT_OF_STOCK"
-          ? "Сейчас нет на складе. Возможна поставка под заказ."
-          : "Наличие, формат партии и итоговая стоимость уточняются менеджером после запроса.";
+    stockQuantity !== null
+      ? stockQuantity > 0
+        ? `В наличии: ${stockQuantity} шт.`
+        : "Сейчас нет на складе. Возможна поставка под заказ."
+      : product.inventoryStatus === "IN_STOCK"
+        ? "В наличии."
+        : product.inventoryStatus === "LIMITED"
+          ? "Остаток ограничен — уточните партию у менеджера."
+          : product.inventoryStatus === "OUT_OF_STOCK"
+            ? "Сейчас нет на складе. Возможна поставка под заказ."
+            : "Наличие, формат партии и итоговая стоимость уточняются менеджером после запроса.";
 
   const calculatorMaterialId = inferCalculatorMaterialId(product);
   const sheetPresetId = inferCalculatorSheetPresetId(
@@ -468,6 +500,15 @@ function mapProduct(product: PrismaProductWithRelations): FeaturedProduct {
     price: product.price,
     bundleItems,
   });
+  const promotionPrice = getProductPromotionPrice(
+    effectivePrice,
+    product.promotions,
+    product.category.promotions,
+  );
+  const compareAtPrice = getPromotionCompareAtPrice(
+    product.compareAtPrice,
+    promotionPrice,
+  );
   const publicAttributes = product.attributes.filter(
     (attribute) => !isBundleAttributeName(attribute.name),
   );
@@ -483,10 +524,11 @@ function mapProduct(product: PrismaProductWithRelations): FeaturedProduct {
     categoryName: product.category.name,
     image: gallery[0] ?? "",
     gallery,
-    price: effectivePrice ?? undefined,
-    oldPrice: product.compareAtPrice ?? undefined,
+    price: promotionPrice.finalPrice ?? undefined,
+    oldPrice: compareAtPrice ?? undefined,
     sku: product.sku,
     inStock,
+    stockQuantity: product.stockQuantity,
     format: displayFormat,
     summary: product.summary ?? "",
     description: product.description ?? "",
@@ -505,6 +547,7 @@ function mapProduct(product: PrismaProductWithRelations): FeaturedProduct {
     ].filter(Boolean) as FeaturedProduct["specifications"],
     isBundle: bundleInfo.isBundle || bundleItems.length > 0,
     bundleItems,
+    isPromotional: promotionPrice.unitDiscountAmount > 0,
     ...decorGroup,
     searchText: buildSearchText([
       product.name,
@@ -774,6 +817,49 @@ export async function getPublicProducts(): Promise<FeaturedProduct[]> {
   });
 }
 
+export async function getPublicProductsBySlugs(slugs: string[]): Promise<FeaturedProduct[]> {
+  if (!slugs.length) return [];
+  const db = getDb();
+  await ensureProductBundleItemsTable(db);
+  const products = await db.product.findMany({
+    where: { status: ProductStatus.ACTIVE, slug: { in: slugs } },
+    include: PRODUCT_INCLUDE,
+  });
+  return products.map(mapProduct);
+}
+
+export type { PublicProductSearchItem } from "@/features/catalog/types";
+
+export async function searchPublicProducts(
+  query: string,
+): Promise<PublicProductSearchItem[]> {
+  const tokens = query.trim().split(/\s+/).slice(0, 8);
+  if (query.trim().length < 2 || !tokens.length) return [];
+  const db = getDb();
+  await ensureProductBundleItemsTable(db);
+  const products = await db.product.findMany({
+    where: {
+      status: ProductStatus.ACTIVE,
+      AND: tokens.map((token) => ({
+        OR: [
+          { name: { contains: token, mode: "insensitive" as const } },
+          { sku: { contains: token, mode: "insensitive" as const } },
+          { brand: { name: { contains: token, mode: "insensitive" as const } } },
+          { category: { name: { contains: token, mode: "insensitive" as const } } },
+        ],
+      })),
+    },
+    take: 5,
+    orderBy: [{ isFeatured: "desc" }, { name: "asc" }],
+    include: PRODUCT_INCLUDE,
+  });
+  return products.map((product) => {
+    const { slug, name, sku, brand, categoryName, image, price, oldPrice, inStock } =
+      mapProduct(product);
+    return { slug, name, sku, brand, categoryName, image, price, oldPrice, inStock };
+  });
+}
+
 export async function getPublicProductBySlug(
   slug: string,
 ): Promise<FeaturedProduct | null> {
@@ -791,6 +877,7 @@ export async function getPublicProductBySlug(
 
 export async function getPublicProductsByCategory(
   categorySlug: string,
+  limit?: number,
 ): Promise<FeaturedProduct[]> {
   return withPublicDbFallback("getPublicProductsByCategory", [], async () => {
     const db = getDb();
@@ -801,6 +888,7 @@ export async function getPublicProductsByCategory(
         category: { slug: categorySlug },
       },
       orderBy: [{ isFeatured: "desc" }, { updatedAt: "desc" }],
+      ...(limit ? { take: limit } : {}),
       include: PRODUCT_INCLUDE,
     });
 
@@ -810,6 +898,7 @@ export async function getPublicProductsByCategory(
 
 export async function getPublicProductsByBrand(
   brandSlug: string,
+  limit?: number,
 ): Promise<FeaturedProduct[]> {
   return withPublicDbFallback("getPublicProductsByBrand", [], async () => {
     const db = getDb();
@@ -821,6 +910,7 @@ export async function getPublicProductsByBrand(
         brand: { slug: { in: brandSlugs } },
       },
       orderBy: [{ isFeatured: "desc" }, { updatedAt: "desc" }],
+      ...(limit ? { take: limit } : {}),
       include: PRODUCT_INCLUDE,
     });
 

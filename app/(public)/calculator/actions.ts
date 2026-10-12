@@ -42,6 +42,8 @@ export async function submitCuttingRequestAction(
   const messengerType = normalizeOptionalText(input.messengerType);
   const messengerHandle = normalizeOptionalText(input.messengerHandle);
   const contactEmail = normalizeOptionalText(input.contactEmail);
+  const cuttingSheetCount = input.cuttingSheetCount ?? null;
+  const cuttingEdgeMeters = input.cuttingEdgeMeters ?? null;
 
   if (!subject || !message || !contactName || !contactPhone || !material) {
     return {
@@ -57,6 +59,30 @@ export async function submitCuttingRequestAction(
     };
   }
 
+  if (
+    cuttingSheetCount !== null &&
+    (!Number.isInteger(cuttingSheetCount) ||
+      cuttingSheetCount < 1 ||
+      cuttingSheetCount > 10000)
+  ) {
+    return {
+      ok: false,
+      message: "Проверьте количество листов в карте раскроя.",
+    };
+  }
+
+  if (
+    cuttingEdgeMeters !== null &&
+    (!Number.isFinite(cuttingEdgeMeters) ||
+      cuttingEdgeMeters <= 0 ||
+      cuttingEdgeMeters > 100000)
+  ) {
+    return {
+      ok: false,
+      message: "Проверьте метраж кромки в карте раскроя.",
+    };
+  }
+
   try {
     const session = await getOptionalSession();
     const createdRequest = await createCuttingRequest({
@@ -68,6 +94,8 @@ export async function submitCuttingRequestAction(
       messengerType,
       messengerHandle,
       material,
+      cuttingSheetCount,
+      cuttingEdgeMeters,
       edgeOption,
       estimatedBudget: input.estimatedBudget ?? null,
       deliveryNeeded: input.deliveryNeeded ?? false,
@@ -88,6 +116,8 @@ export async function submitCuttingRequestAction(
         messengerType,
         messengerHandle,
         material,
+        cuttingSheetCount,
+        cuttingEdgeMeters,
         edgeOption,
         estimatedBudget: input.estimatedBudget ?? null,
         deliveryNeeded: input.deliveryNeeded ?? false,

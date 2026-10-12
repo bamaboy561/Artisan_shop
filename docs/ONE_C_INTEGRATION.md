@@ -88,7 +88,7 @@ Content-Type: application/json
 }
 ```
 
-Допустимые статусы заказа: `NEW`, `CONFIRMED`, `IN_PRODUCTION`, `READY_FOR_PICKUP`, `SHIPPED`, `COMPLETED`, `CANCELED`.
+Допустимые статусы заказа: `NEW`, `RESERVED`, `CONFIRMED`, `PAID`, `IN_PRODUCTION`, `READY_FOR_PICKUP`, `SHIPPED`, `COMPLETED`, `CANCELED`.
 
 ## Бонусы
 

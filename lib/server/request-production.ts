@@ -1,5 +1,11 @@
-import { RequestFileKind, RequestStatus } from "@/generated/prisma";
+import {
+  CuttingStage,
+  RequestFileKind,
+  RequestStatus,
+  RequestType,
+} from "@/generated/prisma";
 import { getDb, hasDatabaseUrl } from "@/lib/db";
+import { readCuttingPrice } from "@/lib/server/cutting-pricing";
 import {
   isAllowedRequestFile,
   persistRequestFiles,
@@ -34,6 +40,13 @@ type RequestResultFilesInput = {
   actor: ActorSnapshot;
 };
 
+type CuttingProgressInput = {
+  requestId: string;
+  stage: CuttingStage;
+  pickupCell?: string | null;
+  expectedStage?: CuttingStage | null;
+};
+
 function getActorName(actor: ActorSnapshot) {
   return (
     [actor.firstName, actor.lastName].filter(Boolean).join(" ") ||
@@ -65,10 +78,12 @@ export async function updateRequestProductionResult(input: RequestResultInput) {
     return null;
   }
 
-  return getDb().request.update({
+  return getDb().$transaction(async (tx) => {
+    const price = await readCuttingPrice(tx, input.requestId);
+    return tx.request.update({
     where: { id: input.requestId },
     data: {
-      quotedTotal: input.quotedTotal ?? null,
+      ...(!price ? { quotedTotal: input.quotedTotal ?? null } : {}),
       productionComment: input.productionComment ?? null,
       ...(input.status ? { status: input.status } : {}),
     },
@@ -78,6 +93,90 @@ export async function updateRequestProductionResult(input: RequestResultInput) {
       status: true,
       quotedTotal: true,
       productionComment: true,
+    },
+    });
+  }, { isolationLevel: "Serializable" });
+}
+
+export async function updateRequestCuttingProgress(
+  input: CuttingProgressInput,
+) {
+  if (!hasDatabaseUrl()) {
+    return null;
+  }
+
+  const db = getDb();
+  const request = await db.request.findUnique({
+    where: { id: input.requestId },
+    select: {
+      id: true,
+      type: true,
+      status: true,
+      cuttingStage: true,
+      cuttingPickupCell: true,
+      cuttingStageUpdatedAt: true,
+    },
+  });
+
+  if (!request || request.type !== RequestType.CUTTING_SERVICE) {
+    return null;
+  }
+
+  const pickupCell =
+    input.stage === CuttingStage.READY_FOR_PICKUP
+      ? input.pickupCell?.trim().slice(0, 64) || null
+      : null;
+  const progressChanged =
+    request.cuttingStage !== input.stage ||
+    request.cuttingPickupCell !== pickupCell;
+  const shouldMoveToProduction =
+    request.status !== RequestStatus.CANCELED &&
+    request.status !== RequestStatus.COMPLETED;
+
+  const data = {
+    cuttingStage: input.stage,
+    cuttingPickupCell: pickupCell,
+    cuttingStageUpdatedAt: progressChanged
+      ? new Date()
+      : request.cuttingStageUpdatedAt,
+    ...(shouldMoveToProduction ? { status: RequestStatus.IN_PROGRESS } : {}),
+  };
+  const select = {
+    id: true,
+    status: true,
+    cuttingStage: true,
+    cuttingPickupCell: true,
+    cuttingStageUpdatedAt: true,
+  } as const;
+
+  if (Object.prototype.hasOwnProperty.call(input, "expectedStage")) {
+    const result = await db.request.updateMany({
+      where: {
+        id: input.requestId,
+        type: RequestType.CUTTING_SERVICE,
+        cuttingStage: input.expectedStage ?? null,
+        status: {
+          notIn: [RequestStatus.CANCELED, RequestStatus.COMPLETED],
+        },
+      },
+      data,
+    });
+
+    if (result.count === 0) {
+      return null;
+    }
+
+    return db.request.findUnique({
+      where: { id: input.requestId },
+      select,
+    });
+  }
+
+  return db.request.update({
+    where: { id: input.requestId },
+    data,
+    select: {
+      ...select,
     },
   });
 }

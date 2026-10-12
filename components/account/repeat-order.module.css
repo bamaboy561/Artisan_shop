@@ -1,0 +1,118 @@
+.trigger,
+.primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  border-radius: 4px;
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.4;
+  cursor: pointer;
+  letter-spacing: 0;
+}
+.trigger {
+  border: 1px solid #cbd2cd;
+  background: white;
+  color: #252b29;
+  margin-top: 8px;
+}
+.trigger svg,
+.primary svg {
+  flex-shrink: 0;
+}
+.primary {
+  width: 100%;
+  background: #252b29;
+  color: white;
+  border: 1px solid #252b29;
+}
+.trigger:disabled,
+.primary:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.content {
+  color: #252b29;
+  font-size: 14px;
+  line-height: 1.6;
+  letter-spacing: 0;
+}
+.content * {
+  min-width: 0;
+  letter-spacing: 0;
+}
+.content :is(button, a):focus-visible,
+.trigger:focus-visible {
+  outline: 2px solid #a94730;
+  outline-offset: 3px;
+}
+.status,
+.success p {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 0;
+}
+.muted,
+.lines span {
+  color: #69716d;
+  font-size: 12px;
+}
+.lines {
+  margin: 12px 0;
+  padding: 0;
+  list-style: none;
+  max-height: 45svh;
+  overflow-y: auto;
+}
+.lines li {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: 12px;
+  padding: 16px 0;
+  border-bottom: 1px solid #e1e5e1;
+}
+.thumbnail,
+.thumbnail img {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  overflow: hidden;
+}
+.lines p,
+.lines span {
+  display: block;
+  margin: 0 0 4px;
+  overflow-wrap: anywhere;
+}
+.warning {
+  color: #8a4b12;
+  font-size: 12px;
+}
+.error {
+  color: #a32119;
+  background: #fff4f2;
+  padding: 12px;
+  border-left: 3px solid #a32119;
+}
+.total {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 20px 0;
+}
+.total strong {
+  font-size: 20px;
+}
+.success p {
+  color: #28674b;
+}
+.scope {
+  --pv-ink: #252b29;
+  --pv-line: #e1e5e1;
+  --pv-soft: #f4f6f4;
+  --pv-accent: #a94730;
+  min-width: 0;
+}

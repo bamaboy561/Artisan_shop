@@ -6,7 +6,7 @@ import { Container } from "@/components/ui/container";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { isDemoAdminEnabled } from "@/lib/auth/demo-access";
 import { getOptionalSession, getSafeRedirectPath } from "@/lib/auth/dal";
-import { canAccessAdmin } from "@/lib/auth/roles";
+import { canAccessAdmin, getAdminHomePath } from "@/lib/auth/roles";
 import { hasDatabaseUrl } from "@/lib/db";
 import { noIndexRobots } from "@/lib/seo";
 
@@ -31,7 +31,11 @@ export default async function RegisterPage({
   ]);
 
   if (session?.userId) {
-    redirect(canAccessAdmin(session.roleCode) ? "/admin" : "/account");
+    redirect(
+      canAccessAdmin(session.roleCode)
+        ? getAdminHomePath(session.roleCode)
+        : "/account",
+    );
   }
 
   const next = getSafeRedirectPath(resolvedSearchParams.next, "/account");
@@ -43,7 +47,7 @@ export default async function RegisterPage({
           title="Регистрация в Artisan"
           description={
             hasDatabaseUrl()
-              ? "Создайте личный кабинет и подтвердите email одноразовым кодом. После этого будут доступны заказы, бонусы и персональные скидки."
+              ? "Создайте личный кабинет и подтвердите email одноразовым кодом. После этого будут доступны заказы, бонусы и статусы клиента."
               : isDemoAdminEnabled()
                 ? "Сейчас включен demo-доступ для команды. Регистрация клиентов откроется после подключения PostgreSQL."
                 : "Сначала подключите базу данных и seed. После этого регистрация станет доступна для реальных клиентов."

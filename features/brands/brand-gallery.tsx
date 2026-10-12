@@ -388,11 +388,10 @@ function MetaRow({ item }: { item: BrandGalleryItem }) {
 export function BrandGallery({ items, compact = false }: BrandGalleryProps) {
   return (
     <div className={compact ? "space-y-12" : "space-y-16"}>
-      {items.map((item, index) => (
+      {items.map((item) => (
         <section
           key={item.slug}
-          className={cn("view-rise", isPlannedTone(item) && "opacity-[0.96]")}
-          style={{ animationDelay: `${index * 80}ms` }}
+          className={cn(isPlannedTone(item) && "opacity-[0.96]")}
         >
           <BrandHero item={item} compact={compact} />
           <MetaRow item={item} />

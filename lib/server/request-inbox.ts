@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import {
+  CuttingStage,
   MessengerType,
   RequestFileKind,
   RequestStatus,
@@ -10,10 +11,16 @@ import {
 import { getDemoAdminSession } from "@/lib/auth/demo-access";
 import { getDb, hasDatabaseUrl, isDemoModeEnabled } from "@/lib/db";
 import type { AdminRequestItem } from "@/features/admin/operations-filters";
+import { calculateCuttingLaborTotal } from "@/features/cutting/labor-price";
+import { readCuttingPrice, saveCuttingPriceSnapshot } from "@/lib/server/cutting-pricing";
 
-type DemoRequestRecord = Omit<AdminRequestItem, "createdAt" | "updatedAt"> & {
+type DemoRequestRecord = Omit<
+  AdminRequestItem,
+  "createdAt" | "updatedAt" | "cuttingStageUpdatedAt"
+> & {
   createdAt: string;
   updatedAt: string;
+  cuttingStageUpdatedAt?: string | null;
   addressText?: string | null;
   userId?: string | null;
   quotedTotal?: number | null;
@@ -68,12 +75,24 @@ export type CuttingRequestSubmission = {
   messengerType?: string | null;
   messengerHandle?: string | null;
   material: string;
-  edgeOption: string;
+  cuttingSheetCount?: number | null;
+  cuttingEdgeMeters?: number | null;
+  edgeOption?: string | null;
   estimatedBudget: number | null;
   deliveryNeeded?: boolean;
   addressText?: string | null;
   userId?: string | null;
   uploadedFiles?: File[];
+};
+
+export type CreateCuttingRequestOptions = {
+  skipDuplicateCheck?: boolean;
+  status?: RequestStatus;
+  cuttingStage?: CuttingStage | null;
+  managerId?: string | null;
+  filesVisibleToClient?: boolean;
+  uploadedByUserId?: string | null;
+  uploadedByName?: string | null;
 };
 
 export type ContactRequestSubmission = {
@@ -143,6 +162,7 @@ export function isAllowedRequestFile(fileName: string) {
     ".webp",
     ".dwg",
     ".dxf",
+    ".project",
   ]).has(extension);
 }
 
@@ -216,8 +236,13 @@ function createDemoRequestRecord(
     subject: record.subject,
     message: record.message ?? null,
     material: record.material ?? null,
+    cuttingSheetCount: record.cuttingSheetCount ?? null,
+    cuttingEdgeMeters: record.cuttingEdgeMeters ?? null,
     edgeOption: record.edgeOption ?? null,
     estimatedBudget: record.estimatedBudget ?? null,
+    cuttingStage: record.cuttingStage ?? null,
+    cuttingPickupCell: record.cuttingPickupCell ?? null,
+    cuttingStageUpdatedAt: record.cuttingStageUpdatedAt ?? null,
     contactName: record.contactName,
     contactPhone: record.contactPhone,
     contactEmail: record.contactEmail ?? null,
@@ -270,11 +295,30 @@ async function writeDemoRequests(requests: DemoRequestRecord[]) {
   await writeFile(demoRequestsPath, JSON.stringify(requests, null, 2), "utf8");
 }
 
+export async function deleteDemoRequestInboxItem(id: string) {
+  if (hasDatabaseUrl() || !isDemoModeEnabled()) {
+    return false;
+  }
+
+  const requests = await readDemoRequests();
+  const remainingRequests = requests.filter((request) => request.id !== id);
+
+  if (remainingRequests.length === requests.length) {
+    return false;
+  }
+
+  await writeDemoRequests(remainingRequests);
+  return true;
+}
+
 function toAdminRequestItem(record: DemoRequestRecord): AdminRequestItem {
   return {
     ...record,
     createdAt: new Date(record.createdAt),
     updatedAt: new Date(record.updatedAt),
+    cuttingStageUpdatedAt: record.cuttingStageUpdatedAt
+      ? new Date(record.cuttingStageUpdatedAt)
+      : null,
   };
 }
 
@@ -577,6 +621,7 @@ export async function getRequestDetailById(
 
 export async function createCuttingRequest(
   input: CuttingRequestSubmission,
+  options: CreateCuttingRequestOptions = {},
 ): Promise<CreatedCuttingRequestResult> {
   const uploadedFiles = (input.uploadedFiles ?? []).filter(
     (file) =>
@@ -589,22 +634,24 @@ export async function createCuttingRequest(
 
   if (hasDatabaseUrl()) {
     const db = getDb();
-    const duplicateRequest = await db.request.findFirst({
-      where: {
-        type: RequestType.CUTTING_SERVICE,
-        contactPhone: input.contactPhone.trim(),
-        subject: input.subject.trim(),
-        material: input.material.trim(),
-        message: input.message.trim(),
-        contactEmail: input.contactEmail ?? null,
-      },
-      orderBy: { createdAt: "desc" },
-      select: {
-        id: true,
-        number: true,
-        createdAt: true,
-      },
-    });
+    const duplicateRequest = options.skipDuplicateCheck
+      ? null
+      : await db.request.findFirst({
+          where: {
+            type: RequestType.CUTTING_SERVICE,
+            contactPhone: input.contactPhone.trim(),
+            subject: input.subject.trim(),
+            material: input.material.trim(),
+            message: input.message.trim(),
+            contactEmail: input.contactEmail ?? null,
+          },
+          orderBy: { createdAt: "desc" },
+          select: {
+            id: true,
+            number: true,
+            createdAt: true,
+          },
+        });
 
     if (
       duplicateRequest &&
@@ -630,29 +677,40 @@ export async function createCuttingRequest(
       existingNumbers.flatMap((item) => (item.number ? [item.number] : [])),
     );
 
-    const createdRequest = await db.request.create({
+    const createdRequest = await db.$transaction(async (tx) => {
+      const price = await readCuttingPrice(tx);
+      const created = await tx.request.create({
       data: {
         number,
         type: RequestType.CUTTING_SERVICE,
-        status: RequestStatus.NEW,
+        status: options.status ?? RequestStatus.NEW,
         subject: input.subject,
         message: input.message,
         userId: input.userId ?? null,
+        managerId: options.managerId ?? null,
         contactName: input.contactName,
         contactPhone: input.contactPhone,
         contactEmail: input.contactEmail ?? null,
         messengerType: resolveMessengerType(input.messengerType),
         messengerHandle: input.messengerHandle ?? null,
         material: input.material,
-        edgeOption: input.edgeOption,
+        cuttingSheetCount: input.cuttingSheetCount ?? null,
+        cuttingEdgeMeters: input.cuttingEdgeMeters ?? null,
+        edgeOption: input.edgeOption ?? null,
         deliveryNeeded: input.deliveryNeeded ?? false,
         addressText: input.addressText ?? null,
         estimatedBudget: input.estimatedBudget,
+        quotedTotal: price ? calculateCuttingLaborTotal(price, input.cuttingSheetCount, input.cuttingEdgeMeters, input.edgeOption) : null,
+        cuttingStage: options.cuttingStage ?? null,
+        cuttingStageUpdatedAt: options.cuttingStage ? new Date() : null,
       },
       select: {
         id: true,
         number: true,
       },
+      });
+      if (price) await saveCuttingPriceSnapshot(tx, created.id, price);
+      return created;
     });
 
     if (uploadedFiles.length > 0) {
@@ -661,9 +719,10 @@ export async function createCuttingRequest(
         uploadedFiles,
         {
           kind: RequestFileKind.CLIENT_UPLOAD,
-          isVisibleToClient: Boolean(input.userId),
-          uploadedByUserId: input.userId ?? null,
-          uploadedByName: input.contactName,
+          isVisibleToClient:
+            options.filesVisibleToClient ?? Boolean(input.userId),
+          uploadedByUserId: options.uploadedByUserId ?? input.userId ?? null,
+          uploadedByName: options.uploadedByName ?? input.contactName,
         },
       );
 
@@ -689,11 +748,13 @@ export async function createCuttingRequest(
   }
 
   const requests = await readDemoRequests();
-  const duplicateRequest = requests.find(
-    (request) =>
-      isSameCuttingRequest(request, input) &&
-      isRecentRequest(request.createdAt, duplicateWindowMs),
-  );
+  const duplicateRequest = options.skipDuplicateCheck
+    ? null
+    : requests.find(
+        (request) =>
+          isSameCuttingRequest(request, input) &&
+          isRecentRequest(request.createdAt, duplicateWindowMs),
+      );
 
   if (duplicateRequest) {
     return {
@@ -714,7 +775,9 @@ export async function createCuttingRequest(
     subject: input.subject,
     message: input.message,
     material: input.material,
-    edgeOption: input.edgeOption,
+    cuttingSheetCount: input.cuttingSheetCount ?? null,
+    cuttingEdgeMeters: input.cuttingEdgeMeters ?? null,
+    edgeOption: input.edgeOption ?? null,
     estimatedBudget: input.estimatedBudget,
     contactName: input.contactName,
     contactPhone: input.contactPhone,
@@ -724,6 +787,10 @@ export async function createCuttingRequest(
     deliveryNeeded: input.deliveryNeeded ?? false,
     addressText: input.addressText ?? null,
     userId: input.userId ?? null,
+    managerId: options.managerId ?? null,
+    status: options.status ?? RequestStatus.NEW,
+    cuttingStage: options.cuttingStage ?? null,
+    cuttingStageUpdatedAt: options.cuttingStage ? now : null,
     createdAt: now,
     updatedAt: now,
   });
@@ -731,9 +798,9 @@ export async function createCuttingRequest(
   if (uploadedFiles.length > 0) {
     created.files = await persistRequestFiles(created.id, uploadedFiles, {
       kind: RequestFileKind.CLIENT_UPLOAD,
-      isVisibleToClient: Boolean(input.userId),
-      uploadedByUserId: input.userId ?? null,
-      uploadedByName: input.contactName,
+      isVisibleToClient: options.filesVisibleToClient ?? Boolean(input.userId),
+      uploadedByUserId: options.uploadedByUserId ?? input.userId ?? null,
+      uploadedByName: options.uploadedByName ?? input.contactName,
     });
     created._count.files = created.files.length;
   }
@@ -893,6 +960,63 @@ export async function updateRequestInboxItem(input: {
   );
 
   await writeDemoRequests(updated);
+}
+
+export async function updateRequestCuttingDetails(input: {
+  id: string;
+  material: string;
+  cuttingSheetCount: number | null;
+  cuttingEdgeMeters: number | null;
+  edgeOption: string | null;
+}) {
+  if (hasDatabaseUrl()) {
+    return getDb().$transaction(async (tx) => {
+      const price = await readCuttingPrice(tx, input.id);
+      return tx.request.update({
+      where: { id: input.id },
+      data: {
+        material: input.material,
+        cuttingSheetCount: input.cuttingSheetCount,
+        cuttingEdgeMeters: input.cuttingEdgeMeters,
+        edgeOption: input.edgeOption,
+        ...(price ? { quotedTotal: calculateCuttingLaborTotal(price, input.cuttingSheetCount, input.cuttingEdgeMeters, input.edgeOption) } : {}),
+      },
+      select: {
+        id: true,
+        material: true,
+        cuttingSheetCount: true,
+        cuttingEdgeMeters: true,
+        edgeOption: true,
+      },
+      });
+    }, { isolationLevel: "Serializable" });
+  }
+
+  if (!isDemoModeEnabled()) {
+    return null;
+  }
+
+  const requests = await readDemoRequests();
+  const request = requests.find((item) => item.id === input.id);
+
+  if (!request) {
+    return null;
+  }
+
+  request.material = input.material;
+  request.cuttingSheetCount = input.cuttingSheetCount;
+  request.cuttingEdgeMeters = input.cuttingEdgeMeters;
+  request.edgeOption = input.edgeOption;
+  request.updatedAt = new Date().toISOString();
+  await writeDemoRequests(requests);
+
+  return {
+    id: request.id,
+    material: request.material,
+    cuttingSheetCount: request.cuttingSheetCount,
+    cuttingEdgeMeters: request.cuttingEdgeMeters,
+    edgeOption: request.edgeOption,
+  };
 }
 
 export async function bulkUpdateRequestInboxItems(input: {

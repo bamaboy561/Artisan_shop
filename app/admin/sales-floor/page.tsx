@@ -5,8 +5,10 @@ import { SetupState } from "@/components/admin/setup-state";
 import { requireAdminSession } from "@/lib/auth/dal";
 import { hasDatabaseUrl } from "@/lib/db";
 import { getSalesFloorData } from "@/lib/server/sales-floor";
+import { isInvoicePhotoEnabled } from "@/lib/server/invoice-photo";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 120;
 
 type SalesFloorPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -16,6 +18,11 @@ const errorMessages: Record<string, string> = {
   empty: "Выберите клиента и хотя бы один товар.",
   "not-found":
     "Клиент или товары не найдены. Обновите страницу и попробуйте еще раз.",
+  stock: "Продажа не сохранена: выбранного количества товара нет в остатках.",
+  "invoice-values":
+    "Продажа не сохранена: проверьте количество, цены и повторяющиеся товары. Цены должны быть целыми числами в сомах.",
+  loyalty:
+    "Продажа не сохранена: бонусный баланс клиента уже изменился. Обновите страницу.",
 };
 
 function getErrorMessage(
@@ -44,7 +51,10 @@ export default async function SalesFloorPage({
     );
   }
 
-  await requireAdminSession("/login?next=/admin/sales-floor");
+  await requireAdminSession(
+    "/login?next=/admin/sales-floor",
+    "/admin/sales-floor",
+  );
 
   const [data, resolvedSearchParams] = await Promise.all([
     getSalesFloorData(),
@@ -90,7 +100,11 @@ export default async function SalesFloorPage({
         </div>
       ) : null}
 
-      <SalesFloorForm customers={data.customers} products={data.products} />
+      <SalesFloorForm
+        customers={data.customers}
+        products={data.products}
+        photoEnabled={isInvoicePhotoEnabled()}
+      />
     </div>
   );
 }

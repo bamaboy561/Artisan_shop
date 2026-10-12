@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { Textarea } from "@/components/ui/textarea";
+import { normalizeBrandSlug } from "@/features/catalog/data";
 import { requireAdminSession } from "@/lib/auth/dal";
 import { getDb, hasDatabaseUrl } from "@/lib/db";
 import { ensureBrandLogoColumn } from "@/lib/server/brand-schema";
@@ -44,7 +45,7 @@ function parseHomeBannerImageUrls(value: string | null) {
 export default async function EditBrandPage({ params }: EditBrandPageProps) {
   if (!hasDatabaseUrl()) notFound();
 
-  await requireAdminSession("/login?next=/admin/brands");
+  await requireAdminSession("/login?next=/admin/brands", "/admin/brands");
 
   const { id } = await params;
   const db = getDb();
@@ -83,7 +84,7 @@ export default async function EditBrandPage({ params }: EditBrandPageProps) {
 
           <div className="flex flex-wrap gap-2">
             <Link
-              href={`/brands/${brand.slug}`}
+              href={`/brands/${normalizeBrandSlug(brand.slug)}`}
               target="_blank"
               rel="noreferrer"
               className="inline-flex h-10 items-center border border-[var(--line-strong)] px-4 font-mono text-[11px] tracking-[0.16em] text-[var(--foreground)] uppercase transition hover:border-[var(--foreground)]"

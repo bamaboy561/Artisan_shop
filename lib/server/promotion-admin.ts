@@ -9,8 +9,10 @@ export async function getAdminPromotions() {
       products: {
         take: 2,
         select: {
+          productId: true,
           product: {
             select: {
+              id: true,
               name: true,
               sku: true,
             },
@@ -20,8 +22,10 @@ export async function getAdminPromotions() {
       categories: {
         take: 2,
         select: {
+          categoryId: true,
           category: {
             select: {
+              id: true,
               name: true,
             },
           },
@@ -31,6 +35,41 @@ export async function getAdminPromotions() {
         select: {
           products: true,
           categories: true,
+        },
+      },
+    },
+  });
+}
+
+export async function getAdminPromotion(id: string) {
+  const db = getDb();
+
+  return db.promotion.findUnique({
+    where: { id },
+    include: {
+      products: {
+        take: 1,
+        select: {
+          productId: true,
+          product: {
+            select: {
+              id: true,
+              name: true,
+              sku: true,
+            },
+          },
+        },
+      },
+      categories: {
+        take: 1,
+        select: {
+          categoryId: true,
+          category: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
         },
       },
     },

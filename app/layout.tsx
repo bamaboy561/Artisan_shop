@@ -1,6 +1,8 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { IBM_Plex_Mono, Manrope, Unbounded } from "next/font/google";
 
+import { PwaInstallPrompt } from "@/components/pwa/pwa-install-prompt";
+import { PwaRegistration } from "@/components/pwa/pwa-registration";
 import { StructuredData } from "@/components/seo/structured-data";
 import { getSiteUrl, indexRobots, organizationJsonLd } from "@/lib/seo";
 import { companyName, siteDescription } from "@/lib/site-config";
@@ -14,13 +16,14 @@ const manrope = Manrope({
 
 const unbounded = Unbounded({
   variable: "--font-unbounded",
-  subsets: ["latin", "cyrillic"],
+  subsets: ["latin"],
 });
 
 const ibmPlexMono = IBM_Plex_Mono({
   variable: "--font-ibm-plex-mono",
   subsets: ["latin", "cyrillic"],
   weight: ["400", "500"],
+  preload: false,
 });
 
 export const metadata: Metadata = {
@@ -42,6 +45,11 @@ export const metadata: Metadata = {
     address: false,
     telephone: false,
   },
+  appleWebApp: {
+    capable: true,
+    title: companyName,
+    statusBarStyle: "black",
+  },
   openGraph: {
     title: `${companyName} | Материалы и сервис для мебельных проектов`,
     description: siteDescription,
@@ -55,6 +63,14 @@ export const metadata: Metadata = {
     title: `${companyName} | Материалы и сервис для мебельных проектов`,
     description: siteDescription,
   },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  colorScheme: "light",
+  themeColor: "#171613",
 };
 
 export default function RootLayout({
@@ -73,6 +89,8 @@ export default function RootLayout({
         </a>
         <StructuredData data={organizationJsonLd()} />
         {children}
+        <PwaInstallPrompt />
+        <PwaRegistration />
       </body>
     </html>
   );

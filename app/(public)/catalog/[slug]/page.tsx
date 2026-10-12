@@ -7,7 +7,6 @@ import {
   CatalogToolbar,
 } from "@/components/catalog/catalog-filters";
 import { StructuredData } from "@/components/seo/structured-data";
-import { ProductImage } from "@/components/catalog/product-image";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { ProductCard } from "@/components/ui/cards";
 import { Pagination } from "@/components/ui/pagination";
@@ -22,10 +21,13 @@ import {
   sortCatalogProducts,
 } from "@/features/catalog/filters";
 import {
+  getPublicCategories,
   getPublicCategoryBySlug,
   getPublicProductsByCategory,
 } from "@/lib/server/catalog-public";
 import { getCurrentFavoriteProductSlugs } from "@/lib/server/favorites";
+import { isPremiumStorefront } from "@/features/storefront/config";
+import { StorefrontCatalog } from "@/features/storefront/catalog";
 import {
   breadcrumbJsonLd,
   categorySeoDescription,
@@ -38,19 +40,6 @@ type CategoryPageProps = {
   params: Promise<{ slug: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
-
-const categoryCopy = {
-  ldsp: {
-    eyebrow: "Мебельные панели",
-    title: "Мебельные панели для проектов.",
-    description: "EXTRAVERT и SWISS KRONO.",
-  },
-  "mdf-panels": {
-    eyebrow: "AGT / МДФ",
-    title: "МДФ панели Trendy и Supramat.",
-    description: "Фасадные панели AGT.",
-  },
-} as const;
 
 export async function generateMetadata({
   params,
@@ -89,6 +78,16 @@ export default async function CategoryPage({
     getPublicProductsByCategory(category.slug),
     getCurrentFavoriteProductSlugs(),
   ]);
+  if (isPremiumStorefront())
+    return (
+      <StorefrontCatalog
+        products={categoryProducts}
+        categories={await getPublicCategories()}
+        favorites={favoriteSlugs}
+        searchParams={await searchParams}
+        category={category}
+      />
+    );
   const parsedState = parseCatalogSearchParams(await searchParams);
   const availableFilterOptions = getCatalogFilterOptions(categoryProducts);
   const state = sanitizeCatalogFilterState(parsedState, availableFilterOptions);
@@ -99,12 +98,6 @@ export default async function CategoryPage({
   const resolvedState = { ...state, page: pagination.currentPage };
   const basePath = `/catalog/${category.slug}`;
   const currentHref = buildCatalogHref(basePath, resolvedState);
-  const copy = categoryCopy[category.slug as keyof typeof categoryCopy] ?? {
-    eyebrow: "Раздел каталога",
-    title: category.name,
-    description: category.summary,
-  };
-  const heroProducts = categoryProducts.slice(0, 3);
 
   return (
     <div className="bg-[#f1eee8]">
@@ -119,108 +112,26 @@ export default async function CategoryPage({
             name: category.name,
             description: categorySeoDescription(category),
             path: basePath,
-            products: sortedProducts,
+            products: pagination.items,
           }),
         ]}
       />
-      <section className="border-b border-[color:var(--line)] bg-[#f1eee8] px-4 pt-3 pb-2.5 lg:hidden">
+      <section className="border-b border-[color:var(--line)] bg-white px-4 py-4 sm:px-8 lg:px-10">
         <div className="mx-auto max-w-[1500px] space-y-2">
-          <Link
-            href="/catalog"
-            className="inline-flex font-mono text-[9px] tracking-[0.18em] text-[var(--accent)] uppercase"
-          >
-            Каталог / {category.name}
-          </Link>
-
-          <div className="flex items-end justify-between gap-4">
-            <div className="min-w-0">
-              <h1 className="text-[1.18rem] leading-[1.02] font-semibold tracking-[-0.045em] text-[var(--foreground)]">
-                {category.name}
-              </h1>
-              <p className="mt-1 hidden max-w-[28rem] text-[12px] leading-5 text-[var(--muted)] sm:block">
-                {copy.description}
-              </p>
-            </div>
-
-            <div className="shrink-0 text-right font-mono text-[9px] tracking-[0.14em] text-[var(--muted)] uppercase">
-              <p className="text-[var(--foreground)]">
-                {categoryProducts.length}
-              </p>
-              <p>позиций</p>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-x-3 gap-y-1 font-mono text-[9px] tracking-[0.14em] text-[var(--muted)] uppercase">
-            <span>{availableFilterOptions.brands.length} бренда</span>
-            {availableFilterOptions.groups.length > 0 ? (
-              <span>{availableFilterOptions.groups.length} подкатегории</span>
-            ) : null}
-          </div>
-        </div>
-      </section>
-
-      <section className="relative hidden overflow-hidden bg-[#151411] text-white lg:block">
-        <ProductImage
-          src={category.coverImage}
-          alt={category.name}
-          fill
-          fallbackLabel={category.name}
-          className="object-cover opacity-28"
-          sizes="100vw"
-          priority
-        />
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.2)_0%,rgba(0,0,0,0.48)_54%,rgba(0,0,0,0.78)_100%)]" />
-        <div className="relative mx-auto flex min-h-[48svh] max-w-[1500px] flex-col justify-end px-8 pt-20 pb-8 lg:px-10">
-          <div className="mb-8">
-            <Breadcrumbs
-              items={[
-                { label: "Главная", href: "/" },
-                { label: "Каталог", href: "/catalog" },
-                { label: category.name },
-              ]}
-              className="text-white/72 [&_a:hover]:text-white [&_span]:text-white/72"
-            />
-          </div>
-
-          <div className="grid gap-7 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
-            <div className="max-w-[35rem]">
-              <p className="font-mono text-[10px] tracking-[0.22em] text-white/58 uppercase">
-                {copy.eyebrow}
-              </p>
-              <h1 className="mt-3 text-[2.15rem] leading-[0.98] font-semibold tracking-[-0.045em] text-balance sm:text-[3rem]">
-                {copy.title}
-              </h1>
-            </div>
-
-            <div className="grid grid-cols-3 gap-3">
-              {heroProducts.map((product) => (
-                <Link
-                  key={product.slug}
-                  href={`/product/${product.slug}`}
-                  className="group block w-28"
-                >
-                  <div className="relative aspect-square overflow-hidden bg-white/14 ring-1 ring-white/14">
-                    <ProductImage
-                      src={product.image}
-                      alt={product.name}
-                      fill
-                      fallbackLabel={product.brand}
-                      className="object-cover transition duration-700 group-hover:scale-[1.04]"
-                      sizes="112px"
-                    />
-                  </div>
-                  <p className="mt-2 line-clamp-1 font-mono text-[9px] tracking-[0.12em] text-white/64 uppercase">
-                    {product.brand}
-                  </p>
-                </Link>
-              ))}
-            </div>
-          </div>
+          <Breadcrumbs
+            items={[
+              { label: "Каталог", href: "/catalog" },
+              { label: category.name },
+            ]}
+          />
+          <h1 className="text-2xl font-semibold text-[var(--foreground)] sm:text-3xl">
+            {category.name}
+          </h1>
         </div>
       </section>
 
       <section className="px-4 pt-2.5 pb-5 sm:px-8 sm:py-8 lg:px-10">
-        <div className="mx-auto grid max-w-[1500px] min-w-0 gap-5 lg:grid-cols-[280px_minmax(0,1fr)]">
+        <div className="mx-auto grid max-w-[1500px] min-w-0 gap-5 lg:grid-cols-[230px_minmax(0,1fr)]">
           <CatalogSidebar state={resolvedState} options={filterOptions} />
 
           <div className="min-w-0 space-y-5 sm:space-y-6">
@@ -246,7 +157,9 @@ export default async function CategoryPage({
                       image={product.image}
                       price={product.price}
                       oldPrice={product.oldPrice}
+                      sku={product.sku}
                       inStock={product.inStock}
+                      purchaseMode={product.purchaseMode}
                       isBundle={product.isBundle}
                       categoryName={product.categoryName}
                       productSlug={product.slug}

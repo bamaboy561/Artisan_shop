@@ -54,7 +54,7 @@ export default async function AccountFavoritesPage() {
         >
           {favorite.product.name}
         </Link>
-        <p className="text-xs text-[var(--muted)]">
+        <p className="text-xs leading-4 [overflow-wrap:anywhere] text-[var(--muted)]">
           {favorite.product.brand?.name ?? "Без бренда"} ·{" "}
           {favorite.product.sku}
         </p>

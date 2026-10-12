@@ -2,10 +2,15 @@ import { SetupState } from "@/components/admin/setup-state";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { AdminSubmitButton } from "@/components/admin/admin-submit-button";
 import { ClientOperationTimeline } from "@/components/account/client-operation-timeline";
+import { CuttingProgress } from "@/components/cutting/cutting-progress";
 import { Input } from "@/components/ui/input";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { DataTable } from "@/components/ui/table";
-import { RequestFileKind, RequestStatus } from "@/generated/prisma";
+import {
+  RequestFileKind,
+  RequestStatus,
+  RequestType,
+} from "@/generated/prisma";
 import {
   requestStatusLabels,
   requestTypeLabels,
@@ -125,7 +130,7 @@ export default async function AccountRequestsPage() {
                 name="files"
                 type="file"
                 multiple
-                accept=".pdf,.xls,.xlsx,.csv,.zip,.rar,.jpg,.jpeg,.png,.webp,.dwg,.dxf"
+                accept=".pdf,.xls,.xlsx,.csv,.zip,.rar,.jpg,.jpeg,.png,.webp,.dwg,.dxf,.project"
                 className="h-auto py-2 text-xs"
               />
               <AdminSubmitButton
@@ -153,6 +158,19 @@ export default async function AccountRequestsPage() {
           </p>
         </div>
       ),
+      production:
+        request.type === RequestType.CUTTING_SERVICE ? (
+          <CuttingProgress
+            stage={request.cuttingStage}
+            pickupCell={request.cuttingPickupCell}
+            updatedAt={request.cuttingStageUpdatedAt}
+            compact
+          />
+        ) : (
+          <p className="text-sm text-[var(--muted)]">
+            Для этой заявки производственный трекинг не требуется.
+          </p>
+        ),
       result: (
         <div className="space-y-2">
           {request.productionComment ? (
@@ -224,6 +242,7 @@ export default async function AccountRequestsPage() {
           { key: "service", label: "Содержание" },
           { key: "clientFiles", label: "Ваши файлы" },
           { key: "status", label: "Статус" },
+          { key: "production", label: "Этап распила" },
           { key: "result", label: "Расчет и файлы" },
           { key: "history", label: "История" },
           { key: "manager", label: "Менеджер" },

@@ -25,8 +25,8 @@ export function ServiceRequestForm() {
   return (
     <FormBlock
       eyebrow="Заявка"
-      title="Отправьте файл проекта."
-      description="PDF, Excel или чертеж попадут в заявку вместе с материалом и контактами."
+      title="Оформите заявку на распил."
+      description="Укажите материал и контакты. Чертеж или файл Giblab можно приложить сейчас либо добавить позже."
       actions={
         <Button
           type="submit"
@@ -76,6 +76,24 @@ export function ServiceRequestForm() {
             <option value="Столешница">Столешница</option>
             <option value="Уточнить с менеджером">Уточнить с менеджером</option>
           </Select>
+          <Input
+            name="cuttingSheetCount"
+            type="number"
+            min={1}
+            max={10000}
+            step={1}
+            inputMode="numeric"
+            placeholder="Количество листов, если известно"
+          />
+          <Input
+            name="cuttingEdgeMeters"
+            type="number"
+            min={0.1}
+            max={100000}
+            step={0.1}
+            inputMode="decimal"
+            placeholder="Кромка, погонных метров"
+          />
           <Select name="edgeOption" defaultValue="">
             <option value="">Кромка 1 мм</option>
             <option value="Без кромки">Без кромки</option>
@@ -95,9 +113,9 @@ export function ServiceRequestForm() {
           <UploadBlock
             name="files"
             multiple
-            accept=".pdf,.xls,.xlsx,.csv,.txt,.doc,.docx,.zip,.rar,.jpg,.jpeg,.png,.webp,.dwg,.dxf"
-            title="Загрузите PDF, Excel или чертеж"
-            description="До 5 файлов, до 25 МБ каждый. Файлы сразу прикрепятся к заявке."
+            accept=".pdf,.xls,.xlsx,.csv,.txt,.doc,.docx,.zip,.rar,.jpg,.jpeg,.png,.webp,.dwg,.dxf,.project"
+            title="Файлы проекта, если они есть"
+            description="Необязательно. Можно загрузить PDF, Excel, чертеж или Giblab .project сейчас либо добавить позже."
           />
           <div className="border border-[color:var(--line)] bg-[var(--surface)] p-4">
             <p className="text-sm font-semibold text-[var(--foreground)]">

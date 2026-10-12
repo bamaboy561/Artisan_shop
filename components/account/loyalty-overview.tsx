@@ -28,6 +28,7 @@ import { cn } from "@/lib/utils";
 type LoyaltyOverviewProps = {
   user: {
     id: string;
+    clientQrPayload: string;
     firstName: string | null;
     lastName: string | null;
     email: string;
@@ -41,13 +42,14 @@ type LoyaltyOverviewProps = {
     telegramNotifyLoyalty: boolean;
     telegramNotifyPromotions: boolean;
     loyaltyTier: LoyaltyTier;
+    plateMaterialLoyaltyTier: LoyaltyTier | null;
+    fittingsLoyaltyTier: LoyaltyTier | null;
     loyaltyPointsBalance: number;
     loyaltyPointsLifetime: number;
-    currentMonthPurchaseTotal: number;
-    personalDiscountPercent: number;
+    plateMaterialPurchaseTotal: number;
+    fittingsPurchaseTotal: number;
     roleName: string;
   };
-  effectiveDiscount: number;
   loyaltyConfig: LoyaltyProgramConfig;
   summary: {
     ordersCount: number;
@@ -57,12 +59,17 @@ type LoyaltyOverviewProps = {
     favoritesCount: number;
   };
   progress: {
-    currentThreshold: number;
-    nextThreshold: number | null;
-    pointsToNext: number;
-    progressPercent: number;
-    nextTier: LoyaltyTier | null;
+    plateMaterial: LoyaltyProgressState;
+    fittings: LoyaltyProgressState;
   };
+};
+
+type LoyaltyProgressState = {
+  currentThreshold: number;
+  nextThreshold: number | null;
+  pointsToNext: number;
+  progressPercent: number;
+  nextTier: LoyaltyTier | null;
 };
 
 function formatNumber(value: number) {
@@ -87,24 +94,36 @@ function getTierTone(tier: LoyaltyTier) {
 
 export function LoyaltyOverview({
   user,
-  effectiveDiscount,
   loyaltyConfig,
   summary,
   progress,
 }: LoyaltyOverviewProps) {
-  const currentBenefits = getLoyaltyTierBenefits(
-    user.loyaltyTier,
+  const plateMaterialTier = user.plateMaterialLoyaltyTier ?? user.loyaltyTier;
+  const fittingsTier = user.fittingsLoyaltyTier ?? user.loyaltyTier;
+  const plateMaterialBenefits = getLoyaltyTierBenefits(
+    plateMaterialTier,
     loyaltyConfig,
   );
+  const fittingsBenefits = getLoyaltyTierBenefits(fittingsTier, loyaltyConfig);
   const displayName =
     [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email;
-  const clientQrPayload = `artisan-client:${user.id}`;
   const clientQrUrl = `/api/qr?size=220&margin=3&data=${encodeURIComponent(
-    clientQrPayload,
+    user.clientQrPayload,
   )}`;
-  const nextTierLabel = progress.nextTier
-    ? getLoyaltyTierLabel(progress.nextTier, loyaltyConfig)
-    : "Максимальный статус";
+  const progressCards = [
+    {
+      key: "plateMaterial",
+      label: "Плиты",
+      total: user.plateMaterialPurchaseTotal,
+      progress: progress.plateMaterial,
+    },
+    {
+      key: "fittings",
+      label: "Фурнитура",
+      total: user.fittingsPurchaseTotal,
+      progress: progress.fittings,
+    },
+  ];
 
   const stats = [
     {
@@ -129,9 +148,9 @@ export function LoyaltyOverview({
       icon: Heart,
     },
     {
-      label: "Скидка",
-      value: `${effectiveDiscount}%`,
-      caption: "Персональная выгода",
+      label: "Начисление",
+      value: `${plateMaterialBenefits.plateMaterialAccrualPercent}% / ${fittingsBenefits.fittingsAccrualPercent}%`,
+      caption: "Плиты / фурнитура",
       href: "/account",
       icon: BadgePercent,
     },
@@ -178,7 +197,13 @@ export function LoyaltyOverview({
                 {getLoyaltyTierLabel(user.loyaltyTier, loyaltyConfig)}
               </StatusBadge>
               <span className="rounded-md border border-white/10 bg-white/[0.06] px-2 py-1 text-xs font-medium text-white/72">
-                Скидка {effectiveDiscount}%
+                Плиты: {getLoyaltyTierLabel(plateMaterialTier, loyaltyConfig)}
+              </span>
+              <span className="rounded-md border border-white/10 bg-white/[0.06] px-2 py-1 text-xs font-medium text-white/72">
+                Фурнитура: {getLoyaltyTierLabel(fittingsTier, loyaltyConfig)}
+              </span>
+              <span className="rounded-md border border-white/10 bg-white/[0.06] px-2 py-1 text-xs font-medium text-white/72">
+                Списание до {loyaltyConfig.maxRedeemPercent}%
               </span>
             </div>
 
@@ -202,8 +227,8 @@ export function LoyaltyOverview({
                     <span className="text-[11px]">Кэшбэк</span>
                   </div>
                   <p className="mt-2 text-xl font-semibold">
-                    {currentBenefits.plateMaterialAccrualPercent}% /{" "}
-                    {currentBenefits.fittingsAccrualPercent}%
+                    {plateMaterialBenefits.plateMaterialAccrualPercent}% /{" "}
+                    {fittingsBenefits.fittingsAccrualPercent}%
                   </p>
                 </div>
                 <div className="rounded-[18px] border border-white/10 bg-white/[0.06] p-3">
@@ -221,35 +246,66 @@ export function LoyaltyOverview({
             <div className="rounded-[22px] border border-white/10 bg-white/[0.055] p-3 sm:p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-xs text-white/48">Следующий уровень</p>
+                  <p className="text-xs text-white/48">Прогресс программы</p>
                   <p className="mt-1 text-base font-semibold text-white">
-                    {nextTierLabel}
+                    Накопленный оплаченный оборот
                   </p>
                 </div>
-                <div className="text-right">
-                  <p className="text-xs text-white/48">Осталось</p>
-                  <p className="mt-1 text-base font-semibold text-white">
-                    {progress.nextTier
-                      ? formatNumber(progress.pointsToNext)
-                      : "0"}
-                  </p>
-                </div>
+                <p className="rounded-full border border-white/10 px-3 py-1 text-xs text-white/58">
+                  до 50% списания
+                </p>
               </div>
 
-              <div className="mt-3 h-2 rounded-full bg-white/10">
-                <div
-                  className="h-2 rounded-full bg-[linear-gradient(90deg,var(--accent),#e5b08f)] transition-all duration-700"
-                  style={{ width: `${progress.progressPercent}%` }}
-                />
-              </div>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                {progressCards.map((item) => {
+                  const nextTierLabel = item.progress.nextTier
+                    ? getLoyaltyTierLabel(item.progress.nextTier, loyaltyConfig)
+                    : "Максимальный статус";
 
-              <div className="mt-2 flex items-center justify-between gap-3 text-[11px] text-white/42">
-                <span>{formatNumber(progress.currentThreshold)}</span>
-                <span>
-                  {progress.nextThreshold
-                    ? formatNumber(progress.nextThreshold)
-                    : "Платина"}
-                </span>
+                  return (
+                    <div
+                      key={item.key}
+                      className="rounded-[18px] border border-white/10 bg-white/[0.045] p-3"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-semibold text-white">
+                            {item.label}
+                          </p>
+                          <p className="mt-1 text-[11px] text-white/48">
+                            Закупки: {formatNumber(item.total)} сом
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[11px] text-white/48">Осталось</p>
+                          <p className="mt-1 text-sm font-semibold text-white">
+                            {item.progress.nextTier
+                              ? formatNumber(item.progress.pointsToNext)
+                              : "0"}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 h-2 rounded-full bg-white/10">
+                        <div
+                          className="h-2 rounded-full bg-[linear-gradient(90deg,var(--accent),#e5b08f)] transition-all duration-700"
+                          style={{ width: `${item.progress.progressPercent}%` }}
+                        />
+                      </div>
+
+                      <div className="mt-2 flex items-center justify-between gap-3 text-[11px] text-white/42">
+                        <span>
+                          {formatNumber(item.progress.currentThreshold)}
+                        </span>
+                        <span>
+                          {item.progress.nextThreshold
+                            ? `${nextTierLabel}: ${formatNumber(item.progress.nextThreshold)}`
+                            : "Платина"}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -339,7 +395,7 @@ export function LoyaltyOverview({
           <p className="mt-1 text-sm leading-6 text-[var(--muted)]">
             {user.telegramLinked
               ? "Клиент получает обновления по заказам, заявкам на распил, бонусам и акциям прямо в Telegram."
-              : "После подключения клиент увидит кнопки «Мои заказы», «Мои заявки», «Баллы и скидка» без ручных команд."}
+              : "После подключения клиент увидит кнопки «Мои заказы», «Мои заявки», «Баллы и статусы» без ручных команд."}
           </p>
         </div>
 
@@ -385,9 +441,14 @@ export function LoyaltyOverview({
         {loyaltyTierOrder.map((tier) => {
           const benefits = getLoyaltyTierBenefits(tier, loyaltyConfig);
           const isCurrent = tier === user.loyaltyTier;
-          const isUnlocked =
-            user.currentMonthPurchaseTotal >= benefits.threshold;
-          const isUpcoming = progress.nextTier === tier;
+          const plateUnlocked =
+            user.plateMaterialPurchaseTotal >= benefits.plateMaterialThreshold;
+          const fittingsUnlocked =
+            user.fittingsPurchaseTotal >= benefits.fittingsThreshold;
+          const isUnlocked = plateUnlocked || fittingsUnlocked;
+          const isUpcoming =
+            progress.plateMaterial.nextTier === tier ||
+            progress.fittings.nextTier === tier;
 
           return (
             <article
@@ -406,19 +467,19 @@ export function LoyaltyOverview({
                 <span className="text-[10px] tracking-[0.14em] text-[var(--muted)] uppercase">
                   {benefits.threshold === 0
                     ? "Старт"
-                    : `${formatNumber(benefits.threshold)}+`}
+                    : `${formatNumber(benefits.plateMaterialThreshold)} / ${formatNumber(benefits.fittingsThreshold)}`}
                 </span>
               </div>
 
               <div className="mt-4 grid grid-cols-2 gap-3">
                 <div>
-                  <p className="text-xs text-[var(--muted)]">Скидка</p>
+                  <p className="text-xs text-[var(--muted)]">Плиты</p>
                   <p className="mt-1 text-xl font-semibold text-[var(--foreground)]">
                     {benefits.plateMaterialAccrualPercent}%
                   </p>
                 </div>
                 <div>
-                  <p className="text-xs text-[var(--muted)]">Баллы</p>
+                  <p className="text-xs text-[var(--muted)]">Фурнитура</p>
                   <p className="mt-1 text-xl font-semibold text-[var(--foreground)]">
                     {benefits.fittingsAccrualPercent}%
                   </p>
@@ -435,11 +496,11 @@ export function LoyaltyOverview({
                   )}
                 />
                 {isCurrent
-                  ? "Ваш текущий уровень"
+                  ? "Ваш текущий общий уровень"
                   : isUpcoming
                     ? "Следующая цель"
                     : isUnlocked
-                      ? "Уровень уже пройден"
+                      ? "Порог уже пройден"
                       : "Откроется позже"}
               </p>
             </article>

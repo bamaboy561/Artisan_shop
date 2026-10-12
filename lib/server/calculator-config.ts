@@ -1,6 +1,6 @@
 import "server-only";
 
-import { ProductStatus } from "@/generated/prisma";
+import { CategoryKind, ProductStatus } from "@/generated/prisma";
 import { getDb, hasDatabaseUrl } from "@/lib/db";
 
 export type CalculatorMaterialDto = {
@@ -26,6 +26,7 @@ export type CalculatorPresetDto = {
   id: string;
   label: string;
   brand: string;
+  sku: string;
   materialName: string;
   materialId: string;
   sheetPresetId: string;
@@ -468,7 +469,7 @@ function materialIdWithThickness(
   return `${prefix}-${thicknessMm}`;
 }
 
-function inferSheetIdFromFormat(format: string | null | undefined) {
+function inferLegacySheetIdFromFormat(format: string | null | undefined) {
   const match = (format ?? "").match(/(\d{3,4})\s*(?:x|х|×|\*)\s*(\d{3,4})/iu);
 
   if (!match) {
@@ -476,6 +477,14 @@ function inferSheetIdFromFormat(format: string | null | undefined) {
   }
 
   return `${match[1]}x${match[2]}`;
+}
+
+function inferSheetIdFromFormat(format: string | null | undefined) {
+  const match = (format ?? "").match(/(\d{3,4})\s*(?:x|х|×|\*)\s*(\d{3,4})/iu);
+
+  return match
+    ? `${match[1]}x${match[2]}`
+    : inferLegacySheetIdFromFormat(format);
 }
 
 function applyManualThicknessToMaterialId(
@@ -531,6 +540,18 @@ function inferMaterialId(input: {
     ].join(" "),
   );
   const thicknessMm = inferThicknessMm(input);
+
+  if (text.includes("столеш")) {
+    return materialIdWithThickness("countertop", thicknessMm, "countertop-38");
+  }
+
+  if (text.includes("мдф")) {
+    return materialIdWithThickness("mdf", thicknessMm, "mdf-18");
+  }
+
+  if (text.includes("лдсп")) {
+    return materialIdWithThickness("ldsp", thicknessMm, "ldsp-16");
+  }
 
   if (
     text.includes("agt") ||
@@ -791,6 +812,7 @@ function getManualCalculatorPresets(
         id: `manual:${material.id}:${sheet.id}`,
         label: `Материал: ${material.label} · ${sheet.label}`,
         brand: "",
+        sku: "",
         materialName: material.label,
         materialId: material.id,
         sheetPresetId: sheet.id,
@@ -891,10 +913,14 @@ export async function getCalculatorPresets(): Promise<CalculatorPresetDto[]> {
     const rows = await db.product.findMany({
       where: {
         status: ProductStatus.ACTIVE,
+        category: {
+          kind: CategoryKind.PLATE,
+        },
       },
       orderBy: [{ isFeatured: "desc" }, { name: "asc" }],
       select: {
         slug: true,
+        sku: true,
         name: true,
         format: true,
         thicknessMm: true,
@@ -916,6 +942,7 @@ export async function getCalculatorPresets(): Promise<CalculatorPresetDto[]> {
           id: row.slug,
           label: row.brand?.name ? `${row.brand.name} — ${row.name}` : row.name,
           brand: row.brand?.name ?? "",
+          sku: row.sku,
           materialName: row.name,
           materialId,
           sheetPresetId,

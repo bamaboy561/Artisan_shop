@@ -29,6 +29,8 @@
 .claude/
 .codex-*.png
 .codex-*.log
+.codex-storefront-backup-20260926/
+.codex-storefront-qa/
 .dev-server*.log
 .next-dev-*.log
 .next-start.log
@@ -53,3 +55,15 @@ yarn-error.log*
 next-env.d.ts
 
 .env*.local
+
+# Android
+/android/.gradle/
+/android/local.properties
+/android/**/build/
+/android/keystore.properties
+/android/app/google-services.json
+/android/*.jks
+/android/*.keystore
+/android/releases/*.apk
+/android/releases/*.aab
+/android/app/src/main/res/mipmap-xxxhdpi/

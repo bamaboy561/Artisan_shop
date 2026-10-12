@@ -44,6 +44,17 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
+@media (display-mode: standalone) {
+  html {
+    background: #171613;
+  }
+
+  body {
+    padding-top: env(safe-area-inset-top);
+    overscroll-behavior-y: none;
+  }
+}
+
 main,
 section,
 article,

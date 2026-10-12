@@ -1,8 +1,14 @@
 "use server";
 
+import { setStaffAccountAccessAction } from "@/app/admin/staff/actions";
+
+import { safeProductionReturn } from "@/features/production/queue";
+import { MAX_SALE_AMOUNT, parseSalesItemInputs } from "@/features/admin/sales-invoice-model";
+
 import {
   BannerPlacement,
   CategoryKind,
+  CuttingStage,
   DiscountType,
   InventoryStatus,
   LoyaltyTier,
@@ -12,9 +18,11 @@ import {
   PageStatus,
   ProductOrderMode,
   ProductStatus,
+  ProductionStation,
   PromotionStatus,
   PromotionTargetType,
   RequestStatus,
+  RequestType,
   RoleCode,
   type Prisma,
 } from "@/generated/prisma";
@@ -28,7 +36,9 @@ import {
   isBundleAttributeName,
 } from "@/features/catalog/bundles";
 import { getEffectiveProductPrice } from "@/features/catalog/bundle-pricing";
+import { normalizeBrandSlug } from "@/features/catalog/data";
 import {
+  handleCuttingRequestCreated,
   handleOrderUpdated,
   handleOrderCreated,
   handleRequestUpdated,
@@ -40,20 +50,59 @@ import {
   orderStatusLabels,
   requestStatusLabels,
 } from "@/features/admin/operations-filters";
+import { cuttingStageLabels } from "@/features/cutting/progress";
+import { getProductionTransition } from "@/features/production/workflow";
 import { requireAdminSession } from "@/lib/auth/dal";
-import { canDeleteOrders } from "@/lib/auth/roles";
+import {
+  canAccessGeneralAdmin,
+  canAccessProduction,
+  canAccessRequestType,
+  canDeleteOrders,
+  canDeleteRequests,
+  canManageProduction,
+  canManageStaff,
+  getAdminHomePath,
+  isProductionOperator,
+  roleDefinitions,
+} from "@/lib/auth/roles";
 import { hasDatabaseUrl, getDb } from "@/lib/db";
 import { ensureBrandLogoColumn } from "@/lib/server/brand-schema";
+import { sendClientDirectMessage } from "@/lib/server/client-notifications";
 import { logOperationEvent } from "@/lib/server/operation-events";
+import {
+  adjustInventoryReservation,
+  InventoryAvailabilityError,
+  reserveInventoryItems,
+  syncOrderInventoryReservation,
+} from "@/lib/server/inventory-reservations";
+import { saveLatestInventoryValuation } from "@/lib/server/inventory-valuation";
+import {
+  applyApprovedLoyaltyDelta,
+  InsufficientLoyaltyBalanceError,
+} from "@/lib/server/loyalty-ledger";
+import {
+  rollbackManualLoyaltyTransaction,
+  type RollbackLoyaltyResult,
+} from "@/lib/server/loyalty-audit";
+import { ensureLoyaltyAuditSchema } from "@/lib/server/loyalty-audit-schema";
+import type { OrderLoyaltyCancellationResult } from "@/lib/server/order-loyalty-cancellation";
 import { ensureProductBundleItemsTable } from "@/lib/server/product-bundle-schema";
 import {
+  applyPromotion,
   estimateLoyaltyPointsForLines,
+  getHighestLoyaltyTier,
   getRedeemableLoyaltyPoints,
 } from "@/lib/server/pricing";
+import {
+  getProductPromotionPrice,
+  PROMOTION_PRICE_SELECT,
+} from "@/lib/server/product-promotion-pricing";
 import {
   getLoyaltyProgramConfig,
   saveLoyaltyProgramConfig,
 } from "@/lib/server/loyalty-settings";
+import { runMonthlyLoyaltyReview } from "@/lib/server/loyalty-monthly-review";
+import { sendPushPromotionBroadcast } from "@/lib/server/push-notifications";
 import {
   configureTelegramWebhook,
   sendTelegramDirectMessage,
@@ -73,14 +122,19 @@ import {
 } from "@/lib/server/order-production";
 import {
   bulkUpdateRequestInboxItems,
+  createCuttingRequest,
+  deleteDemoRequestInboxItem,
   getRequestInbox,
   getRequestDetailById,
   getRequestInboxItemById,
+  isAllowedRequestFile,
+  updateRequestCuttingDetails,
   updateRequestInboxItem,
 } from "@/lib/server/request-inbox";
 import {
   addRequestManagerNote,
   addRequestResultFiles,
+  updateRequestCuttingProgress,
   updateRequestProductionResult,
 } from "@/lib/server/request-production";
 import { revalidatePath } from "next/cache";
@@ -95,6 +149,9 @@ type ManagerSnapshot = {
 type TransitionSnapshot = {
   previousStatus?: string | null;
   previousManager?: ManagerSnapshot;
+  previousCuttingStage?: CuttingStage | null;
+  previousCuttingPickupCell?: string | null;
+  cuttingStageNote?: string | null;
 };
 
 function getString(formData: FormData, key: string) {
@@ -142,6 +199,18 @@ function getOptionalInt(formData: FormData, key: string) {
   return Number.isNaN(parsed) ? null : parsed;
 }
 
+function getOptionalFloat(formData: FormData, key: string) {
+  const value = getString(formData, key).replace(",", ".");
+
+  if (!value) {
+    return null;
+  }
+
+  const parsed = Number.parseFloat(value);
+
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 function getOptionalDate(formData: FormData, key: string) {
   const value = getString(formData, key);
 
@@ -162,6 +231,19 @@ function getStringList(formData: FormData, key: string) {
 }
 
 const orderReceiptPrefix = "Кассовый чек:";
+
+function getOrderReceiptNumberFromComment(comment: string | null) {
+  const line = (comment ?? "")
+    .split(/\r?\n/)
+    .find((item) =>
+      item
+        .trim()
+        .toLocaleLowerCase("ru-RU")
+        .startsWith(orderReceiptPrefix.toLocaleLowerCase("ru-RU")),
+    );
+
+  return line ? line.trim().slice(orderReceiptPrefix.length).trim() : null;
+}
 
 function removeOrderReceiptLine(comment: string | null) {
   return (comment ?? "")
@@ -232,7 +314,7 @@ function safeSlugBase(value: string, fallback: string) {
   return slugifyImportValue(value) || fallback;
 }
 
-function safeSkuBase(value: string) {
+function generatedSkuBase(value: string) {
   return (
     safeSlugBase(value, "artisan")
       .replace(/-/g, "")
@@ -293,8 +375,11 @@ async function getUniqueProductSku(
   db: ReturnType<typeof getDb>,
   value: string,
   currentId?: string,
+  preserveValue = false,
 ) {
-  const base = safeSkuBase(value);
+  const base = preserveValue
+    ? value.trim() || "ARTISAN"
+    : generatedSkuBase(value);
   let candidate = base;
   let index = 2;
 
@@ -423,14 +508,13 @@ function getFileList(formData: FormData, key: string) {
     );
 }
 
-const PRODUCT_IMAGE_MAX_SIZE = 8 * 1024 * 1024;
 const PRODUCT_IMAGE_TYPES = new Set([
   "image/avif",
   "image/jpeg",
   "image/png",
   "image/webp",
 ]);
-const PRODUCT_IMAGE_SLOT_COUNT = 4;
+const PRODUCT_IMAGE_LEGACY_SLOT_COUNT = 4;
 
 function sanitizeUploadSegment(value: string) {
   return value
@@ -442,9 +526,7 @@ function sanitizeUploadSegment(value: string) {
 }
 
 function isAllowedProductImage(file: File) {
-  return (
-    PRODUCT_IMAGE_TYPES.has(file.type) && file.size <= PRODUCT_IMAGE_MAX_SIZE
-  );
+  return PRODUCT_IMAGE_TYPES.has(file.type);
 }
 
 async function uploadProductImageFile(file: File, productSlug: string) {
@@ -470,26 +552,41 @@ async function resolveProductImageUrls(
 ) {
   const urls: string[] = [];
 
-  for (let index = 0; index < PRODUCT_IMAGE_SLOT_COUNT; index += 1) {
-    const uploadedImage = getFileList(formData, `imageFile${index}`)[0];
+  const uploadedImages = [
+    ...getFileList(formData, "imageFiles"),
+    ...Array.from({ length: PRODUCT_IMAGE_LEGACY_SLOT_COUNT }).flatMap(
+      (_, index) => getFileList(formData, `imageFile${index}`),
+    ),
+  ];
 
-    if (uploadedImage) {
-      const blobUrl = await uploadProductImageFile(uploadedImage, productSlug);
+  for (const uploadedImage of uploadedImages) {
+    const blobUrl = await uploadProductImageFile(uploadedImage, productSlug);
 
-      if (blobUrl) {
-        urls.push(blobUrl);
-        continue;
-      }
+    if (blobUrl) {
+      urls.push(blobUrl);
+    }
+  }
+
+  const imageUrlValues = [
+    ...formData.getAll("imageUrl"),
+    ...Array.from({ length: PRODUCT_IMAGE_LEGACY_SLOT_COUNT }).map((_, index) =>
+      formData.get(`imageUrl${index}`),
+    ),
+  ];
+
+  for (const value of imageUrlValues) {
+    if (typeof value !== "string") {
+      continue;
     }
 
-    const imageUrl = getOptionalString(formData, `imageUrl${index}`);
+    const imageUrl = value.trim();
 
     if (imageUrl) {
       urls.push(imageUrl);
     }
   }
 
-  return [...new Set(urls)].slice(0, PRODUCT_IMAGE_SLOT_COUNT);
+  return [...new Set(urls)];
 }
 
 const PRODUCT_IMPORT_MAX_FILE_SIZE = 100 * 1024 * 1024;
@@ -629,23 +726,6 @@ function getImportMessageWithNotes(notes: string[], hiddenCount: number) {
     .join(" ");
 }
 
-function getInventoryStatusFromStock(
-  stockQuantity: number | null,
-  zeroMissingAsOut: boolean,
-) {
-  if (stockQuantity === null) {
-    return null;
-  }
-
-  if (stockQuantity <= 0) {
-    return zeroMissingAsOut ? InventoryStatus.OUT_OF_STOCK : null;
-  }
-
-  return stockQuantity <= 5
-    ? InventoryStatus.LIMITED
-    : InventoryStatus.IN_STOCK;
-}
-
 function revalidateAdminCatalog() {
   revalidatePath("/admin");
   revalidatePath("/admin/categories");
@@ -661,15 +741,22 @@ function revalidateAdminOperations() {
   revalidatePath("/admin/orders");
   revalidatePath("/admin/requests");
   revalidatePath("/admin/cutting");
+  revalidatePath("/admin/production");
   revalidatePath("/account/orders");
   revalidatePath("/account/requests");
+  revalidatePath("/");
+  revalidatePath("/catalog");
+  revalidatePath("/cart");
+  revalidatePath("/checkout");
 }
 
 function revalidateAdminPromotions() {
   revalidatePath("/admin");
   revalidatePath("/admin/promotions");
+  revalidatePath("/", "layout");
   revalidatePath("/");
   revalidatePath("/catalog");
+  revalidatePath("/cart");
   revalidatePath("/checkout");
 }
 
@@ -773,6 +860,7 @@ async function syncRequestById(
     messengerType: request.messengerType,
     messengerHandle: request.messengerHandle,
     material: request.material,
+    cuttingSheetCount: request.cuttingSheetCount,
     edgeOption: request.edgeOption,
     estimatedBudget: request.estimatedBudget,
     deliveryNeeded: request.deliveryNeeded,
@@ -781,12 +869,87 @@ async function syncRequestById(
     manager: request.manager,
     previousStatus: transition?.previousStatus,
     previousManager: transition?.previousManager,
+    cuttingStage: request.cuttingStage,
+    cuttingPickupCell: request.cuttingPickupCell,
+    previousCuttingStage: transition?.previousCuttingStage,
+    previousCuttingPickupCell: transition?.previousCuttingPickupCell,
+    cuttingStageNote: transition?.cuttingStageNote,
     product: request.product,
   });
 }
 
 async function ensureAdminAccess() {
-  return requireAdminSession("/login?next=/admin");
+  const session = await requireAdminSession("/login?next=/admin");
+
+  if (!canAccessGeneralAdmin(session.roleCode)) {
+    redirect(getAdminHomePath(session.roleCode));
+  }
+
+  return session;
+}
+
+async function ensureCuttingAdminAccess() {
+  return requireAdminSession("/login?next=/admin/cutting");
+}
+
+async function ensureRequestAdminAccess(requestId: string) {
+  const session = await ensureCuttingAdminAccess();
+
+  if (canAccessGeneralAdmin(session.roleCode)) {
+    return session;
+  }
+
+  const request = await getRequestInboxItemById(requestId);
+
+  if (!request || !canAccessRequestType(session.roleCode, request.type)) {
+    redirect(getAdminHomePath(session.roleCode));
+  }
+
+  return session;
+}
+
+async function ensureProductionAdminAccess(requestId?: string) {
+  const session = await requireAdminSession(
+    "/login?next=/admin/production",
+    "/admin/production",
+  );
+
+  if (!canAccessProduction(session.roleCode)) {
+    redirect(getAdminHomePath(session.roleCode));
+  }
+
+  if (requestId) {
+    const request = await getRequestInboxItemById(requestId);
+
+    if (!request || request.type !== RequestType.CUTTING_SERVICE) {
+      redirect("/admin/production?notice=request-missing");
+    }
+  }
+
+  return session;
+}
+
+async function ensureStaffAdminAccess() {
+  const session = await requireAdminSession("/login?next=/admin/staff");
+
+  if (!canManageStaff(session.roleCode)) {
+    redirect(getAdminHomePath(session.roleCode));
+  }
+
+  return session;
+}
+
+const orderStatusesWithApprovedLoyalty = new Set<OrderStatus>([
+  OrderStatus.CONFIRMED,
+  OrderStatus.PAID,
+  OrderStatus.IN_PRODUCTION,
+  OrderStatus.READY_FOR_PICKUP,
+  OrderStatus.SHIPPED,
+  OrderStatus.COMPLETED,
+]);
+
+function shouldApproveOrderLoyalty(status: OrderStatus) {
+  return orderStatusesWithApprovedLoyalty.has(status);
 }
 
 async function reverseOrderLoyaltyIfCanceled(params: {
@@ -794,6 +957,7 @@ async function reverseOrderLoyaltyIfCanceled(params: {
   previousStatus?: OrderStatus | null;
   nextStatus: OrderStatus;
   actor?: Awaited<ReturnType<typeof ensureAdminAccess>> | null;
+  result?: OrderLoyaltyCancellationResult | null;
 }) {
   if (!hasDatabaseUrl()) {
     return false;
@@ -809,100 +973,84 @@ async function reverseOrderLoyaltyIfCanceled(params: {
   const db = getDb();
   const now = new Date();
 
-  const result = await db.$transaction(async (tx) => {
-    const order = await tx.order.findUnique({
-      where: { id: params.orderId },
-      select: {
-        userId: true,
-        number: true,
-        loyaltyTransactions: {
-          where: {
-            status: {
-              in: [
-                LoyaltyTransactionStatus.APPROVED,
-                LoyaltyTransactionStatus.PENDING,
-              ],
+  const result =
+    params.result ??
+    (await db.$transaction(async (tx) => {
+      const order = await tx.order.findUnique({
+        where: { id: params.orderId },
+        select: {
+          userId: true,
+          number: true,
+          loyaltyTransactions: {
+            where: {
+              status: {
+                in: [
+                  LoyaltyTransactionStatus.APPROVED,
+                  LoyaltyTransactionStatus.PENDING,
+                ],
+              },
+            },
+            select: {
+              id: true,
+              status: true,
+              points: true,
             },
           },
-          select: {
-            id: true,
-            status: true,
-            points: true,
-          },
-        },
-      },
-    });
-
-    if (!order || order.loyaltyTransactions.length === 0) {
-      return null;
-    }
-
-    const approvedTransactions = order.loyaltyTransactions.filter(
-      (transaction) => transaction.status === LoyaltyTransactionStatus.APPROVED,
-    );
-    const balanceDelta = approvedTransactions.reduce(
-      (sum, transaction) => sum + transaction.points,
-      0,
-    );
-    const lifetimeDelta = approvedTransactions.reduce(
-      (sum, transaction) =>
-        transaction.points > 0 ? sum + transaction.points : sum,
-      0,
-    );
-
-    if (order.userId && approvedTransactions.length > 0) {
-      const customer = await tx.user.findUnique({
-        where: { id: order.userId },
-        select: {
-          loyaltyPointsBalance: true,
-          loyaltyPointsLifetime: true,
         },
       });
 
-      if (customer) {
-        const nextBalance = Math.max(
-          0,
-          customer.loyaltyPointsBalance - balanceDelta,
-        );
-        const nextLifetime = Math.max(
-          0,
-          customer.loyaltyPointsLifetime - lifetimeDelta,
-        );
+      if (!order || order.loyaltyTransactions.length === 0) {
+        return null;
+      }
 
+      const approvedTransactions = order.loyaltyTransactions.filter(
+        (transaction) =>
+          transaction.status === LoyaltyTransactionStatus.APPROVED,
+      );
+      const balanceDelta = approvedTransactions.reduce(
+        (sum, transaction) => sum + transaction.points,
+        0,
+      );
+      const lifetimeDelta = approvedTransactions.reduce(
+        (sum, transaction) =>
+          transaction.points > 0 ? sum + transaction.points : sum,
+        0,
+      );
+
+      if (order.userId && approvedTransactions.length > 0) {
         await tx.user.update({
           where: { id: order.userId },
           data: {
-            loyaltyPointsBalance: nextBalance,
-            loyaltyPointsLifetime: nextLifetime,
+            loyaltyPointsBalance: { increment: -balanceDelta },
+            loyaltyPointsLifetime: { increment: -lifetimeDelta },
           },
         });
       }
-    }
 
-    await tx.loyaltyTransaction.updateMany({
-      where: {
-        orderId: params.orderId,
-        status: {
-          in: [
-            LoyaltyTransactionStatus.APPROVED,
-            LoyaltyTransactionStatus.PENDING,
-          ],
+      await tx.loyaltyTransaction.updateMany({
+        where: {
+          orderId: params.orderId,
+          status: {
+            in: [
+              LoyaltyTransactionStatus.APPROVED,
+              LoyaltyTransactionStatus.PENDING,
+            ],
+          },
         },
-      },
-      data: {
-        status: LoyaltyTransactionStatus.CANCELED,
-        canceledAt: now,
-        canceledById: params.actor?.userId ?? null,
-      },
-    });
+        data: {
+          status: LoyaltyTransactionStatus.CANCELED,
+          canceledAt: now,
+          canceledById: params.actor?.userId ?? null,
+        },
+      });
 
-    return {
-      number: order.number,
-      balanceDelta,
-      lifetimeDelta,
-      transactionsCount: order.loyaltyTransactions.length,
-    };
-  });
+      return {
+        number: order.number,
+        balanceDelta,
+        lifetimeDelta,
+        transactionsCount: order.loyaltyTransactions.length,
+      };
+    }));
 
   if (!result) {
     return false;
@@ -928,6 +1076,348 @@ async function reverseOrderLoyaltyIfCanceled(params: {
     isVisibleToClient: true,
     actor: params.actor ?? null,
   });
+
+  revalidateAdminUsers();
+  return true;
+}
+
+async function reconcileOrderLoyaltyAccrual(params: {
+  orderId: string;
+  actor?: Awaited<ReturnType<typeof ensureAdminAccess>> | null;
+}) {
+  if (!hasDatabaseUrl()) {
+    return false;
+  }
+
+  const db = getDb();
+  const loyaltyConfig = await getLoyaltyProgramConfig();
+  const now = new Date();
+
+  const result = await db.$transaction(async (tx) => {
+    const lockedOrder = await tx.order.updateMany({
+      where: { id: params.orderId },
+      data: { updatedAt: now },
+    });
+
+    if (lockedOrder.count === 0) {
+      return null;
+    }
+
+    const order = await tx.order.findUnique({
+      where: { id: params.orderId },
+      select: {
+        id: true,
+        number: true,
+        status: true,
+        total: true,
+        deliveryTotal: true,
+        userId: true,
+        user: {
+          select: {
+            loyaltyTier: true,
+            plateMaterialLoyaltyTier: true,
+            fittingsLoyaltyTier: true,
+            loyaltyPointsBalance: true,
+            loyaltyPointsLifetime: true,
+          },
+        },
+        items: {
+          select: {
+            quantity: true,
+            unitPrice: true,
+            snapshotCategoryKind: true,
+            product: {
+              select: {
+                category: {
+                  select: {
+                    kind: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+        loyaltyTransactions: {
+          where: {
+            type: {
+              in: [
+                LoyaltyTransactionType.ORDER_ACCRUAL,
+                LoyaltyTransactionType.REDEMPTION,
+              ],
+            },
+            status: {
+              in: [
+                LoyaltyTransactionStatus.APPROVED,
+                LoyaltyTransactionStatus.PENDING,
+                LoyaltyTransactionStatus.CANCELED,
+              ],
+            },
+          },
+          orderBy: { createdAt: "asc" },
+          select: {
+            id: true,
+            type: true,
+            status: true,
+            points: true,
+            approvedAt: true,
+            approvedById: true,
+          },
+        },
+      },
+    });
+
+    if (
+      !order ||
+      !order.userId ||
+      !order.user ||
+      order.status === OrderStatus.CANCELED
+    ) {
+      return null;
+    }
+
+    const rawSubtotal = order.items.reduce(
+      (sum, item) => sum + item.unitPrice * item.quantity,
+      0,
+    );
+    const accrualBase = Math.max(0, order.total - order.deliveryTotal);
+    const accrualRatio =
+      rawSubtotal > 0 ? Math.min(1, accrualBase / rawSubtotal) : 0;
+    const nextPoints = estimateLoyaltyPointsForLines(
+      order.items.map((item) => ({
+        total: item.unitPrice * item.quantity * accrualRatio,
+        categoryKind:
+          item.snapshotCategoryKind ?? item.product?.category?.kind ?? null,
+      })),
+      order.user,
+      loyaltyConfig,
+    );
+    const activeTransactions = order.loyaltyTransactions.filter(
+      (transaction) =>
+        transaction.type === LoyaltyTransactionType.ORDER_ACCRUAL &&
+        transaction.status !== LoyaltyTransactionStatus.CANCELED,
+    );
+    const canceledAccrualTransactions = order.loyaltyTransactions.filter(
+      (transaction) =>
+        transaction.type === LoyaltyTransactionType.ORDER_ACCRUAL &&
+        transaction.status === LoyaltyTransactionStatus.CANCELED,
+    );
+    const canceledRedemptionTransactions = order.loyaltyTransactions.filter(
+      (transaction) =>
+        transaction.type === LoyaltyTransactionType.REDEMPTION &&
+        transaction.status === LoyaltyTransactionStatus.CANCELED,
+    );
+    const activeTransactionIds = activeTransactions.map(
+      (transaction) => transaction.id,
+    );
+    const primaryTransaction =
+      activeTransactions[0] ?? canceledAccrualTransactions[0] ?? null;
+    const previousPoints = activeTransactions.reduce(
+      (sum, transaction) => sum + transaction.points,
+      0,
+    );
+    const previousApprovedPoints = activeTransactions.reduce(
+      (sum, transaction) =>
+        transaction.status === LoyaltyTransactionStatus.APPROVED
+          ? sum + transaction.points
+          : sum,
+      0,
+    );
+    const targetStatus =
+      shouldApproveOrderLoyalty(order.status) || previousApprovedPoints > 0
+        ? LoyaltyTransactionStatus.APPROVED
+        : LoyaltyTransactionStatus.PENDING;
+
+    if (
+      activeTransactions.length === 0 &&
+      nextPoints <= 0 &&
+      canceledRedemptionTransactions.length === 0
+    ) {
+      return null;
+    }
+
+    const targetApprovesPoints =
+      targetStatus === LoyaltyTransactionStatus.APPROVED;
+    const accrualBalanceDelta = targetApprovesPoints
+      ? nextPoints - previousApprovedPoints
+      : -previousApprovedPoints;
+    const redemptionRestoreDelta = canceledRedemptionTransactions.reduce(
+      (sum, transaction) => sum + transaction.points,
+      0,
+    );
+    const totalBalanceDelta = accrualBalanceDelta + redemptionRestoreDelta;
+    let nextBalance = order.user.loyaltyPointsBalance;
+
+    if (totalBalanceDelta !== 0 || accrualBalanceDelta !== 0) {
+      const updatedUser = await tx.user.update({
+        where: { id: order.userId },
+        data: {
+          loyaltyPointsBalance: { increment: totalBalanceDelta },
+          loyaltyPointsLifetime: { increment: accrualBalanceDelta },
+        },
+        select: { loyaltyPointsBalance: true },
+      });
+      nextBalance = updatedUser.loyaltyPointsBalance;
+    }
+
+    if (canceledRedemptionTransactions.length > 0) {
+      await tx.loyaltyTransaction.updateMany({
+        where: {
+          id: { in: canceledRedemptionTransactions.map((item) => item.id) },
+        },
+        data: {
+          status: LoyaltyTransactionStatus.APPROVED,
+          balanceAfter:
+            order.user.loyaltyPointsBalance + redemptionRestoreDelta,
+          approvedAt: now,
+          approvedById: params.actor?.userId ?? null,
+          canceledAt: null,
+          canceledById: null,
+        },
+      });
+    }
+
+    if (nextPoints <= 0) {
+      await tx.loyaltyTransaction.updateMany({
+        where: { id: { in: activeTransactionIds } },
+        data: {
+          status: LoyaltyTransactionStatus.CANCELED,
+          canceledAt: now,
+          canceledById: params.actor?.userId ?? null,
+        },
+      });
+
+      return {
+        userId: order.userId,
+        orderNumber: order.number,
+        changed: true,
+        previousPoints,
+        nextPoints,
+        targetStatus: LoyaltyTransactionStatus.CANCELED,
+        balanceDelta: accrualBalanceDelta,
+        nextBalance,
+      };
+    }
+
+    const balanceAfter = nextBalance;
+    const transactionTitle = targetApprovesPoints
+      ? "Баллы за заказ"
+      : "Баллы ожидают подтверждения";
+    const transactionDescription = targetApprovesPoints
+      ? `Начисление за заказ ${order.number ?? order.id} подтверждено.`
+      : `Начисление за заказ ${order.number ?? order.id} будет добавлено после подтверждения менеджером.`;
+
+    if (primaryTransaction) {
+      await tx.loyaltyTransaction.update({
+        where: { id: primaryTransaction.id },
+        data: {
+          status: targetStatus,
+          points: nextPoints,
+          balanceAfter,
+          title: transactionTitle,
+          description: transactionDescription,
+          approvedAt: targetApprovesPoints
+            ? (primaryTransaction.approvedAt ?? now)
+            : null,
+          approvedById: targetApprovesPoints
+            ? (primaryTransaction.approvedById ?? params.actor?.userId ?? null)
+            : null,
+          canceledAt: null,
+          canceledById: null,
+        },
+      });
+
+      const duplicateTransactionIds = activeTransactionIds.slice(1);
+
+      if (duplicateTransactionIds.length > 0) {
+        await tx.loyaltyTransaction.updateMany({
+          where: { id: { in: duplicateTransactionIds } },
+          data: {
+            status: LoyaltyTransactionStatus.CANCELED,
+            canceledAt: now,
+            canceledById: params.actor?.userId ?? null,
+          },
+        });
+      }
+    } else {
+      await tx.loyaltyTransaction.create({
+        data: {
+          userId: order.userId,
+          orderId: order.id,
+          type: LoyaltyTransactionType.ORDER_ACCRUAL,
+          status: targetStatus,
+          points: nextPoints,
+          balanceAfter,
+          title: transactionTitle,
+          description: transactionDescription,
+          approvedAt: targetApprovesPoints ? now : null,
+          approvedById: targetApprovesPoints
+            ? (params.actor?.userId ?? null)
+            : null,
+        },
+      });
+    }
+
+    const statusChanged = activeTransactions.some(
+      (transaction) => transaction.status !== targetStatus,
+    );
+    const changed =
+      previousPoints !== nextPoints ||
+      statusChanged ||
+      activeTransactions.length !== 1;
+
+    return {
+      userId: order.userId,
+      orderNumber: order.number,
+      changed,
+      previousPoints,
+      nextPoints,
+      targetStatus,
+      balanceDelta: accrualBalanceDelta,
+      nextBalance,
+    };
+  });
+
+  if (!result?.changed) {
+    return false;
+  }
+
+  await logOperationEvent({
+    entityType: "order",
+    entityId: params.orderId,
+    eventType: "system",
+    title: "Бонусы заказа пересчитаны",
+    description: [
+      `Заказ ${result.orderNumber ?? params.orderId}.`,
+      `Начисление: ${result.previousPoints} → ${result.nextPoints} баллов.`,
+      result.targetStatus === LoyaltyTransactionStatus.APPROVED
+        ? "Баллы зачислены в баланс клиента."
+        : result.targetStatus === LoyaltyTransactionStatus.PENDING
+          ? "Баллы ожидают подтверждения заказа."
+          : "Начисление отменено.",
+    ].join(" "),
+    isVisibleToClient: true,
+    actor: params.actor ?? null,
+  });
+
+  if (
+    result.targetStatus === LoyaltyTransactionStatus.APPROVED &&
+    result.balanceDelta > 0
+  ) {
+    try {
+      await sendClientDirectMessage(result.userId, {
+        title: "Бонусы начислены",
+        category: "loyalty",
+        lines: [
+          `Заказ: ${result.orderNumber ?? params.orderId}`,
+          `Начислено: +${result.balanceDelta} баллов`,
+          `Баланс: ${result.nextBalance} баллов`,
+        ],
+        actions: [{ text: "Открыть бонусы", url: "/account" }],
+      });
+    } catch (error) {
+      console.error("[telegram:loyalty:order-reconcile]", error);
+    }
+  }
 
   revalidateAdminUsers();
   return true;
@@ -1250,7 +1740,7 @@ export async function createBrandAction(formData: FormData) {
   await ensureAdminAccess();
 
   const name = getString(formData, "name");
-  const slug = getString(formData, "slug");
+  const slug = normalizeBrandSlug(getString(formData, "slug"));
 
   if (!name || !slug) {
     return;
@@ -1287,7 +1777,7 @@ export async function updateBrandAction(formData: FormData) {
 
   const id = getString(formData, "id");
   const name = getString(formData, "name");
-  const slug = getString(formData, "slug");
+  const slug = normalizeBrandSlug(getString(formData, "slug"));
 
   if (!id || !name || !slug) {
     return;
@@ -1397,9 +1887,12 @@ export async function createProductAction(formData: FormData) {
     db,
     getString(formData, "slug") || identity || name,
   );
+  const requestedSku = getString(formData, "sku");
   const sku = await getUniqueProductSku(
     db,
-    getString(formData, "sku") || identity || name,
+    requestedSku || identity || name,
+    undefined,
+    Boolean(requestedSku),
   );
   const imageUrls = await resolveProductImageUrls(formData, slug);
 
@@ -1414,6 +1907,8 @@ export async function createProductAction(formData: FormData) {
       description: getOptionalString(formData, "description"),
       format: getOptionalString(formData, "format"),
       thicknessMm: getOptionalInt(formData, "thicknessMm"),
+      edgeThicknessMm: getOptionalFloat(formData, "edgeThicknessMm"),
+      edgeWidthMm: getOptionalFloat(formData, "edgeWidthMm"),
       calculatorMaterialId: getOptionalString(formData, "calculatorMaterialId"),
       calculatorSheetPresetId: getOptionalString(
         formData,
@@ -1593,10 +2088,12 @@ export async function updateProductDetailsAction(formData: FormData) {
     getString(formData, "slug") || identity || name,
     id,
   );
+  const requestedSku = getString(formData, "sku");
   const sku = await getUniqueProductSku(
     db,
-    getString(formData, "sku") || identity || name,
+    requestedSku || identity || name,
     id,
+    Boolean(requestedSku),
   );
   const imageUrls = await resolveProductImageUrls(formData, slug);
 
@@ -1613,6 +2110,8 @@ export async function updateProductDetailsAction(formData: FormData) {
         description: getOptionalString(formData, "description"),
         format: getOptionalString(formData, "format"),
         thicknessMm: getOptionalInt(formData, "thicknessMm"),
+        edgeThicknessMm: getOptionalFloat(formData, "edgeThicknessMm"),
+        edgeWidthMm: getOptionalFloat(formData, "edgeWidthMm"),
         calculatorMaterialId: getOptionalString(
           formData,
           "calculatorMaterialId",
@@ -1842,6 +2341,36 @@ export async function importProductsFromExcelAction(formData: FormData) {
   let hiddenImportNotes = 0;
   const importNotes: string[] = [];
 
+  if (parsed.inventoryValuation) {
+    try {
+      const valuation = await saveLatestInventoryValuation({
+        amount: parsed.inventoryValuation.amount,
+        sourceFile: parsed.inventoryValuation.fileName,
+        sourceSheet: parsed.inventoryValuation.sheetName,
+        reportTitle: parsed.inventoryValuation.reportTitle,
+      });
+
+      importNotes.unshift(
+        `Сумма склада обновлена: ${new Intl.NumberFormat("ru-RU", {
+          style: "currency",
+          currency: "KGS",
+          maximumFractionDigits: 2,
+        }).format(valuation.amount)}.`,
+      );
+    } catch (error) {
+      errors += 1;
+      hiddenImportNotes += addImportNote(
+        importNotes,
+        "Не удалось сохранить итоговую сумму склада из файла.",
+      );
+
+      console.error("[inventory-valuation-import]", {
+        fileName: parsed.fileName,
+        error: error instanceof Error ? error.message : error,
+      });
+    }
+  }
+
   for (const row of parsed.rows) {
     try {
       const rowSku = row.sku.trim();
@@ -1966,6 +2495,8 @@ export async function importProductsFromExcelAction(formData: FormData) {
 
         if (moveUpdatedToDraft) {
           updateData.status = ProductStatus.DRAFT;
+        } else if (row.status) {
+          updateData.status = row.status;
         }
 
         if (row.slug) {
@@ -1983,6 +2514,12 @@ export async function importProductsFromExcelAction(formData: FormData) {
         }
         if (row.format) updateData.format = row.format;
         if (row.thicknessMm !== null) updateData.thicknessMm = row.thicknessMm;
+        if (row.edgeThicknessMm !== null) {
+          updateData.edgeThicknessMm = row.edgeThicknessMm;
+        }
+        if (row.edgeWidthMm !== null) {
+          updateData.edgeWidthMm = row.edgeWidthMm;
+        }
         if (row.summary) updateData.summary = row.summary;
         if (row.description) updateData.description = row.description;
         if (defaultCalculatorMaterialId) {
@@ -1990,12 +2527,6 @@ export async function importProductsFromExcelAction(formData: FormData) {
         }
         if (rowCalculatorSheetPresetId) {
           updateData.calculatorSheetPresetId = rowCalculatorSheetPresetId;
-        }
-        if (imageUrl) {
-          updateData.images = {
-            deleteMany: {},
-            create: [{ url: imageUrl, alt: row.name, sortOrder: 10 }],
-          };
         }
         if (importAttributes && attributeCreates.length > 0) {
           updateData.attributes = {
@@ -2008,6 +2539,30 @@ export async function importProductsFromExcelAction(formData: FormData) {
           where: { id: existingProduct.id },
           data: updateData,
         });
+        if (imageUrl) {
+          const [sameImage, lastImage] = await Promise.all([
+            db.productImage.findFirst({
+              where: { productId: existingProduct.id, url: imageUrl },
+              select: { id: true },
+            }),
+            db.productImage.findFirst({
+              where: { productId: existingProduct.id },
+              orderBy: [{ sortOrder: "desc" }, { createdAt: "desc" }],
+              select: { sortOrder: true },
+            }),
+          ]);
+
+          if (!sameImage) {
+            await db.productImage.create({
+              data: {
+                productId: existingProduct.id,
+                url: imageUrl,
+                alt: row.name || existingProduct.name,
+                sortOrder: (lastImage?.sortOrder ?? 0) + 10,
+              },
+            });
+          }
+        }
         updated += 1;
         continue;
       }
@@ -2027,9 +2582,11 @@ export async function importProductsFromExcelAction(formData: FormData) {
         stockQuantity: row.stockQuantity,
         format: row.format,
         thicknessMm: row.thicknessMm,
+        edgeThicknessMm: row.edgeThicknessMm,
+        edgeWidthMm: row.edgeWidthMm,
         summary: row.summary,
         description: row.description,
-        status: ProductStatus.DRAFT,
+        status: row.status ?? ProductStatus.DRAFT,
         orderMode: row.orderMode ?? defaultOrderMode,
         inventoryStatus: row.inventoryStatus ?? defaultInventoryStatus,
         calculatorMaterialId: defaultCalculatorMaterialId,
@@ -2096,181 +2653,9 @@ export async function importProductsFromExcelAction(formData: FormData) {
   );
 }
 
-export async function updateProductStockFromExcelAction(formData: FormData) {
-  if (!hasDatabaseUrl()) {
-    return;
-  }
-
+export async function updateProductStockFromExcelAction() {
   await ensureAdminAccess();
-
-  const file = getFileList(formData, "stockFile")[0];
-
-  if (!file) {
-    redirect(
-      getProductImportRedirect({
-        message: "Файл не выбран",
-        errors: 1,
-      }),
-    );
-  }
-
-  if (file.size > PRODUCT_IMPORT_MAX_FILE_SIZE) {
-    redirect(
-      getProductImportRedirect({
-        message: "Файл больше 100 МБ",
-        errors: 1,
-      }),
-    );
-  }
-
-  let parsed: Awaited<ReturnType<typeof parseProductImportFile>>;
-
-  try {
-    parsed = await parseProductImportFile(file);
-  } catch {
-    redirect(
-      getProductImportRedirect({
-        message: "Не удалось прочитать файл",
-        errors: 1,
-      }),
-    );
-  }
-
-  if (parsed.rows.length === 0) {
-    redirect(
-      getProductImportRedirect({
-        message: "В файле не найдено строк для обновления",
-        warnings: parsed.warnings.length,
-      }),
-    );
-  }
-
-  const updatePrice = getString(formData, "updatePrice") === "on";
-  const updateStock = getString(formData, "updateStock") === "on";
-  const updateAvailability = getString(formData, "updateAvailability") === "on";
-  const zeroMissingAsOut = getString(formData, "zeroMissingAsOut") === "on";
-
-  if (!updatePrice && !updateStock && !updateAvailability) {
-    redirect(
-      getProductImportRedirect({
-        message: "Выберите хотя бы одно поле для обновления",
-        warnings: parsed.warnings.length,
-      }),
-    );
-  }
-
-  const db = getDb();
-  const existingProducts = await db.product.findMany({
-    select: { id: true, sku: true, name: true },
-  });
-  const productBySku = new Map(
-    existingProducts.map((product) => [
-      normalizeImportSkuKey(product.sku),
-      product,
-    ]),
-  );
-  const productsByName = new Map<string, typeof existingProducts>();
-  existingProducts.forEach((product) => {
-    const key = normalizeImportLookup(product.name);
-    const items = productsByName.get(key) ?? [];
-    items.push(product);
-    productsByName.set(key, items);
-  });
-  const productByUniqueName = new Map(
-    [...productsByName.entries()]
-      .filter(([, items]) => items.length === 1)
-      .map(([key, items]) => [key, items[0]]),
-  );
-
-  let updated = 0;
-  let skipped = 0;
-  let errors = 0;
-  let hiddenImportNotes = 0;
-  const importNotes: string[] = [];
-
-  for (const row of parsed.rows) {
-    try {
-      const skuKey = normalizeImportSkuKey(row.sku);
-      const product =
-        (skuKey ? productBySku.get(skuKey) : undefined) ??
-        (!skuKey && row.name
-          ? productByUniqueName.get(normalizeImportLookup(row.name))
-          : undefined);
-
-      if (!product) {
-        skipped += 1;
-        hiddenImportNotes += addImportNote(
-          importNotes,
-          `Строка ${row.rowNumber}: товар не найден по SKU${row.name ? " или названию" : ""}.`,
-        );
-        continue;
-      }
-
-      const updateData: Prisma.ProductUpdateInput = {};
-
-      if (updatePrice && row.price !== null) {
-        updateData.price = row.price;
-      }
-
-      if (updatePrice && row.compareAtPrice !== null) {
-        updateData.compareAtPrice = row.compareAtPrice;
-      }
-
-      if (updateStock && row.stockQuantity !== null) {
-        updateData.stockQuantity = row.stockQuantity;
-      }
-
-      if (updateAvailability) {
-        const nextInventoryStatus =
-          row.inventoryStatus ??
-          getInventoryStatusFromStock(row.stockQuantity, zeroMissingAsOut);
-
-        if (nextInventoryStatus) {
-          updateData.inventoryStatus = nextInventoryStatus;
-        }
-      }
-
-      if (Object.keys(updateData).length === 0) {
-        skipped += 1;
-        hiddenImportNotes += addImportNote(
-          importNotes,
-          `Строка ${row.rowNumber}: нет выбранных полей с данными для обновления.`,
-        );
-        continue;
-      }
-
-      await db.product.update({
-        where: { id: product.id },
-        data: updateData,
-      });
-      updated += 1;
-    } catch (error) {
-      errors += 1;
-      hiddenImportNotes += addImportNote(
-        importNotes,
-        `Строка ${row.rowNumber}: ошибка обновления.`,
-      );
-
-      console.error("[product-stock-import]", {
-        row: row.rowNumber,
-        error: error instanceof Error ? error.message : error,
-      });
-    }
-  }
-
-  revalidateAdminCatalog();
-  redirect(
-    getProductImportRedirect({
-      updated,
-      skipped,
-      errors,
-      warnings: parsed.warnings.length,
-      mapped: parsed.mappedColumns.length,
-      message:
-        getImportMessageWithNotes(importNotes, hiddenImportNotes) ??
-        "Цены и остатки обновлены",
-    }),
-  );
+  redirect("/admin/products#stock-import");
 }
 
 export async function bulkUpdateProductsAction(formData: FormData) {
@@ -2360,10 +2745,13 @@ export async function updateOrderAction(formData: FormData) {
     OrderStatus.NEW;
   const previousOrder = await getOrderInboxItemById(id);
 
-  await updateOrderInboxItem({
+  const statusUpdate = await updateOrderInboxItem({
     id,
     status: nextStatus,
-    managerId: getOptionalString(formData, "managerId"),
+    managerId: formData.has("managerId")
+      ? getOptionalString(formData, "managerId")
+      : undefined,
+    actorId: actor.userId,
   });
 
   const currentOrder = await getOrderInboxItemById(id);
@@ -2371,6 +2759,11 @@ export async function updateOrderAction(formData: FormData) {
     orderId: id,
     previousStatus: previousOrder?.status ?? null,
     nextStatus: currentOrder?.status ?? nextStatus,
+    actor,
+    result: statusUpdate?.loyaltyCancellation ?? null,
+  });
+  await reconcileOrderLoyaltyAccrual({
+    orderId: id,
     actor,
   });
 
@@ -2419,6 +2812,14 @@ export async function updateOrderDetailsAction(formData: FormData) {
   }
 
   const previousOrder = await getOrderInboxItemById(orderId);
+  const nextOrderComment = buildOrderCommentWithReceipt(
+    formData.has("comment")
+      ? getString(formData, "comment")
+      : removeOrderReceiptLine(previousOrder?.comment ?? null),
+    formData.has("receiptNumber")
+      ? getOptionalString(formData, "receiptNumber")
+      : getOrderReceiptNumberFromComment(previousOrder?.comment ?? null),
+  );
 
   await getDb().order.update({
     where: { id: orderId },
@@ -2427,10 +2828,7 @@ export async function updateOrderDetailsAction(formData: FormData) {
       contactPhone,
       contactEmail: getOptionalString(formData, "contactEmail"),
       companyName: getOptionalString(formData, "companyName"),
-      comment: buildOrderCommentWithReceipt(
-        getOptionalString(formData, "comment"),
-        getOptionalString(formData, "receiptNumber"),
-      ),
+      comment: nextOrderComment,
     },
   });
 
@@ -2491,8 +2889,15 @@ export async function updateOrderItemsAction(formData: FormData) {
 
   const previousOrder = await getOrderInboxItemById(orderId);
   const db = getDb();
+  const loyaltyConfig = await getLoyaltyProgramConfig();
 
   await db.$transaction(async (tx) => {
+    await tx.order.update({
+      where: { id: orderId },
+      data: { updatedAt: new Date() },
+      select: { id: true },
+    });
+
     const [order, currentItems, newProduct] = await Promise.all([
       tx.order.findUnique({
         where: { id: orderId },
@@ -2500,12 +2905,31 @@ export async function updateOrderItemsAction(formData: FormData) {
           promotionDiscountTotal: true,
           loyaltyRedemptionTotal: true,
           deliveryTotal: true,
+          inventoryReservedAt: true,
+          userId: true,
+          status: true,
+          appliedPromotion: {
+            select: {
+              id: true,
+              name: true,
+              status: true,
+              targetType: true,
+              discountType: true,
+              discountValue: true,
+              minOrderTotal: true,
+              startsAt: true,
+              endsAt: true,
+            },
+          },
         },
       }),
       tx.orderItem.findMany({
-        where: { orderId, id: { in: itemIds } },
+        where: { orderId },
         select: {
           id: true,
+          productId: true,
+          quantity: true,
+          snapshotName: true,
           discountAmount: true,
         },
       }),
@@ -2531,6 +2955,7 @@ export async function updateOrderItemsAction(formData: FormData) {
                 },
               },
               brand: { select: { name: true } },
+              category: { select: { kind: true } },
             },
           })
         : Promise.resolve(null),
@@ -2571,6 +2996,7 @@ export async function updateOrderItemsAction(formData: FormData) {
       return [
         {
           id: itemId,
+          productId: currentItem.productId,
           name,
           quantity,
           unitPrice,
@@ -2609,11 +3035,45 @@ export async function updateOrderItemsAction(formData: FormData) {
       : null;
     const newSnapshotName = newItemName ?? newProduct?.name ?? null;
 
-    if (newSnapshotName && (newProduct || newItemName)) {
-      const unitPrice = Math.max(
-        0,
-        newItemUnitPrice ?? newProductPrice ?? 0,
+    if (order.inventoryReservedAt) {
+      const submittedItemIds = new Set(itemIds);
+      const untouchedItems = currentItems.filter(
+        (item) => !submittedItemIds.has(item.id) && !removeItemIds.has(item.id),
       );
+
+      await adjustInventoryReservation(
+        tx,
+        currentItems.map((item) => ({
+          productId: item.productId,
+          quantity: item.quantity,
+          name: item.snapshotName,
+        })),
+        [
+          ...untouchedItems.map((item) => ({
+            productId: item.productId,
+            quantity: item.quantity,
+            name: item.snapshotName,
+          })),
+          ...nextItems.map((item) => ({
+            productId: item.productId,
+            quantity: item.quantity,
+            name: item.name,
+          })),
+          ...(newProduct && newSnapshotName
+            ? [
+                {
+                  productId: newProduct.id,
+                  quantity: newItemQuantity,
+                  name: newSnapshotName,
+                },
+              ]
+            : []),
+        ],
+      );
+    }
+
+    if (newSnapshotName && (newProduct || newItemName)) {
+      const unitPrice = Math.max(0, newItemUnitPrice ?? newProductPrice ?? 0);
 
       await tx.orderItem.create({
         data: {
@@ -2626,6 +3086,7 @@ export async function updateOrderItemsAction(formData: FormData) {
           snapshotName: newSnapshotName,
           snapshotSku: newProduct?.sku ?? null,
           snapshotBrand: newProduct?.brand?.name ?? null,
+          snapshotCategoryKind: newProduct?.category.kind ?? null,
         },
       });
     }
@@ -2633,25 +3094,178 @@ export async function updateOrderItemsAction(formData: FormData) {
     const finalItems = await tx.orderItem.findMany({
       where: { orderId },
       select: {
+        id: true,
         quantity: true,
         unitPrice: true,
         discountAmount: true,
+        total: true,
+        product: {
+          select: {
+            promotions: {
+              select: { promotion: { select: PROMOTION_PRICE_SELECT } },
+            },
+            category: {
+              select: {
+                promotions: {
+                  select: { promotion: { select: PROMOTION_PRICE_SELECT } },
+                },
+              },
+            },
+          },
+        },
       },
     });
+    const repricedItems = finalItems.map((item) => {
+      const lineSubtotal = item.unitPrice * item.quantity;
+      const promotionPrice = item.product
+        ? getProductPromotionPrice(
+            item.unitPrice,
+            item.product.promotions,
+            item.product.category.promotions,
+          )
+        : null;
+      const discountAmount = item.product
+        ? (promotionPrice?.unitDiscountAmount ?? 0) * item.quantity
+        : Math.min(item.discountAmount, lineSubtotal);
+
+      return {
+        ...item,
+        lineSubtotal,
+        discountAmount,
+        total: Math.max(0, lineSubtotal - discountAmount),
+      };
+    });
+
+    await Promise.all(
+      repricedItems
+        .filter(
+          (item) =>
+            item.discountAmount !==
+              finalItems.find((current) => current.id === item.id)
+                ?.discountAmount ||
+            item.total !==
+              finalItems.find((current) => current.id === item.id)?.total,
+        )
+        .map((item) =>
+          tx.orderItem.update({
+            where: { id: item.id },
+            data: {
+              discountAmount: item.discountAmount,
+              total: item.total,
+            },
+          }),
+        ),
+    );
     const subtotal = finalItems.reduce(
       (sum, item) => sum + item.unitPrice * item.quantity,
       0,
     );
-    const discountTotal = finalItems.reduce(
+    const linePromotionDiscountTotal = repricedItems.reduce(
       (sum, item) => sum + item.discountAmount,
       0,
     );
+    const subtotalAfterLinePromotions = Math.max(
+      0,
+      subtotal - linePromotionDiscountTotal,
+    );
+    const orderPromotionDiscountTotal =
+      order.appliedPromotion?.targetType === PromotionTargetType.ORDER &&
+      (!order.appliedPromotion.minOrderTotal ||
+        subtotalAfterLinePromotions >= order.appliedPromotion.minOrderTotal)
+        ? applyPromotion(subtotalAfterLinePromotions, order.appliedPromotion)
+            .discountAmount
+        : 0;
+    const promotionDiscountTotal =
+      linePromotionDiscountTotal + orderPromotionDiscountTotal;
+    const subtotalAfterPromotion = Math.max(
+      0,
+      subtotal - promotionDiscountTotal,
+    );
+    const loyaltyRedemptionTotal = Math.min(
+      order.loyaltyRedemptionTotal,
+      Math.floor(
+        (subtotalAfterPromotion * loyaltyConfig.maxRedeemPercent) / 100,
+      ),
+    );
+    const redemptionRefund =
+      order.loyaltyRedemptionTotal - loyaltyRedemptionTotal;
+
+    if (order.userId && redemptionRefund > 0) {
+      const redemptionTransactions = await tx.loyaltyTransaction.findMany({
+        where: {
+          orderId,
+          type: LoyaltyTransactionType.REDEMPTION,
+          status: {
+            in: [
+              LoyaltyTransactionStatus.APPROVED,
+              LoyaltyTransactionStatus.CANCELED,
+            ],
+          },
+        },
+        orderBy: { createdAt: "asc" },
+        select: { id: true, status: true },
+      });
+      const primaryRedemption = redemptionTransactions[0] ?? null;
+
+      if (
+        primaryRedemption?.status === LoyaltyTransactionStatus.APPROVED &&
+        order.status !== OrderStatus.CANCELED
+      ) {
+        const updatedUser = await tx.user.update({
+          where: { id: order.userId },
+          data: {
+            loyaltyPointsBalance: { increment: redemptionRefund },
+          },
+          select: { loyaltyPointsBalance: true },
+        });
+
+        if (loyaltyRedemptionTotal > 0) {
+          await tx.loyaltyTransaction.update({
+            where: { id: primaryRedemption.id },
+            data: {
+              points: -loyaltyRedemptionTotal,
+              balanceAfter: updatedUser.loyaltyPointsBalance,
+            },
+          });
+        } else {
+          await tx.loyaltyTransaction.update({
+            where: { id: primaryRedemption.id },
+            data: {
+              status: LoyaltyTransactionStatus.CANCELED,
+              points: 0,
+              balanceAfter: updatedUser.loyaltyPointsBalance,
+              canceledAt: new Date(),
+              canceledById: actor.userId,
+            },
+          });
+        }
+      } else if (primaryRedemption) {
+        await tx.loyaltyTransaction.update({
+          where: { id: primaryRedemption.id },
+          data: { points: -loyaltyRedemptionTotal },
+        });
+      }
+
+      const duplicateRedemptionIds = redemptionTransactions
+        .slice(1)
+        .map((transaction) => transaction.id);
+      if (duplicateRedemptionIds.length > 0) {
+        await tx.loyaltyTransaction.updateMany({
+          where: { id: { in: duplicateRedemptionIds } },
+          data: {
+            status: LoyaltyTransactionStatus.CANCELED,
+            canceledAt: new Date(),
+            canceledById: actor.userId,
+          },
+        });
+      }
+    }
+
     const total = Math.max(
       0,
       subtotal -
-        discountTotal -
-        order.promotionDiscountTotal -
-        order.loyaltyRedemptionTotal +
+        promotionDiscountTotal -
+        loyaltyRedemptionTotal +
         order.deliveryTotal,
     );
 
@@ -2659,10 +3273,17 @@ export async function updateOrderItemsAction(formData: FormData) {
       where: { id: orderId },
       data: {
         subtotal,
-        discountTotal,
+        discountTotal: promotionDiscountTotal,
+        promotionDiscountTotal,
+        loyaltyRedemptionTotal,
         total,
       },
     });
+  });
+
+  await reconcileOrderLoyaltyAccrual({
+    orderId,
+    actor,
   });
 
   await logOperationEvent({
@@ -2710,13 +3331,19 @@ export async function deleteOrderAction(formData: FormData) {
   const db = getDb();
 
   await db.$transaction(async (tx) => {
+    await tx.order.update({
+      where: { id: orderId },
+      data: { updatedAt: new Date() },
+      select: { id: true },
+    });
+
     const order = await tx.order.findUnique({
       where: { id: orderId },
-      select: {
-        userId: true,
+      include: {
+        items: true,
+        managerNotes: true,
         loyaltyTransactions: {
-          where: { status: LoyaltyTransactionStatus.APPROVED },
-          select: { points: true },
+          orderBy: { createdAt: "asc" },
         },
       },
     });
@@ -2725,44 +3352,48 @@ export async function deleteOrderAction(formData: FormData) {
       return;
     }
 
-    if (order.userId && order.loyaltyTransactions.length > 0) {
-      const balanceDelta = order.loyaltyTransactions.reduce(
+    const approvedLoyaltyTransactions = order.loyaltyTransactions.filter(
+      (transaction) => transaction.status === LoyaltyTransactionStatus.APPROVED,
+    );
+
+    if (order.userId && approvedLoyaltyTransactions.length > 0) {
+      const balanceDelta = approvedLoyaltyTransactions.reduce(
         (sum, transaction) => sum + transaction.points,
         0,
       );
-      const lifetimeDelta = order.loyaltyTransactions.reduce(
+      const lifetimeDelta = approvedLoyaltyTransactions.reduce(
         (sum, transaction) =>
           transaction.points > 0 ? sum + transaction.points : sum,
         0,
       );
-      const customer = await tx.user.findUnique({
+      await tx.user.update({
         where: { id: order.userId },
-        select: {
-          loyaltyPointsBalance: true,
-          loyaltyPointsLifetime: true,
+        data: {
+          loyaltyPointsBalance: { increment: -balanceDelta },
+          loyaltyPointsLifetime: { increment: -lifetimeDelta },
         },
       });
-
-      if (customer) {
-        const nextBalance = Math.max(
-          0,
-          customer.loyaltyPointsBalance - balanceDelta,
-        );
-        const nextLifetime = Math.max(
-          0,
-          customer.loyaltyPointsLifetime - lifetimeDelta,
-        );
-
-        await tx.user.update({
-          where: { id: order.userId },
-          data: {
-            loyaltyPointsBalance: nextBalance,
-            loyaltyPointsLifetime: nextLifetime,
-          },
-        });
-      }
     }
 
+    const operationEvents = await tx.operationEvent.findMany({
+      where: { entityType: "order", entityId: orderId },
+      orderBy: { createdAt: "asc" },
+    });
+    const snapshot = JSON.parse(
+      JSON.stringify({ order, operationEvents }),
+    ) as Prisma.InputJsonValue;
+
+    await tx.deletedOrderAudit.create({
+      data: {
+        orderId: order.id,
+        orderNumber: order.number,
+        deletedById: actor.userId,
+        deletedByEmail: actor.email,
+        snapshot,
+      },
+    });
+
+    await syncOrderInventoryReservation(tx, orderId, false);
     await tx.loyaltyTransaction.deleteMany({ where: { orderId } });
     await tx.operationEvent.deleteMany({
       where: { entityType: "order", entityId: orderId },
@@ -2822,11 +3453,12 @@ export async function updateOrderFulfillmentAction(formData: FormData) {
   const nextStatus =
     Object.values(OrderStatus).find((item) => item === status) ?? null;
 
-  await updateOrderFulfillment({
+  const fulfillmentUpdate = await updateOrderFulfillment({
     orderId,
     productionDueAt: getOptionalDate(formData, "productionDueAt"),
     fulfillmentComment: getOptionalString(formData, "fulfillmentComment"),
     status: nextStatus,
+    actorId: actor.userId,
   });
 
   const currentOrder = await getOrderInboxItemById(orderId);
@@ -2835,6 +3467,11 @@ export async function updateOrderFulfillmentAction(formData: FormData) {
       orderId,
       previousStatus: previousOrder?.status ?? null,
       nextStatus: currentOrder.status,
+      actor,
+      result: fulfillmentUpdate?.loyaltyCancellation ?? null,
+    });
+    await reconcileOrderLoyaltyAccrual({
+      orderId,
       actor,
     });
   }
@@ -2907,12 +3544,25 @@ export async function bulkUpdateOrdersAction(formData: FormData) {
       } satisfies TransitionSnapshot,
     ]),
   );
+  let loyaltyCancellations = new Map<string, OrderLoyaltyCancellationResult>();
 
   switch (bulkAction) {
+    case "reserve":
+      await bulkUpdateOrderInboxItems({
+        orderIds,
+        status: OrderStatus.RESERVED,
+      });
+      break;
     case "confirm":
       await bulkUpdateOrderInboxItems({
         orderIds,
         status: OrderStatus.CONFIRMED,
+      });
+      break;
+    case "mark-paid":
+      await bulkUpdateOrderInboxItems({
+        orderIds,
+        status: OrderStatus.PAID,
       });
       break;
     case "to-production":
@@ -2940,10 +3590,12 @@ export async function bulkUpdateOrdersAction(formData: FormData) {
       });
       break;
     case "cancel":
-      await bulkUpdateOrderInboxItems({
-        orderIds,
-        status: OrderStatus.CANCELED,
-      });
+      loyaltyCancellations =
+        (await bulkUpdateOrderInboxItems({
+          orderIds,
+          status: OrderStatus.CANCELED,
+          actorId: actor.userId,
+        })) ?? loyaltyCancellations;
       break;
     case "assign-manager":
       if (!managerId) {
@@ -2975,6 +3627,11 @@ export async function bulkUpdateOrdersAction(formData: FormData) {
           orderId,
           previousStatus: previous?.previousStatus as OrderStatus | undefined,
           nextStatus: currentOrder.status,
+          actor,
+          result: loyaltyCancellations.get(orderId) ?? null,
+        });
+        await reconcileOrderLoyaltyAccrual({
+          orderId,
           actor,
         });
       }
@@ -3025,6 +3682,9 @@ export async function createOrderFromRequestAction(formData: FormData) {
   }
 
   const createdOrder = await createOrderFromRequest(request);
+  const convertedTotal = request.type === RequestType.CUTTING_SERVICE
+    ? (request.quotedTotal ?? request.estimatedBudget ?? 0)
+    : (request.estimatedBudget ?? 0);
 
   await updateRequestInboxItem({
     id: requestId,
@@ -3070,8 +3730,8 @@ export async function createOrderFromRequestAction(formData: FormData) {
     deliveryMethod: request.deliveryNeeded
       ? "Требует уточнения"
       : "Самовывоз / уточнить",
-    total: request.estimatedBudget ?? 0,
-    subtotal: request.estimatedBudget ?? 0,
+    total: convertedTotal,
+    subtotal: convertedTotal,
     discountTotal: 0,
     deliveryTotal: 0,
     createdAt: new Date().toISOString(),
@@ -3082,8 +3742,8 @@ export async function createOrderFromRequestAction(formData: FormData) {
         sku: request.product?.sku ?? request.number ?? null,
         brand: request.material ?? null,
         quantity: 1,
-        unitPrice: request.estimatedBudget ?? 0,
-        total: request.estimatedBudget ?? 0,
+        unitPrice: convertedTotal,
+        total: convertedTotal,
       },
     ],
   });
@@ -3097,14 +3757,14 @@ export async function createOrderFromRequestAction(formData: FormData) {
 }
 
 export async function updateRequestAction(formData: FormData) {
-  const actor = await ensureAdminAccess();
-
   const id = getString(formData, "id");
   const status = getString(formData, "status");
 
   if (!id || !status) {
     return;
   }
+
+  const actor = await ensureRequestAdminAccess(id);
 
   const previousRequest = await getRequestInboxItemById(id);
 
@@ -3148,9 +3808,92 @@ export async function updateRequestAction(formData: FormData) {
   revalidateAdminOperations();
 }
 
-export async function addRequestManagerNoteAction(formData: FormData) {
+export async function deleteRequestAction(formData: FormData) {
   const actor = await ensureAdminAccess();
 
+  if (!canDeleteRequests(actor.roleCode)) {
+    return;
+  }
+
+  const requestId = getString(formData, "requestId");
+  const confirmation = getString(formData, "confirmDeleteRequest");
+  const requestedReturnTo = getString(formData, "returnTo");
+  const allowedReturnPaths = new Set([
+    "/admin/requests",
+    "/admin/cutting",
+    "/admin/production",
+  ]);
+  const returnTo = allowedReturnPaths.has(requestedReturnTo)
+    ? requestedReturnTo
+    : "/admin/requests";
+
+  if (!requestId || confirmation !== "DELETE") {
+    return;
+  }
+
+  if (!hasDatabaseUrl()) {
+    await deleteDemoRequestInboxItem(requestId);
+    revalidateAdminOperations();
+    redirect(returnTo);
+  }
+
+  const db = getDb();
+
+  await db.$transaction(async (tx) => {
+    await tx.request.update({
+      where: { id: requestId },
+      data: { updatedAt: new Date() },
+      select: { id: true },
+    });
+
+    const request = await tx.request.findUnique({
+      where: { id: requestId },
+      include: {
+        files: true,
+        managerNotes: true,
+        linkedOrders: {
+          select: {
+            id: true,
+            number: true,
+            status: true,
+          },
+        },
+      },
+    });
+
+    if (!request) {
+      return;
+    }
+
+    const operationEvents = await tx.operationEvent.findMany({
+      where: { entityType: "request", entityId: requestId },
+      orderBy: { createdAt: "asc" },
+    });
+    const snapshot = JSON.parse(
+      JSON.stringify({ request, operationEvents }),
+    ) as Prisma.InputJsonValue;
+
+    await tx.deletedRequestAudit.create({
+      data: {
+        requestId: request.id,
+        requestNumber: request.number,
+        deletedById: actor.userId,
+        deletedByEmail: actor.email,
+        snapshot,
+      },
+    });
+
+    await tx.operationEvent.deleteMany({
+      where: { entityType: "request", entityId: requestId },
+    });
+    await tx.request.delete({ where: { id: requestId } });
+  });
+
+  revalidateAdminOperations();
+  redirect(returnTo);
+}
+
+export async function addRequestManagerNoteAction(formData: FormData) {
   const requestId = getString(formData, "requestId");
   const body = getString(formData, "body");
   const isVisibleToClient = getString(formData, "isVisibleToClient") === "on";
@@ -3158,6 +3901,8 @@ export async function addRequestManagerNoteAction(formData: FormData) {
   if (!requestId || !body) {
     return;
   }
+
+  const actor = await ensureRequestAdminAccess(requestId);
 
   await addRequestManagerNote({
     requestId,
@@ -3182,14 +3927,14 @@ export async function addRequestManagerNoteAction(formData: FormData) {
 }
 
 export async function updateRequestProductionResultAction(formData: FormData) {
-  const actor = await ensureAdminAccess();
-
   const requestId = getString(formData, "requestId");
   const status = getString(formData, "status");
 
   if (!requestId) {
     return;
   }
+
+  const actor = await ensureRequestAdminAccess(requestId);
 
   const previousRequest = await getRequestInboxItemById(requestId);
   const nextStatus =
@@ -3249,15 +3994,511 @@ export async function updateRequestProductionResultAction(formData: FormData) {
   revalidateAdminOperations();
 }
 
-export async function uploadRequestResultFilesAction(formData: FormData) {
-  const actor = await ensureAdminAccess();
+export type AdminCuttingRequestFormState = {
+  message?: string;
+};
 
+function formatAdminCuttingDeadline(value: string | null) {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = new Date(`${value}T12:00:00`);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  return new Intl.DateTimeFormat("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(parsed);
+}
+
+export async function createAdminCuttingRequestAction(
+  _previousState: AdminCuttingRequestFormState,
+  formData: FormData,
+): Promise<AdminCuttingRequestFormState> {
+  const actor = await ensureCuttingAdminAccess();
+  const customerId = getOptionalString(formData, "customerId");
+  const material = getString(formData, "material");
+  const cuttingSheetCount = getOptionalInt(formData, "cuttingSheetCount");
+  const cuttingEdgeMeters = getOptionalFloat(formData, "cuttingEdgeMeters");
+  const edgeOption = getOptionalString(formData, "edgeOption")?.slice(0, 240);
+  const deadlineValue = getOptionalString(formData, "deadline");
+  const deadline = formatAdminCuttingDeadline(deadlineValue);
+  const comment = getOptionalString(formData, "comment");
+  const files = getFileList(formData, "files");
+
+  if (material.length < 2) {
+    return { message: "Укажите материал для распила." };
+  }
+
+  if (
+    cuttingSheetCount !== null &&
+    (cuttingSheetCount < 1 || cuttingSheetCount > 10000)
+  ) {
+    return { message: "Количество листов должно быть от 1 до 10 000." };
+  }
+
+  if (
+    cuttingEdgeMeters !== null &&
+    (cuttingEdgeMeters < 0 || cuttingEdgeMeters > 100000)
+  ) {
+    return { message: "Метраж кромки должен быть от 0,1 до 100 000 м." };
+  }
+
+  if (deadlineValue && !deadline) {
+    return { message: "Проверьте дату готовности." };
+  }
+
+  const unsupportedFile = files.find(
+    (file) => !isAllowedRequestFile(file.name),
+  );
+
+  if (unsupportedFile) {
+    return {
+      message: `Формат файла ${unsupportedFile.name} не поддерживается.`,
+    };
+  }
+
+  let linkedCustomer: {
+    id: string;
+    email: string;
+    firstName: string | null;
+    lastName: string | null;
+    phone: string | null;
+    companyName: string | null;
+  } | null = null;
+
+  if (customerId) {
+    if (!hasDatabaseUrl()) {
+      return { message: "Поиск клиентов недоступен без базы данных." };
+    }
+
+    linkedCustomer = await getDb().user.findFirst({
+      where: {
+        id: customerId,
+        isActive: true,
+        role: {
+          code: {
+            in: [RoleCode.CUSTOMER, RoleCode.DEALER],
+          },
+        },
+      },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        companyName: true,
+      },
+    });
+
+    if (!linkedCustomer) {
+      return { message: "Выбранный клиент не найден или отключен." };
+    }
+  }
+
+  const customerDisplayName = linkedCustomer
+    ? [linkedCustomer.firstName, linkedCustomer.lastName]
+        .filter(Boolean)
+        .join(" ") ||
+      linkedCustomer.companyName ||
+      linkedCustomer.email
+    : "";
+  const contactName = getString(formData, "contactName") || customerDisplayName;
+  const contactPhone =
+    getString(formData, "contactPhone") || linkedCustomer?.phone || "";
+  const contactEmail =
+    getOptionalString(formData, "contactEmail") ??
+    linkedCustomer?.email ??
+    null;
+
+  if (contactName.length < 2) {
+    return { message: "Укажите имя клиента." };
+  }
+
+  if (contactPhone.replace(/\D/g, "").length < 5) {
+    return { message: "Укажите телефон клиента." };
+  }
+
+  if (contactEmail && !/^\S+@\S+\.\S+$/.test(contactEmail)) {
+    return { message: "Проверьте email клиента." };
+  }
+
+  const requestMessage = [
+    "Создано менеджером в админке.",
+    deadline ? `Плановая готовность: ${deadline}.` : "",
+    files.length > 0
+      ? `Исходных файлов: ${files.length}.`
+      : "Исходные файлы не приложены. Их можно добавить позже.",
+    comment ? "" : null,
+    comment ? "Комментарий:" : null,
+    comment,
+  ]
+    .filter((value): value is string => typeof value === "string")
+    .join("\n");
+  const actorName =
+    [actor.firstName, actor.lastName].filter(Boolean).join(" ") || actor.email;
+
+  let createdRequest: Awaited<ReturnType<typeof createCuttingRequest>>;
+
+  try {
+    createdRequest = await createCuttingRequest(
+      {
+        subject: `Распил: ${material}`,
+        message: requestMessage,
+        contactName,
+        contactPhone,
+        contactEmail,
+        material,
+        cuttingSheetCount,
+        cuttingEdgeMeters,
+        edgeOption,
+        estimatedBudget: null,
+        userId: linkedCustomer?.id ?? null,
+        uploadedFiles: files,
+      },
+      {
+        skipDuplicateCheck: true,
+        status: RequestStatus.IN_PROGRESS,
+        cuttingStage: CuttingStage.ACCEPTED,
+        managerId: actor.userId,
+        filesVisibleToClient: Boolean(linkedCustomer),
+        uploadedByUserId: actor.userId,
+        uploadedByName: actorName,
+      },
+    );
+
+    await Promise.all([
+      logOperationEvent({
+        entityType: "request",
+        entityId: createdRequest.id,
+        eventType: "created",
+        title: `Распил ${createdRequest.number ?? createdRequest.id} создан`,
+        description:
+          files.length > 0
+            ? `Менеджер прикрепил исходных файлов: ${files.length}.`
+            : "Распил создан без исходных файлов.",
+        toStatus: RequestStatus.IN_PROGRESS,
+        isVisibleToClient: Boolean(linkedCustomer),
+        actor,
+      }),
+      handleCuttingRequestCreated({
+        id: createdRequest.id,
+        userId: linkedCustomer?.id ?? null,
+        number: createdRequest.number,
+        requestType: RequestType.CUTTING_SERVICE,
+        subject: `Распил: ${material}`,
+        status: RequestStatus.IN_PROGRESS,
+        contactName,
+        contactPhone,
+        contactEmail,
+        material,
+        cuttingSheetCount,
+        cuttingEdgeMeters,
+        edgeOption,
+        estimatedBudget: null,
+        deliveryNeeded: false,
+        message: requestMessage,
+        createdAt: new Date().toISOString(),
+        manager: {
+          firstName: actor.firstName,
+          lastName: actor.lastName,
+          email: actor.email,
+        },
+        cuttingStage: CuttingStage.ACCEPTED,
+      }),
+    ]);
+  } catch (error) {
+    console.error("Admin cutting request was not created", error);
+    return {
+      message:
+        "Не удалось создать распил. Проверьте данные и попробуйте еще раз.",
+    };
+  }
+
+  revalidateAdminOperations();
+  revalidatePath(`/admin/requests/${createdRequest.id}`);
+  redirect(`/admin/requests/${createdRequest.id}`);
+}
+
+export async function updateRequestCuttingDetailsAction(formData: FormData) {
+  const requestId = getString(formData, "requestId");
+
+  if (!requestId) {
+    return;
+  }
+
+  const actor = await ensureRequestAdminAccess(requestId);
+  const request = await getRequestInboxItemById(requestId);
+
+  if (!request || request.type !== RequestType.CUTTING_SERVICE) {
+    return;
+  }
+
+  const material = getString(formData, "material").slice(0, 500);
+  const cuttingSheetCount = getOptionalInt(formData, "cuttingSheetCount");
+  const cuttingEdgeMeters = getOptionalFloat(formData, "cuttingEdgeMeters");
+  const edgeOption =
+    getOptionalString(formData, "edgeOption")?.slice(0, 240) ?? null;
+
+  if (
+    material.length < 2 ||
+    (cuttingSheetCount !== null &&
+      (cuttingSheetCount < 1 || cuttingSheetCount > 10000)) ||
+    (cuttingEdgeMeters !== null &&
+      (cuttingEdgeMeters < 0 || cuttingEdgeMeters > 100000))
+  ) {
+    return;
+  }
+
+  await updateRequestCuttingDetails({
+    id: requestId,
+    material,
+    cuttingSheetCount,
+    cuttingEdgeMeters,
+    edgeOption,
+  });
+
+  await logOperationEvent({
+    entityType: "request",
+    entityId: requestId,
+    eventType: "production_result",
+    title: "Материалы распила обновлены",
+    description: [
+      `Материал: ${material}.`,
+      cuttingSheetCount !== null
+        ? `Листов: ${cuttingSheetCount}.`
+        : "Количество листов не указано.",
+      cuttingEdgeMeters !== null
+        ? `Кромка: ${cuttingEdgeMeters.toLocaleString("ru-RU", { maximumFractionDigits: 2 })} м.`
+        : "Метраж кромки не указан.",
+      edgeOption ? `Кромка: ${edgeOption}.` : "Кромка не указана.",
+    ].join(" "),
+    isVisibleToClient: true,
+    actor,
+  });
+
+  await syncRequestById(requestId);
+
+  revalidateAdminOperations();
+  revalidatePath(`/admin/requests/${requestId}`);
+  revalidatePath(`/admin/requests/${requestId}/route-sheet`);
+}
+
+type CuttingProgressMutationInput = {
+  requestId: string;
+  stage: CuttingStage;
+  pickupCell?: string | null;
+  note?: string | null;
+  expectedStage?: CuttingStage | null;
+  actor: Awaited<ReturnType<typeof ensureCuttingAdminAccess>>;
+};
+
+async function applyRequestCuttingProgress(
+  input: CuttingProgressMutationInput,
+) {
+  const previousRequest = await getRequestInboxItemById(input.requestId);
+
+  if (
+    !previousRequest ||
+    previousRequest.type !== RequestType.CUTTING_SERVICE
+  ) {
+    return "missing" as const;
+  }
+
+  const updateInput = {
+    requestId: input.requestId,
+    stage: input.stage,
+    pickupCell: input.pickupCell,
+    ...(Object.prototype.hasOwnProperty.call(input, "expectedStage")
+      ? { expectedStage: input.expectedStage }
+      : {}),
+  };
+  const updated = await updateRequestCuttingProgress(updateInput);
+
+  if (!updated) {
+    return "conflict" as const;
+  }
+
+  const currentRequest = await getRequestInboxItemById(input.requestId);
+
+  if (!currentRequest) {
+    return "missing" as const;
+  }
+
+  const stageChanged =
+    previousRequest.cuttingStage !== currentRequest.cuttingStage;
+  const pickupCellChanged =
+    previousRequest.cuttingPickupCell !== currentRequest.cuttingPickupCell;
+  const statusChanged = previousRequest.status !== currentRequest.status;
+  const progressDescription = [
+    currentRequest.cuttingStage === CuttingStage.READY_FOR_PICKUP
+      ? currentRequest.cuttingPickupCell
+        ? `Ячейка выдачи: № ${currentRequest.cuttingPickupCell}.`
+        : "Ячейка выдачи пока не указана."
+      : null,
+    input.note,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  await Promise.all([
+    stageChanged || pickupCellChanged || input.note
+      ? logOperationEvent({
+          entityType: "request",
+          entityId: input.requestId,
+          eventType: "cutting_stage",
+          title: `Распил: ${cuttingStageLabels[currentRequest.cuttingStage ?? input.stage]}`,
+          description: progressDescription || null,
+          fromStatus: previousRequest.cuttingStage,
+          toStatus: currentRequest.cuttingStage,
+          isVisibleToClient: true,
+          actor: input.actor,
+        })
+      : Promise.resolve(),
+    statusChanged
+      ? logRequestTransition({
+          requestId: input.requestId,
+          previous: {
+            status: previousRequest.status,
+            manager: previousRequest.manager,
+          },
+          current: {
+            status: currentRequest.status,
+            manager: currentRequest.manager,
+          },
+          actor: input.actor,
+        })
+      : Promise.resolve(),
+  ]);
+
+  if (stageChanged || pickupCellChanged || statusChanged) {
+    await syncRequestById(input.requestId, {
+      previousStatus: previousRequest.status,
+      previousManager: previousRequest.manager,
+      previousCuttingStage: previousRequest.cuttingStage,
+      previousCuttingPickupCell: previousRequest.cuttingPickupCell,
+      cuttingStageNote: input.note,
+    });
+  }
+
+  revalidateAdminOperations();
+  revalidatePath(`/admin/requests/${input.requestId}`);
+  revalidatePath(`/admin/production/${input.requestId}`);
+
+  return "updated" as const;
+}
+
+export async function updateRequestCuttingProgressAction(formData: FormData) {
+  const requestId = getString(formData, "requestId");
+  const stageValue = getString(formData, "cuttingStage");
+  const stage =
+    Object.values(CuttingStage).find((item) => item === stageValue) ?? null;
+
+  if (!requestId || !stage) {
+    return;
+  }
+
+  const actor = await ensureRequestAdminAccess(requestId);
+
+  await applyRequestCuttingProgress({
+    requestId,
+    stage,
+    pickupCell: getOptionalString(formData, "cuttingPickupCell"),
+    note: getOptionalString(formData, "cuttingStageNote"),
+    actor,
+  });
+}
+
+function productionActionReturn(formData: FormData, requestId: string, notice: string) {
+  const params = new URLSearchParams({ notice, returnTo: safeProductionReturn(getString(formData, "returnTo")) });
+  return `/admin/production/${encodeURIComponent(requestId)}?${params}`;
+}
+
+export async function advanceProductionStageAction(formData: FormData) {
+  const requestId = getString(formData, "requestId");
+
+  if (!requestId) {
+    redirect("/admin/production?notice=request-missing");
+  }
+
+  const actor = await ensureProductionAdminAccess(requestId);
+
+  if (!isProductionOperator(actor.roleCode) || !actor.productionStation) {
+    redirect(productionActionReturn(formData, requestId, "action-forbidden"));
+  }
+
+  const request = await getRequestInboxItemById(requestId);
+  const transition = request
+    ? getProductionTransition(actor.productionStation, request.cuttingStage)
+    : null;
+
+  if (!request || !transition) {
+    redirect(productionActionReturn(formData, requestId, "stage-conflict"));
+  }
+
+  const pickupCell = getOptionalString(formData, "cuttingPickupCell");
+
+  if (transition.requiresPickupCell && !pickupCell) {
+    redirect(productionActionReturn(formData, requestId, "pickup-cell-required"));
+  }
+
+  const result = await applyRequestCuttingProgress({
+    requestId,
+    stage: transition.to,
+    pickupCell,
+    note: getOptionalString(formData, "cuttingStageNote"),
+    expectedStage: request.cuttingStage,
+    actor,
+  });
+
+  redirect(
+    productionActionReturn(formData, requestId, result === "updated" ? "stage-updated" : "stage-conflict"),
+  );
+}
+
+export async function setProductionStageAction(formData: FormData) {
+  const requestId = getString(formData, "requestId");
+  const stageValue = getString(formData, "cuttingStage");
+  const stage = Object.values(CuttingStage).find((item) => item === stageValue);
+
+  if (!requestId || !stage) {
+    redirect("/admin/production?notice=request-missing");
+  }
+
+  const actor = await ensureProductionAdminAccess(requestId);
+
+  if (!canManageProduction(actor.roleCode)) {
+    redirect(productionActionReturn(formData, requestId, "action-forbidden"));
+  }
+
+  const result = await applyRequestCuttingProgress({
+    requestId,
+    stage,
+    pickupCell: getOptionalString(formData, "cuttingPickupCell"),
+    note: getOptionalString(formData, "cuttingStageNote"),
+    actor,
+  });
+
+  redirect(
+    productionActionReturn(formData, requestId, result === "updated" ? "stage-updated" : "request-missing"),
+  );
+}
+
+export async function uploadRequestResultFilesAction(formData: FormData) {
   const requestId = getString(formData, "requestId");
   const files = getFileList(formData, "files");
 
   if (!requestId || files.length === 0) {
     return;
   }
+
+  const actor = await ensureRequestAdminAccess(requestId);
 
   const savedFilesCount = await addRequestResultFiles({
     requestId,
@@ -3402,8 +4643,10 @@ export async function createSalesFloorOrderAction(formData: FormData) {
 
   const actor = await ensureAdminAccess();
   const customerId = getString(formData, "customerId");
-  const productIds = getStringList(formData, "productId");
+  const productIds = formData.getAll("productId").map((value) => typeof value === "string" ? value.trim() : "");
   const quantities = formData.getAll("quantity");
+  const invoicePrices = formData.getAll("itemUnitPrice");
+  const invoiceReference = getOptionalString(formData, "invoiceReference")?.slice(0, 500);
   const receiptNumber = getOptionalString(formData, "receiptNumber");
   const managerComment = getOptionalString(formData, "comment");
   const accrueLoyalty = getString(formData, "accrueLoyalty") === "on";
@@ -3413,22 +4656,12 @@ export async function createSalesFloorOrderAction(formData: FormData) {
     redirect("/admin/sales-floor?error=empty");
   }
 
-  const requestedItems = productIds
-    .map((productId, index) => {
-      const rawQuantity = quantities[index];
-      const parsedQuantity =
-        typeof rawQuantity === "string"
-          ? Number.parseInt(rawQuantity, 10)
-          : Number.NaN;
-
-      return {
-        productId,
-        quantity: Number.isFinite(parsedQuantity)
-          ? Math.max(1, Math.min(999, parsedQuantity))
-          : 1,
-      };
-    })
-    .filter((item) => item.productId);
+  let requestedItems: ReturnType<typeof parseSalesItemInputs>;
+  try {
+    requestedItems = parseSalesItemInputs(productIds, quantities, invoicePrices);
+  } catch {
+    redirect("/admin/sales-floor?error=invoice-values");
+  }
 
   if (requestedItems.length === 0) {
     redirect("/admin/sales-floor?error=empty");
@@ -3458,6 +4691,8 @@ export async function createSalesFloorOrderAction(formData: FormData) {
         phone: true,
         companyName: true,
         loyaltyTier: true,
+        plateMaterialLoyaltyTier: true,
+        fittingsLoyaltyTier: true,
         loyaltyPointsBalance: true,
         loyaltyPointsLifetime: true,
         personalDiscountPercent: true,
@@ -3466,12 +4701,16 @@ export async function createSalesFloorOrderAction(formData: FormData) {
     db.product.findMany({
       where: {
         id: { in: uniqueProductIds },
+        status: ProductStatus.ACTIVE,
       },
       select: {
         id: true,
         name: true,
         sku: true,
         price: true,
+        promotions: {
+          select: { promotion: { select: PROMOTION_PRICE_SELECT } },
+        },
         bundleItems: {
           select: {
             quantity: true,
@@ -3483,7 +4722,14 @@ export async function createSalesFloorOrderAction(formData: FormData) {
           },
         },
         brand: { select: { name: true } },
-        category: { select: { kind: true } },
+        category: {
+          select: {
+            kind: true,
+            promotions: {
+              select: { promotion: { select: PROMOTION_PRICE_SELECT } },
+            },
+          },
+        },
       },
     }),
   ]);
@@ -3497,14 +4743,25 @@ export async function createSalesFloorOrderAction(formData: FormData) {
   const discountPercent = 0;
   const orderItems = requestedItems.flatMap((requestedItem) => {
     const product = productMap.get(requestedItem.productId);
-    const unitPrice = product ? (getEffectiveProductPrice(product) ?? 0) : null;
+    const unitPrice = requestedItem.invoicePrice ?? (product ? (getEffectiveProductPrice(product) ?? 0) : null);
 
     if (!product || typeof unitPrice !== "number") {
       return [];
     }
 
     const lineSubtotal = unitPrice * requestedItem.quantity;
-    const discountAmount = Math.round((lineSubtotal * discountPercent) / 100);
+    const promotionPrice = getProductPromotionPrice(
+      unitPrice,
+      product.promotions,
+      product.category.promotions,
+    );
+    // Invoice prices are the agreed final unit prices, not catalog prices to discount again.
+    const promotionDiscountAmount = requestedItem.invoicePrice !== null ? 0 :
+      promotionPrice.unitDiscountAmount * requestedItem.quantity;
+    const personalDiscountAmount = Math.round(
+      ((lineSubtotal - promotionDiscountAmount) * discountPercent) / 100,
+    );
+    const discountAmount = promotionDiscountAmount + personalDiscountAmount;
     const total = Math.max(0, lineSubtotal - discountAmount);
 
     return [
@@ -3522,7 +4779,7 @@ export async function createSalesFloorOrderAction(formData: FormData) {
     ];
   });
 
-  if (orderItems.length === 0) {
+  if (orderItems.length !== requestedItems.length) {
     redirect("/admin/sales-floor?error=not-found");
   }
 
@@ -3530,6 +4787,7 @@ export async function createSalesFloorOrderAction(formData: FormData) {
     (sum, item) => sum + item.unitPrice * item.quantity,
     0,
   );
+  if (!Number.isSafeInteger(subtotal) || subtotal > MAX_SALE_AMOUNT) redirect("/admin/sales-floor?error=invoice-values");
   const discountTotal = orderItems.reduce(
     (sum, item) => sum + item.discountAmount,
     0,
@@ -3552,7 +4810,7 @@ export async function createSalesFloorOrderAction(formData: FormData) {
           total: item.total * accrualRatio,
           categoryKind: item.categoryKind,
         })),
-        customer.loyaltyTier,
+        customer,
         loyaltyConfig,
       )
     : 0;
@@ -3562,8 +4820,8 @@ export async function createSalesFloorOrderAction(formData: FormData) {
     customer.email;
   const commentParts = [
     "Продажа в зале",
+    invoiceReference ? `Накладная: ${invoiceReference}` : "",
     receiptNumber ? `Кассовый чек: ${receiptNumber}` : "",
-    discountPercent > 0 ? `Скидка клиента: ${discountPercent}%` : "",
     loyaltyRedemptionTotal > 0
       ? `Списано бонусов: ${loyaltyRedemptionTotal}`
       : "",
@@ -3572,95 +4830,100 @@ export async function createSalesFloorOrderAction(formData: FormData) {
   ].filter(Boolean);
   const orderNumber = buildAdminOrderNumber("H");
 
-  const createdOrder = await db.$transaction(async (tx) => {
-    const order = await tx.order.create({
-      data: {
-        number: orderNumber,
-        userId: customer.id,
-        managerId: actor.userId,
-        status: OrderStatus.NEW,
-        contactName: customerName,
-        contactPhone: customer.phone ?? "",
-        contactEmail: customer.email,
-        companyName: customer.companyName,
-        comment: commentParts.join("\n"),
-        subtotal,
-        discountTotal,
-        loyaltyRedemptionTotal,
-        total,
-        items: {
-          create: orderItems.map((item) => ({
-            productId: item.productId,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            discountAmount: item.discountAmount,
-            total: item.total,
-            snapshotName: item.snapshotName,
-            snapshotSku: item.snapshotSku,
-            snapshotBrand: item.snapshotBrand,
-          })),
-        },
-      },
-      select: {
-        id: true,
-        number: true,
-        createdAt: true,
-      },
-    });
+  let createdOrder: {
+    id: string;
+    number: string | null;
+    createdAt: Date;
+  };
 
-    if (awardedPoints > 0 || loyaltyRedemptionTotal > 0) {
-      const balanceAfterRedemption = Math.max(
-        0,
-        customer.loyaltyPointsBalance - loyaltyRedemptionTotal,
+  try {
+    createdOrder = await db.$transaction(async (tx) => {
+      await reserveInventoryItems(
+        tx,
+        orderItems.map((item) => ({
+          productId: item.productId,
+          quantity: item.quantity,
+          name: item.snapshotName,
+        })),
       );
-      const nextBalance = balanceAfterRedemption + awardedPoints;
-      const nextLifetime = customer.loyaltyPointsLifetime + awardedPoints;
 
-      await tx.user.update({
-        where: { id: customer.id },
+      const order = await tx.order.create({
         data: {
-          loyaltyPointsBalance: nextBalance,
-          loyaltyPointsLifetime: nextLifetime,
+          number: orderNumber,
+          userId: customer.id,
+          managerId: actor.userId,
+          status: OrderStatus.NEW,
+          inventoryReservedAt: new Date(),
+          contactName: customerName,
+          contactPhone: customer.phone ?? "",
+          contactEmail: customer.email,
+          companyName: customer.companyName,
+          comment: commentParts.join("\n"),
+          subtotal,
+          discountTotal,
+          loyaltyRedemptionTotal,
+          total,
+          items: {
+            create: orderItems.map((item) => ({
+              productId: item.productId,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              discountAmount: item.discountAmount,
+              total: item.total,
+              snapshotName: item.snapshotName,
+              snapshotSku: item.snapshotSku,
+              snapshotBrand: item.snapshotBrand,
+              snapshotCategoryKind: item.categoryKind,
+            })),
+          },
+        },
+        select: {
+          id: true,
+          number: true,
+          createdAt: true,
         },
       });
 
-      if (loyaltyRedemptionTotal > 0) {
-        await tx.loyaltyTransaction.create({
-          data: {
+      if (awardedPoints > 0 || loyaltyRedemptionTotal > 0) {
+        if (loyaltyRedemptionTotal > 0) {
+          await applyApprovedLoyaltyDelta(tx, {
             userId: customer.id,
             orderId: order.id,
             type: LoyaltyTransactionType.REDEMPTION,
-            status: LoyaltyTransactionStatus.APPROVED,
-            approvedAt: new Date(),
             approvedById: actor.userId,
             points: -loyaltyRedemptionTotal,
-            balanceAfter: balanceAfterRedemption,
+            requireSufficientBalance: true,
             title: "Списание баллов",
             description: `Списание бонусов по продаже ${order.number ?? order.id}.`,
-          },
-        });
-      }
+          });
+        }
 
-      if (awardedPoints > 0) {
-        await tx.loyaltyTransaction.create({
-          data: {
+        if (awardedPoints > 0) {
+          await applyApprovedLoyaltyDelta(tx, {
             userId: customer.id,
             orderId: order.id,
             type: LoyaltyTransactionType.ORDER_ACCRUAL,
-            status: LoyaltyTransactionStatus.APPROVED,
-            approvedAt: new Date(),
             approvedById: actor.userId,
             points: awardedPoints,
-            balanceAfter: nextBalance,
             title: "Бонусы за покупку в зале",
             description: `Начисление по продаже ${order.number ?? order.id}.`,
-          },
-        });
+          });
+        }
       }
+
+      return order;
+    });
+  } catch (error) {
+    if (error instanceof InventoryAvailabilityError) {
+      redirect("/admin/sales-floor?error=stock");
     }
 
-    return order;
-  });
+    if (error instanceof InsufficientLoyaltyBalanceError) {
+      redirect("/admin/sales-floor?error=loyalty");
+    }
+
+    throw error;
+  }
 
   await logOperationEvent({
     entityType: "order",
@@ -3783,25 +5046,93 @@ export async function updatePromotionAction(formData: FormData) {
 
   const id = getString(formData, "id");
   const status = getString(formData, "status");
+  const mode = getString(formData, "mode");
 
   if (!id) {
     return;
   }
 
-  await getDb().promotion.update({
-    where: { id },
-    data: {
-      status:
-        Object.values(PromotionStatus).find((item) => item === status) ??
-        PromotionStatus.DRAFT,
-      promoCode:
-        getOptionalString(formData, "promoCode")?.toUpperCase() ?? null,
-      badgeText: getOptionalString(formData, "badgeText"),
-      isHighlighted: getString(formData, "isHighlighted") === "on",
-    },
+  const normalizedStatus =
+    Object.values(PromotionStatus).find((item) => item === status) ??
+    PromotionStatus.DRAFT;
+
+  if (mode !== "full") {
+    await getDb().promotion.update({
+      where: { id },
+      data: {
+        status: normalizedStatus,
+        promoCode:
+          getOptionalString(formData, "promoCode")?.toUpperCase() ?? null,
+        badgeText: getOptionalString(formData, "badgeText"),
+        isHighlighted: getString(formData, "isHighlighted") === "on",
+      },
+    });
+
+    revalidateAdminPromotions();
+    return;
+  }
+
+  const name = getString(formData, "name");
+  const slug = getString(formData, "slug");
+  const targetType = getString(formData, "targetType");
+  const discountType = getString(formData, "discountType");
+  const discountValue = getOptionalInt(formData, "discountValue");
+
+  if (!name || !slug || !discountValue) {
+    return;
+  }
+
+  const normalizedTargetType =
+    Object.values(PromotionTargetType).find((item) => item === targetType) ??
+    PromotionTargetType.ORDER;
+  const selectedProductId = getOptionalString(formData, "productId");
+  const selectedCategoryId = getOptionalString(formData, "categoryId");
+  const db = getDb();
+
+  await db.$transaction(async (tx) => {
+    await tx.promotionProduct.deleteMany({ where: { promotionId: id } });
+    await tx.promotionCategory.deleteMany({ where: { promotionId: id } });
+
+    await tx.promotion.update({
+      where: { id },
+      data: {
+        name,
+        slug,
+        description: getOptionalString(formData, "description"),
+        status: normalizedStatus,
+        targetType: normalizedTargetType,
+        discountType:
+          Object.values(DiscountType).find((item) => item === discountType) ??
+          DiscountType.PERCENT,
+        discountValue,
+        promoCode:
+          getOptionalString(formData, "promoCode")?.toUpperCase() ?? null,
+        minOrderTotal: getOptionalInt(formData, "minOrderTotal"),
+        usageLimit: getOptionalInt(formData, "usageLimit"),
+        badgeText: getOptionalString(formData, "badgeText"),
+        isHighlighted: getString(formData, "isHighlighted") === "on",
+        startsAt: getOptionalDate(formData, "startsAt"),
+        endsAt: getOptionalDate(formData, "endsAt"),
+        products:
+          normalizedTargetType === PromotionTargetType.PRODUCT &&
+          selectedProductId
+            ? {
+                create: [{ productId: selectedProductId }],
+              }
+            : undefined,
+        categories:
+          normalizedTargetType === PromotionTargetType.CATEGORY &&
+          selectedCategoryId
+            ? {
+                create: [{ categoryId: selectedCategoryId }],
+              }
+            : undefined,
+      },
+    });
   });
 
   revalidateAdminPromotions();
+  revalidatePath(`/admin/promotions/${id}`);
 }
 
 export async function sendPromotionTelegramBroadcastAction(formData: FormData) {
@@ -3819,15 +5150,49 @@ export async function sendPromotionTelegramBroadcastAction(formData: FormData) {
     searchParams.set("telegramMessage", "Акция не выбрана.");
   } else {
     try {
-      const result = await sendTelegramPromotionBroadcast(id);
+      const [telegramDelivery, pushDelivery] = await Promise.allSettled([
+        sendTelegramPromotionBroadcast(id),
+        sendPushPromotionBroadcast(id),
+      ]);
+      const telegramResult =
+        telegramDelivery.status === "fulfilled"
+          ? telegramDelivery.value
+          : {
+              ok: false,
+              sent: 0,
+              failed: 1,
+              skipped: 0,
+              message:
+                telegramDelivery.reason instanceof Error
+                  ? telegramDelivery.reason.message
+                  : "Telegram вернул неизвестную ошибку.",
+            };
+      const pushResult =
+        pushDelivery.status === "fulfilled"
+          ? pushDelivery.value
+          : {
+              ok: false,
+              sent: 0,
+              failed: 1,
+              skipped: 0,
+              message:
+                pushDelivery.reason instanceof Error
+                  ? pushDelivery.reason.message
+                  : "Android push вернул неизвестную ошибку.",
+            };
+      const totalSent = telegramResult.sent + pushResult.sent;
+      const totalFailed = telegramResult.failed + pushResult.failed;
 
       searchParams.set(
         "telegramPromo",
-        result.ok ? "ok" : result.sent > 0 ? "partial" : "error",
+        totalFailed === 0 ? "ok" : totalSent > 0 ? "partial" : "error",
       );
-      searchParams.set("telegramMessage", result.message);
-      searchParams.set("telegramSent", String(result.sent));
-      searchParams.set("telegramFailed", String(result.failed));
+      searchParams.set(
+        "telegramMessage",
+        `Telegram: ${telegramResult.message} Android: ${pushResult.message}`,
+      );
+      searchParams.set("telegramSent", String(totalSent));
+      searchParams.set("telegramFailed", String(totalFailed));
     } catch (error) {
       searchParams.set("telegramPromo", "error");
       searchParams.set(
@@ -4133,6 +5498,15 @@ export async function updateLoyaltyProgramSettingsAction(formData: FormData) {
     tiers: Object.fromEntries(
       Object.values(LoyaltyTier).map((tier) => {
         const currentTier = currentConfig.tiers[tier];
+        const legacyThreshold = getOptionalInt(formData, `${tier}.threshold`);
+        const plateMaterialThreshold =
+          getOptionalInt(formData, `${tier}.plateMaterialThreshold`) ??
+          legacyThreshold ??
+          currentTier.plateMaterialThreshold;
+        const fittingsThreshold =
+          getOptionalInt(formData, `${tier}.fittingsThreshold`) ??
+          legacyThreshold ??
+          currentTier.fittingsThreshold;
         const plateMaterialAccrualPercent =
           getOptionalInt(formData, `${tier}.plateMaterialAccrualPercent`) ??
           getOptionalInt(formData, `${tier}.accrualPercent`) ??
@@ -4146,9 +5520,9 @@ export async function updateLoyaltyProgramSettingsAction(formData: FormData) {
           {
             label:
               getOptionalString(formData, `${tier}.label`) ?? currentTier.label,
-            threshold:
-              getOptionalInt(formData, `${tier}.threshold`) ??
-              currentTier.threshold,
+            threshold: Math.min(plateMaterialThreshold, fittingsThreshold),
+            plateMaterialThreshold,
+            fittingsThreshold,
             baseDiscountPercent: 0,
             accrualPercent: plateMaterialAccrualPercent,
             plateMaterialAccrualPercent,
@@ -4161,6 +5535,8 @@ export async function updateLoyaltyProgramSettingsAction(formData: FormData) {
       {
         label: string;
         threshold: number;
+        plateMaterialThreshold: number;
+        fittingsThreshold: number;
         baseDiscountPercent: number;
         accrualPercent: number;
         plateMaterialAccrualPercent: number;
@@ -4169,8 +5545,44 @@ export async function updateLoyaltyProgramSettingsAction(formData: FormData) {
     >,
   });
 
+  const review = await runMonthlyLoyaltyReview({
+    force: true,
+    notify: true,
+  });
+
   revalidateAdminUsers();
   revalidatePath("/checkout");
+
+  const searchParams = new URLSearchParams({
+    review: review.ok ? "complete" : "error",
+    changed: String(review.changed),
+    reviewed: String(review.reviewed),
+    saved: "1",
+  });
+  redirect(`/admin/loyalty?${searchParams.toString()}`);
+}
+
+export async function recalculateLoyaltyStatusesAction() {
+  if (!hasDatabaseUrl()) {
+    return;
+  }
+
+  await ensureAdminAccess();
+
+  const review = await runMonthlyLoyaltyReview({
+    force: true,
+    notify: true,
+  });
+
+  revalidateAdminUsers();
+  revalidatePath("/checkout");
+
+  const searchParams = new URLSearchParams({
+    review: review.ok ? "complete" : "error",
+    changed: String(review.changed),
+    reviewed: String(review.reviewed),
+  });
+  redirect(`/admin/loyalty?${searchParams.toString()}`);
 }
 
 export async function updateUserLoyaltyAction(formData: FormData) {
@@ -4182,6 +5594,11 @@ export async function updateUserLoyaltyAction(formData: FormData) {
 
   const id = getString(formData, "id");
   const loyaltyTier = getString(formData, "loyaltyTier");
+  const plateMaterialLoyaltyTier = getString(
+    formData,
+    "plateMaterialLoyaltyTier",
+  );
+  const fittingsLoyaltyTier = getString(formData, "fittingsLoyaltyTier");
   const personalDiscountPercent = Math.max(
     0,
     getOptionalInt(formData, "personalDiscountPercent") ?? 0,
@@ -4192,13 +5609,26 @@ export async function updateUserLoyaltyAction(formData: FormData) {
   }
 
   const loyaltyConfig = await getLoyaltyProgramConfig();
+  const selectedLegacyTier =
+    Object.values(LoyaltyTier).find((item) => item === loyaltyTier) ??
+    LoyaltyTier.BRONZE;
+  const selectedPlateMaterialTier =
+    Object.values(LoyaltyTier).find(
+      (item) => item === plateMaterialLoyaltyTier,
+    ) ?? selectedLegacyTier;
+  const selectedFittingsTier =
+    Object.values(LoyaltyTier).find((item) => item === fittingsLoyaltyTier) ??
+    selectedLegacyTier;
 
   await getDb().user.update({
     where: { id },
     data: {
-      loyaltyTier:
-        Object.values(LoyaltyTier).find((item) => item === loyaltyTier) ??
-        LoyaltyTier.BRONZE,
+      loyaltyTier: getHighestLoyaltyTier([
+        selectedPlateMaterialTier,
+        selectedFittingsTier,
+      ]),
+      plateMaterialLoyaltyTier: selectedPlateMaterialTier,
+      fittingsLoyaltyTier: selectedFittingsTier,
       personalDiscountPercent: Math.min(
         loyaltyConfig.maxTotalDiscountPercent,
         personalDiscountPercent,
@@ -4207,6 +5637,112 @@ export async function updateUserLoyaltyAction(formData: FormData) {
   });
 
   revalidateAdminUsers();
+}
+
+export async function deleteClientAction(formData: FormData) {
+  if (!hasDatabaseUrl()) {
+    return;
+  }
+
+  const session = await ensureAdminAccess();
+  const id = getString(formData, "id");
+
+  if (!id || id === session.userId) {
+    return;
+  }
+
+  const client = await getDb().user.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      role: {
+        select: {
+          code: true,
+        },
+      },
+    },
+  });
+
+  const clientRoleCodes = new Set<RoleCode>([
+    RoleCode.CUSTOMER,
+    RoleCode.DEALER,
+  ]);
+
+  if (!client || !clientRoleCodes.has(client.role.code)) {
+    return;
+  }
+
+  await getDb().user.delete({
+    where: { id: client.id },
+  });
+
+  revalidateAdminUsers();
+}
+
+export async function sendUserTelegramNoticeAction(formData: FormData) {
+  if (!hasDatabaseUrl()) {
+    return;
+  }
+
+  await ensureAdminAccess();
+
+  const id = getString(formData, "id");
+  const returnQuery = getOptionalString(formData, "returnQuery");
+  const title =
+    getOptionalString(formData, "telegramTitle")?.slice(0, 80) ??
+    "Сообщение от Artisan";
+  const body = getString(formData, "telegramMessage").slice(0, 3000);
+  const searchParams = new URLSearchParams();
+
+  if (returnQuery) {
+    searchParams.set("q", returnQuery);
+  }
+
+  if (!id || !body) {
+    searchParams.set("telegramNotice", "error");
+    searchParams.set(
+      "telegramMessage",
+      "Выберите клиента и напишите текст сообщения.",
+    );
+    redirect(`/admin/users?${searchParams.toString()}`);
+  }
+
+  try {
+    const sent = await sendTelegramDirectMessage(id, {
+      title,
+      category: "manual",
+      lines: body
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean),
+      actions: [
+        {
+          text: "Открыть кабинет",
+          url: "/account",
+        },
+      ],
+    });
+
+    searchParams.set("telegramNotice", sent ? "ok" : "warning");
+    searchParams.set(
+      "telegramMessage",
+      sent
+        ? "Сообщение отправлено клиенту в Telegram."
+        : "Сообщение не отправлено: у клиента не подключен Telegram или бот не настроен.",
+    );
+  } catch (error) {
+    console.error("[telegram:admin:user-notice]", error);
+    searchParams.set("telegramNotice", "error");
+    searchParams.set(
+      "telegramMessage",
+      error instanceof Error
+        ? error.message
+        : "Telegram вернул неизвестную ошибку.",
+    );
+  }
+
+  revalidateAdminUsers();
+  redirect(`/admin/users?${searchParams.toString()}`);
 }
 
 export async function adjustUserLoyaltyPointsAction(formData: FormData) {
@@ -4226,52 +5762,41 @@ export async function adjustUserLoyaltyPointsAction(formData: FormData) {
   const title = getOptionalString(formData, "title") ?? "Ручная корректировка";
   const description = getOptionalString(formData, "description");
   const db = getDb();
-  const user = await db.user.findUnique({
-    where: { id },
-    select: {
-      id: true,
-      loyaltyPointsBalance: true,
-      loyaltyPointsLifetime: true,
-    },
-  });
-
-  if (!user) {
-    return;
-  }
-
-  const nextBalance = Math.max(0, user.loyaltyPointsBalance + pointsDelta);
-  const appliedDelta = nextBalance - user.loyaltyPointsBalance;
-  const nextLifetime = user.loyaltyPointsLifetime + Math.max(0, appliedDelta);
-
-  if (appliedDelta === 0) {
-    return;
-  }
-
-  await db.$transaction([
-    db.user.update({
-      where: { id },
-      data: {
-        loyaltyPointsBalance: nextBalance,
-        loyaltyPointsLifetime: nextLifetime,
-      },
-    }),
-    db.loyaltyTransaction.create({
-      data: {
-        userId: id,
-        type: LoyaltyTransactionType.MANUAL_ADJUSTMENT,
-        status: LoyaltyTransactionStatus.APPROVED,
-        approvedAt: new Date(),
-        approvedById: session.userId,
-        points: appliedDelta,
-        balanceAfter: nextBalance,
-        title,
-        description,
-      },
-    }),
-  ]);
+  await ensureLoyaltyAuditSchema(db);
+  let adjustment: Awaited<ReturnType<typeof applyApprovedLoyaltyDelta>>;
 
   try {
-    await sendTelegramDirectMessage(id, {
+    adjustment = await db.$transaction((tx) =>
+      applyApprovedLoyaltyDelta(tx, {
+        userId: id,
+        type: LoyaltyTransactionType.MANUAL_ADJUSTMENT,
+        approvedById: session.userId,
+        points: pointsDelta,
+        title,
+        description,
+        requireSufficientBalance: pointsDelta < 0,
+        recordBalanceBefore: true,
+      }),
+    );
+  } catch (error) {
+    if (
+      error instanceof InsufficientLoyaltyBalanceError ||
+      (typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        error.code === "P2025")
+    ) {
+      return;
+    }
+
+    throw error;
+  }
+
+  const appliedDelta = adjustment.points;
+  const nextBalance = adjustment.balanceAfter;
+
+  try {
+    await sendClientDirectMessage(id, {
       title:
         appliedDelta > 0
           ? "Баллы начислены менеджером"
@@ -4294,6 +5819,96 @@ export async function adjustUserLoyaltyPointsAction(formData: FormData) {
   }
 
   revalidateAdminUsers();
+}
+
+const loyaltyAuditReturnKeys = [
+  "q",
+  "manager",
+  "dateFrom",
+  "dateTo",
+  "page",
+] as const;
+
+function getLoyaltyAuditRedirect(returnQuery: string | null, notice: string) {
+  const source = new URLSearchParams(returnQuery?.slice(0, 1000) ?? "");
+  const target = new URLSearchParams();
+
+  loyaltyAuditReturnKeys.forEach((key) => {
+    const value = source.get(key)?.trim();
+
+    if (value) {
+      target.set(key, value.slice(0, 160));
+    }
+  });
+
+  target.set("auditNotice", notice);
+  return `/admin/loyalty?${target.toString()}#loyalty-audit`;
+}
+
+function getLoyaltyRollbackNotice(result: RollbackLoyaltyResult) {
+  if (result.ok) {
+    return "rollback-complete";
+  }
+
+  const notices = {
+    missing: "rollback-missing",
+    "not-approved": "rollback-not-approved",
+    "already-reversed": "rollback-already-complete",
+    "reversal-operation": "rollback-is-reversal",
+    "insufficient-balance": "rollback-insufficient-balance",
+  } as const;
+
+  return notices[result.reason];
+}
+
+export async function rollbackLoyaltyTransactionAction(formData: FormData) {
+  if (!hasDatabaseUrl()) {
+    return;
+  }
+
+  const session = await ensureStaffAdminAccess();
+  const transactionId = getString(formData, "transactionId");
+  const confirmation = getString(formData, "confirmRollback");
+  const returnQuery = getOptionalString(formData, "returnQuery");
+
+  if (!transactionId || confirmation !== "ROLLBACK") {
+    redirect(getLoyaltyAuditRedirect(returnQuery, "rollback-invalid"));
+  }
+
+  let result: RollbackLoyaltyResult;
+
+  try {
+    result = await rollbackManualLoyaltyTransaction({
+      transactionId,
+      actorId: session.userId,
+    });
+  } catch (error) {
+    console.error("[loyalty:audit:rollback]", error);
+    redirect(getLoyaltyAuditRedirect(returnQuery, "rollback-error"));
+  }
+
+  if (result.ok) {
+    try {
+      await sendClientDirectMessage(result.userId, {
+        title: "Корректировка бонусов",
+        category: "loyalty",
+        lines: [
+          `Изменение: ${result.points > 0 ? "+" : ""}${result.points}`,
+          `Баланс: ${result.nextBalance} баллов`,
+          "Предыдущая ручная операция отменена администратором.",
+        ],
+        actions: [{ text: "Открыть бонусы", url: "/account" }],
+      });
+    } catch (error) {
+      console.error("[loyalty:audit:rollback-notification]", error);
+    }
+
+    revalidateAdminUsers();
+  }
+
+  redirect(
+    getLoyaltyAuditRedirect(returnQuery, getLoyaltyRollbackNotice(result)),
+  );
 }
 
 export async function approveLoyaltyTransactionAction(formData: FormData) {
@@ -4366,7 +5981,7 @@ export async function approveLoyaltyTransactionAction(formData: FormData) {
 
   if (result) {
     try {
-      await sendTelegramDirectMessage(result.userId, {
+      await sendClientDirectMessage(result.userId, {
         title: "Бонусы подтверждены",
         category: "loyalty",
         lines: [
@@ -4418,7 +6033,7 @@ export async function cancelLoyaltyTransactionAction(formData: FormData) {
   });
 
   try {
-    await sendTelegramDirectMessage(transaction.userId, {
+    await sendClientDirectMessage(transaction.userId, {
       title: "Бонусы отменены",
       category: "loyalty",
       lines: [`Операция на ${transaction.points} баллов отменена.`],
@@ -4556,4 +6171,353 @@ export async function deleteCalculatorSheetFormatAction(formData: FormData) {
 
   await getDb().calculatorSheetFormat.delete({ where: { id } });
   revalidateCalculatorConfig();
+}
+
+export type CuttingManagerAccountFormState = {
+  status?: "success" | "error";
+  message?: string;
+};
+
+export async function createCuttingManagerAccountAction(
+  _previousState: CuttingManagerAccountFormState,
+  formData: FormData,
+): Promise<CuttingManagerAccountFormState> {
+  await ensureStaffAdminAccess();
+
+  if (!hasDatabaseUrl()) {
+    return {
+      status: "error",
+      message: "Подключите базу данных для создания сотрудника.",
+    };
+  }
+
+  const firstName = getString(formData, "firstName");
+  const lastName = getOptionalString(formData, "lastName");
+  const phone = getOptionalString(formData, "phone");
+  const email = getString(formData, "email").toLowerCase();
+  const password = getString(formData, "password");
+
+  if (firstName.length < 2) {
+    return { status: "error", message: "Укажите имя сотрудника." };
+  }
+
+  if (!/^\S+@\S+\.\S+$/.test(email)) {
+    return { status: "error", message: "Проверьте email для входа." };
+  }
+
+  if (password.length < 8 || password.length > 128) {
+    return {
+      status: "error",
+      message: "Пароль должен содержать от 8 до 128 символов.",
+    };
+  }
+
+  const db = getDb();
+  const existingUser = await db.user.findUnique({
+    where: { email },
+    select: { id: true },
+  });
+
+  if (existingUser) {
+    return {
+      status: "error",
+      message: "Пользователь с таким email уже существует.",
+    };
+  }
+
+  const role = await db.role.upsert({
+    where: { code: RoleCode.CUTTING_MANAGER },
+    update: {
+      name: "Менеджер кроя",
+      description:
+        "Сотрудник производства с доступом только к очереди и заявкам на распил.",
+    },
+    create: {
+      code: RoleCode.CUTTING_MANAGER,
+      name: "Менеджер кроя",
+      description:
+        "Сотрудник производства с доступом только к очереди и заявкам на распил.",
+    },
+  });
+  const { hash } = await import("bcryptjs");
+
+  await db.user.create({
+    data: {
+      email,
+      hashedPassword: await hash(password, 10),
+      firstName,
+      lastName,
+      phone,
+      companyName: "Artisan",
+      roleId: role.id,
+      isActive: true,
+    },
+  });
+
+  revalidatePath("/admin/staff");
+
+  return {
+    status: "success",
+    message: `Доступ для ${firstName} создан.`,
+  };
+}
+
+export type ProductionAccountFormState = {
+  status?: "success" | "error";
+  message?: string;
+};
+
+export async function createProductionAccountAction(
+  _previousState: ProductionAccountFormState,
+  formData: FormData,
+): Promise<ProductionAccountFormState> {
+  await ensureStaffAdminAccess();
+
+  if (!hasDatabaseUrl()) {
+    return {
+      status: "error",
+      message: "Подключите базу данных для создания сотрудника.",
+    };
+  }
+
+  const firstName = getString(formData, "firstName");
+  const lastName = getOptionalString(formData, "lastName");
+  const phone = getOptionalString(formData, "phone");
+  const email = getString(formData, "email").toLowerCase();
+  const password = getString(formData, "password");
+  const accessType = getString(formData, "accessType");
+  const stationByAccessType: Record<string, ProductionStation> = {
+    cutting: ProductionStation.CUTTING,
+    edging: ProductionStation.EDGING,
+    drilling: ProductionStation.DRILLING,
+  };
+  const productionStation = stationByAccessType[accessType] ?? null;
+  const roleCode =
+    accessType === "manager"
+      ? RoleCode.PRODUCTION_MANAGER
+      : productionStation
+        ? RoleCode.PRODUCTION_OPERATOR
+        : null;
+
+  if (firstName.length < 2) {
+    return { status: "error", message: "Укажите название или имя аккаунта." };
+  }
+
+  if (!/^\S+@\S+\.\S+$/.test(email)) {
+    return { status: "error", message: "Проверьте email для входа." };
+  }
+
+  if (password.length < 8 || password.length > 128) {
+    return {
+      status: "error",
+      message: "Пароль должен содержать от 8 до 128 символов.",
+    };
+  }
+
+  if (!roleCode) {
+    return { status: "error", message: "Выберите производственный доступ." };
+  }
+
+  const db = getDb();
+  const existingUser = await db.user.findUnique({
+    where: { email },
+    select: { id: true },
+  });
+
+  if (existingUser) {
+    return {
+      status: "error",
+      message: "Пользователь с таким email уже существует.",
+    };
+  }
+
+  const definition = roleDefinitions[roleCode];
+  const role = await db.role.upsert({
+    where: { code: roleCode },
+    update: { name: definition.label, description: definition.description },
+    create: {
+      code: roleCode,
+      name: definition.label,
+      description: definition.description,
+    },
+  });
+  const { hash } = await import("bcryptjs");
+
+  await db.user.create({
+    data: {
+      email,
+      hashedPassword: await hash(password, 10),
+      firstName,
+      lastName,
+      phone,
+      companyName: "Artisan",
+      roleId: role.id,
+      productionStation,
+      isActive: true,
+    },
+  });
+
+  revalidatePath("/admin/staff");
+
+  return {
+    status: "success",
+    message: `Производственный доступ для ${firstName} создан.`,
+  };
+}
+
+export async function updateStaffAccountRoleAction(formData: FormData) {
+  const session = await ensureStaffAdminAccess();
+
+  if (!hasDatabaseUrl()) {
+    return;
+  }
+
+  const id = getString(formData, "id");
+  const requestedRole = getString(formData, "roleCode") as RoleCode;
+  const stationValue = getString(formData, "productionStation");
+  const requestedStation = Object.values(ProductionStation).find(
+    (station) => station === stationValue,
+  );
+
+  if (!id || !Object.values(RoleCode).includes(requestedRole)) {
+    redirect("/admin/staff?notice=invalid-role");
+  }
+
+  if (id === session.userId) {
+    redirect("/admin/staff?notice=self-role");
+  }
+
+  const db = getDb();
+  const account = await db.user.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      isActive: true,
+      productionStation: true,
+      role: { select: { code: true } },
+    },
+  });
+
+  if (!account) {
+    redirect("/admin/staff?notice=account-missing");
+  }
+
+  const isSuperAdmin = session.roleCode === RoleCode.SUPER_ADMIN;
+  const privilegedRoles = new Set<RoleCode>([
+    RoleCode.ADMIN,
+    RoleCode.SUPER_ADMIN,
+  ]);
+
+  if (
+    !isSuperAdmin &&
+    (privilegedRoles.has(account.role.code) ||
+      privilegedRoles.has(requestedRole))
+  ) {
+    redirect("/admin/staff?notice=role-forbidden");
+  }
+
+  if (
+    account.role.code === RoleCode.SUPER_ADMIN &&
+    requestedRole !== RoleCode.SUPER_ADMIN &&
+    account.isActive
+  ) {
+    const activeSuperAdmins = await db.user.count({
+      where: {
+        isActive: true,
+        role: { code: RoleCode.SUPER_ADMIN },
+      },
+    });
+
+    if (activeSuperAdmins <= 1) {
+      redirect("/admin/staff?notice=last-super-admin");
+    }
+  }
+
+  if (requestedRole === RoleCode.PRODUCTION_OPERATOR && !requestedStation) {
+    redirect("/admin/staff?notice=invalid-station");
+  }
+
+  const nextStation =
+    requestedRole === RoleCode.PRODUCTION_OPERATOR
+      ? (requestedStation ?? null)
+      : null;
+
+  if (
+    account.role.code === requestedRole &&
+    account.productionStation === nextStation
+  ) {
+    redirect("/admin/staff?notice=role-unchanged");
+  }
+
+  const definition = roleDefinitions[requestedRole];
+  const role = await db.role.upsert({
+    where: { code: requestedRole },
+    update: {
+      name: definition.label,
+      description: definition.description,
+    },
+    create: {
+      code: requestedRole,
+      name: definition.label,
+      description: definition.description,
+    },
+  });
+
+  await db.user.update({
+    where: { id: account.id },
+    data: { roleId: role.id, productionStation: nextStation },
+  });
+
+  revalidatePath("/admin/staff");
+  revalidatePath("/admin/users");
+  redirect("/admin/staff?notice=role-updated");
+}
+
+export async function toggleCuttingManagerAccessAction(formData: FormData) {
+  return setStaffAccountAccessAction(formData);
+}
+
+export async function resetCuttingManagerPasswordAction(formData: FormData) {
+  await ensureStaffAdminAccess();
+
+  if (!hasDatabaseUrl()) {
+    return;
+  }
+
+  const id = getString(formData, "id");
+  const password = getString(formData, "password");
+
+  if (!id || password.length < 8 || password.length > 128) {
+    redirect("/admin/staff?notice=invalid-password");
+  }
+
+  const manager = await getDb().user.findFirst({
+    where: {
+      id,
+      role: {
+        code: {
+          in: [
+            RoleCode.CUTTING_MANAGER,
+            RoleCode.PRODUCTION_MANAGER,
+            RoleCode.PRODUCTION_OPERATOR,
+          ],
+        },
+      },
+    },
+    select: { id: true },
+  });
+
+  if (!manager) {
+    return;
+  }
+
+  const { hash } = await import("bcryptjs");
+
+  await getDb().user.update({
+    where: { id },
+    data: { hashedPassword: await hash(password, 10) },
+  });
+
+  revalidatePath("/admin/staff");
+  redirect("/admin/staff?notice=password-updated");
 }

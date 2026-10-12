@@ -6,11 +6,56 @@ import { redirect } from "next/navigation";
 import { RoleCode } from "@/generated/prisma";
 import { getSafeRedirectPath } from "@/lib/auth/redirects";
 import { readSession } from "@/lib/auth/session";
-import { canAccessAdmin } from "@/lib/auth/roles";
+import {
+  canAccessAdmin,
+  canAccessAdminPath,
+  getAdminHomePath,
+} from "@/lib/auth/roles";
 import { getDb, hasDatabaseUrl } from "@/lib/db";
 
 export const getOptionalSession = cache(async () => {
-  return readSession();
+  const session = await readSession();
+
+  if (!session?.userId || !hasDatabaseUrl()) {
+    return session;
+  }
+
+  const user = await getDb().user.findUnique({
+    where: { id: session.userId },
+    select: {
+      id: true,
+      email: true,
+      firstName: true,
+      lastName: true,
+      productionStation: true,
+      isActive: true,
+      role: { select: { code: true } },
+    },
+  });
+
+  if (!user?.isActive) {
+    return null;
+  }
+
+  const revocation = await getDb().siteSetting.findUnique({
+    where: { key: `session-revocation:${user.id}` },
+    select: { value: true },
+  });
+  const value = revocation?.value;
+  if (value && typeof value === "object" && !Array.isArray(value)
+    && typeof value.revokedBefore === "number"
+    && (session.issuedAtMilliseconds ?? 0) <= value.revokedBefore) {
+    return null;
+  }
+
+  return {
+    userId: user.id,
+    email: user.email,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    productionStation: user.productionStation,
+    roleCode: user.role.code,
+  };
 });
 
 export async function verifySession(redirectTo = "/login") {
@@ -23,11 +68,18 @@ export async function verifySession(redirectTo = "/login") {
   return session;
 }
 
-export async function requireAdminSession(redirectTo = "/login") {
+export async function requireAdminSession(
+  redirectTo = "/login",
+  adminPath?: string,
+) {
   const session = await verifySession(redirectTo);
 
   if (!canAccessAdmin(session.roleCode)) {
     redirect("/account");
+  }
+
+  if (adminPath && !canAccessAdminPath(session.roleCode, adminPath)) {
+    redirect(getAdminHomePath(session.roleCode));
   }
 
   return session;
@@ -56,6 +108,8 @@ export async function getCurrentUserRecord() {
         },
       },
       loyaltyTier: true,
+      plateMaterialLoyaltyTier: true,
+      fittingsLoyaltyTier: true,
       loyaltyPointsBalance: true,
       loyaltyPointsLifetime: true,
       personalDiscountPercent: true,
@@ -78,6 +132,7 @@ export async function verifyCredentials(email: string, password: string) {
       email: true,
       firstName: true,
       lastName: true,
+      productionStation: true,
       hashedPassword: true,
       isActive: true,
       role: {
@@ -103,6 +158,7 @@ export async function verifyCredentials(email: string, password: string) {
     email: user.email,
     firstName: user.firstName,
     lastName: user.lastName,
+    productionStation: user.productionStation,
     roleCode: user.role.code as RoleCode,
   };
 }
