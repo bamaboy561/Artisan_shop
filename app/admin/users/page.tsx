@@ -140,10 +140,13 @@ export default async function AdminUsersPage({
             className="rounded-xl border border-[color:var(--line)] bg-white p-1"
           />
           <div className="min-w-0 space-y-1">
-            <p className="font-semibold text-[var(--foreground)]">
+            <Link
+              href={`/admin/users/${user.id}`}
+              className="block font-semibold text-[var(--foreground)] underline-offset-4 hover:underline"
+            >
               {[user.firstName, user.lastName].filter(Boolean).join(" ") ||
                 user.email}
-            </p>
+            </Link>
             <p className="text-xs text-[var(--muted)]">
               {user.companyName ?? user.email}
             </p>

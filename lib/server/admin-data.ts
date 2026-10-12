@@ -21,7 +21,7 @@ const activeOrderStatuses = new Set<OrderStatus>([
   OrderStatus.SHIPPED,
 ]);
 
-const revenueOrderStatuses = new Set<OrderStatus>([
+export const revenueOrderStatuses = new Set<OrderStatus>([
   OrderStatus.CONFIRMED,
   OrderStatus.PAID,
   OrderStatus.IN_PRODUCTION,
