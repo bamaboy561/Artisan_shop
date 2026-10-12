@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Grid2X2, List, Search, SlidersHorizontal, X } from "lucide-react";
 import { useState, useTransition, type ReactNode, type FormEvent } from "react";
@@ -19,7 +18,6 @@ export function CatalogControls({
   state,
   options,
   thicknesses,
-  categories,
   basePath,
   count,
   children,
@@ -27,7 +25,6 @@ export function CatalogControls({
   state: StorefrontFilterState;
   options: CatalogFilterOptions;
   thicknesses: string[];
-  categories: { slug: string; name: string }[];
   basePath: string;
   count: number;
   children: ReactNode;
@@ -61,29 +58,14 @@ export function CatalogControls({
     state.brands.length + state.groups.length + state.thicknesses.length > 0 ||
     state.inStockOnly ||
     !!state.q;
+  const activeCount =
+    state.brands.length +
+    state.groups.length +
+    state.thicknesses.length +
+    (state.inStockOnly ? 1 : 0);
   function filters() {
     return (
       <div className={s.filterContent}>
-        <div className={s.categoryLinks}>
-          <Link
-            href="/catalog"
-            aria-current={basePath === "/catalog" ? "page" : undefined}
-          >
-            Все материалы
-          </Link>
-          {categories.map((category) => (
-            <Link
-              key={category.slug}
-              href={`/catalog/${category.slug}`}
-              aria-current={
-                basePath === `/catalog/${category.slug}` ? "page" : undefined
-              }
-              onClick={() => setOpen(false)}
-            >
-              {category.name}
-            </Link>
-          ))}
-        </div>
         {(["brands", "groups"] as const).map(
           (key) =>
             options[key].length > 0 && (
@@ -195,6 +177,7 @@ export function CatalogControls({
           >
             <SlidersHorizontal size={16} />
             Фильтры
+            {activeCount > 0 && <span>{activeCount}</span>}
           </button>
           <label className={s.sort}>
             <span className={s.srOnly}>Сортировка</span>

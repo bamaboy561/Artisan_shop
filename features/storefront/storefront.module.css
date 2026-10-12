@@ -3433,3 +3433,132 @@
     height: 38px;
   }
 }
+
+/* Каталог: шапка, разделы, фильтры */
+.catalogHeading {
+  align-items: center;
+  margin-bottom: 22px;
+}
+.catalogLead {
+  margin-top: 8px;
+  max-width: 46rem;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--pv-muted);
+}
+.cutPill {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 999px;
+  background: #1f2b25;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  transition: background 0.2s;
+}
+.cutPill:hover {
+  background: #c4532b;
+}
+.categoryRail {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 28px;
+  padding-bottom: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.categoryRail::-webkit-scrollbar {
+  display: none;
+}
+.categoryRail a {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 16px;
+  border: 1px solid #e3ddd2;
+  border-radius: 999px;
+  background: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition:
+    border-color 0.2s,
+    background 0.2s;
+}
+.categoryRail a:hover {
+  border-color: #1b1c19;
+}
+.categoryRail a span {
+  min-width: 22px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #f4f1eb;
+  color: #6e6b63;
+  font-size: 12px;
+  text-align: center;
+}
+.categoryRail a[aria-current="page"] {
+  border-color: #c4532b;
+  background: #c4532b;
+  color: #fff;
+}
+.categoryRail a[aria-current="page"] span {
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+}
+.thicknesses span {
+  width: auto;
+  min-width: 48px;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: #fff;
+  font-size: 13px;
+  font-weight: 600;
+}
+.thicknesses input:checked + span {
+  border-color: #c4532b;
+  background: #c4532b;
+}
+.productInfo h3 a {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+}
+.mobileFilter span {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #c4532b;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+}
+@media (max-width: 600px) {
+  .catalogHeading {
+    align-items: flex-start;
+    margin-bottom: 16px;
+  }
+  .catalogLead {
+    font-size: 14px;
+  }
+  .cutPill {
+    min-height: 40px;
+    font-size: 13px;
+  }
+  .categoryRail {
+    margin: 0 -16px 18px;
+    padding: 0 16px 4px;
+  }
+}
