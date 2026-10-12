@@ -1997,6 +1997,11 @@ export async function deleteProductAction(formData: FormData) {
   ]);
 
   revalidateAdminCatalog();
+
+  // Из карточки товара возвращаем в список: самой карточки больше нет.
+  if (getString(formData, "redirectTo") === "list") {
+    redirect("/admin/products");
+  }
 }
 
 export async function updateProductAction(formData: FormData) {
@@ -2100,6 +2105,28 @@ export async function updateProductDetailsAction(formData: FormData) {
   );
   const imageUrls = await resolveProductImageUrls(formData, slug);
 
+  // Блоки «Плитный материал» и «Размеры кромки» показываются не для всех
+  // категорий. Поле, которого не было в форме, не трогаем, а не обнуляем.
+  const ifSubmitted = <T,>(field: string, read: () => T) =>
+    formData.has(field) ? read() : undefined;
+
+  // Остаток мог уменьшиться заказом, пока карточка была открыта. Если
+  // менеджер его не менял, не пишем ничего; если менял, применяем разницу.
+  const submittedStock = getOptionalInt(formData, "stockQuantity");
+  const initialStockRaw = formData.get("stockQuantityInitial");
+  const initialStock =
+    typeof initialStockRaw === "string" && initialStockRaw.trim() !== ""
+      ? Number.parseInt(initialStockRaw, 10)
+      : null;
+  const stockQuantityUpdate =
+    typeof initialStockRaw !== "string"
+      ? submittedStock
+      : submittedStock === initialStock
+        ? undefined
+        : submittedStock === null || initialStock === null
+          ? submittedStock
+          : { increment: submittedStock - initialStock };
+
   await db.$transaction(async (tx) => {
     await tx.product.update({
       where: { id },
@@ -2111,21 +2138,27 @@ export async function updateProductDetailsAction(formData: FormData) {
         brandId,
         summary: getOptionalString(formData, "summary"),
         description: getOptionalString(formData, "description"),
-        format: getOptionalString(formData, "format"),
-        thicknessMm: getOptionalInt(formData, "thicknessMm"),
-        edgeThicknessMm: getOptionalFloat(formData, "edgeThicknessMm"),
-        edgeWidthMm: getOptionalFloat(formData, "edgeWidthMm"),
-        calculatorMaterialId: getOptionalString(
-          formData,
-          "calculatorMaterialId",
+        format: ifSubmitted("format", () =>
+          getOptionalString(formData, "format"),
         ),
-        calculatorSheetPresetId: getOptionalString(
-          formData,
-          "calculatorSheetPresetId",
+        thicknessMm: ifSubmitted("thicknessMm", () =>
+          getOptionalInt(formData, "thicknessMm"),
+        ),
+        edgeThicknessMm: ifSubmitted("edgeThicknessMm", () =>
+          getOptionalFloat(formData, "edgeThicknessMm"),
+        ),
+        edgeWidthMm: ifSubmitted("edgeWidthMm", () =>
+          getOptionalFloat(formData, "edgeWidthMm"),
+        ),
+        calculatorMaterialId: ifSubmitted("calculatorMaterialId", () =>
+          getOptionalString(formData, "calculatorMaterialId"),
+        ),
+        calculatorSheetPresetId: ifSubmitted("calculatorSheetPresetId", () =>
+          getOptionalString(formData, "calculatorSheetPresetId"),
         ),
         price: getOptionalInt(formData, "price"),
         compareAtPrice: getOptionalInt(formData, "compareAtPrice"),
-        stockQuantity: getOptionalInt(formData, "stockQuantity"),
+        stockQuantity: stockQuantityUpdate,
         seoTitle: getOptionalString(formData, "seoTitle"),
         seoDescription: getOptionalString(formData, "seoDescription"),
         status:

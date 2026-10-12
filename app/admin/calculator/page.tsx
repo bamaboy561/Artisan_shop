@@ -1,3 +1,4 @@
+import { ConfirmDeleteButton } from "@/components/admin/confirm-delete-button";
 import {
   createCalculatorMaterialAction,
   createCalculatorSheetFormatAction,
@@ -8,7 +9,7 @@ import {
 } from "@/app/admin/actions";
 import { SetupState } from "@/components/admin/setup-state";
 import { StatusBadge } from "@/components/admin/status-badge";
-import { Button } from "@/components/ui/button";
+import { Button, getButtonClassName } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { SectionHeading } from "@/components/ui/section-heading";
@@ -148,15 +149,17 @@ export default async function AdminCalculatorPage() {
           <Button type="submit" variant="secondary" size="sm">
             Сохранить
           </Button>
-          <Button
-            type="submit"
-            variant="ghost"
-            size="sm"
+          <ConfirmDeleteButton
+            confirmMessage="Удалить эту запись калькулятора? Это действие нельзя отменить."
             formAction={deleteCalculatorMaterialAction}
-            className="text-red-600 hover:bg-red-50"
+            className={getButtonClassName(
+              "ghost",
+              "sm",
+              "text-red-600 hover:bg-red-50",
+            )}
           >
             Удалить
-          </Button>
+          </ConfirmDeleteButton>
         </div>
       </form>
     ),
@@ -246,15 +249,17 @@ export default async function AdminCalculatorPage() {
           <Button type="submit" variant="secondary" size="sm">
             Сохранить
           </Button>
-          <Button
-            type="submit"
-            variant="ghost"
-            size="sm"
+          <ConfirmDeleteButton
+            confirmMessage="Удалить эту запись калькулятора? Это действие нельзя отменить."
             formAction={deleteCalculatorSheetFormatAction}
-            className="text-red-600 hover:bg-red-50"
+            className={getButtonClassName(
+              "ghost",
+              "sm",
+              "text-red-600 hover:bg-red-50",
+            )}
           >
             Удалить
-          </Button>
+          </ConfirmDeleteButton>
         </div>
       </form>
     ),

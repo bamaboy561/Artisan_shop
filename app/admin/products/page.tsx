@@ -1,3 +1,4 @@
+import { ConfirmDeleteButton } from "@/components/admin/confirm-delete-button";
 import Form from "next/form";
 import Link from "next/link";
 import { Pagination } from "@/components/ui/pagination";
@@ -22,7 +23,7 @@ import { CatalogExportButton } from "@/components/admin/catalog-export-button";
 import { PhotoCatalogExport } from "@/components/admin/photo-catalog-export";
 import { SetupState } from "@/components/admin/setup-state";
 import { StatusBadge } from "@/components/admin/status-badge";
-import { Button } from "@/components/ui/button";
+import { Button, getButtonClassName } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { Select } from "@/components/ui/select";
@@ -830,14 +831,16 @@ export default async function AdminProductsPage({
                     </Link>
                     <form action={deleteProductAction}>
                       <input type="hidden" name="id" value={product.id} />
-                      <Button
-                        type="submit"
-                        variant="ghost"
-                        size="sm"
-                        className="h-9 text-red-600 hover:bg-red-50"
+                      <ConfirmDeleteButton
+                        confirmMessage="Удалить товар? Он пропадёт из каталога, избранного и комплектов. Это действие нельзя отменить."
+                        className={getButtonClassName(
+                          "ghost",
+                          "sm",
+                          "h-9 text-red-600 hover:bg-red-50",
+                        )}
                       >
                         Удалить
-                      </Button>
+                      </ConfirmDeleteButton>
                     </form>
                   </div>
                 </article>
