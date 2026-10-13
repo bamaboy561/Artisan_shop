@@ -34,6 +34,7 @@ import {
 } from "@/generated/prisma";
 import { cuttingStageSteps } from "@/features/cutting/progress";
 import { getProductionTransition } from "@/features/production/workflow";
+import { GibLabProjectCode } from "@/components/admin/giblab-project-code";
 import { requireAdminSession } from "@/lib/auth/dal";
 import {
   canManageProduction,
@@ -565,6 +566,14 @@ export default async function ProductionRequestPage({
           <StatusBadge tone="neutral">
             Файлов: {request.files.length}
           </StatusBadge>
+        </div>
+
+        <div className="mt-5 empty:hidden">
+          <GibLabProjectCode
+            requestId={request.id}
+            files={request.files}
+            clientName={request.contactName}
+          />
         </div>
 
         {request.files.length > 0 ? (

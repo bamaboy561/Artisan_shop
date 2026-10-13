@@ -10,6 +10,7 @@ import {
   cuttingStageSteps,
 } from "@/features/cutting/progress";
 import { getManagerDisplayName } from "@/features/admin/operations-filters";
+import { getGibLabProjectCode } from "@/components/admin/giblab-project-code";
 import { requireAdminSession } from "@/lib/auth/dal";
 import { absoluteUrl } from "@/lib/seo";
 import {
@@ -133,6 +134,7 @@ export default async function RouteSheetPage({ params }: RouteSheetPageProps) {
   }
 
   const requestNumber = request.number ?? request.id.slice(0, 8).toUpperCase();
+  const gibLabCode = await getGibLabProjectCode(request.id, request.files);
   const requestUrl = absoluteUrl(`/admin/production/${request.id}`);
   const qrUrl = `/api/qr?data=${encodeURIComponent(requestUrl)}&size=320&margin=1`;
   const currentStage = request.cuttingStage
@@ -206,6 +208,12 @@ export default async function RouteSheetPage({ params }: RouteSheetPageProps) {
         <section className="mt-[6mm] grid grid-cols-2 gap-x-[8mm] gap-y-[4mm]">
           <RouteField label="Клиент" value={request.contactName} />
           <RouteField label="Телефон" value={request.contactPhone} />
+          {gibLabCode ? (
+            <RouteField
+              label="Код для GibLab (допишите к названию проекта)"
+              value={`${request.contactName.trim().split(/\s+/)[0] || "Клиент"}_${gibLabCode}`}
+            />
+          ) : null}
           <RouteField
             label="Сумма работ, сом"
             value={

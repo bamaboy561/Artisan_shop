@@ -27,6 +27,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { Textarea } from "@/components/ui/textarea";
+import { GibLabProjectCode } from "@/components/admin/giblab-project-code";
 import { requireAdminSession } from "@/lib/auth/dal";
 import {
   canAccessRequestType,
@@ -413,6 +414,14 @@ export default async function AdminRequestDetailPage({
                   ? `${clientFiles.length} от клиента`
                   : "Файлы пока не приложены"}
               </p>
+            </div>
+
+            <div className="mt-4 empty:hidden">
+              <GibLabProjectCode
+                requestId={request.id}
+                files={request.files}
+                clientName={request.contactName}
+              />
             </div>
 
             {clientFiles.length > 0 ? (
