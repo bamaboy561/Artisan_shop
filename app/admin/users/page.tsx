@@ -1,8 +1,11 @@
+import { randomUUID } from "node:crypto";
+
 import Link from "next/link";
 import Image from "next/image";
 import { Search, X } from "lucide-react";
 
 import { LoyaltyTier } from "@/generated/prisma";
+import { AdminSubmitButton } from "@/components/admin/admin-submit-button";
 import { DownloadCsvButton } from "@/components/admin/download-csv-button";
 import { Pagination } from "@/components/ui/pagination";
 import { paginateItems, withPageParam } from "@/features/admin/paging";
@@ -298,9 +301,13 @@ export default async function AdminUsersPage({
                 defaultValue={user.personalDiscountPercent ?? 0}
               />
             </label>
-            <Button type="submit" variant="secondary" size="sm">
-              Сохранить уровень и скидку
-            </Button>
+            <AdminSubmitButton
+              type="submit"
+              variant="secondary"
+              size="sm"
+              idleLabel="Сохранить уровень и скидку"
+              pendingLabel="Сохраняем..."
+            />
           </form>
 
           <form
@@ -308,6 +315,7 @@ export default async function AdminUsersPage({
             className="grid gap-2 rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] p-3"
           >
             <input type="hidden" name="id" value={user.id} />
+            <input type="hidden" name="submissionId" value={randomUUID()} />
             <Input
               name="pointsDelta"
               type="number"
@@ -315,9 +323,13 @@ export default async function AdminUsersPage({
               required
             />
             <Input name="title" placeholder="Причина корректировки" />
-            <Button type="submit" variant="accent" size="sm">
-              Начислить или списать
-            </Button>
+            <AdminSubmitButton
+              type="submit"
+              variant="accent"
+              size="sm"
+              idleLabel="Начислить или списать"
+              pendingLabel="Сохраняем..."
+            />
           </form>
 
           <div className="grid gap-2 rounded-2xl border border-[#68a994]/35 bg-[#f4fffb] p-3">

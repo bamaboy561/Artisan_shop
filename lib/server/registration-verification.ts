@@ -50,6 +50,7 @@ function buildVerificationEmail(input: SendRegistrationVerificationCodeInput) {
   const safeName = escapeHtml(input.firstName);
   const safeCode = escapeHtml(input.code);
   const expiresAt = input.expiresAt.toLocaleTimeString("ru-RU", {
+    timeZone: "Asia/Bishkek",
     hour: "2-digit",
     minute: "2-digit",
   });

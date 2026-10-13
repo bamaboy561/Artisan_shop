@@ -1127,6 +1127,11 @@ async function reverseOrderLoyaltyIfCanceled(params: {
   return true;
 }
 
+// Продажа в зале с галочкой «не начислять бонусы» помечает заказ этой
+// строкой в комментарии. По ней пересчёт при смене статуса не начисляет
+// баллы заново.
+const LOYALTY_ACCRUAL_DISABLED_MARKER = "Без начисления бонусов";
+
 async function reconcileOrderLoyaltyAccrual(params: {
   orderId: string;
   actor?: Awaited<ReturnType<typeof ensureAdminAccess>> | null;
@@ -1157,6 +1162,7 @@ async function reconcileOrderLoyaltyAccrual(params: {
         status: true,
         total: true,
         deliveryTotal: true,
+        comment: true,
         userId: true,
         user: {
           select: {
@@ -1228,15 +1234,20 @@ async function reconcileOrderLoyaltyAccrual(params: {
     const accrualBase = Math.max(0, order.total - order.deliveryTotal);
     const accrualRatio =
       rawSubtotal > 0 ? Math.min(1, accrualBase / rawSubtotal) : 0;
-    const nextPoints = estimateLoyaltyPointsForLines(
-      order.items.map((item) => ({
-        total: item.unitPrice * item.quantity * accrualRatio,
-        categoryKind:
-          item.snapshotCategoryKind ?? item.product?.category?.kind ?? null,
-      })),
-      order.user,
-      loyaltyConfig,
-    );
+    const accrualDisabled = (order.comment ?? "")
+      .split("\n")
+      .some((line) => line.trim() === LOYALTY_ACCRUAL_DISABLED_MARKER);
+    const nextPoints = accrualDisabled
+      ? 0
+      : estimateLoyaltyPointsForLines(
+          order.items.map((item) => ({
+            total: item.unitPrice * item.quantity * accrualRatio,
+            categoryKind:
+              item.snapshotCategoryKind ?? item.product?.category?.kind ?? null,
+          })),
+          order.user,
+          loyaltyConfig,
+        );
     const activeTransactions = order.loyaltyTransactions.filter(
       (transaction) =>
         transaction.type === LoyaltyTransactionType.ORDER_ACCRUAL &&
@@ -5407,6 +5418,7 @@ export async function createSalesFloorOrderAction(formData: FormData) {
       ? `Списано бонусов: ${loyaltyRedemptionTotal}`
       : "",
     awardedPoints > 0 ? `Начислено бонусов: ${awardedPoints}` : "",
+    accrueLoyalty ? "" : LOYALTY_ACCRUAL_DISABLED_MARKER,
     managerComment,
   ].filter(Boolean);
   let orderNumber = buildAdminOrderNumber("H");
@@ -6371,21 +6383,12 @@ export async function updateLoyaltyProgramSettingsAction(formData: FormData) {
     >,
   });
 
-  const review = await runMonthlyLoyaltyReview({
-    force: true,
-    notify: true,
-  });
-
+  // Сохранение правил только сохраняет. Пересчёт статусов с сообщениями
+  // клиентам идёт по расписанию в начале месяца или по кнопке
+  // «Пересчитать статусы», чтобы правка порога не рассылала всем сообщения.
   revalidateAdminUsers();
   revalidatePath("/checkout");
-
-  const searchParams = new URLSearchParams({
-    review: review.ok ? "complete" : "error",
-    changed: String(review.changed),
-    reviewed: String(review.reviewed),
-    saved: "1",
-  });
-  redirect(`/admin/loyalty?${searchParams.toString()}`);
+  redirect("/admin/loyalty?saved=1");
 }
 
 export async function recalculateLoyaltyStatusesAction() {
@@ -6585,6 +6588,9 @@ export async function adjustUserLoyaltyPointsAction(formData: FormData) {
 
   const title = getOptionalString(formData, "title") ?? "Ручная корректировка";
   const description = getOptionalString(formData, "description");
+  // Ключ отправки формы: двойной клик или повтор при плохой связи не
+  // начислит баллы второй раз.
+  const submissionId = getOptionalString(formData, "submissionId");
   const db = getDb();
   await ensureLoyaltyAuditSchema(db);
   let adjustment: Awaited<ReturnType<typeof applyApprovedLoyaltyDelta>>;
@@ -6600,11 +6606,18 @@ export async function adjustUserLoyaltyPointsAction(formData: FormData) {
         description,
         requireSufficientBalance: pointsDelta < 0,
         recordBalanceBefore: true,
+        ...(submissionId
+          ? { externalId: `manual-adjustment:${submissionId}` }
+          : {}),
       }),
     );
   } catch (error) {
     if (
       error instanceof InsufficientLoyaltyBalanceError ||
+      (typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        error.code === "P2002") ||
       (typeof error === "object" &&
         error !== null &&
         "code" in error &&
@@ -6614,6 +6627,11 @@ export async function adjustUserLoyaltyPointsAction(formData: FormData) {
     }
 
     throw error;
+  }
+
+  if (!adjustment.applied) {
+    revalidateAdminUsers();
+    return;
   }
 
   const appliedDelta = adjustment.points;
