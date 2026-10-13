@@ -1,6 +1,7 @@
 import { ShoppingBag } from "lucide-react";
 
 import { SalesFloorForm } from "@/app/admin/sales-floor/sales-floor-form";
+import { NewClientForm } from "@/components/admin/new-client-form";
 import { SetupState } from "@/components/admin/setup-state";
 import { requireAdminSession } from "@/lib/auth/dal";
 import { hasDatabaseUrl } from "@/lib/db";
@@ -61,6 +62,18 @@ export default async function SalesFloorPage({
     searchParams,
   ]);
   const errorMessage = getErrorMessage(resolvedSearchParams);
+  const firstParam = (value: string | string[] | undefined) =>
+    (Array.isArray(value) ? value[0] : value) ?? "";
+  const clientNoticeParam = firstParam(resolvedSearchParams.clientNotice);
+  const newClientPhone = firstParam(resolvedSearchParams.client);
+  const clientNotice = {
+    created:
+      "Клиент создан. Он уже найден в списке ниже: выберите его и оформляйте продажу.",
+    exists:
+      "Клиент с таким телефоном уже есть. Он найден в списке ниже: выберите его.",
+    invalid:
+      "Клиент не создан: укажите имя и телефон полностью, например 0553 432 131.",
+  }[clientNoticeParam];
 
   return (
     <div className="space-y-4">
@@ -100,10 +113,22 @@ export default async function SalesFloorPage({
         </div>
       ) : null}
 
+      {clientNotice ? (
+        <div
+          role="status"
+          className={`rounded-2xl border p-4 text-sm ${clientNoticeParam === "invalid" ? "border-red-200 bg-red-50 text-red-800" : "border-emerald-200 bg-emerald-50 text-emerald-800"}`}
+        >
+          {clientNotice}
+        </div>
+      ) : null}
+
+      <NewClientForm returnTo="sales-floor" />
+
       <SalesFloorForm
         customers={data.customers}
         products={data.products}
         photoEnabled={isInvoicePhotoEnabled()}
+        initialCustomerQuery={newClientPhone}
       />
     </div>
   );

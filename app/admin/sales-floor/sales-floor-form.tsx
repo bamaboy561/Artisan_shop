@@ -60,6 +60,7 @@ type SalesFloorFormProps = {
   customers: CustomerOption[];
   products: ProductOption[];
   photoEnabled?: boolean;
+  initialCustomerQuery?: string;
 };
 
 function formatPrice(value: number) {
@@ -191,9 +192,10 @@ export function SalesFloorForm({
   customers,
   products,
   photoEnabled = false,
+  initialCustomerQuery = "",
 }: SalesFloorFormProps) {
   const [customerOptions, setCustomerOptions] = useState(customers);
-  const [customerQuery, setCustomerQuery] = useState("");
+  const [customerQuery, setCustomerQuery] = useState(initialCustomerQuery);
   const [customerLoading, setCustomerLoading] = useState(false);
   const [customerSearchError, setCustomerSearchError] = useState<string | null>(
     null,
@@ -629,7 +631,10 @@ export function SalesFloorForm({
                     active ? "text-white/66" : "text-[var(--muted)]",
                   )}
                 >
-                  {customer.phone ?? customer.email}
+                  {customer.phone ??
+                    (customer.email.endsWith(".invalid")
+                      ? "Без контактов"
+                      : customer.email)}
                 </p>
                 <p
                   className={cn(
