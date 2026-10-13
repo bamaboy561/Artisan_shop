@@ -13,9 +13,10 @@ import {
   type CutListImportResult,
   type ImportedDetail,
 } from "@/features/services/cut-list-import";
-import type {
-  BazisImportResponse,
-  BazisMaterialGroup,
+import {
+  groupDetailsByMaterial,
+  type BazisImportResponse,
+  type BazisMaterialGroup,
 } from "@/features/services/bazis-import";
 import { cn } from "@/lib/utils";
 
@@ -85,7 +86,7 @@ async function readBazisProject(file: File): Promise<BazisImportResponse> {
 
 function formatGroupLabel(group: BazisMaterialGroup) {
   return `${group.material}${
-    group.material.includes(String(group.thickness))
+    !group.thickness || group.material.includes(String(group.thickness))
       ? ""
       : `, ${group.thickness} мм`
   }`;
@@ -105,6 +106,7 @@ export function CutListImportPanel({
   const [bazisChoice, setBazisChoice] = useState<{
     orderName: string;
     groups: BazisMaterialGroup[];
+    source: "bazis" | "table";
   } | null>(null);
   const [isReadingFile, setIsReadingFile] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -116,6 +118,15 @@ export function CutListImportPanel({
         message:
           "Не нашли размеров. Нужны колонки: название, длина, ширина, количество, кромка.",
       });
+      return;
+    }
+
+    const groups = groupDetailsByMaterial(result.details);
+
+    if (groups.length > 1) {
+      setBazisChoice({ orderName: "", groups, source: "table" });
+      setFeedback(null);
+      setText("");
       return;
     }
 
@@ -138,11 +149,12 @@ export function CutListImportPanel({
   const applyBazisGroup = (
     group: BazisMaterialGroup,
     groups: BazisMaterialGroup[],
+    source: "bazis" | "table" = "bazis",
   ) => {
     onImport(group.details, mode);
     const others = groups.filter((item) => item !== group);
     const notes = [
-      `Из проекта Базиса: ${formatGroupLabel(group)}, ${group.details.length} поз. (${group.pieces} дет.).`,
+      `${source === "bazis" ? "Из проекта Базиса" : "Из таблицы"}: ${formatGroupLabel(group)}, ${group.details.length} поз. (${group.pieces} дет.).`,
       group.complexCount > 0
         ? `У ${group.complexCount} дет. вырезы или скругления: размер взят по габариту, проверьте.`
         : "",
@@ -153,7 +165,9 @@ export function CutListImportPanel({
               "; ",
             )}) считаются отдельно: выберите их выше, когда понадобится.`
         : "",
-      onProjectFile ? "Файл проекта приложен к заявке." : "",
+      onProjectFile && source === "bazis"
+        ? "Файл проекта приложен к заявке."
+        : "",
       "Проверьте материал, кромку и направление текстуры ниже.",
     ];
 
@@ -174,7 +188,11 @@ export function CutListImportPanel({
     onProjectFile?.(file);
 
     if (result.groups.length > 1) {
-      setBazisChoice({ orderName: result.orderName, groups: result.groups });
+      setBazisChoice({
+        orderName: result.orderName,
+        groups: result.groups,
+        source: "bazis",
+      });
       setFeedback(null);
       return;
     }
@@ -218,8 +236,8 @@ export function CutListImportPanel({
             Список деталей готов?
           </p>
           <p className="mt-1 text-sm font-medium text-[var(--foreground)]">
-            Вставьте из Excel или загрузите файл Excel или проект Базиса (.b3d),
-            детали появятся сами.
+            Загрузите проект Базиса (.b3d), таблицу Excel или список деталей из
+            SketchUp (выгрузка OpenCutList), детали появятся сами.
           </p>
         </div>
         <div className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0">
@@ -255,7 +273,9 @@ export function CutListImportPanel({
           <p className="text-[13px] font-medium text-[var(--foreground)]">
             {bazisChoice.orderName
               ? `Проект «${bazisChoice.orderName}»: `
-              : "В проекте "}
+              : bazisChoice.source === "table"
+                ? "В таблице "
+                : "В проекте "}
             несколько материалов. Калькулятор считает один материал за раз,
             выберите, с какого начать.
           </p>
@@ -264,7 +284,9 @@ export function CutListImportPanel({
               <button
                 key={`${group.material}-${group.thickness}`}
                 type="button"
-                onClick={() => applyBazisGroup(group, bazisChoice.groups)}
+                onClick={() =>
+                  applyBazisGroup(group, bazisChoice.groups, bazisChoice.source)
+                }
                 className="border border-[color:var(--line)] bg-white px-3 py-2 text-left text-[13px] transition hover:border-[var(--accent)]"
               >
                 <span className="block font-semibold text-[var(--foreground)]">

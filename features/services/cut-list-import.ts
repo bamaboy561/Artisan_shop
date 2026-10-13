@@ -10,6 +10,8 @@ export type ImportedDetail = {
   edgedSides: ImportedEdgeSide[];
   /** Текстура важна: деталь не поворачивать при раскрое. */
   fixedGrain?: boolean;
+  /** Материал из таблицы (например, выгрузка OpenCutList из SketchUp). */
+  material?: string;
 };
 
 export type CutListImportResult = {
@@ -19,6 +21,7 @@ export type CutListImportResult = {
 
 type ColumnRole =
   | "title"
+  | "material"
   | "length"
   | "width"
   | "quantity"
@@ -43,6 +46,33 @@ function detectColumnRole(header: string): ColumnRole | null {
   const value = normalizeHeader(header);
 
   if (!value) return null;
+  // Служебные колонки OpenCutList (SketchUp): номер, «сырые» размеры с
+  // припуском, площади и суммы. Берём чистовые размеры детали.
+  if (/^(n|no|n°|№|nr|номер|number)$/.test(value)) return null;
+  if (
+    /(raw|пильная|пильна|roh|débit|cruda|crudo|surowa|total|суммарн|площад|area|edges|кромкипильн)$/.test(
+      value,
+    )
+  ) {
+    return null;
+  }
+  if (/^(имяматериала|materialname|материал|material)$/.test(value)) {
+    return "material";
+  }
+  if (/^(кромка|edge)?(подлине|length|длина)1$/.test(value)) return "edgeLong1";
+  if (/^(кромка|edge)?(подлине|length|длина)2$/.test(value)) return "edgeLong2";
+  if (/^(кромка|edge)?(поширине|width|ширина)1$/.test(value)) {
+    return "edgeShort1";
+  }
+  if (/^(кромка|edge)?(поширине|width|ширина)2$/.test(value)) {
+    return "edgeShort2";
+  }
+  if (/^(пильнаядлина)$/.test(value)) return "length";
+  if (/^(определение|designation|quantity|количество)$/.test(value)) {
+    return value === "quantity" || value === "количество"
+      ? "quantity"
+      : "title";
+  }
   if (/^(д1|l1|кд1|кромкад1)$/.test(value)) return "edgeLong1";
   if (/^(д2|l2|кд2|кромкад2)$/.test(value)) return "edgeLong2";
   if (/^(ш1|w1|кш1|кромкаш1)$/.test(value)) return "edgeShort1";
@@ -68,7 +98,48 @@ function parseNumber(value: string) {
 
 const SIZE_PAIR = /^(\d+(?:[.,]\d+)?)\s*[xх×*]\s*(\d+(?:[.,]\d+)?)$/i;
 
+// Строка CSV с кавычками: "Кромка (0,4 x 22)" остаётся одной ячейкой.
+function splitQuoted(line: string, separator: string) {
+  const cells: string[] = [];
+  let current = "";
+  let quoted = false;
+
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+
+    if (quoted) {
+      if (char === '"' && line[index + 1] === '"') {
+        current += '"';
+        index += 1;
+      } else if (char === '"') {
+        quoted = false;
+      } else {
+        current += char;
+      }
+    } else if (char === '"' && current.trim() === "") {
+      quoted = true;
+      current = "";
+    } else if (char === separator) {
+      cells.push(current);
+      current = "";
+    } else {
+      current += char;
+    }
+  }
+
+  cells.push(current);
+  return cells;
+}
+
 function splitCells(line: string) {
+  if (line.includes('"')) {
+    const separator = line.includes("\t")
+      ? "\t"
+      : line.includes(";")
+        ? ";"
+        : ",";
+    return splitQuoted(line, separator);
+  }
   if (line.includes("\t")) return line.split("\t");
   if (line.includes(";")) return line.split(";");
   if (/\d,\d/.test(line) && !line.includes(" ")) return line.split(",");
@@ -118,14 +189,43 @@ export function parseEdgeText(value: string): ImportedEdgeSide[] {
   return SIDE_ORDER.filter((side) => sides.has(side));
 }
 
+/**
+ * Размер в мм. Понимает «720», «720,5», а также размеры с единицами, как их
+ * пишет SketchUp: «720 mm», «72 см», «0,72 m», «~ 720mm».
+ */
+export function parseLength(value: string) {
+  const text = value
+    .trim()
+    .toLowerCase()
+    .replace(/^~\s*/, "")
+    .replace(/\s+/g, "");
+  const match = text.match(/^(-?\d+(?:[.,]\d+)?)(mm|мм|cm|см|m|м)?$/);
+
+  if (!match) return null;
+
+  const number = Number(match[1].replace(",", "."));
+  const unit = match[2] ?? "mm";
+  const factor =
+    unit === "cm" || unit === "см"
+      ? 10
+      : unit === "m" || unit === "м"
+        ? 1000
+        : 1;
+
+  return number * factor;
+}
+
 function edgeFlag(value: string | undefined) {
   if (!value) return false;
   const text = value.trim().toLowerCase();
   if (!text) return false;
   const numeric = parseNumber(text);
   if (numeric !== null) return numeric > 0;
+  if (/^(нет|no|-|–|false|0)$/.test(text)) return false;
 
-  return /^(да|\+|x|х|v|1|yes)$/.test(text) || /\d/.test(text);
+  // В колонке стороны любое название кромки значит «кромка есть»
+  // (OpenCutList пишет туда материал кромки).
+  return true;
 }
 
 function sidesFromFlags(flags: {
@@ -166,14 +266,15 @@ function parseByHeader(
     return index === undefined ? undefined : cells[index]?.trim();
   };
 
-  const length = parseNumber(cell("length") ?? "");
-  const width = parseNumber(cell("width") ?? "");
+  const length = parseLength(cell("length") ?? "");
+  const width = parseLength(cell("width") ?? "");
 
   if (!length || !width || length <= 0 || width <= 0) {
     return null;
   }
 
   const quantity = parseNumber(cell("quantity") ?? "") ?? 1;
+  const material = cell("material");
   const hasSideColumns =
     map.has("edgeLong1") ||
     map.has("edgeLong2") ||
@@ -193,6 +294,7 @@ function parseByHeader(
           short2: edgeFlag(cell("edgeShort2")),
         })
       : parseEdgeText(cell("edge") ?? ""),
+    ...(material ? { material } : {}),
   };
 }
 
