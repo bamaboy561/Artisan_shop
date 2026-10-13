@@ -3,6 +3,7 @@ import {
   stockPendingCatalogKeys,
   type StockPendingCandidate,
 } from "@/features/admin/stock-import";
+import { ensureStockPendingItemsTable } from "@/lib/server/stock-pending-schema";
 
 export type StockPendingListItem = {
   id: string;
@@ -23,6 +24,7 @@ export async function saveStockPendingItems(
   items: StockPendingCandidate[],
   sourceFile: string,
 ) {
+  await ensureStockPendingItemsTable(db);
   const now = new Date();
   for (let offset = 0; offset < items.length; offset += 100) {
     await db.$transaction(
@@ -50,6 +52,7 @@ export async function pruneStockPendingItems(
   db: PrismaClient,
   products: Array<{ sku: string; name: string }>,
 ) {
+  await ensureStockPendingItemsTable(db);
   const catalogKeys = stockPendingCatalogKeys(products);
   const items = await db.stockPendingItem.findMany({
     select: { id: true, matchKey: true },
@@ -64,6 +67,7 @@ export async function pruneStockPendingItems(
 export async function getStockPendingItems(
   db: PrismaClient,
 ): Promise<StockPendingListItem[]> {
+  await ensureStockPendingItemsTable(db);
   const [items, products] = await Promise.all([
     db.stockPendingItem.findMany({
       where: { dismissedAt: null },
