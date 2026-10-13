@@ -5,6 +5,7 @@
 import { type ImgHTMLAttributes, useState } from "react";
 
 import Image, { type ImageProps } from "next/image";
+import { ImageOff } from "lucide-react";
 
 import {
   canUseNextImageOptimization,
@@ -59,14 +60,19 @@ export function ProductImage({
     return (
       <div
         className={cn(
-          "flex items-center justify-center bg-[#ece8df] text-[var(--muted)]",
+          "flex items-center justify-center bg-[#ece8df] bg-[repeating-linear-gradient(135deg,transparent_0_14px,rgba(27,28,25,0.035)_14px_15px)] text-[#6e6b63]",
           fill ? "absolute inset-0" : "h-full w-full",
           fallbackClassName,
         )}
         aria-label={alt}
         role="img"
       >
-        <span className="px-4 text-center font-mono text-[10px] tracking-[0.18em] uppercase">
+        <span className="flex max-w-[16rem] flex-col items-center gap-2 px-4 text-center text-[13px] leading-snug font-semibold">
+          <ImageOff
+            className="size-5 opacity-50"
+            strokeWidth={1.6}
+            aria-hidden
+          />
           {fallbackLabel}
         </span>
       </div>

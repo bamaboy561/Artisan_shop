@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, Scissors } from "lucide-react";
 import { StructuredData } from "@/components/seo/structured-data";
 import { Pagination } from "@/components/ui/pagination";
 import type {
@@ -7,6 +7,7 @@ import type {
   FeaturedProduct,
 } from "@/features/catalog/types";
 import { collectionJsonLd } from "@/lib/seo";
+import { cuttingSiteIncentive } from "@/lib/site-config";
 import { CatalogControls } from "./catalog-controls";
 import { buildStorefrontHref, getStorefrontCatalog } from "./catalog-state";
 import { StorefrontCard } from "./card";
@@ -32,6 +33,13 @@ export function StorefrontCatalog({
   const basePath = category ? `/catalog/${category.slug}` : "/catalog";
   const currentHref = buildStorefrontHref(basePath, state);
   const title = category?.name ?? "Каталог";
+  const cutOffer = cuttingSiteIncentive?.offers[0];
+  const categoryCounts = new Map<string, number>();
+  for (const product of products)
+    categoryCounts.set(
+      product.categorySlug,
+      (categoryCounts.get(product.categorySlug) ?? 0) + 1,
+    );
   return (
     <div className={`${s.container} ${s.catalogPage}`}>
       <StructuredData
@@ -58,18 +66,42 @@ export function StorefrontCatalog({
       </nav>
       <div className={s.catalogHeading}>
         <div>
-          <p className={s.eyebrow}>Материалы для ваших идей</p>
           <h1>{title}</h1>
+          <p className={s.catalogLead}>
+            {category?.summary ||
+              "ЛДСП, МДФ, панели и фурнитура со склада в Бишкеке"}
+          </p>
         </div>
-        <Link href="/calculator" className={s.textLink}>
-          Рассчитать распил <ArrowUpRight size={18} />
+        <Link href="/calculator" className={s.cutPill}>
+          <Scissors size={17} />
+          {cutOffer
+            ? `Распил ${cutOffer.now} ${cutOffer.unit}`
+            : "Рассчитать распил"}
+          <ArrowUpRight size={17} />
         </Link>
       </div>
+      <nav className={s.categoryRail} aria-label="Разделы каталога">
+        <Link href="/catalog" aria-current={category ? undefined : "page"}>
+          Все материалы
+          {!category && <span>{products.length}</span>}
+        </Link>
+        {categories.map((item) => (
+          <Link
+            key={item.slug}
+            href={`/catalog/${item.slug}`}
+            aria-current={category?.slug === item.slug ? "page" : undefined}
+          >
+            {item.name}
+            {!category && categoryCounts.has(item.slug) && (
+              <span>{categoryCounts.get(item.slug)}</span>
+            )}
+          </Link>
+        ))}
+      </nav>
       <CatalogControls
         state={state}
         options={options}
         thicknesses={thicknesses}
-        categories={categories.map(({ slug, name }) => ({ slug, name }))}
         basePath={basePath}
         count={pagination.totalItems}
       >
