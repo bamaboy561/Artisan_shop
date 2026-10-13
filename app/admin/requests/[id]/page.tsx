@@ -408,23 +408,32 @@ export default async function AdminRequestDetailPage({
             {clientFiles.length > 0 ? (
               <div className="mt-5 space-y-3">
                 {clientFiles.map((file) => (
-                  <a
-                    key={file.id}
-                    href={file.fileUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex flex-col gap-1 rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] px-4 py-3 transition hover:border-[color:var(--line-strong)]"
-                  >
-                    <span className="font-medium text-[var(--foreground)]">
-                      {file.fileName}
-                    </span>
-                    <span className="text-xs text-[var(--muted)]">
-                      {file.size
-                        ? `${Math.max(file.size / 1024 / 1024, 0.01).toFixed(2)} МБ`
-                        : "Размер не указан"}{" "}
-                      · {formatDate(file.createdAt)}
-                    </span>
-                  </a>
+                  <div key={file.id} className="grid gap-2">
+                    <a
+                      href={file.fileUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex flex-col gap-1 rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] px-4 py-3 transition hover:border-[color:var(--line-strong)]"
+                    >
+                      <span className="font-medium text-[var(--foreground)]">
+                        {file.fileName}
+                      </span>
+                      <span className="text-xs text-[var(--muted)]">
+                        {file.size
+                          ? `${Math.max(file.size / 1024 / 1024, 0.01).toFixed(2)} МБ`
+                          : "Размер не указан"}{" "}
+                        · {formatDate(file.createdAt)}
+                      </span>
+                    </a>
+                    {/\.b3d$/i.test(file.fileName) ? (
+                      <Link
+                        href={`/admin/requests/${request.id}/bazis/${file.id}`}
+                        className="inline-flex h-10 items-center justify-center bg-[var(--foreground)] px-4 text-sm font-semibold text-white transition hover:bg-[var(--accent)]"
+                      >
+                        Открыть проект Базиса: вид и список деталей
+                      </Link>
+                    ) : null}
+                  </div>
                 ))}
               </div>
             ) : (
