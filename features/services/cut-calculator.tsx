@@ -35,7 +35,7 @@ import type {
   CalculatorSheetFormatDto,
 } from "@/lib/server/calculator-config";
 import { formatPrice } from "@/lib/commerce";
-import { cuttingSiteIncentive } from "@/lib/site-config";
+import { cuttingSiteIncentive, cuttingSitePrices } from "@/lib/site-config";
 import { cn } from "@/lib/utils";
 
 type EdgeSide = "top" | "right" | "bottom" | "left";
@@ -1656,8 +1656,15 @@ export function CutCalculator({
         detail.edgedSides,
       );
       const materialCost = areaSqM * material.pricePerSqM;
-      const contourCutCost = perimeterMeters * material.cutRatePerMeter;
-      const edgeCost = edgeMeters * material.edgeRatePerMeter;
+      // По ценам сайта распил считается за лист и в строку детали не входит.
+      const contourCutCost = cuttingSiteIncentive
+        ? 0
+        : perimeterMeters * material.cutRatePerMeter;
+      const edgeCost =
+        edgeMeters *
+        (cuttingSiteIncentive
+          ? cuttingSitePrices.edge
+          : material.edgeRatePerMeter);
 
       return {
         ...detail,
@@ -1693,9 +1700,17 @@ export function CutCalculator({
     const cutMeters = cutMap.cutLength / 1000;
     const materialCost =
       sheetCount * calculation.sheetAreaSqM * material.pricePerSqM;
-    const cuttingCost = cutMeters * material.cutRatePerMeter;
-    const edgeCost = calculation.totalEdgeMeters * material.edgeRatePerMeter;
-    const setupFee = calculation.totalPieces > 0 ? material.setupFee : 0;
+    // Раскрой, собранный на сайте, считается по сниженной цене:
+    // распил за лист и кромка за метр, как обещано в плашке.
+    const siteRates = cuttingSiteIncentive !== null;
+    const cuttingCost = siteRates
+      ? sheetCount * cuttingSitePrices.sheet
+      : cutMeters * material.cutRatePerMeter;
+    const edgeCost =
+      calculation.totalEdgeMeters *
+      (siteRates ? cuttingSitePrices.edge : material.edgeRatePerMeter);
+    const setupFee =
+      !siteRates && calculation.totalPieces > 0 ? material.setupFee : 0;
 
     return {
       sheetCount,
@@ -3309,17 +3324,23 @@ export function CutCalculator({
               <span>{formatPrice(Math.round(estimate.materialCost))}</span>
             </div>
             <div className="flex items-center justify-between gap-3 text-sm text-[#5f554c]">
-              <span>Распил по карте</span>
+              <span>
+                {cuttingSiteIncentive
+                  ? `Распил, ${estimate.sheetCount} × ${cuttingSitePrices.sheet} сом`
+                  : "Распил по карте"}
+              </span>
               <span>{formatPrice(Math.round(estimate.cuttingCost))}</span>
             </div>
             <div className="flex items-center justify-between gap-3 text-sm text-[#5f554c]">
               <span>Кромка {edgeSizeLabel}</span>
               <span>{formatPrice(Math.round(estimate.edgeCost))}</span>
             </div>
-            <div className="flex items-center justify-between gap-3 text-sm text-[#5f554c]">
-              <span>Подготовка</span>
-              <span>{formatPrice(estimate.setupFee)}</span>
-            </div>
+            {estimate.setupFee > 0 ? (
+              <div className="flex items-center justify-between gap-3 text-sm text-[#5f554c]">
+                <span>Подготовка</span>
+                <span>{formatPrice(estimate.setupFee)}</span>
+              </div>
+            ) : null}
             <div className="flex items-center justify-between gap-3 border-t border-[#151411]/10 pt-3 text-[15px] font-semibold text-[#151411]">
               <span>Итого ориентир</span>
               <span>{formatPrice(Math.round(estimate.totalEstimate))}</span>
