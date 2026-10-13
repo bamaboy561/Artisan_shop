@@ -15,16 +15,23 @@ import {
   setProductionStageAction,
   uploadRequestResultFilesAction,
 } from "@/app/admin/actions";
+import { ConfirmDeleteButton } from "@/components/admin/confirm-delete-button";
 import { AdminSubmitButton } from "@/components/admin/admin-submit-button";
 import { DeleteRequestButton } from "@/components/admin/delete-request-button";
 import { OperationTimeline } from "@/components/admin/operation-timeline";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { CuttingProgress } from "@/components/cutting/cutting-progress";
+import { getButtonClassName } from "@/components/ui/button";
 import { ButtonLink } from "@/components/ui/button-link";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { CuttingStage, RequestStatus, RequestType } from "@/generated/prisma";
+import {
+  CuttingStage,
+  OrderStatus,
+  RequestStatus,
+  RequestType,
+} from "@/generated/prisma";
 import { cuttingStageSteps } from "@/features/cutting/progress";
 import { getProductionTransition } from "@/features/production/workflow";
 import { requireAdminSession } from "@/lib/auth/dal";
@@ -35,6 +42,7 @@ import {
   productionStationDefinitions,
 } from "@/lib/auth/roles";
 import { getOperationEvents } from "@/lib/server/operation-events";
+import { getOrdersForRequest } from "@/lib/server/order-inbox";
 import { getRequestDetailById } from "@/lib/server/request-inbox";
 import { saveProductionDeadlineAction } from "@/app/admin/production/actions";
 import {
@@ -147,6 +155,23 @@ export default async function ProductionRequestPage({
   const requestNumber = request.number ?? request.id.slice(0, 8).toUpperCase();
   const operator = isProductionOperator(session.roleCode);
   const manager = canManageProduction(session.roleCode);
+  // Распил оплачивается через заказ: показываем, оплачен ли он, до выдачи.
+  const linkedOrders =
+    manager && request.cuttingStage === CuttingStage.READY_FOR_PICKUP
+      ? await getOrdersForRequest(request.id)
+      : [];
+  const unpaidOrders = linkedOrders.filter(
+    (order) =>
+      order.status === OrderStatus.NEW ||
+      order.status === OrderStatus.RESERVED ||
+      order.status === OrderStatus.CONFIRMED,
+  );
+  const issueWarning =
+    linkedOrders.length === 0
+      ? "По заявке нет заказа на оплату."
+      : unpaidOrders.length > 0
+        ? `Заказ № ${unpaidOrders.map((order) => order.number ?? "без номера").join(", ")} не оплачен.`
+        : "";
   const canDeleteRequest = canDeleteRequests(session.roleCode);
   const transition =
     operator && session.productionStation
@@ -441,15 +466,41 @@ export default async function ProductionRequestPage({
             . Когда клиент его заберёт, нажмите «Выдано»: заявка закроется и
             уйдёт из очереди.
           </p>
+          {linkedOrders.length === 0 ? (
+            <p className="mt-2 text-sm font-medium text-orange-800">
+              По этой заявке ещё не создан заказ на оплату.
+            </p>
+          ) : unpaidOrders.length > 0 ? (
+            <p className="mt-2 text-sm font-semibold text-red-700">
+              Заказ №{" "}
+              {unpaidOrders
+                .map((order) => order.number ?? "без номера")
+                .join(", ")}{" "}
+              не оплачен.
+            </p>
+          ) : (
+            <p className="mt-2 text-sm font-medium text-emerald-800">
+              Заказ оплачен. После выдачи он сам станет «Завершён».
+            </p>
+          )}
           <form action={markCuttingRequestIssuedAction} className="mt-3">
             <input type="hidden" name="requestId" value={request.id} />
             <input type="hidden" name="returnTo" value={returnTo} />
-            <AdminSubmitButton
-              type="submit"
-              variant="accent"
-              idleLabel="Выдано"
-              pendingLabel="Сохраняем..."
-            />
+            {issueWarning ? (
+              <ConfirmDeleteButton
+                confirmMessage={`${issueWarning} Всё равно отметить заявку выданной?`}
+                className={getButtonClassName("accent", "md")}
+              >
+                Выдано
+              </ConfirmDeleteButton>
+            ) : (
+              <AdminSubmitButton
+                type="submit"
+                variant="accent"
+                idleLabel="Выдано"
+                pendingLabel="Сохраняем..."
+              />
+            )}
           </form>
         </section>
       ) : null}

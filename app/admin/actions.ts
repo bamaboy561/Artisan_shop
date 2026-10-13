@@ -3022,14 +3022,35 @@ export async function updateOrderAction(formData: FormData) {
   const nextStatus =
     Object.values(OrderStatus).find((item) => item === status) ??
     OrderStatus.NEW;
+
+  await applyOrderStatusChange({
+    id,
+    nextStatus,
+    actor,
+    managerId: formData.has("managerId")
+      ? getOptionalString(formData, "managerId")
+      : undefined,
+  });
+
+  revalidateAdminOperations();
+}
+
+// Смена статуса заказа со всем, что за ней следует: резерв, бонусы, история,
+// уведомления. Используется и кнопками менеджера, и автоматическими
+// переходами (оплата по чеку, выдача распила).
+async function applyOrderStatusChange(input: {
+  id: string;
+  nextStatus: OrderStatus;
+  actor: Awaited<ReturnType<typeof ensureCuttingAdminAccess>>;
+  managerId?: string | null;
+}) {
+  const { id, nextStatus, actor } = input;
   const previousOrder = await getOrderInboxItemById(id);
 
   const statusUpdate = await updateOrderInboxItem({
     id,
     status: nextStatus,
-    managerId: formData.has("managerId")
-      ? getOptionalString(formData, "managerId")
-      : undefined,
+    managerId: input.managerId,
     actorId: actor.userId,
   });
 
@@ -3072,8 +3093,6 @@ export async function updateOrderAction(formData: FormData) {
         }
       : undefined,
   );
-
-  revalidateAdminOperations();
 }
 
 export async function updateOrderDetailsAction(formData: FormData) {
@@ -4911,6 +4930,25 @@ export async function markCuttingRequestIssuedAction(formData: FormData) {
     previousStatus: previousRequest.status,
     previousManager: previousRequest.manager,
   });
+
+  // Распил оплачивается через заказ: после выдачи оплаченный заказ
+  // закрывается сам. Неоплаченный остаётся открытым.
+  const linkedOrders = await getOrdersForRequest(requestId);
+
+  for (const order of linkedOrders) {
+    if (
+      order.status === OrderStatus.PAID ||
+      order.status === OrderStatus.IN_PRODUCTION ||
+      order.status === OrderStatus.READY_FOR_PICKUP ||
+      order.status === OrderStatus.SHIPPED
+    ) {
+      await applyOrderStatusChange({
+        id: order.id,
+        nextStatus: OrderStatus.COMPLETED,
+        actor,
+      });
+    }
+  }
 
   revalidateAdminOperations();
   redirect(productionActionReturn(formData, requestId, "issued"));
