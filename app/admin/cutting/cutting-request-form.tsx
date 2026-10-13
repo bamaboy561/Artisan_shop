@@ -96,7 +96,8 @@ export function CuttingRequestForm({ customers }: CuttingRequestFormProps) {
     () => options.find((customer) => customer.id === selectedCustomerId),
     [options, selectedCustomerId],
   );
-  const customerResults = options.slice(0, 10);
+  // Показываем всех найденных: список прокручивается.
+  const customerResults = options;
 
   useEffect(() => {
     if (mode !== "existing") {
@@ -272,7 +273,7 @@ export function CuttingRequestForm({ customers }: CuttingRequestFormProps) {
                 </button>
               </div>
             ) : (
-              <div className="grid max-h-52 gap-1 overflow-y-auto border border-[color:var(--line)] p-1">
+              <div className="grid max-h-80 gap-1 overflow-y-auto border border-[color:var(--line)] p-1">
                 {customerResults.map((customer) => (
                   <button
                     key={customer.id}
@@ -293,6 +294,12 @@ export function CuttingRequestForm({ customers }: CuttingRequestFormProps) {
                 {!loading && customerResults.length === 0 ? (
                   <p className="px-3 py-4 text-sm text-[var(--muted)]">
                     Клиенты не найдены
+                  </p>
+                ) : null}
+                {customerResults.length >= 100 ? (
+                  <p className="px-3 py-2 text-xs text-[var(--muted)]">
+                    Показаны первые 100. Введите имя или телефон, чтобы найти
+                    остальных.
                   </p>
                 ) : null}
               </div>

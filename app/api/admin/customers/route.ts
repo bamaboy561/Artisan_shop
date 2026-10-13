@@ -23,7 +23,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const rawQuery = searchParams.get("q") ?? "";
   const query = verifyClientQrPayload(rawQuery)?.userId ?? rawQuery;
-  const customers = await getSalesFloorCustomers(query, 30);
+  const customers = await getSalesFloorCustomers(query, 100);
 
   return NextResponse.json({ customers });
 }

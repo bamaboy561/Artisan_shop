@@ -238,7 +238,7 @@ export function SalesFloorForm({
   const selectedCustomer = customerOptions.find(
     (customer) => customer.id === selectedCustomerId,
   );
-  const customerResults = customerOptions.slice(0, 12);
+  const customerResults = customerOptions;
   const productResults = rankProductSearch(productOptions, productQuery)
     .filter((product) => !selectedProductIds.has(product.id))
     .slice(0, 12);

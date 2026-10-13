@@ -32,7 +32,7 @@ export default async function NewAdminCuttingPage() {
   );
 
   const customers = hasDatabaseUrl()
-    ? await getSalesFloorCustomers("", 20)
+    ? await getSalesFloorCustomers("", 100)
     : [];
 
   return (
