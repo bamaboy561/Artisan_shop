@@ -19,6 +19,7 @@ import {
 import { formatPrice } from "@/lib/commerce";
 import { getDb, hasDatabaseUrl } from "@/lib/db";
 import { getSiteUrl } from "@/lib/seo";
+import { sendClientDirectMessage } from "@/lib/server/client-notifications";
 import { sendStaffNotice } from "@/lib/server/commercial-integrations";
 import { syncOrderInventoryReservation } from "@/lib/server/inventory-reservations";
 import { cancelOrderLoyaltyTransactions } from "@/lib/server/order-loyalty-cancellation";
@@ -591,6 +592,10 @@ async function applyOneCOrderStatus(params: {
     }
 
     let loyaltyChanged = false;
+    // Сколько баллов зачислено этим переходом и какой стал баланс: нужно,
+    // чтобы сообщить клиенту.
+    let loyaltyAccrued = 0;
+    let loyaltyBalanceAfter: number | null = null;
 
     if (order.userId && params.nextStatus === OrderStatus.CANCELED) {
       loyaltyChanged = Boolean(
@@ -640,6 +645,12 @@ async function applyOneCOrderStatus(params: {
       );
       let balanceAfter: number | null = null;
 
+      loyaltyAccrued = approvedAccruals.reduce(
+        (sum, transaction) =>
+          transaction.points > 0 ? sum + transaction.points : sum,
+        0,
+      );
+
       if (balanceDelta !== 0 || lifetimeDelta !== 0) {
         const user = await tx.user.update({
           where: { id: order.userId },
@@ -650,6 +661,7 @@ async function applyOneCOrderStatus(params: {
           select: { loyaltyPointsBalance: true },
         });
         balanceAfter = user.loyaltyPointsBalance;
+        loyaltyBalanceAfter = balanceAfter;
       }
 
       const approvedTransactionIds = [
@@ -693,6 +705,8 @@ async function applyOneCOrderStatus(params: {
       total: order.total,
       previousStatus,
       loyaltyChanged,
+      loyaltyAccrued,
+      loyaltyBalanceAfter,
       source: params.source,
     };
   });
@@ -782,6 +796,23 @@ export async function syncOneCOrderStatuses(
           ],
           actions: [{ text: "Открыть заказ", url: "/account/orders" }],
         }).catch((error) => console.error("[1c:telegram:order-status]", error));
+      }
+
+      // Бонусы за заказ зачислены переходом из 1С: клиент получает то же
+      // сообщение, что и при зачислении менеджером.
+      if (transition.userId && transition.loyaltyAccrued > 0) {
+        await sendClientDirectMessage(transition.userId, {
+          title: "Бонусы начислены",
+          category: "loyalty",
+          lines: [
+            `Заказ: ${transition.number ?? order.id}`,
+            `Начислено: +${transition.loyaltyAccrued} баллов`,
+            ...(transition.loyaltyBalanceAfter !== null
+              ? [`Баланс: ${transition.loyaltyBalanceAfter} баллов`]
+              : []),
+          ],
+          actions: [{ text: "Открыть бонусы", url: "/account" }],
+        }).catch((error) => console.error("[1c:loyalty:notify]", error));
       }
 
       // Менеджеры узнают о смене статуса из 1С сразу, а не при следующем

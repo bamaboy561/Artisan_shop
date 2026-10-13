@@ -3044,13 +3044,22 @@ export async function updateOrderAction(formData: FormData) {
     Object.values(OrderStatus).find((item) => item === status) ??
     OrderStatus.NEW;
 
+  const requestedManagerId = formData.has("managerId")
+    ? getOptionalString(formData, "managerId")
+    : undefined;
+  const orderBefore = requestedManagerId
+    ? null
+    : await getOrderInboxItemById(id);
+
   await applyOrderStatusChange({
     id,
     nextStatus,
     actor,
-    managerId: formData.has("managerId")
-      ? getOptionalString(formData, "managerId")
-      : undefined,
+    // Заказ без менеджера закрепляется за тем, кто первым сменил ему статус.
+    managerId:
+      orderBefore && !orderBefore.manager && orderBefore.status !== nextStatus
+        ? actor.userId
+        : requestedManagerId,
   });
 
   revalidateAdminOperations();
@@ -4167,13 +4176,22 @@ export async function updateRequestAction(formData: FormData) {
   const actor = await ensureRequestAdminAccess(id);
 
   const previousRequest = await getRequestInboxItemById(id);
+  const nextRequestStatus =
+    Object.values(RequestStatus).find((item) => item === status) ??
+    RequestStatus.NEW;
+  const requestedManagerId = getOptionalString(formData, "managerId");
 
   await updateRequestInboxItem({
     id,
-    status:
-      Object.values(RequestStatus).find((item) => item === status) ??
-      RequestStatus.NEW,
-    managerId: getOptionalString(formData, "managerId"),
+    status: nextRequestStatus,
+    // Заявка без менеджера закрепляется за тем, кто первым сменил ей статус.
+    managerId:
+      !requestedManagerId &&
+      previousRequest &&
+      !previousRequest.manager &&
+      previousRequest.status !== nextRequestStatus
+        ? actor.userId
+        : requestedManagerId,
   });
 
   const currentRequest = await getRequestInboxItemById(id);

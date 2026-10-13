@@ -3,13 +3,15 @@ import { getSiteUrl } from "@/lib/seo";
 import { getAttentionSummary } from "@/lib/server/attention";
 import { cleanupBazisTempFiles } from "@/lib/server/bazis-temp-files";
 import { sendStaffNotice } from "@/lib/server/commercial-integrations";
+import { sendPickupReminders } from "@/lib/server/pickup-reminders";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 // Ежедневные задачи в 9:00 по Бишкеку: удалить проекты Базиса старше двух
-// дней и отправить в рабочий чат сводку «что требует внимания». Задачи не
+// дней, напомнить клиентам о готовых заказах и отправить в рабочий чат
+// сводку «что требует внимания». Задачи не
 // зависят друг от друга: сбой одной не отменяет другую.
 export async function GET(request: Request) {
   const cronSecret = process.env.CRON_SECRET?.trim();
@@ -30,6 +32,14 @@ export async function GET(request: Request) {
 
   let deletedBazisFiles: number | null = null;
   let digest = "skipped";
+  let pickupReminders: Awaited<ReturnType<typeof sendPickupReminders>> | null =
+    null;
+
+  try {
+    pickupReminders = await sendPickupReminders();
+  } catch (error) {
+    console.error("[cron:daily] pickup reminders failed", error);
+  }
 
   try {
     deletedBazisFiles = await cleanupBazisTempFiles();
@@ -41,9 +51,24 @@ export async function GET(request: Request) {
     const summary = await getAttentionSummary();
 
     if (summary) {
-      const result = await sendStaffNotice(
-        buildStaffDigest(summary, getSiteUrl()),
-      );
+      const message = buildStaffDigest(summary, getSiteUrl());
+
+      if (
+        pickupReminders &&
+        pickupReminders.sent + pickupReminders.unreachable > 0
+      ) {
+        message.lines.push(
+          "",
+          `Напоминаний клиентам о готовых заказах: ${pickupReminders.sent}`,
+          ...(pickupReminders.unreachable > 0
+            ? [
+                `Не удалось напомнить (нет Telegram и уведомлений сайта): ${pickupReminders.unreachable}. Позвоните этим клиентам.`,
+              ]
+            : []),
+        );
+      }
+
+      const result = await sendStaffNotice(message);
 
       digest = result.ok ? "sent" : result.message;
     }
@@ -52,5 +77,10 @@ export async function GET(request: Request) {
     digest = "failed";
   }
 
-  return Response.json({ ok: true, deletedBazisFiles, digest });
+  return Response.json({
+    ok: true,
+    deletedBazisFiles,
+    pickupReminders,
+    digest,
+  });
 }
