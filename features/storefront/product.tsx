@@ -104,6 +104,7 @@ export function StorefrontProduct({
               slug={product.slug}
               stock={product.stockQuantity}
               inStock={product.inStock}
+              price={product.price}
             />
           ) : (
             <div className={s.buyRow}>

@@ -16,20 +16,6 @@ type DashboardFrameProps = {
   children: ReactNode;
 };
 
-const variantMeta = {
-  admin: {
-    label: "Панель управления",
-    title: "Рабочий центр Artisan",
-    description: "Заказы, запросы, материалы и клиенты в одном интерфейсе.",
-  },
-  account: {
-    label: "Личный кабинет",
-    title: "Профиль, заказы и текущие статусы",
-    description:
-      "Клиент видит только то, что нужно для заказа, повторного обращения и контроля статусов.",
-  },
-} as const;
-
 function AdminFrame({
   title,
   description,
@@ -140,7 +126,6 @@ function AdminFrame({
 }
 
 function AccountFrame({
-  eyebrow,
   title,
   description,
   items,
@@ -148,106 +133,25 @@ function AccountFrame({
   variant = "account",
   children,
 }: DashboardFrameProps) {
-  const meta = variantMeta[variant];
-
   return (
-    <div className="min-h-screen overflow-x-clip bg-[linear-gradient(180deg,#f6f2ec_0%,#f2ede6_100%)]">
-      <Container className="grid min-w-0 gap-3 overflow-x-clip py-3 xl:grid-cols-[340px_minmax(0,1fr)] xl:items-start xl:gap-4 xl:py-6 2xl:grid-cols-[360px_minmax(0,1fr)]">
-        <section className="relative min-w-0 overflow-hidden rounded-[22px] border border-white/10 bg-[#111111] p-3 text-white shadow-[0_18px_42px_rgba(17,17,17,0.18)] xl:hidden">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(199,106,63,0.2),transparent_36%),linear-gradient(180deg,rgba(255,255,255,0.035),transparent_54%)]" />
+    <Container className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4 py-5 lg:grid-cols-[260px_minmax(0,1fr)] lg:items-start lg:gap-6 lg:py-8">
+      <div className="sr-only">
+        <h1>{title}</h1>
+        <p>{description}</p>
+      </div>
 
-          <div className="relative space-y-3">
-            <div className="flex min-w-0 items-end justify-between gap-3">
-              <div className="min-w-0">
-                <p className="font-mono text-[8px] tracking-[0.2em] text-white/42 uppercase">
-                  {eyebrow}
-                </p>
-                <h1 className="mt-1 truncate text-[1.25rem] leading-none font-semibold text-white">
-                  {title}
-                </h1>
-              </div>
-              <Link
-                href="/"
-                aria-label="На сайт"
-                className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-white text-sm font-black text-[#111111] transition hover:bg-[#c65b3a] hover:text-white"
-              >
-                A
-              </Link>
-            </div>
+      <div className="space-y-3 lg:hidden">
+        {actions}
+        <DashboardNav items={items} variant={variant} mode="mobile" />
+      </div>
 
-            {actions ? <div>{actions}</div> : null}
+      <aside className="hidden min-w-0 space-y-3 rounded-[20px] bg-white p-3 lg:sticky lg:top-4 lg:block">
+        {actions}
+        <DashboardNav items={items} variant={variant} />
+      </aside>
 
-            <Link
-              href="/"
-              className="flex h-10 items-center justify-center gap-2 rounded-[16px] border border-white/10 bg-white/[0.06] text-sm font-semibold text-white/82 transition hover:border-white/30 hover:bg-white hover:text-[#111111]"
-            >
-              <Home className="size-4" strokeWidth={1.9} />
-              На сайт
-            </Link>
-
-            <DashboardNav items={items} variant={variant} mode="mobile" />
-          </div>
-        </section>
-
-        <aside className="relative hidden max-w-full min-w-0 overflow-hidden rounded-[28px] border border-white/10 bg-[#111111] p-4 text-white shadow-[0_28px_80px_rgba(17,17,17,0.24)] xl:sticky xl:top-4 xl:flex xl:h-[calc(100vh-2rem)]">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(199,106,63,0.22),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.03),transparent_42%)]" />
-
-          <div className="relative flex h-full min-w-0 flex-col gap-5">
-            <div className="min-w-0 rounded-[22px] border border-white/10 bg-white/[0.04] p-4">
-              <p className="font-mono text-[10px] tracking-[0.24em] text-white/38 uppercase">
-                {eyebrow}
-              </p>
-              <h1 className="mt-3 max-w-full text-[1.65rem] leading-[1.04] font-semibold break-words text-white 2xl:text-[1.85rem]">
-                {title}
-              </h1>
-              <p className="mt-3 text-sm leading-6 break-words text-white/58">
-                {description}
-              </p>
-            </div>
-
-            {actions ? <div>{actions}</div> : null}
-
-            <Link
-              href="/"
-              className="flex h-11 items-center justify-center gap-2 rounded-[18px] border border-white/10 bg-white/[0.055] text-sm font-semibold text-white/82 transition hover:border-white/30 hover:bg-white hover:text-[#111111]"
-            >
-              <Home className="size-4" strokeWidth={1.9} />
-              На сайт
-            </Link>
-
-            <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-              <DashboardNav items={items} variant={variant} />
-            </div>
-
-            <div className="h-px bg-white/8" />
-          </div>
-        </aside>
-
-        <main
-          id="main-content"
-          className="min-w-0 space-y-3 overflow-x-clip xl:space-y-4"
-        >
-          <section className="surface-glow hidden rounded-[24px] border border-[color:var(--line)] bg-white/92 px-5 py-4 shadow-[0_20px_56px_rgba(17,17,17,0.05)] xl:block">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-              <div className="max-w-3xl">
-                <p className="font-mono text-[10px] tracking-[0.24em] text-[var(--accent)] uppercase">
-                  {meta.label}
-                </p>
-                <h2 className="mt-2 text-2xl font-semibold text-[var(--foreground)] sm:text-[2rem]">
-                  {meta.title}
-                </h2>
-              </div>
-
-              <p className="max-w-2xl text-sm leading-6 text-[var(--muted)]">
-                {meta.description}
-              </p>
-            </div>
-          </section>
-
-          <div className="space-y-4">{children}</div>
-        </main>
-      </Container>
-    </div>
+      <div className="min-w-0 space-y-4">{children}</div>
+    </Container>
   );
 }
 

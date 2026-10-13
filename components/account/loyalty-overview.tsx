@@ -184,8 +184,8 @@ export function LoyaltyOverview({
 
   return (
     <section className="reveal-up space-y-3 sm:space-y-4">
-      <article className="relative overflow-hidden rounded-[26px] bg-[#111111] p-4 text-white shadow-[0_22px_58px_rgba(17,17,17,0.18)] sm:rounded-[32px] sm:p-6">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_0%,rgba(199,106,63,0.3),transparent_32%),linear-gradient(135deg,rgba(255,255,255,0.05),transparent_42%)]" />
+      <article className="relative overflow-hidden rounded-[20px] bg-[#1f2b25] p-4 text-white sm:rounded-[24px] sm:p-6">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_0%,rgba(232,119,76,0.22),transparent_34%)]" />
 
         <div className="relative grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-stretch">
           <div className="min-w-0 space-y-4">
@@ -209,7 +209,7 @@ export function LoyaltyOverview({
 
             <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_190px] sm:items-end">
               <div className="min-w-0">
-                <p className="font-mono text-[10px] tracking-[0.22em] text-white/42 uppercase">
+                <p className="text-xs font-medium text-white/42">
                   {displayName}
                 </p>
                 <h2 className="mt-2 text-[2.05rem] leading-[0.95] font-semibold tracking-[-0.055em] text-white sm:text-5xl">
@@ -312,7 +312,7 @@ export function LoyaltyOverview({
 
           <div className="grid gap-2 rounded-[24px] border border-white/10 bg-white/[0.055] p-3 sm:p-4">
             <div className="min-w-0">
-              <p className="font-mono text-[10px] tracking-[0.2em] text-white/38 uppercase">
+              <p className="text-xs font-medium text-white/38">
                 Быстрые действия
               </p>
               <p className="mt-1 truncate text-sm text-white/62">
@@ -368,7 +368,7 @@ export function LoyaltyOverview({
                   className="rounded-xl border border-[#eee8de] bg-white"
                 />
                 <div className="min-w-0">
-                  <p className="font-mono text-[10px] tracking-[0.18em] text-[#9a5638] uppercase">
+                  <p className="text-xs font-medium text-[#9a5638]">
                     QR клиента
                   </p>
                   <p className="mt-1 text-xs leading-5 text-[#5d574f]">
@@ -384,9 +384,7 @@ export function LoyaltyOverview({
 
       <article className="grid gap-3 rounded-[24px] border border-[color:var(--line)] bg-white/92 p-4 shadow-[0_14px_34px_rgba(17,17,17,0.04)] sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
         <div className="min-w-0">
-          <p className="font-mono text-[10px] tracking-[0.18em] text-[var(--muted)] uppercase">
-            Telegram
-          </p>
+          <p className="text-xs font-medium text-[var(--muted)]">Telegram</p>
           <h3 className="mt-1 text-lg font-semibold tracking-[-0.03em] text-[var(--foreground)]">
             {user.telegramLinked
               ? "Бот подключен к личному кабинету"
@@ -394,8 +392,8 @@ export function LoyaltyOverview({
           </h3>
           <p className="mt-1 text-sm leading-6 text-[var(--muted)]">
             {user.telegramLinked
-              ? "Клиент получает обновления по заказам, заявкам на распил, бонусам и акциям прямо в Telegram."
-              : "После подключения клиент увидит кнопки «Мои заказы», «Мои заявки», «Баллы и статусы» без ручных команд."}
+              ? "Обновления по заказам, распилу, бонусам и акциям приходят вам в Telegram."
+              : "Бот сам напишет, когда заказ подтвердят и когда распил будет готов. В нём же можно посмотреть заказы и баллы."}
           </p>
         </div>
 
@@ -408,7 +406,7 @@ export function LoyaltyOverview({
         </Link>
       </article>
 
-      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
         {stats.map((item) => {
           const Icon = item.icon;
 
@@ -416,7 +414,7 @@ export function LoyaltyOverview({
             <Link
               key={item.label}
               href={item.href}
-              className="group rounded-[22px] border border-[color:var(--line)] bg-white/92 p-4 shadow-[0_14px_34px_rgba(17,17,17,0.04)] transition hover:-translate-y-0.5 hover:border-[color:var(--accent)]/30"
+              className="group min-w-0 rounded-[20px] border border-[color:var(--line)] bg-white/92 p-3.5 shadow-[0_14px_34px_rgba(17,17,17,0.04)] transition hover:-translate-y-0.5 hover:border-[color:var(--accent)]/30"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -464,7 +462,7 @@ export function LoyaltyOverview({
                 <StatusBadge tone={getTierTone(tier)}>
                   {getLoyaltyTierLabel(tier, loyaltyConfig)}
                 </StatusBadge>
-                <span className="text-[10px] tracking-[0.14em] text-[var(--muted)] uppercase">
+                <span className="text-xs text-[var(--muted)]">
                   {benefits.threshold === 0
                     ? "Старт"
                     : `${formatNumber(benefits.plateMaterialThreshold)} / ${formatNumber(benefits.fittingsThreshold)}`}

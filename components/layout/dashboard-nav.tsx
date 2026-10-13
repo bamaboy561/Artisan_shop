@@ -100,60 +100,30 @@ function AccountNav({
   pathname: string;
 }) {
   return (
-    <nav aria-label="Разделы кабинета" className="space-y-2">
-      <p className="px-2 font-mono text-[10px] tracking-[0.24em] text-white/34 uppercase">
-        Разделы
-      </p>
-      <div className="grid gap-1.5">
-        {items.map((item) => {
-          const Icon =
-            iconMap[item.href as keyof typeof iconMap] ?? LayoutDashboard;
-          const active = isItemActive(pathname, item.href);
+    <nav aria-label="Разделы кабинета" className="grid gap-1">
+      {items.map((item) => {
+        const Icon =
+          iconMap[item.href as keyof typeof iconMap] ?? LayoutDashboard;
+        const active = isItemActive(pathname, item.href);
 
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              title={item.description ?? item.label}
-              className={cn(
-                "group flex min-w-0 items-center gap-3 rounded-[18px] px-3 py-3 transition focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#111111] focus-visible:outline-none",
-                active
-                  ? "bg-white text-[#111111]"
-                  : "text-white/76 hover:bg-white/[0.06] hover:text-white",
-              )}
-            >
-              <span className="flex min-w-0 flex-1 items-center gap-3">
-                <span
-                  className={cn(
-                    "inline-flex size-9 shrink-0 items-center justify-center rounded-2xl border",
-                    active
-                      ? "border-black/8 bg-black/[0.05]"
-                      : "border-white/10 bg-white/[0.04]",
-                  )}
-                >
-                  <Icon className="size-4" strokeWidth={1.9} />
-                </span>
-
-                <span className="min-w-0">
-                  <span className="block truncate text-sm font-semibold">
-                    {item.label}
-                  </span>
-                  {item.description ? (
-                    <span
-                      className={cn(
-                        "mt-0.5 block truncate text-xs",
-                        active ? "text-black/55" : "text-white/42",
-                      )}
-                    >
-                      {item.description}
-                    </span>
-                  ) : null}
-                </span>
-              </span>
-            </Link>
-          );
-        })}
-      </div>
+        return (
+          <Link
+            key={item.href}
+            href={item.href}
+            title={item.description ?? item.label}
+            aria-current={active ? "page" : undefined}
+            className={cn(
+              "flex min-w-0 items-center gap-3 rounded-2xl px-3 py-2.5 text-[15px] font-semibold transition focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none",
+              active
+                ? "bg-[var(--foreground)] text-white"
+                : "text-[var(--foreground)] hover:bg-[var(--background)]",
+            )}
+          >
+            <Icon className="size-[18px] shrink-0" strokeWidth={1.9} />
+            <span className="truncate">{item.label}</span>
+          </Link>
+        );
+      })}
     </nav>
   );
 }
@@ -168,7 +138,7 @@ function AccountMobileNav({
   return (
     <nav
       aria-label="Разделы кабинета"
-      className="grid min-w-0 grid-cols-4 gap-1.5"
+      className="-mx-4 flex min-w-0 [scrollbar-width:none] gap-2 overflow-x-auto px-4 [&::-webkit-scrollbar]:hidden"
     >
       {items.map((item) => {
         const Icon =
@@ -182,14 +152,14 @@ function AccountMobileNav({
             title={item.description ?? item.label}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "flex h-[58px] min-w-0 flex-col items-center justify-center gap-1 rounded-[16px] border px-1.5 text-center text-[9px] font-bold tracking-[0.08em] uppercase transition focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:outline-none",
+              "inline-flex h-10 shrink-0 items-center gap-2 rounded-full border px-4 text-sm font-semibold whitespace-nowrap transition focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none",
               active
-                ? "border-white bg-white text-[#111111] shadow-[0_8px_24px_rgba(255,255,255,0.08)]"
-                : "border-white/10 bg-white/[0.055] text-white/62 hover:border-white/25 hover:bg-white/[0.1] hover:text-white",
+                ? "border-[var(--foreground)] bg-[var(--foreground)] text-white"
+                : "border-[color:var(--line)] bg-white text-[var(--foreground)]",
             )}
           >
             <Icon className="size-4 shrink-0" strokeWidth={1.9} />
-            <span className="truncate">{item.label}</span>
+            {item.label}
           </Link>
         );
       })}

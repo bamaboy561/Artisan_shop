@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Grid2X2, List, Search, SlidersHorizontal, X } from "lucide-react";
 import { useState, useTransition, type ReactNode, type FormEvent } from "react";
@@ -19,7 +18,6 @@ export function CatalogControls({
   state,
   options,
   thicknesses,
-  categories,
   basePath,
   count,
   children,
@@ -27,7 +25,6 @@ export function CatalogControls({
   state: StorefrontFilterState;
   options: CatalogFilterOptions;
   thicknesses: string[];
-  categories: { slug: string; name: string }[];
   basePath: string;
   count: number;
   children: ReactNode;
@@ -61,29 +58,14 @@ export function CatalogControls({
     state.brands.length + state.groups.length + state.thicknesses.length > 0 ||
     state.inStockOnly ||
     !!state.q;
+  const activeCount =
+    state.brands.length +
+    state.groups.length +
+    state.thicknesses.length +
+    (state.inStockOnly ? 1 : 0);
   function filters() {
     return (
       <div className={s.filterContent}>
-        <div className={s.categoryLinks}>
-          <Link
-            href="/catalog"
-            aria-current={basePath === "/catalog" ? "page" : undefined}
-          >
-            Все материалы
-          </Link>
-          {categories.map((category) => (
-            <Link
-              key={category.slug}
-              href={`/catalog/${category.slug}`}
-              aria-current={
-                basePath === `/catalog/${category.slug}` ? "page" : undefined
-              }
-              onClick={() => setOpen(false)}
-            >
-              {category.name}
-            </Link>
-          ))}
-        </div>
         {(["brands", "groups"] as const).map(
           (key) =>
             options[key].length > 0 && (
@@ -165,78 +147,83 @@ export function CatalogControls({
         {filters()}
       </aside>
       <div className={s.catalogResults}>
-        <form onSubmit={search} className={s.catalogSearch} role="search">
-          <Search size={18} />
-          <input
-            key={state.q}
-            name="q"
-            defaultValue={state.q}
-            type="search"
-            aria-label="Поиск в разделе"
-            placeholder="Название или артикул"
-          />
-          <button
-            className={s.iconButton}
-            title="Найти в разделе"
-            aria-label="Найти в разделе"
-            disabled={pending}
-          >
+        <div className={s.catalogBar}>
+          <form onSubmit={search} className={s.catalogSearch} role="search">
             <Search size={18} />
-          </button>
-        </form>
-        <div className={s.catalogToolbar}>
-          <span role="status">
-            Найдено: <strong>{count}</strong>
-          </span>
-          <button
-            type="button"
-            className={s.mobileFilter}
-            onClick={() => setOpen(true)}
-          >
-            <SlidersHorizontal size={16} />
-            Фильтры
-          </button>
-          <label className={s.sort}>
-            <span className={s.srOnly}>Сортировка</span>
-            <select
-              value={state.sort}
+            <input
+              key={state.q}
+              name="q"
+              defaultValue={state.q}
+              type="search"
+              aria-label="Поиск в разделе"
+              placeholder="Название или артикул"
+            />
+            <button
+              className={s.iconButton}
+              title="Найти в разделе"
+              aria-label="Найти в разделе"
               disabled={pending}
-              onChange={(event) =>
-                update({
-                  sort: event.target.value as StorefrontFilterState["sort"],
-                })
-              }
             >
-              {[
-                ...catalogSortOptions,
-                { value: "price-asc", label: "Сначала дешевле" },
-                { value: "price-desc", label: "Сначала дороже" },
-              ].map((item) => (
-                <option key={item.value} value={item.value}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <div className={s.viewSwitch}>
+              <Search size={18} />
+            </button>
+          </form>
+          <div className={s.catalogToolbar}>
+            <span role="status">
+              <span className={s.foundLabel}>Найдено: </span>
+              <strong>{count}</strong>
+              <span className={s.foundUnit}> шт.</span>
+            </span>
             <button
               type="button"
-              aria-label="Плитка"
-              title="Плитка"
-              aria-pressed={!list}
-              onClick={() => setList(false)}
+              className={s.mobileFilter}
+              onClick={() => setOpen(true)}
             >
-              <Grid2X2 size={17} />
+              <SlidersHorizontal size={16} />
+              Фильтры
+              {activeCount > 0 && <span>{activeCount}</span>}
             </button>
-            <button
-              type="button"
-              aria-label="Список"
-              title="Список"
-              aria-pressed={list}
-              onClick={() => setList(true)}
-            >
-              <List size={18} />
-            </button>
+            <label className={s.sort}>
+              <span className={s.srOnly}>Сортировка</span>
+              <select
+                value={state.sort}
+                disabled={pending}
+                onChange={(event) =>
+                  update({
+                    sort: event.target.value as StorefrontFilterState["sort"],
+                  })
+                }
+              >
+                {[
+                  ...catalogSortOptions,
+                  { value: "price-asc", label: "Сначала дешевле" },
+                  { value: "price-desc", label: "Сначала дороже" },
+                ].map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className={s.viewSwitch}>
+              <button
+                type="button"
+                aria-label="Плитка"
+                title="Плитка"
+                aria-pressed={!list}
+                onClick={() => setList(false)}
+              >
+                <Grid2X2 size={17} />
+              </button>
+              <button
+                type="button"
+                aria-label="Список"
+                title="Список"
+                aria-pressed={list}
+                onClick={() => setList(true)}
+              >
+                <List size={18} />
+              </button>
+            </div>
           </div>
         </div>
         {hasFilters && (

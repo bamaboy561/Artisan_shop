@@ -29,7 +29,8 @@ export function isCustomerEmailConfigured() {
 }
 
 export async function sendCustomerEmail(input: CustomerEmailInput) {
-  if (!isCustomerEmailConfigured()) {
+  // Технический адрес клиента, заведённого по телефону: писать некуда.
+  if (!isCustomerEmailConfigured() || input.to.endsWith(".invalid")) {
     return false;
   }
 

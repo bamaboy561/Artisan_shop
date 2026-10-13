@@ -45,7 +45,7 @@ export function DataTable({
                     key={column.key}
                     className="grid gap-1 border-b border-[#ece8e2] pb-2.5 last:border-0 last:pb-0"
                   >
-                    <p className="font-mono text-[9px] tracking-[0.16em] text-[#8a857d] uppercase">
+                    <p className="text-xs font-medium text-[#8a857d]">
                       {column.label}
                     </p>
                     <div className="min-w-0 break-words">{row[column.key]}</div>

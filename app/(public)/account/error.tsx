@@ -13,7 +13,7 @@ export default function AccountError({
   return (
     <div className="grid min-h-[60vh] place-items-center bg-[#f1eee8] px-4 py-10">
       <div className="w-full max-w-[760px] rounded-[28px] border border-[#151411]/10 bg-white p-6 text-center shadow-[0_24px_70px_rgba(21,20,17,0.08)] sm:p-10">
-        <p className="font-mono text-[10px] tracking-[0.22em] text-[var(--accent)] uppercase">
+        <p className="text-xs font-medium text-[var(--accent)]">
           Кабинет временно недоступен
         </p>
         <h1 className="mx-auto mt-3 max-w-[15ch] text-[2rem] leading-[0.96] font-semibold tracking-[-0.05em] text-[var(--foreground)] sm:text-[3rem]">

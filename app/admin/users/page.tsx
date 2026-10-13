@@ -6,6 +6,8 @@ import { LoyaltyTier } from "@/generated/prisma";
 import { DownloadCsvButton } from "@/components/admin/download-csv-button";
 import { Pagination } from "@/components/ui/pagination";
 import { paginateItems, withPageParam } from "@/features/admin/paging";
+import { NewClientForm } from "@/components/admin/new-client-form";
+import { getClientEmailLabel } from "@/features/admin/client-identity";
 import { MetricCard } from "@/components/admin/metric-card";
 import { SetupState } from "@/components/admin/setup-state";
 import { StatusBadge } from "@/components/admin/status-badge";
@@ -189,7 +191,7 @@ export default async function AdminUsersPage({
                 user.email}
             </Link>
             <p className="text-xs text-[var(--muted)]">
-              {user.companyName ?? user.email}
+              {user.companyName ?? getClientEmailLabel(user.email)}
             </p>
             {user.phone ? (
               <p className="text-xs text-[var(--muted)]">{user.phone}</p>
@@ -417,6 +419,8 @@ export default async function AdminUsersPage({
           descriptionClassName="max-w-3xl text-sm leading-7"
         />
       </section>
+
+      <NewClientForm returnTo="users" />
 
       {!mayManageLoyalty ? (
         <section className="rounded-[18px] border border-orange-200 bg-orange-50 p-4 text-sm leading-6 text-orange-800">
