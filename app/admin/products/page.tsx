@@ -232,6 +232,20 @@ export default async function AdminProductsPage({
     getStockPendingItems(getDb()).catch(() => null),
   ]);
 
+  const pendingPrefillItem = pendingItems?.find(
+    (item) => item.id === getImportText(resolvedSearchParams, "fromPending"),
+  );
+  const pendingPrefill = pendingPrefillItem
+    ? {
+        name: pendingPrefillItem.name,
+        sku: pendingPrefillItem.sku,
+        stockQuantity:
+          pendingPrefillItem.quantity === null
+            ? null
+            : Math.max(0, Math.floor(pendingPrefillItem.quantity)),
+      }
+    : undefined;
+
   const parsedState = parseAdminProductSearchParams(resolvedSearchParams);
   const state = sanitizeAdminProductFilterState(parsedState, {
     categories,
@@ -450,7 +464,15 @@ export default async function AdminProductsPage({
         </div>
 
         <div className="p-3 sm:p-4">
+          {pendingPrefillItem ? (
+            <p className="mb-3 rounded-2xl bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              Заполнено из списка «Нет на сайте». Выберите категорию, укажите
+              цену и сохраните.
+            </p>
+          ) : null}
           <NewProductForm
+            key={pendingPrefillItem?.id ?? "new"}
+            prefill={pendingPrefill}
             categories={categories}
             brands={brands}
             calculatorMaterials={calculatorMaterials}
