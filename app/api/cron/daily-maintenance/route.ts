@@ -2,7 +2,7 @@ import { buildStaffDigest } from "@/features/admin/attention";
 import { getSiteUrl } from "@/lib/seo";
 import { getAttentionSummary } from "@/lib/server/attention";
 import { cleanupBazisTempFiles } from "@/lib/server/bazis-temp-files";
-import { sendStaffDigestMessage } from "@/lib/server/commercial-integrations";
+import { sendStaffNotice } from "@/lib/server/commercial-integrations";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -41,7 +41,7 @@ export async function GET(request: Request) {
     const summary = await getAttentionSummary();
 
     if (summary) {
-      const result = await sendStaffDigestMessage(
+      const result = await sendStaffNotice(
         buildStaffDigest(summary, getSiteUrl()),
       );
 

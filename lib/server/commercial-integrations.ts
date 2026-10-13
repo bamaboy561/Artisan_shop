@@ -1329,23 +1329,25 @@ export async function handleOrderUpdated(input: OrderIntegrationInput) {
   ]);
 }
 
-// Сводка для рабочего чата. Если Telegram не настроен, молча пропускаем:
-// сводка не должна ломать ночные задачи.
-export async function sendStaffDigestMessage(input: {
+// Служебное сообщение в рабочий чат: сводка, изменения из 1С. Если Telegram
+// не настроен или не ответил, молча пропускаем: такое сообщение не должно
+// ломать задачу, которая его отправляет.
+export async function sendStaffNotice(input: {
   title: string;
   lines: string[];
+  threadKey?: TelegramThreadKey;
 }) {
   if (!isTelegramEnabled()) {
     return { ok: false, message: "Telegram не настроен." };
   }
 
   try {
-    await sendTelegramMessage({ title: input.title, lines: input.lines });
+    await sendTelegramMessage(input);
 
-    return { ok: true, message: "Сводка отправлена." };
+    return { ok: true, message: "Сообщение отправлено." };
   } catch (error) {
-    console.error("[telegram:digest:error]", error);
+    console.error("[telegram:staff-notice:error]", error);
 
-    return { ok: false, message: "Не удалось отправить сводку." };
+    return { ok: false, message: "Не удалось отправить сообщение." };
   }
 }

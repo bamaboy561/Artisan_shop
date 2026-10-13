@@ -18,6 +18,8 @@ import {
 } from "@/generated/prisma";
 import { formatPrice } from "@/lib/commerce";
 import { getDb, hasDatabaseUrl } from "@/lib/db";
+import { getSiteUrl } from "@/lib/seo";
+import { sendStaffNotice } from "@/lib/server/commercial-integrations";
 import { syncOrderInventoryReservation } from "@/lib/server/inventory-reservations";
 import { cancelOrderLoyaltyTransactions } from "@/lib/server/order-loyalty-cancellation";
 import { logOperationEvent } from "@/lib/server/operation-events";
@@ -780,6 +782,21 @@ export async function syncOneCOrderStatuses(
           ],
           actions: [{ text: "Открыть заказ", url: "/account/orders" }],
         }).catch((error) => console.error("[1c:telegram:order-status]", error));
+      }
+
+      // Менеджеры узнают о смене статуса из 1С сразу, а не при следующем
+      // заходе в заказ.
+      if (statusChanged) {
+        await sendStaffNotice({
+          title: `Заказ ${transition.number ?? order.id}: статус изменён из 1С`,
+          threadKey: "orders",
+          lines: [
+            `${getOrderStatusLabel(transition.previousStatus)} → ${getOrderStatusLabel(nextStatus)}`,
+            `Сумма: ${formatPrice(transition.total)}`,
+            ...descriptionParts,
+            `${getSiteUrl()}/admin/orders/${order.id}`,
+          ],
+        });
       }
 
       updated += 1;
