@@ -38,11 +38,11 @@ export function SalesChart({
     <div className="grid gap-4 xl:grid-cols-[1.4fr_1fr]">
       <div className="rounded-lg border border-[#ece8e2] bg-[#fbfaf8] p-4 sm:p-5">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h3 className="text-sm font-semibold text-[#24221f]">
+          <h3 className="text-sm font-semibold text-[#1b1c19]">
             Выручка по дням
           </h3>
           {bestDay && bestDay.revenue > 0 ? (
-            <p className="text-xs text-[#77736c]">
+            <p className="text-xs text-[#6e6b63]">
               Лучший день: {formatDay(bestDay.date)},{" "}
               {numberFormatter.format(bestDay.revenue)} сом
             </p>
@@ -65,7 +65,7 @@ export function SalesChart({
                   x2="100"
                   y1={chartHeight - line * (chartHeight - 8)}
                   y2={chartHeight - line * (chartHeight - 8)}
-                  stroke="#e6e2dc"
+                  stroke="#e3ddd2"
                   strokeWidth="1"
                   vectorEffect="non-scaling-stroke"
                 />
@@ -102,14 +102,14 @@ export function SalesChart({
             </div>
           </>
         ) : (
-          <p className="mt-6 text-sm leading-6 text-[#77736c]">
+          <p className="mt-6 text-sm leading-6 text-[#6e6b63]">
             За выбранный период подтверждённых продаж нет.
           </p>
         )}
       </div>
 
       <div className="rounded-lg border border-[#ece8e2] bg-[#fbfaf8] p-4 sm:p-5">
-        <h3 className="text-sm font-semibold text-[#24221f]">
+        <h3 className="text-sm font-semibold text-[#1b1c19]">
           Продажи по брендам
         </h3>
         {topBrands.length > 0 ? (
@@ -117,7 +117,7 @@ export function SalesChart({
             {topBrands.map((brand) => (
               <li key={brand.name} className="grid gap-1.5">
                 <div className="flex items-baseline justify-between gap-3 text-sm">
-                  <span className="min-w-0 truncate font-medium text-[#24221f]">
+                  <span className="min-w-0 truncate font-medium text-[#1b1c19]">
                     {brand.name}
                   </span>
                   <span className="shrink-0 text-[#5f5b55]">
@@ -136,7 +136,7 @@ export function SalesChart({
             ))}
           </ul>
         ) : (
-          <p className="mt-6 text-sm leading-6 text-[#77736c]">
+          <p className="mt-6 text-sm leading-6 text-[#6e6b63]">
             Продажи по брендам появятся после первых заказов за период.
           </p>
         )}

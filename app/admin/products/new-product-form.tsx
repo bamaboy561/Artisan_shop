@@ -124,9 +124,7 @@ function CompactPanel({
         className,
       )}
     >
-      <p className="mb-3 font-mono text-[10px] tracking-[0.18em] text-[var(--accent)] uppercase">
-        {title}
-      </p>
+      <p className="mb-3 text-xs font-medium text-[var(--accent)]">{title}</p>
       {children}
     </section>
   );
@@ -145,7 +143,7 @@ function CompactDetails({
     <details className="rounded-[18px] border border-[color:var(--line)] bg-white/70 p-3.5 open:bg-white/86 sm:p-4">
       <summary className="cursor-pointer list-none">
         <span className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-          <span className="font-mono text-[10px] tracking-[0.18em] text-[var(--accent)] uppercase">
+          <span className="text-xs font-medium text-[var(--accent)]">
             {title}
           </span>
           {summary ? (
@@ -376,7 +374,7 @@ function BundleCatalogPicker({
             "grid gap-1 rounded-2xl border p-4 text-left transition",
             !enabled
               ? "border-[#111] bg-[#111] text-white shadow-[0_16px_36px_rgba(17,17,17,0.16)]"
-              : "border-[color:var(--line)] bg-white text-[var(--foreground)] hover:border-[#c65b3a]",
+              : "border-[color:var(--line)] bg-white text-[var(--foreground)] hover:border-[#c4532b]",
           )}
         >
           <span className="text-sm font-semibold">Обычный товар</span>
@@ -397,7 +395,7 @@ function BundleCatalogPicker({
             "grid gap-1 rounded-2xl border p-4 text-left transition",
             enabled
               ? "border-[#111] bg-[#111] text-white shadow-[0_16px_36px_rgba(17,17,17,0.16)]"
-              : "border-[color:var(--line)] bg-white text-[var(--foreground)] hover:border-[#c65b3a]",
+              : "border-[color:var(--line)] bg-white text-[var(--foreground)] hover:border-[#c4532b]",
           )}
         >
           <span className="text-sm font-semibold">Комплект из каталога</span>
@@ -473,7 +471,7 @@ function BundleCatalogPicker({
                       <span className="rounded-full bg-white px-2.5 py-1 text-[var(--muted)] ring-1 ring-[color:var(--line)]">
                         Остаток: {product.stockQuantity ?? 0} шт.
                       </span>
-                      <span className="ml-auto font-mono text-[10px] tracking-[0.16em] text-[var(--accent)] uppercase">
+                      <span className="ml-auto text-xs font-medium text-[var(--accent)]">
                         Добавить
                       </span>
                     </span>
@@ -490,7 +488,7 @@ function BundleCatalogPicker({
           <div className="grid content-start gap-3">
             <div className="grid gap-2 sm:grid-cols-3">
               <div className="rounded-2xl border border-[color:var(--line)] bg-white p-3">
-                <p className="font-mono text-[10px] tracking-[0.16em] text-[var(--muted)] uppercase">
+                <p className="text-xs font-medium text-[var(--muted)]">
                   Позиций
                 </p>
                 <p className="mt-1 text-xl font-semibold text-[var(--foreground)]">
@@ -498,7 +496,7 @@ function BundleCatalogPicker({
                 </p>
               </div>
               <div className="rounded-2xl border border-[color:var(--line)] bg-white p-3">
-                <p className="font-mono text-[10px] tracking-[0.16em] text-[var(--muted)] uppercase">
+                <p className="text-xs font-medium text-[var(--muted)]">
                   Кол-во
                 </p>
                 <p className="mt-1 text-xl font-semibold text-[var(--foreground)]">
@@ -506,7 +504,7 @@ function BundleCatalogPicker({
                 </p>
               </div>
               <div className="rounded-2xl border border-[color:var(--line)] bg-white p-3">
-                <p className="font-mono text-[10px] tracking-[0.16em] text-[var(--muted)] uppercase">
+                <p className="text-xs font-medium text-[var(--muted)]">
                   Компоненты
                 </p>
                 <p className="mt-1 text-xl font-semibold text-[var(--foreground)]">
@@ -571,7 +569,7 @@ function BundleCatalogPicker({
                         />
                       </FieldLabel>
                       <div>
-                        <p className="font-mono text-[10px] tracking-[0.16em] text-[var(--muted)] uppercase">
+                        <p className="text-xs font-medium text-[var(--muted)]">
                           Сумма
                         </p>
                         <p className="mt-2 text-sm font-semibold text-[var(--foreground)]">
@@ -581,7 +579,7 @@ function BundleCatalogPicker({
                       <button
                         type="button"
                         onClick={() => removeProduct(item.componentProductId)}
-                        className="h-9 border border-[color:var(--line)] px-3 font-mono text-[10px] tracking-[0.14em] text-red-600 uppercase transition hover:border-red-300 hover:bg-red-50"
+                        className="h-9 border border-[color:var(--line)] px-3 text-xs font-medium text-red-600 transition hover:border-red-300 hover:bg-red-50"
                       >
                         Убрать
                       </button>
@@ -1124,13 +1122,13 @@ export function NewProductForm({
 
           <div className="grid gap-2">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <p className="font-mono text-[10px] tracking-[0.16em] text-[var(--accent)] uppercase">
+              <p className="text-xs font-medium text-[var(--accent)]">
                 Ссылки на изображения
               </p>
               <button
                 type="button"
                 onClick={addImageUrlField}
-                className="h-9 border border-[color:var(--line)] px-3 font-mono text-[10px] tracking-[0.14em] text-[var(--foreground)] uppercase transition hover:border-[var(--accent)] hover:bg-white"
+                className="h-9 border border-[color:var(--line)] px-3 text-xs font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:bg-white"
               >
                 Добавить ссылку
               </button>
@@ -1155,7 +1153,7 @@ export function NewProductForm({
                     <button
                       type="button"
                       onClick={() => removeImageUrlField(index)}
-                      className="h-9 border border-[color:var(--line)] px-3 font-mono text-[10px] tracking-[0.14em] text-red-600 uppercase transition hover:border-red-300 hover:bg-red-50"
+                      className="h-9 border border-[color:var(--line)] px-3 text-xs font-medium text-red-600 transition hover:border-red-300 hover:bg-red-50"
                     >
                       Убрать
                     </button>

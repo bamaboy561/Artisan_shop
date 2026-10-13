@@ -27,7 +27,7 @@ export function FormBlock({
       )}
     >
       <div className="max-w-2xl space-y-3">
-        <p className="font-mono text-xs tracking-[0.28em] text-[var(--accent)] uppercase">
+        <p className="text-xs text-[var(--accent)] font-medium">
           {eyebrow}
         </p>
         <h3 className="text-[1.35rem] leading-[1.08] font-semibold text-[var(--foreground)] sm:text-2xl">

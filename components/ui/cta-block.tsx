@@ -25,7 +25,7 @@ export function CtaBlock({
     <section className="overflow-hidden rounded-[24px] bg-[var(--hero)] p-8 text-white sm:p-10">
       <div className="grid gap-6 lg:grid-cols-[1fr_0.8fr] lg:items-end">
         <div className="space-y-3">
-          <p className="font-mono text-xs tracking-[0.3em] text-white/52 uppercase">
+          <p className="text-xs text-white/52 font-medium">
             {eyebrow}
           </p>
           <h2 className="font-display text-2xl leading-tight text-balance sm:text-3xl">

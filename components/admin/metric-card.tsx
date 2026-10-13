@@ -21,15 +21,13 @@ export function MetricCard({
   tone = "accent",
 }: MetricCardProps) {
   return (
-    <div className="surface-glow rounded-[20px] border border-[color:var(--line)] bg-white/92 p-4 shadow-[0_20px_56px_rgba(17,17,17,0.05)]">
+    <div className="min-w-0 rounded-[20px] border border-[color:var(--line)] bg-white p-3.5 sm:p-4">
       <div className="flex items-center justify-between gap-3">
-        <p className="font-mono text-[10px] tracking-[0.18em] text-[var(--muted)] uppercase">
-          {label}
-        </p>
+        <p className="text-xs font-medium text-[var(--muted)]">{label}</p>
         <span className={cn("size-2 rounded-full", toneMap[tone])} />
       </div>
 
-      <p className="mt-4 text-[1.95rem] leading-none font-semibold text-[var(--foreground)]">
+      <p className="mt-3 text-2xl leading-none font-semibold text-[var(--foreground)] sm:mt-4 sm:text-[1.95rem]">
         {value}
       </p>
       <p className="mt-2 text-xs leading-5 text-[var(--muted)]">{detail}</p>

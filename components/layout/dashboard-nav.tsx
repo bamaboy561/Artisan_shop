@@ -70,8 +70,8 @@ function AdminNavItem({ item, pathname }: { item: NavItem; pathname: string }) {
       className={cn(
         "group flex h-10 shrink-0 items-center justify-between gap-3 rounded-lg px-3 text-[13px] font-medium transition focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:outline-none lg:w-full",
         active
-          ? "bg-[#a8492b] text-white shadow-[0_12px_26px_rgba(168,73,43,0.28)]"
-          : "text-white/76 hover:bg-white/[0.075] hover:text-white",
+          ? "bg-[#c4532b] text-white shadow-[0_10px_24px_rgba(196,83,43,0.3)]"
+          : "text-white/78 hover:bg-white/[0.08] hover:text-white",
       )}
     >
       <span className="flex min-w-0 items-center gap-3">

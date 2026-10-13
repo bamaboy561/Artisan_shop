@@ -12,7 +12,7 @@ export function SetupState({ title, description, steps }: SetupStateProps) {
 
   return (
     <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-6 sm:p-8">
-      <p className="font-mono text-[10px] tracking-[0.24em] text-[var(--accent)] uppercase">
+      <p className="text-xs font-medium text-[var(--accent)]">
         {demoMode ? "Включен demo-режим" : "Требуется подключение базы"}
       </p>
       <h2 className="mt-4 text-2xl font-semibold text-[var(--foreground)] sm:text-3xl">

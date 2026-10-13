@@ -106,7 +106,7 @@ export function CategoryCreateForm() {
       </label>
 
       <details className="rounded-[18px] border border-[color:var(--line)] bg-white/70 p-4">
-        <summary className="cursor-pointer font-mono text-[11px] tracking-[0.16em] text-[var(--muted)] uppercase">
+        <summary className="cursor-pointer text-xs font-medium text-[var(--muted)]">
           Расширенные настройки
         </summary>
 

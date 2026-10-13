@@ -67,9 +67,7 @@ function PageEditor({ page }: { page: SitePage }) {
         <input type="hidden" name="id" value={page.id} />
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="font-mono text-[9px] tracking-[0.18em] text-[var(--accent)] uppercase">
-              Страница
-            </p>
+            <p className="text-xs font-medium text-[var(--accent)]">Страница</p>
             <h3 className="mt-1 text-lg font-semibold text-[var(--foreground)]">
               {page.title}
             </h3>
@@ -120,7 +118,7 @@ function PageEditor({ page }: { page: SitePage }) {
         </label>
 
         <details className="rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] p-3">
-          <summary className="cursor-pointer font-mono text-[10px] tracking-[0.16em] text-[var(--muted)] uppercase">
+          <summary className="cursor-pointer text-xs font-medium text-[var(--muted)]">
             SEO
           </summary>
           <div className="mt-3 grid gap-3">
@@ -165,8 +163,8 @@ function BannerEditor({ banner }: { banner: Banner }) {
       <form action={updateBannerAction} className="grid gap-3">
         <input type="hidden" name="id" value={banner.id} />
         <div className="grid gap-3 lg:grid-cols-[1fr_13rem]">
-          <div className="rounded-[20px] border border-[#15110d]/10 bg-[#15110d] p-4 text-white">
-            <p className="font-mono text-[9px] tracking-[0.2em] text-white/48 uppercase">
+          <div className="rounded-[20px] border border-[#1f2b25]/10 bg-[#1f2b25] p-4 text-white">
+            <p className="text-xs font-medium text-white/48">
               {bannerPlacementLabels[banner.placement]}
             </p>
             <h3 className="mt-4 text-2xl leading-tight font-semibold tracking-[-0.05em]">
@@ -178,7 +176,7 @@ function BannerEditor({ banner }: { banner: Banner }) {
               </p>
             ) : null}
             {banner.ctaLabel ? (
-              <p className="mt-4 inline-flex border border-white/18 px-3 py-2 font-mono text-[10px] tracking-[0.16em] text-white/76 uppercase">
+              <p className="mt-4 inline-flex border border-white/18 px-3 py-2 text-xs font-medium text-white/76">
                 {banner.ctaLabel}
               </p>
             ) : null}
@@ -352,7 +350,7 @@ export default async function AdminContentPage() {
         />
       </section>
 
-      <section className="grid gap-4 md:grid-cols-3">
+      <section className="grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-3">
         <MetricCard
           label="Страницы"
           value={pages.length}

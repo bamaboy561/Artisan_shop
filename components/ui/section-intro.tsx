@@ -15,7 +15,7 @@ export function SectionIntro({
 }: SectionIntroProps) {
   return (
     <div className={cn("max-w-3xl space-y-3", className)}>
-      <p className="font-mono text-xs tracking-[0.3em] text-[var(--accent)] uppercase">
+      <p className="text-xs text-[var(--accent)] font-medium">
         {eyebrow}
       </p>
       <h2 className="text-2xl leading-tight font-semibold text-balance text-[var(--foreground)] sm:text-3xl">

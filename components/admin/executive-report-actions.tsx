@@ -71,7 +71,7 @@ export function ExecutiveReportActions({
         href={telegramHref}
         target="_blank"
         rel="noreferrer"
-        className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#1d1a17] px-3 text-sm font-medium text-white transition hover:bg-[#c65b3a]"
+        className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-[#1f2b25] px-4 text-sm font-medium text-white transition hover:bg-[#c4532b]"
       >
         <Send className="size-4" strokeWidth={1.9} />
         Отправить

@@ -81,7 +81,7 @@ export function ProductImportForm({
       </div>
 
       <details className="rounded-[18px] border border-[color:var(--line)] bg-white/70 p-3 open:bg-white/86">
-        <summary className="cursor-pointer list-none font-mono text-[10px] tracking-[0.18em] text-[var(--accent)] uppercase">
+        <summary className="cursor-pointer list-none text-xs font-medium text-[var(--accent)]">
           Параметры импорта
         </summary>
 

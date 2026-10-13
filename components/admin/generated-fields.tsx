@@ -108,7 +108,7 @@ export function GeneratedSlugInput({
             setIsManual(false);
             setManualValue("");
           }}
-          className="font-mono text-[10px] tracking-[0.16em] text-[var(--accent)] uppercase"
+          className="text-xs font-medium text-[var(--accent)]"
         >
           Авто
         </button>
@@ -183,7 +183,7 @@ export function GeneratedSkuInput({
             setIsManual(false);
             setManualValue("");
           }}
-          className="font-mono text-[10px] tracking-[0.16em] text-[var(--accent)] uppercase"
+          className="text-xs font-medium text-[var(--accent)]"
         >
           Авто
         </button>
@@ -220,9 +220,7 @@ export function ManagerHelpCard({
 }) {
   return (
     <div className="rounded-2xl border border-[#eadfd4] bg-[#fbf6ef] p-4 text-sm leading-6 text-[var(--muted)]">
-      <p className="font-mono text-[10px] tracking-[0.16em] text-[var(--accent)] uppercase">
-        {title}
-      </p>
+      <p className="text-xs font-medium text-[var(--accent)]">{title}</p>
       <div className="mt-2">{children}</div>
     </div>
   );

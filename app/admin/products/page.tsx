@@ -186,7 +186,7 @@ function MiniStat({
   return (
     <div className={`rounded-2xl px-3 py-2 ${toneClass}`}>
       <p className="text-lg leading-none font-semibold">{value}</p>
-      <p className="mt-1 text-[10px] tracking-[0.14em] uppercase">{label}</p>
+      <p className="mt-1 text-xs">{label}</p>
     </div>
   );
 }
@@ -321,10 +321,10 @@ export default async function AdminProductsPage({
 
   return (
     <div className="space-y-4">
-      <section className="overflow-hidden rounded-[28px] border border-[#24231f] bg-[#141411] text-white shadow-[0_22px_70px_rgba(20,20,17,0.18)]">
+      <section className="overflow-hidden rounded-[24px] border border-[#1f2b25] bg-[#1f2b25] text-white shadow-[0_22px_70px_rgba(20,20,17,0.18)]">
         <div className="grid gap-4 p-4 sm:p-5 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
           <div className="min-w-0">
-            <p className="font-mono text-[10px] tracking-[0.24em] text-white/42 uppercase">
+            <p className="text-xs font-medium text-white/42">
               Рабочее место каталога
             </p>
             <h1 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-white sm:text-3xl">
@@ -385,7 +385,7 @@ export default async function AdminProductsPage({
         >
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <p className="font-mono text-[10px] tracking-[0.22em] uppercase opacity-70">
+              <p className="text-xs font-medium opacity-70">
                 Импорт Excel / 1С
               </p>
               <h3 className="mt-1 text-lg font-semibold tracking-[-0.03em]">
@@ -437,7 +437,7 @@ export default async function AdminProductsPage({
           </div>
           <Link
             href="#catalog-list"
-            className="inline-flex h-9 shrink-0 items-center justify-center rounded-full border border-[color:var(--line)] px-4 font-mono text-[10px] font-semibold tracking-[0.14em] text-[var(--muted)] uppercase transition hover:border-[color:var(--foreground)] hover:text-[var(--foreground)]"
+            className="inline-flex h-9 shrink-0 items-center justify-center rounded-full border border-[color:var(--line)] px-4 text-xs font-semibold text-[var(--muted)] transition hover:border-[color:var(--foreground)] hover:text-[var(--foreground)]"
           >
             К списку
           </Link>
@@ -475,7 +475,7 @@ export default async function AdminProductsPage({
                 </span>
               </span>
             </span>
-            <span className="rounded-full border border-[color:var(--line)] px-3 py-1 font-mono text-[10px] tracking-[0.14em] text-[var(--muted)] uppercase">
+            <span className="rounded-full border border-[color:var(--line)] px-3 py-1 text-xs font-medium text-[var(--muted)]">
               Открыть
             </span>
           </summary>
@@ -499,7 +499,7 @@ export default async function AdminProductsPage({
                 </span>
               </span>
             </span>
-            <span className="rounded-full border border-[color:var(--line)] px-3 py-1 font-mono text-[10px] tracking-[0.14em] text-[var(--muted)] uppercase">
+            <span className="rounded-full border border-[color:var(--line)] px-3 py-1 text-xs font-medium text-[var(--muted)]">
               Открыть
             </span>
           </summary>
@@ -526,25 +526,25 @@ export default async function AdminProductsPage({
             <div className="flex flex-wrap gap-2">
               <Link
                 href={getStateHref(state, { status: "all", featured: "all" })}
-                className="rounded-full border border-[color:var(--line)] bg-[var(--surface)] px-3 py-1.5 text-[11px] font-semibold tracking-[0.14em] text-[var(--muted)] uppercase transition hover:border-[color:var(--line-strong)]"
+                className="rounded-full border border-[color:var(--line)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[var(--muted)] transition hover:border-[color:var(--line-strong)]"
               >
                 Все
               </Link>
               <Link
                 href={getStateHref(state, { status: ProductStatus.ACTIVE })}
-                className="rounded-full border border-[color:var(--line)] bg-[var(--surface)] px-3 py-1.5 text-[11px] font-semibold tracking-[0.14em] text-[var(--muted)] uppercase transition hover:border-[color:var(--line-strong)]"
+                className="rounded-full border border-[color:var(--line)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[var(--muted)] transition hover:border-[color:var(--line-strong)]"
               >
                 Опубликованные
               </Link>
               <Link
                 href={getStateHref(state, { status: ProductStatus.DRAFT })}
-                className="rounded-full border border-[color:var(--line)] bg-[var(--surface)] px-3 py-1.5 text-[11px] font-semibold tracking-[0.14em] text-[var(--muted)] uppercase transition hover:border-[color:var(--line-strong)]"
+                className="rounded-full border border-[color:var(--line)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[var(--muted)] transition hover:border-[color:var(--line-strong)]"
               >
                 Черновики
               </Link>
               <Link
                 href={getStateHref(state, { featured: "featured" })}
-                className="rounded-full border border-[color:var(--line)] bg-[var(--surface)] px-3 py-1.5 text-[11px] font-semibold tracking-[0.14em] text-[var(--muted)] uppercase transition hover:border-[color:var(--line-strong)]"
+                className="rounded-full border border-[color:var(--line)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[var(--muted)] transition hover:border-[color:var(--line-strong)]"
               >
                 Подборки
               </Link>
@@ -694,7 +694,7 @@ export default async function AdminProductsPage({
               </Button>
               <Link
                 href="/admin/products"
-                className="inline-flex h-9 items-center justify-center border border-[color:var(--line-strong)] px-4 font-mono text-[10px] font-semibold tracking-[0.14em] text-[var(--foreground)] uppercase transition hover:border-[color:var(--foreground)] hover:bg-[var(--foreground)] hover:text-white"
+                className="inline-flex h-9 items-center justify-center border border-[color:var(--line-strong)] px-4 text-xs font-semibold text-[var(--foreground)] transition hover:border-[color:var(--foreground)] hover:bg-[var(--foreground)] hover:text-white"
               >
                 Сбросить
               </Link>
@@ -866,7 +866,7 @@ export default async function AdminProductsPage({
                   <div className="flex flex-wrap gap-2 xl:justify-end">
                     <Link
                       href={`/admin/products/${product.id}`}
-                      className="inline-flex h-9 flex-1 items-center justify-center border border-[var(--line-strong)] px-3 font-mono text-[10px] tracking-[0.14em] text-[var(--foreground)] uppercase transition hover:border-[var(--foreground)] hover:bg-[var(--foreground)] hover:text-white xl:flex-none"
+                      className="inline-flex h-9 flex-1 items-center justify-center border border-[var(--line-strong)] px-3 text-xs font-medium text-[var(--foreground)] transition hover:border-[var(--foreground)] hover:bg-[var(--foreground)] hover:text-white xl:flex-none"
                     >
                       Править
                     </Link>
@@ -874,7 +874,7 @@ export default async function AdminProductsPage({
                       href={`/product/${product.slug}`}
                       target="_blank"
                       rel="noreferrer"
-                      className="inline-flex h-9 items-center justify-center border border-[var(--line-strong)] px-3 font-mono text-[10px] tracking-[0.14em] text-[var(--foreground)] uppercase transition hover:border-[var(--foreground)]"
+                      className="inline-flex h-9 items-center justify-center border border-[var(--line-strong)] px-3 text-xs font-medium text-[var(--foreground)] transition hover:border-[var(--foreground)]"
                     >
                       Сайт
                     </Link>
@@ -919,7 +919,7 @@ export default async function AdminProductsPage({
             </p>
             <Link
               href="/admin/products"
-              className="mt-5 inline-flex h-10 items-center justify-center border border-[color:var(--line-strong)] px-5 font-mono text-[11px] font-semibold tracking-[0.14em] text-[var(--foreground)] uppercase transition hover:border-[color:var(--foreground)] hover:bg-[var(--foreground)] hover:text-white"
+              className="mt-5 inline-flex h-10 items-center justify-center border border-[color:var(--line-strong)] px-5 text-xs font-semibold text-[var(--foreground)] transition hover:border-[color:var(--foreground)] hover:bg-[var(--foreground)] hover:text-white"
             >
               Сбросить фильтры
             </Link>

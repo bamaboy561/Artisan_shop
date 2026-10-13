@@ -71,7 +71,7 @@ export default async function EditBrandPage({ params }: EditBrandPageProps) {
           <div>
             <Link
               href="/admin/brands"
-              className="font-mono text-[10px] tracking-[0.18em] text-[var(--accent)] uppercase transition hover:text-[#9d573d]"
+              className="text-xs font-medium text-[var(--accent)] transition hover:text-[#9d573d]"
             >
               ← К списку брендов
             </Link>
@@ -88,7 +88,7 @@ export default async function EditBrandPage({ params }: EditBrandPageProps) {
               href={`/brands/${normalizeBrandSlug(brand.slug)}`}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex h-10 items-center border border-[var(--line-strong)] px-4 font-mono text-[11px] tracking-[0.16em] text-[var(--foreground)] uppercase transition hover:border-[var(--foreground)]"
+              className="inline-flex h-10 items-center border border-[var(--line-strong)] px-4 text-xs font-medium text-[var(--foreground)] transition hover:border-[var(--foreground)]"
             >
               Открыть на сайте
             </Link>
@@ -120,7 +120,7 @@ export default async function EditBrandPage({ params }: EditBrandPageProps) {
             {brand.logoUrl ? null : brand.name.trim().slice(0, 1).toUpperCase()}
           </div>
           <div className="min-w-0">
-            <p className="font-mono text-[10px] tracking-[0.16em] text-[var(--accent)] uppercase">
+            <p className="text-xs font-medium text-[var(--accent)]">
               Логотип бренда
             </p>
             <p className="mt-1 text-sm leading-6 text-[var(--muted)]">
@@ -176,7 +176,7 @@ export default async function EditBrandPage({ params }: EditBrandPageProps) {
 
           <div className="grid gap-3 rounded-[18px] border border-[color:var(--line)] bg-white/55 p-4">
             <div>
-              <p className="font-mono text-[10px] tracking-[0.18em] text-[var(--accent)] uppercase">
+              <p className="text-xs font-medium text-[var(--accent)]">
                 Баннер на главной
               </p>
               <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
