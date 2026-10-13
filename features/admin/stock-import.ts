@@ -423,6 +423,7 @@ export type StockPendingCandidate = {
   name: string;
   unit: string | null;
   quantity: number | null;
+  note: string | null;
 };
 
 // Один ключ на позицию: по артикулу, а без артикула по названию.
@@ -435,20 +436,37 @@ export function stockPendingKey(item: { sku?: string | null; name: string }) {
 export function collectStockPendingItems(
   reconciliation: StockReconciliationEntry[],
 ): StockPendingCandidate[] {
-  const items = new Map<string, StockPendingCandidate>();
-  for (const entry of reconciliation) {
-    if (entry.kind !== "notFound" || !entry.name.trim()) continue;
-    const matchKey = stockPendingKey(entry);
-    if (items.has(matchKey)) continue;
-    items.set(matchKey, {
-      matchKey,
-      sku: entry.sku.trim() || null,
-      name: entry.name.trim(),
-      unit: entry.unit.trim() || null,
-      quantity: entry.fileQuantity,
-    });
+  const groups = groupBy(
+    reconciliation.filter(
+      (entry) => entry.kind === "notFound" && entry.name.trim(),
+    ),
+    (entry) => stockPendingKey(entry),
+  );
+  const items: StockPendingCandidate[] = [];
+  for (const [baseKey, entries] of groups) {
+    const names = groupBy(entries, (entry) => nameKey(entry.name));
+    // В 1С один артикул бывает у разных позиций: каждая остаётся в списке
+    // отдельно, а артикул помечается к исправлению.
+    const sharedSku = names.size > 1;
+    for (const [name, rows] of names) {
+      const first = rows[0];
+      const repeated = rows.length > 1;
+      items.push({
+        matchKey: sharedSku ? `${baseKey}|name:${name}` : baseKey,
+        sku: first.sku.trim() || null,
+        name: first.name.trim(),
+        unit: first.unit.trim() || null,
+        // Повтор одной позиции в файле не угадываем: количество не выбираем.
+        quantity: repeated ? null : first.fileQuantity,
+        note: sharedSku
+          ? "Артикул повторяется в отчёте у разных позиций. Исправьте артикул в 1С перед добавлением."
+          : repeated
+            ? "Позиция повторяется в отчёте. Количество не определено."
+            : null,
+      });
+    }
   }
-  return [...items.values()];
+  return items;
 }
 
 // Ключи товаров сайта: позиция уходит из списка, когда появляется товар
@@ -460,6 +478,7 @@ export function stockPendingCatalogKeys(
   for (const product of products) {
     keys.add(stockPendingKey(product));
     keys.add(`name:${nameKey(product.name)}`);
+    keys.add(`${stockPendingKey(product)}|name:${nameKey(product.name)}`);
   }
   return keys;
 }

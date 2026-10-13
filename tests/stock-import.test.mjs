@@ -591,6 +591,7 @@ test("daily action previews and applies accounting report without changing catal
       name: "Неизвестный товар",
       unit: "шт",
       quantity: 1,
+      note: null,
       fileName: "stock.xlsx",
     },
   ]);
@@ -629,22 +630,61 @@ test("pending list keys deduplicate by SKU, else by normalized name, and match n
   });
   const items = stock.collectStockPendingItems([
     entry({ sku: " 160001112 ", name: "ABS кромка" }),
-    entry({ sku: "160001112", name: "ABS кромка (склад 2)" }),
-    entry({ name: "Деревянный  дюбель" }),
-    entry({ name: "деревянный дюбель" }),
+    entry({ name: "Ручка", fileQuantity: 3 }),
     entry({ name: "Петля", kind: "difference" }),
     entry({ name: "Пропавший", kind: "missing" }),
   ]);
   assert.deepEqual(
-    items.map((item) => item.matchKey),
-    ["sku:160001112", "name:деревянный дюбель"],
+    items.map((item) => [item.matchKey, item.sku, item.quantity, item.note]),
+    [
+      ["sku:160001112", "160001112", 5, null],
+      ["name:ручка", null, 3, null],
+    ],
   );
-  assert.equal(items[0].sku, "160001112");
   const keys = stock.stockPendingCatalogKeys([
     { sku: "160001112", name: "Кромка ABS серая" },
-    { sku: "art-1", name: "Деревянный дюбель" },
+    { sku: "art-1", name: "Ручка" },
   ]);
   assert.ok(items.every((item) => keys.has(item.matchKey)));
+});
+
+test("pending list never picks one of repeated rows silently", () => {
+  const entry = (overrides) => ({
+    key: "k",
+    sku: "",
+    name: "",
+    siteQuantity: null,
+    fileQuantity: 5,
+    unit: "шт",
+    difference: null,
+    kind: "notFound",
+    match: null,
+    status: "skipped",
+    reason: "",
+    selectable: false,
+    ...overrides,
+  });
+  const items = stock.collectStockPendingItems([
+    // Один артикул у разных позиций (так бывает в отчёте 1С).
+    entry({ sku: "12282001", name: "Провод LED 1,5 м", fileQuantity: 994 }),
+    entry({ sku: "12282001", name: "Провод Nuomi 2 м", fileQuantity: 977 }),
+    // Одна и та же позиция дважды.
+    entry({ name: "Деревянный  дюбель", fileQuantity: 10 }),
+    entry({ name: "деревянный дюбель", fileQuantity: 20 }),
+  ]);
+  assert.deepEqual(
+    items.map((item) => [item.matchKey, item.quantity, Boolean(item.note)]),
+    [
+      ["sku:12282001|name:провод led 1,5 м", 994, true],
+      ["sku:12282001|name:провод nuomi 2 м", 977, true],
+      ["name:деревянный дюбель", null, true],
+    ],
+  );
+  const keys = stock.stockPendingCatalogKeys([
+    { sku: "12282001", name: "Провод LED 1,5 м" },
+  ]);
+  assert.ok(keys.has(items[0].matchKey));
+  assert.ok(!keys.has(items[1].matchKey));
 });
 
 test("pending list Excel opens in the full product import with name, SKU and whole stock", async () => {

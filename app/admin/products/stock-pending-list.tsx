@@ -92,8 +92,11 @@ export function StockPendingList({
                       key={item.id}
                       className="border-t border-zinc-200 align-top"
                     >
-                      <td className="max-w-72 p-2 font-medium break-words">
-                        {item.name}
+                      <td className="max-w-72 p-2 break-words">
+                        <p className="font-medium">{item.name}</p>
+                        {item.note ? (
+                          <p className="mt-1 text-amber-800">{item.note}</p>
+                        ) : null}
                       </td>
                       <td className="p-2 font-mono break-all text-zinc-600">
                         {item.sku ?? "—"}

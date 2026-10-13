@@ -10,6 +10,7 @@ export type StockPendingListItem = {
   name: string;
   unit: string | null;
   quantity: number | null;
+  note: string | null;
   sourceFile: string | null;
   firstSeenAt: Date;
   lastSeenAt: Date;
@@ -34,6 +35,7 @@ export async function saveStockPendingItems(
             name: item.name,
             unit: item.unit,
             quantity: item.quantity,
+            note: item.note,
             sourceFile,
             lastSeenAt: now,
           },
@@ -73,6 +75,7 @@ export async function getStockPendingItems(
         name: true,
         unit: true,
         quantity: true,
+        note: true,
         sourceFile: true,
         firstSeenAt: true,
         lastSeenAt: true,

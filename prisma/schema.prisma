@@ -327,6 +327,7 @@ model StockPendingItem {
   name        String
   unit        String?
   quantity    Float?
+  note        String?
   sourceFile  String?
   firstSeenAt DateTime  @default(now())
   lastSeenAt  DateTime  @default(now())
