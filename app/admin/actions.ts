@@ -4008,11 +4008,21 @@ export async function createOrderFromRequestAction(formData: FormData) {
     ? (request.quotedTotal ?? request.estimatedBudget ?? 0)
     : (request.estimatedBudget ?? 0);
 
-  await updateRequestInboxItem({
-    id: requestId,
-    status: RequestStatus.COMPLETED,
-    managerId: request.managerId ?? null,
-  });
+  // Распил оплачивается через заказ, но делается по заявке: она остаётся в
+  // производстве и закрывается кнопкой «Выдано». Остальные заявки после
+  // создания заказа закрываются, как раньше.
+  const staysInProduction = request.type === RequestType.CUTTING_SERVICE;
+  const nextRequestStatus = staysInProduction
+    ? request.status
+    : RequestStatus.COMPLETED;
+
+  if (!staysInProduction) {
+    await updateRequestInboxItem({
+      id: requestId,
+      status: RequestStatus.COMPLETED,
+      managerId: request.managerId ?? null,
+    });
+  }
 
   await Promise.all([
     logOperationEvent({
@@ -4020,9 +4030,11 @@ export async function createOrderFromRequestAction(formData: FormData) {
       entityId: requestId,
       eventType: "converted",
       title: `Создан заказ ${createdOrder.number ?? createdOrder.id}`,
-      description: "Заявка переведена в заказ для дальнейшей работы.",
+      description: staysInProduction
+        ? "Создан заказ на оплату. Распил продолжается по этой заявке."
+        : "Заявка переведена в заказ для дальнейшей работы.",
       fromStatus: request.status,
-      toStatus: RequestStatus.COMPLETED,
+      toStatus: nextRequestStatus,
       isVisibleToClient: true,
       actor,
     }),
