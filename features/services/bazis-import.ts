@@ -88,3 +88,36 @@ export function groupBazisRowsByMaterial(
     }))
     .sort((left, right) => right.areaM2 - left.areaM2);
 }
+
+// Таблица деталей с колонкой материала (выгрузка OpenCutList из SketchUp):
+// делим так же, как проект Базиса, чтобы считать по одному материалу.
+export function groupDetailsByMaterial(
+  details: ImportedDetail[],
+): BazisMaterialGroup[] {
+  const groups = new Map<string, BazisMaterialGroup>();
+
+  for (const detail of details) {
+    const material = detail.material?.trim() || "Материал не указан";
+    const group = groups.get(material) ?? {
+      material,
+      thickness: 0,
+      pieces: 0,
+      areaM2: 0,
+      complexCount: 0,
+      details: [],
+    };
+
+    group.pieces += detail.quantity;
+    group.areaM2 +=
+      (detail.length * detail.width * detail.quantity) / 1_000_000;
+    group.details.push(detail);
+    groups.set(material, group);
+  }
+
+  return [...groups.values()]
+    .map((group) => ({
+      ...group,
+      areaM2: Math.round(group.areaM2 * 100) / 100,
+    }))
+    .sort((left, right) => right.areaM2 - left.areaM2);
+}
