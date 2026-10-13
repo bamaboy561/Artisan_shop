@@ -9,8 +9,6 @@ export const ATTENTION_RULES = {
   unpaidOrderHours: 72,
   // Заказ готов, но его не забрали.
   uncollectedOrderHours: 72,
-  // Остаток, при котором товар считается заканчивающимся.
-  lowStockQuantity: 5,
 } as const;
 
 export type AttentionItem = {

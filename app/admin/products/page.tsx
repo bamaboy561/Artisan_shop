@@ -17,6 +17,11 @@ import {
 import { ProductImportForm } from "@/app/admin/products/product-import-form";
 import { ProductStockImportForm } from "@/app/admin/products/product-stock-import-form";
 import { StockPendingList } from "@/app/admin/products/stock-pending-list";
+import { StockThresholdsForm } from "@/app/admin/products/stock-thresholds-form";
+import {
+  DEFAULT_STOCK_THRESHOLDS,
+  getStockThresholds,
+} from "@/lib/server/stock-thresholds";
 import { getInventoryStatusForStock } from "@/lib/server/inventory-reservations";
 import { NewProductForm } from "@/app/admin/products/new-product-form";
 import { BulkProductsSubmitButton } from "@/components/admin/bulk-products-submit-button";
@@ -225,12 +230,14 @@ export default async function AdminProductsPage({
     products,
     resolvedSearchParams,
     pendingItems,
+    stockThresholds,
   ] = await Promise.all([
     getAdminProductFormOptions(),
     getAdminProducts(),
     searchParams,
     // Таблица списка может ещё не существовать, если схема не применена.
     getStockPendingItems(getDb()).catch(() => null),
+    getStockThresholds().catch(() => DEFAULT_STOCK_THRESHOLDS),
   ]);
 
   const pendingPrefillItem = pendingItems?.find(
@@ -519,6 +526,8 @@ export default async function AdminProductsPage({
         </details>
 
         <StockPendingList items={pendingItems} />
+
+        <StockThresholdsForm thresholds={stockThresholds} />
 
         <details className="surface-glow rounded-[22px] border border-[color:var(--line)] bg-white/88 p-3 sm:p-4">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-3">

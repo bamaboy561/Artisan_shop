@@ -1,6 +1,11 @@
 import "server-only";
 
-import { OrderStatus, ProductStatus, RequestStatus } from "@/generated/prisma";
+import {
+  CategoryKind,
+  OrderStatus,
+  ProductStatus,
+  RequestStatus,
+} from "@/generated/prisma";
 import {
   ATTENTION_RULES,
   formatAge,
@@ -8,6 +13,10 @@ import {
   type AttentionSummary,
 } from "@/features/admin/attention";
 import { getDb, hasDatabaseUrl } from "@/lib/db";
+import {
+  DEFAULT_STOCK_THRESHOLDS,
+  getStockThresholds,
+} from "@/lib/server/stock-thresholds";
 
 const ITEMS_PER_GROUP = 5;
 const BISHKEK_OFFSET_MS = 6 * 60 * 60 * 1000;
@@ -97,9 +106,16 @@ export async function getAttentionSummary(
     status: OrderStatus.READY_FOR_PICKUP,
     updatedAt: { lt: hoursAgo(now, ATTENTION_RULES.uncollectedOrderHours) },
   };
+  // Порог свой у плит, фурнитуры и остального; задаётся в разделе «Товары».
+  const thresholds = await getStockThresholds().catch(
+    () => DEFAULT_STOCK_THRESHOLDS,
+  );
   const lowStock = {
     status: ProductStatus.ACTIVE,
-    stockQuantity: { gt: 0, lte: ATTENTION_RULES.lowStockQuantity },
+    OR: Object.values(CategoryKind).map((kind) => ({
+      category: { kind },
+      stockQuantity: { gt: 0, lte: thresholds[kind] },
+    })),
   };
   const yesterday = yesterdayRange(now);
   const notCanceled = { not: OrderStatus.CANCELED };
@@ -241,7 +257,7 @@ export async function getAttentionSummary(
     {
       key: "lowStock",
       title: "Товары заканчиваются",
-      hint: `Остаток ${ATTENTION_RULES.lowStockQuantity} и меньше`,
+      hint: `Остаток не больше: плиты ${thresholds.PLATE}, фурнитура ${thresholds.FITTINGS}, остальное ${thresholds.OTHER}`,
       href: "/admin/products",
       count: lowStockCount,
       items: lowStockItems.map((item) => ({
