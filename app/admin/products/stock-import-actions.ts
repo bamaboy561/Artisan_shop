@@ -25,6 +25,7 @@ import {
   pruneStockPendingItems,
   saveStockPendingItems,
 } from "@/lib/server/stock-pending";
+import { ensureStockPendingItemsTable } from "@/lib/server/stock-pending-schema";
 
 export async function processStockImportAction(
   formData: FormData,
@@ -416,6 +417,7 @@ export async function dismissStockPendingItemAction(formData: FormData) {
   if (!canAccessGeneralAdmin(session.roleCode) || !hasDatabaseUrl()) return;
   const id = formData.get("id");
   if (typeof id !== "string" || !id) return;
+  await ensureStockPendingItemsTable(getDb());
   await getDb().stockPendingItem.updateMany({
     where: { id, dismissedAt: null },
     data: { dismissedAt: new Date() },

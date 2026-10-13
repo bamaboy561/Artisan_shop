@@ -499,6 +499,9 @@ function actionFixture({
       },
       pruneStockPendingItems: async () => {},
     },
+    "@/lib/server/stock-pending-schema": {
+      ensureStockPendingItemsTable: async () => {},
+    },
     "@/lib/server/inventory-reservations": {
       getUnpaidReservedQuantities: async () =>
         new Map(Object.entries(state.reserved ?? {})),
@@ -969,4 +972,39 @@ test("selected stock rows still require an up-to-date fingerprint", async () => 
   state.products[0].updatedAt = new Date("2026-03-01");
   assert.equal((await action(apply)).phase, "preview");
   assert.equal(state.writes.length, 0);
+});
+
+test("stock pending table is created once at runtime", async () => {
+  const schema = loadAction("../lib/server/stock-pending-schema.ts", {});
+  const statements = [];
+  const db = {
+    $executeRawUnsafe: async (sql) => {
+      statements.push(sql);
+    },
+  };
+  await schema.ensureStockPendingItemsTable(db);
+  await schema.ensureStockPendingItemsTable(db);
+  assert.equal(statements.length, 3);
+  assert.match(statements[0], /CREATE TABLE IF NOT EXISTS "StockPendingItem"/);
+  assert.match(
+    statements[1],
+    /UNIQUE INDEX IF NOT EXISTS "StockPendingItem_matchKey_key"/,
+  );
+});
+
+test("stock pending table creation retries a concurrent create failure", async () => {
+  const schema = loadAction("../lib/server/stock-pending-schema.ts", {});
+  let calls = 0;
+  const db = {
+    $executeRawUnsafe: async () => {
+      calls += 1;
+      if (calls === 1)
+        throw new Error("duplicate key pg_type_typname_nsp_index");
+    },
+  };
+  await Promise.all([
+    schema.ensureStockPendingItemsTable(db),
+    schema.ensureStockPendingItemsTable(db),
+  ]);
+  assert.equal(calls, 4);
 });
