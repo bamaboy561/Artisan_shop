@@ -4,6 +4,7 @@ import { getSiteUrl } from "@/lib/seo";
 import { companyContacts } from "@/lib/site-config";
 import {
   getProductPromotionPrice,
+  getPromotionCompareAtPrice,
   PROMOTION_PRICE_SELECT,
 } from "@/lib/server/product-promotion-pricing";
 
@@ -26,6 +27,7 @@ export async function getPhotoCatalogData(brandId: string, inStock: boolean) {
           price: true,
           compareAtPrice: true,
           stockQuantity: true,
+          inventoryStatus: true,
           format: true,
           thicknessMm: true,
           edgeThicknessMm: true,
@@ -95,17 +97,16 @@ export async function getPhotoCatalogData(brandId: string, inStock: boolean) {
           category.promotions,
         );
         const price = pricing.finalPrice;
-        // Зачёркнутая цена: обычная при акции или «старая цена» из карточки.
+        // Зачёркнутая цена как на витрине: большая из обычной цены при акции
+        // и «старой цены» из карточки.
+        const compareAt = getPromotionCompareAtPrice(
+          product.compareAtPrice,
+          pricing,
+        );
         const oldPrice =
-          price != null &&
-          pricing.basePrice != null &&
-          pricing.basePrice > price
-            ? pricing.basePrice
-            : price != null &&
-                product.compareAtPrice != null &&
-                product.compareAtPrice > price
-              ? product.compareAtPrice
-              : null;
+          price != null && compareAt != null && compareAt > price
+            ? compareAt
+            : null;
         return {
           ...product,
           price,

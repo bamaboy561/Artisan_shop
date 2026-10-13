@@ -33,6 +33,7 @@ const data = {
       oldPrice: 14000,
       url: "https://artisan.shop.kg/product/mdf",
       stockQuantity: 0,
+      inventoryStatus: "OUT_OF_STOCK",
       format: "2800 x 1220",
       thicknessMm: 18,
       edgeThicknessMm: 0.8,
@@ -201,7 +202,7 @@ test("photo query filters only selected active brand and positive stock, preserv
           {
             ...data.products[0],
             slug: "mdf green",
-            compareAtPrice: null,
+            compareAtPrice: 15000,
             categoryId: "mdf",
             brandId: "albero",
             images: [],
@@ -235,7 +236,10 @@ test("photo query filters only selected active brand and positive stock, preserv
         getProductPromotionPrice: () => ({
           basePrice: 12345,
           finalPrice: 10000,
+          unitDiscountAmount: 2345,
         }),
+        getPromotionCompareAtPrice: (compareAt, pricing) =>
+          Math.max(compareAt ?? 0, pricing.basePrice),
       },
     },
   );
@@ -249,7 +253,7 @@ test("photo query filters only selected active brand and positive stock, preserv
   assert.equal(isolation, "RepeatableRead");
   assert.equal(result.products[0].category, "Плиты / МДФ");
   assert.equal(result.products[0].price, 10000);
-  assert.equal(result.products[0].oldPrice, 12345);
+  assert.equal(result.products[0].oldPrice, 15000);
   assert.equal(
     result.products[0].url,
     "https://artisan.shop.kg/product/mdf%20green",

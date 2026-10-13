@@ -580,7 +580,13 @@ export async function renderPhotoPdf(
             width: priceWidth,
             lineBreak: false,
           });
-      const inStock = (product.stockQuantity ?? 0) > 0;
+      // Количество неизвестно, но наличие отмечено вручную — как на витрине.
+      const quantity = product.stockQuantity;
+      const inStock =
+        quantity != null
+          ? quantity > 0
+          : product.inventoryStatus === "IN_STOCK" ||
+            product.inventoryStatus === "LIMITED";
       doc
         .circle(x + 11, bottom - 13.5, 2.2)
         .fill(inStock ? COLORS.green : COLORS.accent);
@@ -589,9 +595,11 @@ export async function renderPhotoPdf(
         .fontSize(7)
         .fillColor(inStock ? COLORS.green : COLORS.muted)
         .text(
-          inStock
-            ? `В наличии: ${product.stockQuantity!.toLocaleString("ru-RU")}`
-            : "Под заказ",
+          !inStock
+            ? "Под заказ"
+            : quantity != null
+              ? `В наличии: ${quantity.toLocaleString("ru-RU")}`
+              : "В наличии",
           x + 17,
           bottom - 17.5,
           { width: priceWidth - 9, lineBreak: false },
