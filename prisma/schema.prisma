@@ -318,6 +318,26 @@ model Product {
   @@index([isFeatured, status])
 }
 
+// Позиции из отчёта остатков 1С, которых нет среди товаров сайта.
+// Копятся между загрузками, чтобы завести карточки позже.
+model StockPendingItem {
+  id          String    @id @default(cuid())
+  matchKey    String    @unique
+  sku         String?
+  name        String
+  unit        String?
+  quantity    Float?
+  note        String?
+  sourceFile  String?
+  firstSeenAt DateTime  @default(now())
+  lastSeenAt  DateTime  @default(now())
+  dismissedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([dismissedAt, lastSeenAt])
+}
+
 model ProductBundleItem {
   id                 String   @id @default(cuid())
   bundleProductId    String

@@ -16,6 +16,7 @@ import {
 } from "@/app/admin/actions";
 import { ProductImportForm } from "@/app/admin/products/product-import-form";
 import { ProductStockImportForm } from "@/app/admin/products/product-stock-import-form";
+import { StockPendingList } from "@/app/admin/products/stock-pending-list";
 import { NewProductForm } from "@/app/admin/products/new-product-form";
 import { BulkProductsSubmitButton } from "@/components/admin/bulk-products-submit-button";
 import { BulkSelectionTools } from "@/components/admin/bulk-selection-tools";
@@ -28,7 +29,8 @@ import { Input } from "@/components/ui/input";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { Select } from "@/components/ui/select";
 import { requireAdminSession } from "@/lib/auth/dal";
-import { hasDatabaseUrl } from "@/lib/db";
+import { getDb, hasDatabaseUrl } from "@/lib/db";
+import { getStockPendingItems } from "@/lib/server/stock-pending";
 import {
   getAdminProductFormOptions,
   getAdminProducts,
@@ -221,10 +223,13 @@ export default async function AdminProductsPage({
     },
     products,
     resolvedSearchParams,
+    pendingItems,
   ] = await Promise.all([
     getAdminProductFormOptions(),
     getAdminProducts(),
     searchParams,
+    // Таблица списка может ещё не существовать, если схема не применена.
+    getStockPendingItems(getDb()).catch(() => null),
   ]);
 
   const parsedState = parseAdminProductSearchParams(resolvedSearchParams);
@@ -483,6 +488,8 @@ export default async function AdminProductsPage({
 
           <ProductStockImportForm />
         </details>
+
+        <StockPendingList items={pendingItems} />
 
         <details className="surface-glow rounded-[22px] border border-[color:var(--line)] bg-white/88 p-3 sm:p-4">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-3">

@@ -47,6 +47,7 @@ export type StockImportResult = {
   columns?: Array<{ source: string; target: string }>;
   reportCsv?: string;
   reconciliation?: StockReconciliationEntry[];
+  pendingCount?: number;
 };
 
 export type StockReconciliationEntry = {
@@ -414,4 +415,70 @@ export function stockImportReportCsv(entries: StockImportEntry[]) {
     "\uFEFF" +
     [header, ...rows].map((row) => row.map(escape).join(";")).join("\r\n")
   );
+}
+
+export type StockPendingCandidate = {
+  matchKey: string;
+  sku: string | null;
+  name: string;
+  unit: string | null;
+  quantity: number | null;
+  note: string | null;
+};
+
+// Один ключ на позицию: по артикулу, а без артикула по названию.
+// Так повторная загрузка того же отчёта не создаёт дублей в списке.
+export function stockPendingKey(item: { sku?: string | null; name: string }) {
+  const sku = item.sku ? skuKey(item.sku) : "";
+  return sku ? `sku:${sku}` : `name:${nameKey(item.name)}`;
+}
+
+export function collectStockPendingItems(
+  reconciliation: StockReconciliationEntry[],
+): StockPendingCandidate[] {
+  const groups = groupBy(
+    reconciliation.filter(
+      (entry) => entry.kind === "notFound" && entry.name.trim(),
+    ),
+    (entry) => stockPendingKey(entry),
+  );
+  const items: StockPendingCandidate[] = [];
+  for (const [baseKey, entries] of groups) {
+    const names = groupBy(entries, (entry) => nameKey(entry.name));
+    // В 1С один артикул бывает у разных позиций: каждая остаётся в списке
+    // отдельно, а артикул помечается к исправлению.
+    const sharedSku = names.size > 1;
+    for (const [name, rows] of names) {
+      const first = rows[0];
+      const repeated = rows.length > 1;
+      items.push({
+        matchKey: sharedSku ? `${baseKey}|name:${name}` : baseKey,
+        sku: first.sku.trim() || null,
+        name: first.name.trim(),
+        unit: first.unit.trim() || null,
+        // Повтор одной позиции в файле не угадываем: количество не выбираем.
+        quantity: repeated ? null : first.fileQuantity,
+        note: sharedSku
+          ? "Артикул повторяется в отчёте у разных позиций. Исправьте артикул в 1С перед добавлением."
+          : repeated
+            ? "Позиция повторяется в отчёте. Количество не определено."
+            : null,
+      });
+    }
+  }
+  return items;
+}
+
+// Ключи товаров сайта: позиция уходит из списка, когда появляется товар
+// с тем же артикулом (или с тем же названием, если артикула в файле не было).
+export function stockPendingCatalogKeys(
+  products: Array<{ sku: string; name: string }>,
+) {
+  const keys = new Set<string>();
+  for (const product of products) {
+    keys.add(stockPendingKey(product));
+    keys.add(`name:${nameKey(product.name)}`);
+    keys.add(`${stockPendingKey(product)}|name:${nameKey(product.name)}`);
+  }
+  return keys;
 }

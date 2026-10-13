@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Check, Download, FileSearch, LoaderCircle } from "lucide-react";
 import { processStockImportAction } from "@/app/admin/products/stock-import-actions";
 import { Button } from "@/components/ui/button";
@@ -43,6 +44,7 @@ export function ProductStockImportForm({
   const [zeroMissing, setZeroMissing] = useState(false);
   const [result, setResult] = useState<StockImportResult | null>(null);
   const [pending, startTransition] = useTransition();
+  const router = useRouter();
   const [intent, setIntent] = useState<"preview" | "apply">("preview");
 
   function submit(nextIntent: "preview" | "apply") {
@@ -50,7 +52,7 @@ export function ProductStockImportForm({
     if (
       nextIntent === "apply" &&
       !window.confirm(
-        `Обновить товаров: ${result?.reconciliation ? selected.size : (result?.counts?.ready ?? 0)}? Остальные строки останутся без изменений.${zeroMissing ? " Остаток товаров, которых нет в файле, будет обнулён." : ""}`,
+        `Обновить товаров: ${result?.reconciliation ? selected.size : (result?.counts?.ready ?? 0)}? Остальные строки останутся без изменений.${zeroMissing ? " Остаток товаров, которых нет в файле, будет обнулён." : ""}${result?.pendingCount ? ` Позиции, которых нет на сайте (${result.pendingCount}), сохранятся в список «Добавить на сайт».` : ""}`,
       )
     )
       return;
@@ -65,8 +67,11 @@ export function ProductStockImportForm({
       data.set("selectedRows", JSON.stringify([...selected]));
     startTransition(async () => {
       try {
-        setResult(await importAction(data));
+        const next = await importAction(data);
+        setResult(next);
         setSelected(new Set());
+        // Обновляем список «Нет на сайте» на странице.
+        if (next.phase === "done") router.refresh();
       } catch {
         setResult({
           phase: "error",
@@ -334,13 +339,18 @@ export function ProductStockImportForm({
           ) : null}
           <div className="flex flex-wrap gap-2">
             {result.phase === "preview" &&
-              (!!result.counts?.ready || zeroMissing) && (
+              (!!result.counts?.ready ||
+                zeroMissing ||
+                !!result.pendingCount) && (
                 <Button
                   type="button"
                   variant="accent"
                   disabled={
                     pending ||
-                    (!!result.reconciliation && !selected.size && !zeroMissing)
+                    (!!result.reconciliation &&
+                      !selected.size &&
+                      !zeroMissing &&
+                      !result.pendingCount)
                   }
                   onClick={() => submit("apply")}
                   className="h-auto min-h-10 py-2 tracking-normal normal-case"
@@ -352,7 +362,12 @@ export function ProductStockImportForm({
                   )}
                   {pending && intent === "apply"
                     ? "Применяем..."
-                    : `Применить: ${result.reconciliation ? selected.size : (result.counts?.ready ?? 0)}`}
+                    : result.reconciliation &&
+                        !selected.size &&
+                        !zeroMissing &&
+                        result.pendingCount
+                      ? `Сохранить «Нет на сайте»: ${result.pendingCount}`
+                      : `Применить: ${result.reconciliation ? selected.size : (result.counts?.ready ?? 0)}`}
                 </Button>
               )}
             {result.reportCsv && (
