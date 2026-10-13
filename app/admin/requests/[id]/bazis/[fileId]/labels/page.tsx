@@ -6,6 +6,7 @@ import QRCode from "qrcode";
 import { PrintRouteSheetButton } from "@/components/admin/print-route-sheet-button";
 import { describeEdgedSides } from "@/features/bazis/part-groups";
 import { requireAdminSession } from "@/lib/auth/dal";
+import { canAccessRequestType } from "@/lib/auth/roles";
 import { BazisParseError, parseBazisProject } from "@/lib/bazis-b3d";
 import { getSiteUrl } from "@/lib/seo";
 import {
@@ -46,14 +47,19 @@ export default async function BazisLabelsPage({
   const { id, fileId } = await params;
   // Термопринтер с наклейками 58 × 80 мм или лист А4 с этикетками 70 × 37.
   const thermal = (await searchParams).format !== "a4";
-  await requireAdminSession(
+  const session = await requireAdminSession(
     "/login?next=/admin/requests",
-    `/admin/requests/${id}`,
+    `/admin/requests/${id}/bazis/${fileId}/labels`,
   );
   const request = await getRequestDetailById(id);
   const file = request?.files.find((item) => item.id === fileId);
 
-  if (!request || !file || !/\.b3d$/i.test(file.fileName)) {
+  if (
+    !request ||
+    !file ||
+    !/\.b3d$/i.test(file.fileName) ||
+    !canAccessRequestType(session.roleCode, request.type)
+  ) {
     notFound();
   }
 

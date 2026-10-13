@@ -8,6 +8,7 @@ import { DownloadCsvButton } from "@/components/admin/download-csv-button";
 import { BazisViewer } from "@/components/bazis/bazis-viewer";
 import { PrintRouteSheetButton } from "@/components/admin/print-route-sheet-button";
 import { requireAdminSession } from "@/lib/auth/dal";
+import { canAccessRequestType } from "@/lib/auth/roles";
 import {
   BazisParseError,
   parseBazisProject,
@@ -80,14 +81,19 @@ export default async function BazisProjectPage({
   params,
 }: BazisProjectPageProps) {
   const { id, fileId } = await params;
-  await requireAdminSession(
+  const session = await requireAdminSession(
     "/login?next=/admin/requests",
-    `/admin/requests/${id}`,
+    `/admin/requests/${id}/bazis/${fileId}`,
   );
   const request = await getRequestDetailById(id);
   const file = request?.files.find((item) => item.id === fileId);
 
-  if (!request || !file || !/\.b3d$/i.test(file.fileName)) {
+  if (
+    !request ||
+    !file ||
+    !/\.b3d$/i.test(file.fileName) ||
+    !canAccessRequestType(session.roleCode, request.type)
+  ) {
     notFound();
   }
 

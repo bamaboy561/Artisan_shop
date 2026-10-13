@@ -588,6 +588,21 @@ export default async function ProductionRequestPage({
                 <Download className="size-4 shrink-0" />
               </a>
             ))}
+            {!operator
+              ? request.files
+                  .filter((file) => /\.b3d$/i.test(file.fileName))
+                  .map((file) => (
+                    <Link
+                      key={`labels-${file.id}`}
+                      href={`/admin/requests/${request.id}/bazis/${file.id}/labels`}
+                      className="flex min-w-0 items-center justify-between gap-3 rounded-md border border-[color:var(--accent)] px-4 py-3 text-sm font-semibold text-[var(--accent)] transition hover:bg-[var(--surface)]"
+                    >
+                      <span className="truncate">
+                        Этикетки с QR для сборки · {file.fileName}
+                      </span>
+                    </Link>
+                  ))
+              : null}
           </div>
         ) : (
           <p className="mt-5 text-sm text-[var(--muted)]">
