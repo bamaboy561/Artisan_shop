@@ -4,6 +4,7 @@ import Link from "next/link";
 import { OrderStatus } from "@/generated/prisma";
 import { bulkUpdateOrdersAction, updateOrderAction } from "@/app/admin/actions";
 import { AdminSubmitButton } from "@/components/admin/admin-submit-button";
+import { BulkOrdersSubmitButton } from "@/components/admin/bulk-orders-submit-button";
 import { BulkSelectionTools } from "@/components/admin/bulk-selection-tools";
 import { DeleteOrderButton } from "@/components/admin/delete-order-button";
 import { MetricCard } from "@/components/admin/metric-card";
@@ -635,12 +636,7 @@ export default async function AdminOrdersPage({
                 </option>
               ))}
             </Select>
-            <AdminSubmitButton
-              type="submit"
-              variant="secondary"
-              idleLabel="Применить"
-              pendingLabel="Применяем..."
-            />
+            <BulkOrdersSubmitButton checkboxSelector="[data-order-bulk-checkbox='true']" />
           </form>
         </section>
 

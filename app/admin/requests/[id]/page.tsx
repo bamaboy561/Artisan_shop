@@ -473,6 +473,11 @@ export default async function AdminRequestDetailPage({
                   className="grid content-start gap-3"
                 >
                   <input type="hidden" name="requestId" value={request.id} />
+                  <input
+                    type="hidden"
+                    name="expectedStage"
+                    value={request.cuttingStage ?? ""}
+                  />
                   <label className="grid gap-2 text-sm font-medium text-[var(--foreground)]">
                     Текущий этап
                     <Select
