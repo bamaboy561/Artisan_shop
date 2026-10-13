@@ -1,5 +1,4 @@
 import { SetupState } from "@/components/admin/setup-state";
-import { CartProvider } from "@/components/providers/cart-provider";
 import { RepeatOrderButton } from "@/components/account/repeat-order-button";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { ClientOperationTimeline } from "@/components/account/client-operation-timeline";
@@ -206,33 +205,31 @@ export default async function AccountOrdersPage() {
   }));
 
   return (
-    <CartProvider>
-      <div className="space-y-4">
-        <section className="surface-glow rounded-[24px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-6 sm:p-8">
-          <SectionHeading
-            title="История заказов"
-            description="Все оформленные заказы, состав покупки, суммы, получение и начисленные баллы по программе лояльности."
-            titleClassName="text-2xl sm:text-3xl"
-            descriptionClassName="max-w-2xl text-sm leading-7"
-          />
-        </section>
-
-        <DataTable
-          columns={[
-            { key: "order", label: "Заказ" },
-            { key: "items", label: "Состав покупки" },
-            { key: "delivery", label: "Получение и скидка" },
-            { key: "status", label: "Статус" },
-            { key: "production", label: "Производство" },
-            { key: "history", label: "История" },
-            { key: "total", label: "Сумма и баллы" },
-            { key: "updated", label: "Обновлён" },
-          ]}
-          rows={rows}
-          caption="Заказы"
-          emptyMessage="После первого оформления заказа история появится здесь."
+    <div className="space-y-4">
+      <section className="surface-glow rounded-[24px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-6 sm:p-8">
+        <SectionHeading
+          title="История заказов"
+          description="Все оформленные заказы, состав покупки, суммы, получение и начисленные баллы по программе лояльности."
+          titleClassName="text-2xl sm:text-3xl"
+          descriptionClassName="max-w-2xl text-sm leading-7"
         />
-      </div>
-    </CartProvider>
+      </section>
+
+      <DataTable
+        columns={[
+          { key: "order", label: "Заказ" },
+          { key: "items", label: "Состав покупки" },
+          { key: "delivery", label: "Получение и скидка" },
+          { key: "status", label: "Статус" },
+          { key: "production", label: "Производство" },
+          { key: "history", label: "История" },
+          { key: "total", label: "Сумма и баллы" },
+          { key: "updated", label: "Обновлён" },
+        ]}
+        rows={rows}
+        caption="Заказы"
+        emptyMessage="После первого оформления заказа история появится здесь."
+      />
+    </div>
   );
 }

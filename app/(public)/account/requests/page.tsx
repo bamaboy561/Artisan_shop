@@ -17,7 +17,7 @@ import {
 } from "@/features/admin/operations-filters";
 import { hasDatabaseUrl } from "@/lib/db";
 import { getAccountRequests, getAccountUser } from "@/lib/server/account-data";
-import { uploadAccountRequestFilesAction } from "@/app/account/requests/actions";
+import { uploadAccountRequestFilesAction } from "@/app/(public)/account/requests/actions";
 
 export const dynamic = "force-dynamic";
 

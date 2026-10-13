@@ -16,6 +16,11 @@ import {
   RequestType,
 } from "@/generated/prisma";
 import { StatusBadge } from "@/components/admin/status-badge";
+import {
+  orderStatusLabels,
+  requestStatusLabels,
+  requestTypeLabels,
+} from "@/features/admin/operations-filters";
 import { formatPrice } from "@/lib/commerce";
 
 type LoyaltyTransactionItem = {
@@ -150,7 +155,7 @@ function PanelLink({ href, children }: { href: string; children: ReactNode }) {
   return (
     <Link
       href={href}
-      className="inline-flex h-9 items-center gap-2 rounded-full border border-[color:var(--line)] px-3 text-[11px] font-semibold tracking-[0.12em] text-[var(--foreground)] uppercase transition hover:border-[color:var(--foreground)] hover:bg-[var(--foreground)] hover:text-white"
+      className="inline-flex h-9 items-center gap-2 rounded-full border border-[color:var(--line)] px-3.5 text-sm font-semibold text-[var(--foreground)] transition hover:border-[color:var(--foreground)] hover:bg-[var(--foreground)] hover:text-white"
     >
       {children}
       <ArrowUpRight className="size-3.5" strokeWidth={1.8} />
@@ -168,9 +173,7 @@ export function AccountActivityPanel({
       <article className="surface-glow rounded-[26px] border border-[color:var(--line)] bg-white/92 p-4 shadow-[0_18px_44px_rgba(17,17,17,0.04)] sm:p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="font-mono text-[10px] tracking-[0.2em] text-[var(--accent)] uppercase">
-              Бонусы
-            </p>
+            <p className="text-xs font-medium text-[var(--accent)]">Бонусы</p>
             <h3 className="mt-1 text-xl font-semibold tracking-[-0.03em] text-[var(--foreground)] sm:text-2xl">
               Движение баллов
             </h3>
@@ -247,9 +250,7 @@ export function AccountActivityPanel({
         <article className="surface-glow rounded-[26px] border border-[color:var(--line)] bg-white/92 p-4 shadow-[0_18px_44px_rgba(17,17,17,0.04)] sm:p-5">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="font-mono text-[10px] tracking-[0.2em] text-[var(--muted)] uppercase">
-                Заказы
-              </p>
+              <p className="text-xs font-medium text-[var(--muted)]">Заказы</p>
               <h3 className="mt-1 text-xl font-semibold tracking-[-0.03em] text-[var(--foreground)]">
                 Последние
               </h3>
@@ -274,7 +275,7 @@ export function AccountActivityPanel({
                       </p>
                     </div>
                     <StatusBadge tone={getOrderTone(order.status)}>
-                      {order.status}
+                      {orderStatusLabels[order.status]}
                     </StatusBadge>
                   </div>
                   <p className="mt-2 text-base font-semibold text-[var(--foreground)]">
@@ -293,9 +294,7 @@ export function AccountActivityPanel({
         <article className="surface-glow rounded-[26px] border border-[color:var(--line)] bg-white/92 p-4 shadow-[0_18px_44px_rgba(17,17,17,0.04)] sm:p-5">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="font-mono text-[10px] tracking-[0.2em] text-[var(--muted)] uppercase">
-                Заявки
-              </p>
+              <p className="text-xs font-medium text-[var(--muted)]">Заявки</p>
               <h3 className="mt-1 text-xl font-semibold tracking-[-0.03em] text-[var(--foreground)]">
                 Расчёты
               </h3>
@@ -316,11 +315,12 @@ export function AccountActivityPanel({
                         {request.number ?? request.id.slice(0, 8)}
                       </p>
                       <p className="mt-1 text-xs text-[var(--muted)]">
-                        {request.type} · {formatDate(request.createdAt)}
+                        {requestTypeLabels[request.type]} ·{" "}
+                        {formatDate(request.createdAt)}
                       </p>
                     </div>
                     <StatusBadge tone={getRequestTone(request.status)}>
-                      {request.status}
+                      {requestStatusLabels[request.status]}
                     </StatusBadge>
                   </div>
                 </div>

@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import Link from "next/link";
 import { Check, LoaderCircle, RefreshCw, ShoppingCart } from "lucide-react";
-import { prepareReorderAction } from "@/app/account/orders/actions";
+import { prepareReorderAction } from "@/app/(public)/account/orders/actions";
 import { useCart } from "@/components/providers/cart-provider";
 import { ProductImage } from "@/components/catalog/product-image";
 import { StorefrontDialog } from "@/features/storefront/controls";
