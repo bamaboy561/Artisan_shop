@@ -340,6 +340,12 @@ export default async function AdminRequestsPage({
           titleClassName="text-2xl sm:text-3xl"
           descriptionClassName="max-w-3xl text-sm leading-7"
         />
+        <Link
+          href="/admin/requests/bazis-files"
+          className="mt-4 inline-flex h-10 items-center border border-[color:var(--line-strong)] px-4 text-sm font-medium transition hover:border-[color:var(--foreground)]"
+        >
+          Проекты Базиса с сайта (хранятся 2 дня)
+        </Link>
       </section>
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">

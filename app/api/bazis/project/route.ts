@@ -3,12 +3,14 @@ import {
   type BazisViewResponse,
 } from "@/features/bazis/project-view";
 import { BazisParseError, parseBazisProject } from "@/lib/bazis-b3d";
+import { saveBazisTempFile } from "@/lib/server/bazis-temp-files";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-// Файл нигде не сохраняется: читаем проект и сразу отдаём его странице
-// просмотра. Vercel принимает запрос до 4,5 МБ.
+// Читаем проект и сразу отдаём его странице просмотра. Копию файла держим
+// два дня, чтобы менеджер мог скачать её, если у клиента что-то не так.
+// Vercel принимает запрос до 4,5 МБ.
 const MAX_FILE_BYTES = 4 * 1024 * 1024;
 
 function fail(error: string, status: number) {
@@ -42,6 +44,14 @@ export async function POST(request: Request) {
 
     if (project.panels.length === 0) {
       return fail("В проекте не нашли деталей из плиты.", 422);
+    }
+
+    // Сохраняем только файлы, которые действительно оказались проектом.
+    // Если хранилище недоступно, клиент всё равно видит свой проект.
+    try {
+      await saveBazisTempFile(file);
+    } catch (error) {
+      console.error("[bazis] не удалось сохранить копию проекта", error);
     }
 
     return Response.json({

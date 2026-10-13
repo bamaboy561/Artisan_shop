@@ -369,7 +369,7 @@ export function BazisWorkspace({
         <span className="text-xs text-[#69716d]">
           {fileName
             ? `Открыт: ${fileName}`
-            : "Файл не сохраняется на сайте, до 4 МБ. Правки хранятся в вашем браузере"}
+            : "До 4 МБ. Копия файла хранится у нас 2 дня, чтобы менеджер мог помочь, потом удаляется"}
         </span>
         <input
           type="file"
