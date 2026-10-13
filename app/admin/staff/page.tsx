@@ -92,6 +92,7 @@ const productionAccessRoleSet = new Set<RoleCode>([
 
 function formatDate(value: Date) {
   return new Intl.DateTimeFormat("ru-RU", {
+    timeZone: "Asia/Bishkek",
     day: "2-digit",
     month: "2-digit",
     year: "numeric",

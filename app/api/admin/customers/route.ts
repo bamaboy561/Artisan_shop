@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getOptionalSession } from "@/lib/auth/dal";
-import { canAccessAdmin } from "@/lib/auth/roles";
+import { canAccessGeneralAdmin } from "@/lib/auth/roles";
 import { hasDatabaseUrl } from "@/lib/db";
 import { getSalesFloorCustomers } from "@/lib/server/sales-floor";
 import { verifyClientQrPayload } from "@/lib/server/client-qr";
@@ -11,7 +11,8 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   const session = await getOptionalSession();
 
-  if (!session?.userId || !canAccessAdmin(session.roleCode)) {
+  // Телефоны и почты клиентов видят менеджеры и администраторы, не цех.
+  if (!session?.userId || !canAccessGeneralAdmin(session.roleCode)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

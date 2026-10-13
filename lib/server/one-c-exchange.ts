@@ -717,11 +717,11 @@ export async function syncOneCOrderStatuses(
     }
 
     const descriptionParts = [
-      item.oneCNumber ? `1C number: ${item.oneCNumber}` : "",
+      item.oneCNumber ? `Номер в 1С: ${item.oneCNumber}` : "",
       item.paidTotal !== undefined && item.paidTotal !== null
-        ? `Paid total: ${item.paidTotal}`
+        ? `Оплачено: ${item.paidTotal} сом`
         : "",
-      item.comment ? `Comment: ${item.comment}` : "",
+      item.comment ? `Комментарий: ${item.comment}` : "",
     ].filter(Boolean);
 
     if (item.status) {
@@ -749,7 +749,7 @@ export async function syncOneCOrderStatuses(
         entityType: "order",
         entityId: order.id,
         eventType: "status",
-        title: `1C updated order ${order.number ?? order.id}`,
+        title: `Заказ ${order.number ?? order.id} обновлён из 1С`,
         description: descriptionParts.join("\n") || null,
         fromStatus: transition.previousStatus,
         toStatus: item.status,

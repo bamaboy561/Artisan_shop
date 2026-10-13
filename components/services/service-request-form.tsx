@@ -113,7 +113,7 @@ export function ServiceRequestForm() {
           <UploadBlock
             name="files"
             multiple
-            accept=".pdf,.xls,.xlsx,.csv,.txt,.doc,.docx,.zip,.rar,.jpg,.jpeg,.png,.webp,.dwg,.dxf,.project"
+            accept=".pdf,.xls,.xlsx,.csv,.txt,.doc,.docx,.zip,.rar,.jpg,.jpeg,.png,.webp,.heic,.dwg,.dxf,.project,.b3d,.bpr,.sto,.xml"
             title="Файлы проекта, если они есть"
             description="Необязательно. Можно загрузить PDF, Excel, чертеж или Giblab .project сейчас либо добавить позже."
           />

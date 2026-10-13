@@ -599,7 +599,7 @@ export default async function ProductionRequestPage({
                 type="file"
                 multiple
                 required
-                accept=".pdf,.xls,.xlsx,.csv,.zip,.rar,.jpg,.jpeg,.png,.webp,.dwg,.dxf,.project"
+                accept=".pdf,.xls,.xlsx,.csv,.txt,.doc,.docx,.zip,.rar,.jpg,.jpeg,.png,.webp,.heic,.dwg,.dxf,.project,.b3d,.bpr,.sto,.xml"
               />
             </label>
             <label className="grid gap-2 text-sm font-medium text-[var(--foreground)]">
