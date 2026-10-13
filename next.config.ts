@@ -5,6 +5,7 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     "/api/admin/products/photo-catalog": [
       "./public/fonts/NotoSans-Regular.ttf",
+      "./public/fonts/NotoSans-Bold.ttf",
       "./public/**/*",
     ],
   },
