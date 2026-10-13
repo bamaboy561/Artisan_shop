@@ -1979,7 +1979,7 @@ export function CutCalculator({
     setRestoredDraftAt(null);
   };
 
-  const addAttachments = async (fileList: FileList | null) => {
+  const addAttachments = async (fileList: FileList | File[] | null) => {
     const picked = Array.from(fileList ?? []);
     if (attachmentInputRef.current) {
       attachmentInputRef.current.value = "";
@@ -2598,7 +2598,15 @@ export function CutCalculator({
             </div>
           ) : null}
 
-          <CutListImportPanel onImport={importDetails} />
+          <CutListImportPanel
+            onImport={importDetails}
+            onProjectFile={(file) => {
+              // Проект Базиса уходит менеджеру вместе с заявкой.
+              if (!attachments.some((item) => item.name === file.name)) {
+                void addAttachments([file]);
+              }
+            }}
+          />
 
           {restoredDraftAt ? (
             <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 border border-[color:var(--line)] bg-white px-3 py-2 text-[12px] leading-5 text-[var(--muted)]">

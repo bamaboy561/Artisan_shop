@@ -13,12 +13,17 @@ import {
   type CutListImportResult,
   type ImportedDetail,
 } from "@/features/services/cut-list-import";
+import type {
+  BazisImportResponse,
+  BazisMaterialGroup,
+} from "@/features/services/bazis-import";
 import { cn } from "@/lib/utils";
 
 type ImportMode = "append" | "replace";
 
 type CutListImportPanelProps = {
   onImport: (details: ImportedDetail[], mode: ImportMode) => void;
+  onProjectFile?: (file: File) => void;
 };
 
 const pastePlaceholder = `Боковина\t720\t560\t2\t2Д
@@ -63,7 +68,33 @@ async function downloadTemplate() {
   XLSX.writeFile(workbook, "artisan-raskroy-shablon.xlsx");
 }
 
-export function CutListImportPanel({ onImport }: CutListImportPanelProps) {
+async function readBazisProject(file: File): Promise<BazisImportResponse> {
+  const body = new FormData();
+  body.append("file", file);
+
+  try {
+    const response = await fetch("/api/bazis/parts", { method: "POST", body });
+    return (await response.json()) as BazisImportResponse;
+  } catch {
+    return {
+      ok: false,
+      error: "Нет связи с сайтом. Попробуйте ещё раз.",
+    };
+  }
+}
+
+function formatGroupLabel(group: BazisMaterialGroup) {
+  return `${group.material}${
+    group.material.includes(String(group.thickness))
+      ? ""
+      : `, ${group.thickness} мм`
+  }`;
+}
+
+export function CutListImportPanel({
+  onImport,
+  onProjectFile,
+}: CutListImportPanelProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [text, setText] = useState("");
   const [mode, setMode] = useState<ImportMode>("replace");
@@ -71,6 +102,11 @@ export function CutListImportPanel({ onImport }: CutListImportPanelProps) {
     tone: "success" | "error";
     message: string;
   } | null>(null);
+  const [bazisChoice, setBazisChoice] = useState<{
+    orderName: string;
+    groups: BazisMaterialGroup[];
+  } | null>(null);
+  const [isReadingFile, setIsReadingFile] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const applyResult = (result: CutListImportResult) => {
@@ -99,10 +135,67 @@ export function CutListImportPanel({ onImport }: CutListImportPanelProps) {
     setText("");
   };
 
+  const applyBazisGroup = (
+    group: BazisMaterialGroup,
+    groups: BazisMaterialGroup[],
+  ) => {
+    onImport(group.details, mode);
+    const others = groups.filter((item) => item !== group);
+    const notes = [
+      `Из проекта Базиса: ${formatGroupLabel(group)}, ${group.details.length} поз. (${group.pieces} дет.).`,
+      group.complexCount > 0
+        ? `У ${group.complexCount} дет. вырезы или скругления: размер взят по габариту, проверьте.`
+        : "",
+      others.length > 0
+        ? `Другие материалы проекта (${others
+            .map(formatGroupLabel)
+            .join(
+              "; ",
+            )}) считаются отдельно: выберите их выше, когда понадобится.`
+        : "",
+      onProjectFile ? "Файл проекта приложен к заявке." : "",
+      "Проверьте материал, кромку и направление текстуры ниже.",
+    ];
+
+    setFeedback({ tone: "success", message: notes.filter(Boolean).join(" ") });
+  };
+
+  const handleBazisFile = async (file: File) => {
+    setIsReadingFile(true);
+    const result = await readBazisProject(file);
+    setIsReadingFile(false);
+
+    if (!result.ok) {
+      setBazisChoice(null);
+      setFeedback({ tone: "error", message: result.error });
+      return;
+    }
+
+    onProjectFile?.(file);
+
+    if (result.groups.length > 1) {
+      setBazisChoice({ orderName: result.orderName, groups: result.groups });
+      setFeedback(null);
+      return;
+    }
+
+    setBazisChoice(null);
+    applyBazisGroup(result.groups[0], result.groups);
+  };
+
   const handleFile = async (file: File | undefined) => {
     if (!file) return;
 
+    if (file.name.toLowerCase().endsWith(".b3d")) {
+      await handleBazisFile(file);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+      return;
+    }
+
     try {
+      setBazisChoice(null);
       applyResult(await readSpreadsheet(file));
     } catch {
       setFeedback({
@@ -125,7 +218,8 @@ export function CutListImportPanel({ onImport }: CutListImportPanelProps) {
             Список деталей готов?
           </p>
           <p className="mt-1 text-sm font-medium text-[var(--foreground)]">
-            Вставьте из Excel или загрузите файл, детали появятся сами.
+            Вставьте из Excel или загрузите файл Excel или проект Базиса (.b3d),
+            детали появятся сами.
           </p>
         </div>
         <div className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0">
@@ -140,20 +234,50 @@ export function CutListImportPanel({ onImport }: CutListImportPanelProps) {
           <Button
             variant="secondary"
             onClick={() => fileInputRef.current?.click()}
+            disabled={isReadingFile}
             className="w-full sm:w-auto"
           >
             <Upload className="size-4" />
-            Excel / CSV
+            {isReadingFile ? "Читаем файл…" : "Excel / Базис"}
           </Button>
           <input
             ref={fileInputRef}
             type="file"
-            accept=".xlsx,.xls,.csv,.txt"
+            accept=".xlsx,.xls,.csv,.txt,.b3d"
             className="hidden"
             onChange={(event) => void handleFile(event.target.files?.[0])}
           />
         </div>
       </div>
+
+      {bazisChoice ? (
+        <div className="mt-3 grid gap-2">
+          <p className="text-[13px] font-medium text-[var(--foreground)]">
+            {bazisChoice.orderName
+              ? `Проект «${bazisChoice.orderName}»: `
+              : "В проекте "}
+            несколько материалов. Калькулятор считает один материал за раз,
+            выберите, с какого начать.
+          </p>
+          <div className="grid gap-1.5 sm:grid-cols-2">
+            {bazisChoice.groups.map((group) => (
+              <button
+                key={`${group.material}-${group.thickness}`}
+                type="button"
+                onClick={() => applyBazisGroup(group, bazisChoice.groups)}
+                className="border border-[color:var(--line)] bg-white px-3 py-2 text-left text-[13px] transition hover:border-[var(--accent)]"
+              >
+                <span className="block font-semibold text-[var(--foreground)]">
+                  {formatGroupLabel(group)}
+                </span>
+                <span className="block text-[12px] text-[var(--muted)]">
+                  {group.pieces} дет., {group.areaM2.toLocaleString("ru-RU")} м²
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       {isOpen ? (
         <div className="mt-3 grid gap-2.5">
@@ -218,7 +342,7 @@ export function CutListImportPanel({ onImport }: CutListImportPanelProps) {
           href="#cut-request-form"
           className="text-[var(--foreground)] underline underline-offset-2"
         >
-          Есть проект Базиса или фото списка? Прикрепите к заявке
+          Есть фото списка или другой файл? Прикрепите к заявке
         </a>
       </div>
 
