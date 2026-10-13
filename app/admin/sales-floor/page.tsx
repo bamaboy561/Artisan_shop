@@ -32,7 +32,14 @@ function getErrorMessage(
   const value = searchParams.error;
   const key = Array.isArray(value) ? value[0] : value;
 
-  return key ? errorMessages[key] : null;
+  const detailValue = searchParams.detail;
+  const detail = Array.isArray(detailValue) ? detailValue[0] : detailValue;
+
+  return key
+    ? key === "stock" && detail
+      ? `${errorMessages.stock} ${detail.slice(0, 300)}`
+      : errorMessages[key]
+    : null;
 }
 
 export default async function SalesFloorPage({

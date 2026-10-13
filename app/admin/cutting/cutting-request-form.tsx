@@ -441,7 +441,7 @@ export function CuttingRequestForm({ customers }: CuttingRequestFormProps) {
                 type="file"
                 name="files"
                 multiple
-                accept=".pdf,.xls,.xlsx,.csv,.txt,.doc,.docx,.zip,.rar,.jpg,.jpeg,.png,.webp,.dwg,.dxf,.project"
+                accept=".pdf,.xls,.xlsx,.csv,.txt,.doc,.docx,.zip,.rar,.jpg,.jpeg,.png,.webp,.heic,.dwg,.dxf,.project,.b3d,.bpr,.sto,.xml"
                 className="sr-only"
                 onChange={(event) =>
                   setFileNames(

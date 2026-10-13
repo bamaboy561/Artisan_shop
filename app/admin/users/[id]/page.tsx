@@ -57,6 +57,7 @@ const noticeMessages: Record<string, { ok: boolean; text: string }> = {
 };
 
 const dateFormatter = new Intl.DateTimeFormat("ru-RU", {
+  timeZone: "Asia/Bishkek",
   day: "2-digit",
   month: "2-digit",
   year: "numeric",

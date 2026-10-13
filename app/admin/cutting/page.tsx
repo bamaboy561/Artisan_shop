@@ -283,7 +283,9 @@ export default async function AdminCuttingPage({
         </p>
       </div>
     ),
-    budget: formatBudget(request.estimatedBudget),
+    budget: formatBudget(
+      request.quotedTotal ?? request.estimatedBudget ?? null,
+    ),
     manage: (
       <div className="grid gap-2">
         <Link
@@ -305,7 +307,11 @@ export default async function AdminCuttingPage({
             defaultValue={request.status}
             className="h-9 text-xs"
           >
+            <option value={RequestStatus.NEW}>Новая</option>
             <option value={RequestStatus.IN_REVIEW}>На расчете</option>
+            <option value={RequestStatus.WAITING_FOR_CLIENT}>
+              Ждём клиента
+            </option>
             <option value={RequestStatus.QUOTE_SENT}>КП отправлено</option>
             <option value={RequestStatus.IN_PROGRESS}>В производстве</option>
             <option value={RequestStatus.COMPLETED}>Завершена</option>
@@ -340,7 +346,10 @@ export default async function AdminCuttingPage({
             titleClassName="text-2xl sm:text-3xl"
             descriptionClassName="max-w-3xl text-sm leading-7"
           />
-          <Link href="/admin/cutting/pricing" className={getButtonClassName("secondary", "md", "shrink-0")}>
+          <Link
+            href="/admin/cutting/pricing"
+            className={getButtonClassName("secondary", "md", "shrink-0")}
+          >
             Прайс работ
           </Link>
           <Link

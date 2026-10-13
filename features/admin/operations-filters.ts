@@ -116,6 +116,7 @@ export type AdminRequestItem = {
   cuttingEdgeMeters: number | null;
   edgeOption: string | null;
   estimatedBudget: number | null;
+  quotedTotal?: number | null;
   cuttingStage: CuttingStage | null;
   cuttingPickupCell: string | null;
   cuttingStageUpdatedAt: Date | null;

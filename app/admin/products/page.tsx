@@ -94,6 +94,7 @@ function formatPrice(value: number | null) {
 
 function formatDate(date: Date) {
   return new Intl.DateTimeFormat("ru-RU", {
+    timeZone: "Asia/Bishkek",
     day: "2-digit",
     month: "2-digit",
     year: "numeric",

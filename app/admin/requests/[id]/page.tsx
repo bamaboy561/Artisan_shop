@@ -71,6 +71,7 @@ function formatBudget(value: number | null) {
 function formatDate(value: Date | string) {
   const date = value instanceof Date ? value : new Date(value);
   return new Intl.DateTimeFormat("ru-RU", {
+    timeZone: "Asia/Bishkek",
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -617,7 +618,7 @@ export default async function AdminRequestDetailPage({
                   name="files"
                   type="file"
                   multiple
-                  accept=".pdf,.xls,.xlsx,.csv,.zip,.rar,.jpg,.jpeg,.png,.webp,.dwg,.dxf,.project"
+                  accept=".pdf,.xls,.xlsx,.csv,.txt,.doc,.docx,.zip,.rar,.jpg,.jpeg,.png,.webp,.heic,.dwg,.dxf,.project,.b3d,.bpr,.sto,.xml"
                 />
               </label>
               <label className="grid gap-2 text-sm font-medium text-[var(--foreground)]">

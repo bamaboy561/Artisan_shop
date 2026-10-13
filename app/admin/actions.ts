@@ -3,7 +3,10 @@
 import { setStaffAccountAccessAction } from "@/app/admin/staff/actions";
 
 import { safeProductionReturn } from "@/features/production/queue";
-import { MAX_SALE_AMOUNT, parseSalesItemInputs } from "@/features/admin/sales-invoice-model";
+import {
+  MAX_SALE_AMOUNT,
+  parseSalesItemInputs,
+} from "@/features/admin/sales-invoice-model";
 
 import {
   BannerPlacement,
@@ -2251,7 +2254,7 @@ export async function updateProductDetailsAction(formData: FormData) {
 
   // Блоки «Плитный материал» и «Размеры кромки» показываются не для всех
   // категорий. Поле, которого не было в форме, не трогаем, а не обнуляем.
-  const ifSubmitted = <T,>(field: string, read: () => T) =>
+  const ifSubmitted = <T>(field: string, read: () => T) =>
     formData.has(field) ? read() : undefined;
 
   // Остаток мог уменьшиться заказом, пока карточка была открыта. Если
@@ -3095,6 +3098,12 @@ async function applyOrderStatusChange(input: {
   );
 }
 
+const unpaidOrderStatuses = new Set<OrderStatus>([
+  OrderStatus.NEW,
+  OrderStatus.RESERVED,
+  OrderStatus.CONFIRMED,
+]);
+
 export async function updateOrderDetailsAction(formData: FormData) {
   if (!hasDatabaseUrl()) {
     return;
@@ -3140,15 +3149,34 @@ export async function updateOrderDetailsAction(formData: FormData) {
     actor,
   });
 
-  await syncOrderById(
-    orderId,
-    previousOrder
-      ? {
-          previousStatus: previousOrder.status,
-          previousManager: previousOrder.manager,
-        }
-      : undefined,
-  );
+  // Клиент платит на кассе полностью. Как только менеджер вписал номер
+  // кассового чека или накладной 1С, неоплаченный заказ сам становится
+  // «Оплачен».
+  const receiptAdded =
+    !getOrderReceiptNumberFromComment(previousOrder?.comment ?? null) &&
+    Boolean(getOrderReceiptNumberFromComment(nextOrderComment));
+
+  if (
+    receiptAdded &&
+    previousOrder &&
+    unpaidOrderStatuses.has(previousOrder.status)
+  ) {
+    await applyOrderStatusChange({
+      id: orderId,
+      nextStatus: OrderStatus.PAID,
+      actor,
+    });
+  } else {
+    await syncOrderById(
+      orderId,
+      previousOrder
+        ? {
+            previousStatus: previousOrder.status,
+            previousManager: previousOrder.manager,
+          }
+        : undefined,
+    );
+  }
 
   revalidateAdminOperations();
   revalidatePath(`/admin/orders/${orderId}`);
@@ -4023,9 +4051,10 @@ export async function createOrderFromRequestAction(formData: FormData) {
   }
 
   const createdOrder = await createOrderFromRequest(request);
-  const convertedTotal = request.type === RequestType.CUTTING_SERVICE
-    ? (request.quotedTotal ?? request.estimatedBudget ?? 0)
-    : (request.estimatedBudget ?? 0);
+  const convertedTotal =
+    request.type === RequestType.CUTTING_SERVICE
+      ? (request.quotedTotal ?? request.estimatedBudget ?? 0)
+      : (request.estimatedBudget ?? 0);
 
   // Распил оплачивается через заказ, но делается по заявке: она остаётся в
   // производстве и закрывается кнопкой «Выдано». Остальные заявки после
@@ -4800,8 +4829,15 @@ export async function updateRequestCuttingProgressAction(formData: FormData) {
   });
 }
 
-function productionActionReturn(formData: FormData, requestId: string, notice: string) {
-  const params = new URLSearchParams({ notice, returnTo: safeProductionReturn(getString(formData, "returnTo")) });
+function productionActionReturn(
+  formData: FormData,
+  requestId: string,
+  notice: string,
+) {
+  const params = new URLSearchParams({
+    notice,
+    returnTo: safeProductionReturn(getString(formData, "returnTo")),
+  });
   return `/admin/production/${encodeURIComponent(requestId)}?${params}`;
 }
 
@@ -4835,7 +4871,9 @@ export async function advanceProductionStageAction(formData: FormData) {
   const pickupCell = getOptionalString(formData, "cuttingPickupCell");
 
   if (transition.requiresPickupCell && !pickupCell) {
-    redirect(productionActionReturn(formData, requestId, "pickup-cell-required"));
+    redirect(
+      productionActionReturn(formData, requestId, "pickup-cell-required"),
+    );
   }
 
   const result = await applyRequestCuttingProgress({
@@ -4849,7 +4887,11 @@ export async function advanceProductionStageAction(formData: FormData) {
   });
 
   redirect(
-    productionActionReturn(formData, requestId, result === "updated" ? "stage-updated" : "stage-conflict"),
+    productionActionReturn(
+      formData,
+      requestId,
+      result === "updated" ? "stage-updated" : "stage-conflict",
+    ),
   );
 }
 
@@ -4877,7 +4919,11 @@ export async function setProductionStageAction(formData: FormData) {
   });
 
   redirect(
-    productionActionReturn(formData, requestId, result === "updated" ? "stage-updated" : "request-missing"),
+    productionActionReturn(
+      formData,
+      requestId,
+      result === "updated" ? "stage-updated" : "request-missing",
+    ),
   );
 }
 
@@ -5107,10 +5153,15 @@ export async function createSalesFloorOrderAction(formData: FormData) {
 
   const actor = await ensureAdminAccess();
   const customerId = getString(formData, "customerId");
-  const productIds = formData.getAll("productId").map((value) => typeof value === "string" ? value.trim() : "");
+  const productIds = formData
+    .getAll("productId")
+    .map((value) => (typeof value === "string" ? value.trim() : ""));
   const quantities = formData.getAll("quantity");
   const invoicePrices = formData.getAll("itemUnitPrice");
-  const invoiceReference = getOptionalString(formData, "invoiceReference")?.slice(0, 500);
+  const invoiceReference = getOptionalString(
+    formData,
+    "invoiceReference",
+  )?.slice(0, 500);
   const receiptNumber = getOptionalString(formData, "receiptNumber");
   const managerComment = getOptionalString(formData, "comment");
   const accrueLoyalty = getString(formData, "accrueLoyalty") === "on";
@@ -5122,7 +5173,11 @@ export async function createSalesFloorOrderAction(formData: FormData) {
 
   let requestedItems: ReturnType<typeof parseSalesItemInputs>;
   try {
-    requestedItems = parseSalesItemInputs(productIds, quantities, invoicePrices);
+    requestedItems = parseSalesItemInputs(
+      productIds,
+      quantities,
+      invoicePrices,
+    );
   } catch {
     redirect("/admin/sales-floor?error=invoice-values");
   }
@@ -5233,7 +5288,9 @@ export async function createSalesFloorOrderAction(formData: FormData) {
   const discountPercent = getEffectiveDiscountPercent(customer);
   const orderItems = requestedItems.flatMap((requestedItem) => {
     const product = productMap.get(requestedItem.productId);
-    const unitPrice = requestedItem.invoicePrice ?? (product ? (getEffectiveProductPrice(product) ?? 0) : null);
+    const unitPrice =
+      requestedItem.invoicePrice ??
+      (product ? (getEffectiveProductPrice(product) ?? 0) : null);
 
     if (!product || typeof unitPrice !== "number") {
       return [];
@@ -5246,8 +5303,10 @@ export async function createSalesFloorOrderAction(formData: FormData) {
       product.category.promotions,
     );
     // Invoice prices are the agreed final unit prices, not catalog prices to discount again.
-    const promotionDiscountAmount = requestedItem.invoicePrice !== null ? 0 :
-      promotionPrice.unitDiscountAmount * requestedItem.quantity;
+    const promotionDiscountAmount =
+      requestedItem.invoicePrice !== null
+        ? 0
+        : promotionPrice.unitDiscountAmount * requestedItem.quantity;
     const personalDiscountAmount =
       requestedItem.invoicePrice !== null
         ? 0
@@ -5280,7 +5339,8 @@ export async function createSalesFloorOrderAction(formData: FormData) {
     (sum, item) => sum + item.unitPrice * item.quantity,
     0,
   );
-  if (!Number.isSafeInteger(subtotal) || subtotal > MAX_SALE_AMOUNT) redirect("/admin/sales-floor?error=invoice-values");
+  if (!Number.isSafeInteger(subtotal) || subtotal > MAX_SALE_AMOUNT)
+    redirect("/admin/sales-floor?error=invoice-values");
   const discountTotal = orderItems.reduce(
     (sum, item) => sum + item.discountAmount,
     0,
@@ -5366,8 +5426,8 @@ export async function createSalesFloorOrderAction(formData: FormData) {
           contactName: customerName,
           contactPhone: customer.phone ?? "",
           contactEmail: isTechnicalClientEmail(customer.email)
-      ? null
-      : customer.email,
+            ? null
+            : customer.email,
           companyName: customer.companyName,
           comment: commentParts.join("\n"),
           subtotal,
@@ -5432,7 +5492,12 @@ export async function createSalesFloorOrderAction(formData: FormData) {
     });
   } catch (error) {
     if (error instanceof InventoryAvailabilityError) {
-      redirect("/admin/sales-floor?error=stock");
+      redirect(
+        `/admin/sales-floor?${new URLSearchParams({
+          error: "stock",
+          detail: error.message,
+        })}`,
+      );
     }
 
     if (error instanceof InsufficientLoyaltyBalanceError) {
@@ -6361,8 +6426,9 @@ export async function updateUserLoyaltyAction(formData: FormData) {
       ]),
       plateMaterialLoyaltyTier: selectedPlateMaterialTier,
       fittingsLoyaltyTier: selectedFittingsTier,
-      personalDiscountPercent:
-        clampPersonalDiscountPercent(personalDiscountPercent),
+      personalDiscountPercent: clampPersonalDiscountPercent(
+        personalDiscountPercent,
+      ),
     },
   });
 
