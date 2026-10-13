@@ -218,3 +218,35 @@ test("rejects foreign, truncated and corrupted files with a clear error", () => 
   corrupted.fill(0xff, corrupted.length - 12);
   assert.throws(() => parseBazisProject(corrupted), BazisParseError);
 });
+
+test("edge after a rounded corner is still assigned to its side", () => {
+  const numbers = (kind: number, values: number[], tail = 0) => {
+    const buffer = Buffer.alloc(1 + values.length * 8 + tail);
+    buffer[0] = kind;
+    values.forEach((value, index) =>
+      buffer.writeDoubleLE(value, 1 + index * 8),
+    );
+    return buffer;
+  };
+  // Бок 350 × 2000 с вырезом под цоколь: дуга стоит перед нижней стороной.
+  const contour = Buffer.concat([
+    int32(6),
+    numbers(0x10, [350, 0, 350, 2000]),
+    numbers(0x10, [350, 2000, 0, 2000]),
+    numbers(0x10, [0, 2000, 0, 90]),
+    numbers(0x10, [20, 70, 20, 0]),
+    numbers(0x12, [0, 70, 0, 90, 20, 70], 1),
+    numbers(0x10, [20, 0, 350, 0]),
+  ]);
+  const side = panel("Бок", 1, 1, [0, 5]);
+  const contourNode = side.children?.find((item) => item.key === "Contour");
+
+  assert.ok(contourNode);
+  contourNode.value = { kind: "blob", value: contour };
+
+  const [row] = parseBazisProject(project([side])).rows;
+
+  assert.deepEqual([row.length, row.width], [2000, 350]);
+  assert.deepEqual([row.edgedLengthSides, row.edgedWidthSides], [1, 1]);
+  assert.equal(row.complexContour, true);
+});

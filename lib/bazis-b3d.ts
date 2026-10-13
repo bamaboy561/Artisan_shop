@@ -260,32 +260,68 @@ function cleanName(value: string) {
     .trim();
 }
 
-// Контур детали: число элементов и сами элементы. Отрезок = байт 0x10 и
-// четыре числа (x1, y1, x2, y2). Дуги и окружности пока не разбираем.
-function readContourLines(blob: Buffer) {
+// Контур детали: число элементов и сами элементы.
+//   отрезок    = байт 0x10 и четыре числа (x1, y1, x2, y2);
+//   окружность = байт 0x11 и три числа (центр x, y и радиус);
+//   дуга       = байт 0x12, шесть чисел (центр, начало, конец) и байт-флаг.
+// line заполнен только у отрезка; points — точки для габарита детали.
+type ContourElement = { line: number[] | null; points: number[][] };
+
+function readContour(blob: Buffer) {
   if (blob.length < 4) {
-    return { total: 0, lines: [] as number[][] };
+    return { total: 0, elements: [] as ContourElement[] };
   }
 
   const total = blob.readUInt32LE(0);
-  const lines: number[][] = [];
+  const elements: ContourElement[] = [];
   let position = 4;
+  const numbers = (count: number) =>
+    Array.from({ length: count }, (_, index) =>
+      blob.readDoubleLE(position + 1 + index * 8),
+    );
 
   for (let index = 0; index < total && index < 10_000; index += 1) {
-    if (position + 33 > blob.length || blob[position] !== 0x10) {
+    const kind = blob[position];
+
+    if (kind === 0x10 && position + 33 <= blob.length) {
+      const line = numbers(4);
+
+      elements.push({
+        line,
+        points: [
+          [line[0], line[1]],
+          [line[2], line[3]],
+        ],
+      });
+      position += 33;
+    } else if (kind === 0x11 && position + 25 <= blob.length) {
+      const [x, y, radius] = numbers(3);
+
+      elements.push({
+        line: null,
+        points: [
+          [x - radius, y - radius],
+          [x + radius, y + radius],
+        ],
+      });
+      position += 25;
+    } else if (kind === 0x12 && position + 50 <= blob.length) {
+      const arc = numbers(6);
+
+      elements.push({
+        line: null,
+        points: [
+          [arc[2], arc[3]],
+          [arc[4], arc[5]],
+        ],
+      });
+      position += 50;
+    } else {
       break;
     }
-
-    lines.push([
-      blob.readDoubleLE(position + 1),
-      blob.readDoubleLE(position + 9),
-      blob.readDoubleLE(position + 17),
-      blob.readDoubleLE(position + 25),
-    ]);
-    position += 33;
   }
 
-  return { total, lines };
+  return { total, elements };
 }
 
 function round(value: number) {
@@ -330,14 +366,14 @@ function readPanel(node: Node, matrix: Matrix): BazisPanel | null {
     return null;
   }
 
-  const { total, lines } = readContourLines(contour);
+  const { total, elements } = readContour(contour);
 
-  if (lines.length === 0) {
+  if (elements.length === 0) {
     return null;
   }
 
-  const xs = lines.flatMap((line) => [line[0], line[2]]);
-  const ys = lines.flatMap((line) => [line[1], line[3]]);
+  const xs = elements.flatMap((item) => item.points.map((point) => point[0]));
+  const ys = elements.flatMap((item) => item.points.map((point) => point[1]));
   const sizeX = round(Math.max(...xs) - Math.min(...xs));
   const sizeY = round(Math.max(...ys) - Math.min(...ys));
   const length = Math.max(sizeX, sizeY);
@@ -347,7 +383,7 @@ function readPanel(node: Node, matrix: Matrix): BazisPanel | null {
     .filter((item) => item.name === "Butt")
     .map((butt) => {
       const element = numeric(butt, "Elem");
-      const line = element === null ? undefined : lines[element];
+      const line = element === null ? null : elements[element]?.line;
       let side: BazisEdge["side"] = "unknown";
 
       if (line) {
@@ -375,7 +411,10 @@ function readPanel(node: Node, matrix: Matrix): BazisPanel | null {
     length,
     width,
     edges,
-    complexContour: total !== 4 || lines.length !== 4,
+    complexContour:
+      total !== 4 ||
+      elements.length !== 4 ||
+      elements.some((item) => !item.line),
     box: {
       x: Math.min(...xs),
       y: Math.min(...ys),
