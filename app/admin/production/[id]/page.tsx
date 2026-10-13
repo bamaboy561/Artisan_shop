@@ -277,16 +277,20 @@ export default async function ProductionRequestPage({
               {request.contactName}
             </p>
           </div>
-          <div>
-            <p className="text-xs text-[var(--muted)]">Телефон</p>
-            <a
-              href={`tel:${request.contactPhone}`}
-              className="mt-1 flex items-center gap-2 font-semibold text-[var(--foreground)] hover:text-[var(--accent)]"
-            >
-              <Phone className="size-4 text-[var(--accent)]" />
-              {request.contactPhone}
-            </a>
-          </div>
+          {/* Телефон клиента оператору не нужен: связь с клиентом ведёт
+              менеджер. Не отдаём его в страницу вовсе, а не прячем стилем. */}
+          {operator ? null : (
+            <div>
+              <p className="text-xs text-[var(--muted)]">Телефон</p>
+              <a
+                href={`tel:${request.contactPhone}`}
+                className="mt-1 flex items-center gap-2 font-semibold text-[var(--foreground)] hover:text-[var(--accent)]"
+              >
+                <Phone className="size-4 text-[var(--accent)]" />
+                {request.contactPhone}
+              </a>
+            </div>
+          )}
           <div>
             <p className="text-xs text-[var(--muted)]">Количество листов</p>
             <p className="mt-1 font-semibold text-[var(--foreground)]">

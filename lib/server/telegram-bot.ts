@@ -553,6 +553,7 @@ async function replyWithOrders(chatId: string, userId: string) {
   }
 
   const dateFormatter = new Intl.DateTimeFormat("ru-RU", {
+    timeZone: "Asia/Bishkek",
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -793,6 +794,7 @@ async function replyWithPromotions(chatId: string) {
     promotion.promoCode ? `Промокод: ${promotion.promoCode}` : "",
     promotion.endsAt
       ? `До ${new Intl.DateTimeFormat("ru-RU", {
+          timeZone: "Asia/Bishkek",
           day: "2-digit",
           month: "long",
         }).format(promotion.endsAt)}`

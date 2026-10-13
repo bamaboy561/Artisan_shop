@@ -6,6 +6,7 @@ import {
   recalculateLoyaltyStatusesAction,
   updateLoyaltyProgramSettingsAction,
 } from "@/app/admin/actions";
+import { AdminSubmitButton } from "@/components/admin/admin-submit-button";
 import { MetricCard } from "@/components/admin/metric-card";
 import { RollbackLoyaltyTransactionButton } from "@/components/admin/rollback-loyalty-transaction-button";
 import { SetupState } from "@/components/admin/setup-state";
@@ -421,6 +422,13 @@ export default async function AdminLoyaltyPage({
         />
       </section>
 
+      {settingsSaved && !reviewStatus ? (
+        <section className="border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+          Правила сохранены. Статусы клиентов по новым порогам пересчитаются в
+          начале месяца или по кнопке «Пересчитать статусы».
+        </section>
+      ) : null}
+
       {reviewStatus ? (
         <section
           className={`border px-4 py-3 text-sm ${
@@ -568,15 +576,20 @@ export default async function AdminLoyaltyPage({
               })}
             </div>
 
-            <Button type="submit" variant="accent" className="w-full sm:w-auto">
-              Сохранить правила бонусов
-            </Button>
+            <AdminSubmitButton
+              type="submit"
+              variant="accent"
+              className="w-full sm:w-auto"
+              idleLabel="Сохранить правила бонусов"
+              pendingLabel="Сохраняем..."
+            />
           </form>
 
           <div className="mt-5 flex flex-col gap-3 border-t border-[color:var(--line)] pt-4 sm:flex-row sm:items-center sm:justify-between">
             <p className="max-w-xl text-sm leading-6 text-[var(--muted)]">
               Ручной запуск применит действующие пороги к накопленному обороту
-              клиентов до конца прошлого месяца.
+              клиентов до конца прошлого месяца. Клиентам, у которых изменится
+              статус, придёт сообщение.
             </p>
             <form action={recalculateLoyaltyStatusesAction}>
               <Button
