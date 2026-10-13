@@ -18,26 +18,28 @@ import {
   getPromotionalProducts,
 } from "@/lib/server/catalog-public";
 import { getCurrentFavoriteProductSlugs } from "@/lib/server/favorites";
+import { getPublicHighlightedPromotions } from "@/lib/server/promotions-public";
 import { companyContacts } from "@/lib/site-config";
-import { StorefrontHero } from "./hero";
+import { StorefrontBento } from "./bento";
 import { StorefrontCard } from "./card";
 import s from "./storefront.module.css";
 
 export async function StorefrontHome() {
-  const [categories, featured, promotional, brands, favorites] =
+  const [categories, featured, promotional, brands, favorites, promotions] =
     await Promise.all([
       getPublicCategories(),
       getFeaturedProducts(4),
       getPromotionalProducts(4),
       getBrandProfiles(),
       getCurrentFavoriteProductSlugs(),
+      getPublicHighlightedPromotions(),
     ]);
   const products = featured.length
     ? featured
     : brands.flatMap((brand) => brand.products.slice(0, 1)).slice(0, 4);
   return (
     <>
-      <StorefrontHero />
+      <StorefrontBento promotion={promotions[0]} />
       <ul
         className={`${s.container} ${s.trustStrip}`}
         aria-label="Почему Artisan"
@@ -119,7 +121,6 @@ export async function StorefrontHome() {
                   loading={index < 4 ? "eager" : undefined}
                   className={s.cover}
                 />
-                <span>{String(index + 1).padStart(2, "0")}</span>
               </div>
               <h3>
                 {category.name}
