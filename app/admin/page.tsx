@@ -26,6 +26,7 @@ import { StatusBadge } from "@/components/admin/status-badge";
 import { DataTable } from "@/components/ui/table";
 import { OrderStatus, RequestStatus, RequestType } from "@/generated/prisma";
 import { cuttingStageLabels } from "@/features/cutting/progress";
+import { AdminSearchForm } from "@/components/admin/admin-search-form";
 import { AttentionPanel } from "@/components/admin/attention-panel";
 import { requireAdminSession } from "@/lib/auth/dal";
 import { hasDatabaseUrl, isDemoModeEnabled } from "@/lib/db";
@@ -727,6 +728,7 @@ export default async function AdminPage({
 
   return (
     <div className="space-y-5">
+      <AdminSearchForm className="lg:hidden" />
       <AttentionPanel />
       <section className="grid grid-cols-2 gap-2.5 sm:gap-4 xl:grid-cols-3 2xl:grid-cols-6">
         <KpiCard

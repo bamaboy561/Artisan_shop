@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Bell, Calculator, FileStack, Home, LogOut } from "lucide-react";
 
 import { Container } from "@/components/ui/container";
+import { AdminSearchForm } from "@/components/admin/admin-search-form";
 import { DashboardNav } from "@/components/layout/dashboard-nav";
 import type { NavItem } from "@/types/navigation";
 
@@ -64,7 +65,7 @@ function AdminFrame({
             На сайт
           </Link>
 
-          <div className="mt-2.5 min-h-0 [scrollbar-width:none] overflow-hidden lg:mt-6 lg:flex-1 lg:overflow-y-auto lg:pr-1 [&::-webkit-scrollbar]:hidden">
+          <div className="mt-2.5 min-h-0 overflow-hidden [scrollbar-width:none] lg:mt-6 lg:flex-1 lg:overflow-y-auto lg:pr-1 [&::-webkit-scrollbar]:hidden">
             <DashboardNav items={items} variant="admin" />
           </div>
 
@@ -85,6 +86,7 @@ function AdminFrame({
       <div className="min-w-0 overflow-x-clip print:overflow-visible">
         <header className="sticky top-0 z-20 hidden border-b border-[#e3ddd2] bg-[#f4f1eb]/90 backdrop-blur-xl lg:block print:hidden">
           <nav className="flex min-h-16 items-center justify-end gap-2 px-6 text-sm xl:px-7">
+            <AdminSearchForm className="mr-auto w-full max-w-sm" />
             <Link href="/calculator" className={topLinkClass}>
               <Calculator className="size-4" strokeWidth={1.8} />
               Калькулятор
