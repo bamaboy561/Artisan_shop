@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { SetupState } from "@/components/admin/setup-state";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { AdminSubmitButton } from "@/components/admin/admin-submit-button";
@@ -116,6 +118,17 @@ export default async function AccountRequestsPage() {
                   {file.fileName}
                 </a>
               ))}
+              {clientFiles
+                .filter((file) => /\.b3d$/i.test(file.fileName))
+                .map((file) => (
+                  <Link
+                    key={`bazis-${file.id}`}
+                    href={`/account/requests/${request.id}/bazis/${file.id}`}
+                    className="rounded-full bg-[var(--foreground)] px-3 py-1 text-xs font-semibold text-white transition hover:bg-[var(--accent)]"
+                  >
+                    Посмотреть макет
+                  </Link>
+                ))}
             </div>
           ) : (
             <p className="text-sm text-[var(--muted)]">Файлы не загружены.</p>
