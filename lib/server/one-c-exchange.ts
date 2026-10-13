@@ -707,7 +707,7 @@ export async function syncOneCOrderStatuses(
   for (const item of input.orders) {
     const order = await db.order.findFirst({
       where: item.id ? { id: item.id } : { number: item.number },
-      select: { id: true, number: true, status: true },
+      select: { id: true, number: true, status: true, total: true },
     });
 
     if (!order) {
@@ -715,6 +715,19 @@ export async function syncOneCOrderStatuses(
       missingOrders.push(item.id ?? item.number ?? "unknown");
       continue;
     }
+
+    // 1С сообщила, что заказ оплачен полностью, а статус не прислала:
+    // неоплаченный заказ на сайте сам становится «Оплачен».
+    const paidInFull =
+      !item.status &&
+      item.paidTotal !== undefined &&
+      item.paidTotal !== null &&
+      item.paidTotal >= order.total &&
+      order.total > 0 &&
+      (order.status === OrderStatus.NEW ||
+        order.status === OrderStatus.RESERVED ||
+        order.status === OrderStatus.CONFIRMED);
+    const nextStatus = item.status ?? (paidInFull ? OrderStatus.PAID : null);
 
     const descriptionParts = [
       item.oneCNumber ? `Номер в 1С: ${item.oneCNumber}` : "",
@@ -724,10 +737,10 @@ export async function syncOneCOrderStatuses(
       item.comment ? `Комментарий: ${item.comment}` : "",
     ].filter(Boolean);
 
-    if (item.status) {
+    if (nextStatus) {
       const transition = await applyOneCOrderStatus({
         orderId: order.id,
-        nextStatus: item.status,
+        nextStatus,
         source: input.source ?? "1C",
       });
 
@@ -736,7 +749,7 @@ export async function syncOneCOrderStatuses(
         continue;
       }
 
-      const statusChanged = transition.previousStatus !== item.status;
+      const statusChanged = transition.previousStatus !== nextStatus;
 
       if (!statusChanged && !transition.loyaltyChanged) {
         if (descriptionParts.length === 0) {
@@ -752,7 +765,7 @@ export async function syncOneCOrderStatuses(
         title: `Заказ ${order.number ?? order.id} обновлён из 1С`,
         description: descriptionParts.join("\n") || null,
         fromStatus: transition.previousStatus,
-        toStatus: item.status,
+        toStatus: nextStatus,
         actorName: input.source ?? "1C",
         isVisibleToClient: true,
       });
@@ -762,7 +775,7 @@ export async function syncOneCOrderStatuses(
           title: `Статус заказа ${transition.number ?? order.id} обновлен`,
           category: "orders",
           lines: [
-            `Новый статус: ${getOrderStatusLabel(item.status)}`,
+            `Новый статус: ${getOrderStatusLabel(nextStatus)}`,
             `Сумма: ${formatPrice(transition.total)}`,
           ],
           actions: [{ text: "Открыть заказ", url: "/account/orders" }],

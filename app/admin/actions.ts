@@ -3098,6 +3098,12 @@ async function applyOrderStatusChange(input: {
   );
 }
 
+const unpaidOrderStatuses = new Set<OrderStatus>([
+  OrderStatus.NEW,
+  OrderStatus.RESERVED,
+  OrderStatus.CONFIRMED,
+]);
+
 export async function updateOrderDetailsAction(formData: FormData) {
   if (!hasDatabaseUrl()) {
     return;
@@ -3143,15 +3149,34 @@ export async function updateOrderDetailsAction(formData: FormData) {
     actor,
   });
 
-  await syncOrderById(
-    orderId,
-    previousOrder
-      ? {
-          previousStatus: previousOrder.status,
-          previousManager: previousOrder.manager,
-        }
-      : undefined,
-  );
+  // Клиент платит на кассе полностью. Как только менеджер вписал номер
+  // кассового чека или накладной 1С, неоплаченный заказ сам становится
+  // «Оплачен».
+  const receiptAdded =
+    !getOrderReceiptNumberFromComment(previousOrder?.comment ?? null) &&
+    Boolean(getOrderReceiptNumberFromComment(nextOrderComment));
+
+  if (
+    receiptAdded &&
+    previousOrder &&
+    unpaidOrderStatuses.has(previousOrder.status)
+  ) {
+    await applyOrderStatusChange({
+      id: orderId,
+      nextStatus: OrderStatus.PAID,
+      actor,
+    });
+  } else {
+    await syncOrderById(
+      orderId,
+      previousOrder
+        ? {
+            previousStatus: previousOrder.status,
+            previousManager: previousOrder.manager,
+          }
+        : undefined,
+    );
+  }
 
   revalidateAdminOperations();
   revalidatePath(`/admin/orders/${orderId}`);
