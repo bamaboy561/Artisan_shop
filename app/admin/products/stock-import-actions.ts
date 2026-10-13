@@ -6,6 +6,7 @@ import { parseProductImportFile } from "@/features/admin/product-import";
 import {
   buildStockImportPlan,
   buildStockReconciliation,
+  collectStockPendingItems,
   stockReconciliationCsv,
   stockRowKey,
   stockImportReportCsv,
@@ -20,6 +21,10 @@ import {
   getInventoryStatusForStock,
   getUnpaidReservedQuantities,
 } from "@/lib/server/inventory-reservations";
+import {
+  pruneStockPendingItems,
+  saveStockPendingItems,
+} from "@/lib/server/stock-pending";
 
 export async function processStockImportAction(
   formData: FormData,
@@ -102,6 +107,14 @@ export async function processStockImportAction(
     mode === "stock" ||
     (mode === "all" && parsed.rows.every((row) => row.inventoryReport));
   const fileName = file.name;
+  // Позиции отчёта, которых нет на сайте, после подтверждения сохраняются
+  // в список «Добавить на сайт», чтобы завести карточки позже.
+  const pendingItems = reconcile
+    ? collectStockPendingItems(
+        buildStockReconciliation(parsed.rows, products, plan),
+      )
+    : [];
+  let pendingSaved: number | null = null;
 
   // «Обнулить то, чего нет в файле»: товар распродан и пропал из отчёта 1С,
   // но на сайте всё ещё числится в наличии. Только для сверки остатков.
@@ -187,6 +200,19 @@ export async function processStockImportAction(
         : zeroMissing
           ? ["Товаров с остатком, которых нет в файле, не найдено."]
           : [];
+    const pendingWarnings = !pendingItems.length
+      ? []
+      : pendingSaved === null
+        ? [
+            `Нет на сайте: ${pendingItems.length}. После подтверждения эти позиции сохранятся в список «Добавить на сайт», повторы не дублируются.`,
+          ]
+        : pendingSaved > 0
+          ? [
+              `Сохранено в список «Добавить на сайт»: ${pendingSaved}. Список ниже, в разделе «Нет на сайте».`,
+            ]
+          : [
+              "Не удалось сохранить список «Нет на сайте». Остатки обновлены; скачайте отчёт CSV.",
+            ];
 
     return {
       phase,
@@ -205,7 +231,8 @@ export async function processStockImportAction(
         before: entry.before,
         changes: entry.changes,
       })),
-      warnings: [...zeroWarnings, ...parsed.warnings],
+      warnings: [...pendingWarnings, ...zeroWarnings, ...parsed.warnings],
+      pendingCount: pendingItems.length,
       columns: parsed.mappedColumns,
       reconciliation,
       reportCsv: reconciliation
@@ -233,7 +260,9 @@ export async function processStockImportAction(
       );
       if (
         !Array.isArray(keys) ||
-        (!keys.length && !(zeroMissing && missingToZero.length > 0)) ||
+        (!keys.length &&
+          !(zeroMissing && missingToZero.length > 0) &&
+          !pendingItems.length) ||
         keys.some((key) => typeof key !== "string" || !allowed.has(key))
       )
         return result(
@@ -339,6 +368,14 @@ export async function processStockImportAction(
     }
   }
 
+  try {
+    await saveStockPendingItems(db, pendingItems, fileName);
+    await pruneStockPendingItems(db, products);
+    pendingSaved = pendingItems.length;
+  } catch {
+    pendingSaved = pendingItems.length ? 0 : null;
+  }
+
   if (plan.some((entry) => entry.status === "updated") || zeroedCount) {
     for (const path of [
       "/admin",
@@ -363,6 +400,25 @@ export async function processStockImportAction(
       ? "Обновление завершено с замечаниями. Строки, требующие повторной проверки, указаны в отчёте."
       : counts.updated || zeroedCount
         ? "Цены и остатки обновлены."
-        : "Обновление не потребовалось. Проверьте результаты строк.",
+        : pendingSaved
+          ? "Остатки не менялись. Позиции, которых нет на сайте, сохранены в список."
+          : "Обновление не потребовалось. Проверьте результаты строк.",
   );
+}
+
+// «Не добавлять»: позиция скрывается и не возвращается при следующих
+// загрузках (например, расходники цеха, которые не продаются на сайте).
+export async function dismissStockPendingItemAction(formData: FormData) {
+  const session = await requireAdminSession(
+    "/login?next=/admin/products",
+    "/admin/products",
+  );
+  if (!canAccessGeneralAdmin(session.roleCode) || !hasDatabaseUrl()) return;
+  const id = formData.get("id");
+  if (typeof id !== "string" || !id) return;
+  await getDb().stockPendingItem.updateMany({
+    where: { id, dismissedAt: null },
+    data: { dismissedAt: new Date() },
+  });
+  revalidatePath("/admin/products");
 }

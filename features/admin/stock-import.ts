@@ -47,6 +47,7 @@ export type StockImportResult = {
   columns?: Array<{ source: string; target: string }>;
   reportCsv?: string;
   reconciliation?: StockReconciliationEntry[];
+  pendingCount?: number;
 };
 
 export type StockReconciliationEntry = {
@@ -414,4 +415,51 @@ export function stockImportReportCsv(entries: StockImportEntry[]) {
     "\uFEFF" +
     [header, ...rows].map((row) => row.map(escape).join(";")).join("\r\n")
   );
+}
+
+export type StockPendingCandidate = {
+  matchKey: string;
+  sku: string | null;
+  name: string;
+  unit: string | null;
+  quantity: number | null;
+};
+
+// Один ключ на позицию: по артикулу, а без артикула по названию.
+// Так повторная загрузка того же отчёта не создаёт дублей в списке.
+export function stockPendingKey(item: { sku?: string | null; name: string }) {
+  const sku = item.sku ? skuKey(item.sku) : "";
+  return sku ? `sku:${sku}` : `name:${nameKey(item.name)}`;
+}
+
+export function collectStockPendingItems(
+  reconciliation: StockReconciliationEntry[],
+): StockPendingCandidate[] {
+  const items = new Map<string, StockPendingCandidate>();
+  for (const entry of reconciliation) {
+    if (entry.kind !== "notFound" || !entry.name.trim()) continue;
+    const matchKey = stockPendingKey(entry);
+    if (items.has(matchKey)) continue;
+    items.set(matchKey, {
+      matchKey,
+      sku: entry.sku.trim() || null,
+      name: entry.name.trim(),
+      unit: entry.unit.trim() || null,
+      quantity: entry.fileQuantity,
+    });
+  }
+  return [...items.values()];
+}
+
+// Ключи товаров сайта: позиция уходит из списка, когда появляется товар
+// с тем же артикулом (или с тем же названием, если артикула в файле не было).
+export function stockPendingCatalogKeys(
+  products: Array<{ sku: string; name: string }>,
+) {
+  const keys = new Set<string>();
+  for (const product of products) {
+    keys.add(stockPendingKey(product));
+    keys.add(`name:${nameKey(product.name)}`);
+  }
+  return keys;
 }

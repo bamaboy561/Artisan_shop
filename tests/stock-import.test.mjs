@@ -475,6 +475,7 @@ function actionFixture({
     reads: 0,
     parses: 0,
     batches: 0,
+    pending: [],
   };
   const action = loadAction("../app/admin/products/stock-import-actions.ts", {
     "node:crypto": crypto,
@@ -492,6 +493,12 @@ function actionFixture({
       requireAdminSession: async () => ({ userId: "actor", roleCode: role }),
     },
     "@/lib/auth/roles": roles,
+    "@/lib/server/stock-pending": {
+      saveStockPendingItems: async (_db, items, fileName) => {
+        state.pending.push(...items.map((item) => ({ ...item, fileName })));
+      },
+      pruneStockPendingItems: async () => {},
+    },
     "@/lib/server/inventory-reservations": {
       getUnpaidReservedQuantities: async () =>
         new Map(Object.entries(state.reserved ?? {})),
@@ -556,6 +563,8 @@ test("daily action previews and applies accounting report without changing catal
   assert.equal(preview.counts.ready, 2);
   assert.equal(preview.counts.skipped, 1);
   assert.equal(state.writes.length, 0);
+  assert.equal(preview.pendingCount, 1);
+  assert.equal(state.pending.length, 0, "preview never saves the list");
   const apply = data("apply", preview.fingerprint, "all", file);
   apply.set(
     "selectedRows",
@@ -575,6 +584,91 @@ test("daily action previews and applies accounting report without changing catal
   assert.deepEqual(state.writes[1].data, { stockQuantity: 127 });
   assert.equal(state.products[0].price, 120);
   assert.equal(state.products[0].compareAtPrice, 150);
+  assert.deepEqual(state.pending, [
+    {
+      matchKey: "name:неизвестный товар",
+      sku: null,
+      name: "Неизвестный товар",
+      unit: "шт",
+      quantity: 1,
+      fileName: "stock.xlsx",
+    },
+  ]);
+});
+
+test("report rows missing on the site can be saved without selecting stock updates", async () => {
+  const { action, state, data } = actionFixture();
+  const file = accountingReport();
+  const preview = await action(data("preview", undefined, "stock", file));
+  const apply = data("apply", preview.fingerprint, "stock", file);
+  apply.set("selectedRows", "[]");
+  const done = await action(apply);
+  assert.equal(done.phase, "done");
+  assert.equal(state.writes.length, 0);
+  assert.deepEqual(
+    state.pending.map((item) => item.name),
+    ["Кромка", "Неизвестный товар"],
+  );
+});
+
+test("pending list keys deduplicate by SKU, else by normalized name, and match new products", () => {
+  const entry = (overrides) => ({
+    key: "k",
+    sku: "",
+    name: "",
+    siteQuantity: null,
+    fileQuantity: 5,
+    unit: "шт",
+    difference: null,
+    kind: "notFound",
+    match: null,
+    status: "skipped",
+    reason: "",
+    selectable: false,
+    ...overrides,
+  });
+  const items = stock.collectStockPendingItems([
+    entry({ sku: " 160001112 ", name: "ABS кромка" }),
+    entry({ sku: "160001112", name: "ABS кромка (склад 2)" }),
+    entry({ name: "Деревянный  дюбель" }),
+    entry({ name: "деревянный дюбель" }),
+    entry({ name: "Петля", kind: "difference" }),
+    entry({ name: "Пропавший", kind: "missing" }),
+  ]);
+  assert.deepEqual(
+    items.map((item) => item.matchKey),
+    ["sku:160001112", "name:деревянный дюбель"],
+  );
+  assert.equal(items[0].sku, "160001112");
+  const keys = stock.stockPendingCatalogKeys([
+    { sku: "160001112", name: "Кромка ABS серая" },
+    { sku: "art-1", name: "Деревянный дюбель" },
+  ]);
+  assert.ok(items.every((item) => keys.has(item.matchKey)));
+});
+
+test("pending list Excel opens in the full product import with name, SKU and whole stock", async () => {
+  const exporter = loadAction("../features/admin/stock-pending-export.ts", {
+    xlsx: XLSX,
+  });
+  const bytes = exporter.createStockPendingExport([
+    { sku: "0160001112", name: "ABS кромка", unit: "пог. м", quantity: 81.5 },
+    { sku: null, name: "Деревянный дюбель", unit: "шт", quantity: 17286 },
+  ]);
+  const parsed = await parser.parseProductImportFile(
+    new File([bytes], "pending.xlsx"),
+  );
+  assert.deepEqual(
+    parsed.rows.map((row) => [row.sku, row.name, row.stockQuantity]),
+    [
+      ["0160001112", "ABS кромка", 81],
+      ["", "Деревянный дюбель", 17286],
+    ],
+  );
+  assert.equal(
+    parsed.mappedColumns.some((column) => column.source === "Ед. изм. в 1С"),
+    false,
+  );
 });
 
 test("preview never writes; apply requires matching preview, updates only approved fields and revalidates", async () => {
@@ -781,14 +875,9 @@ test("stock reconciliation returns all rows beyond the legacy sample and isolate
 });
 
 test("stock apply rejects empty, malformed, unknown, missing and unsafe selection before any writes", async () => {
-  for (const selection of [
-    undefined,
-    "[]",
-    "{}",
-    "broken",
-    '["unknown"]',
-    "[123]",
-  ]) {
+  // "[]" is accepted here only because the report has rows missing on the
+  // site: they are saved to the pending list (covered above), stock unchanged.
+  for (const selection of [undefined, "{}", "broken", '["unknown"]', "[123]"]) {
     const { action, state, data } = actionFixture();
     const file = accountingReport();
     const preview = await action(data("preview", undefined, "stock", file));
@@ -808,6 +897,21 @@ test("stock apply rejects empty, malformed, unknown, missing and unsafe selectio
   );
   assert.equal((await action(apply)).phase, "preview");
   assert.equal(state.writes.length, 0);
+});
+
+test("empty selection is rejected when every report row is on the site", async () => {
+  const { action, state, data } = actionFixture();
+  const file = excel([
+    ["Артикул", "Остаток"],
+    [sku, 2],
+  ]);
+  const preview = await action(data("preview", undefined, "stock", file));
+  assert.equal(preview.pendingCount, 0);
+  const apply = data("apply", preview.fingerprint, "stock", file);
+  apply.set("selectedRows", "[]");
+  assert.equal((await action(apply)).phase, "preview");
+  assert.equal(state.writes.length, 0);
+  assert.equal(state.pending.length, 0);
 });
 
 test("selected stock rows still require an up-to-date fingerprint", async () => {
