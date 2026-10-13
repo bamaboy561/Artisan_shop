@@ -38,12 +38,47 @@ function buildSalesFloorCustomerWhere(query: string): Prisma.UserWhereInput {
   };
 }
 
+// Телефоны в базе записаны как ввёл клиент: «0555 12-34-56», «+996 (555)…».
+// Поиск по цифрам сравнивает номер без пробелов, скобок и дефисов.
+async function findCustomerIdsByPhoneDigits(query: string) {
+  if (/[^\d\s()+-]/.test(query)) {
+    return [];
+  }
+
+  const digits = query.replace(/\D/g, "").replace(/^(996|0)/, "");
+
+  if (digits.length < 4) {
+    return [];
+  }
+
+  const rows = await getDb().$queryRaw<Array<{ id: string }>>`
+    SELECT "id" FROM "User"
+    WHERE "phone" IS NOT NULL
+      AND regexp_replace("phone", '[^0-9]', '', 'g') LIKE ${`%${digits}%`}
+    LIMIT 200
+  `;
+
+  return rows.map((row) => row.id);
+}
+
 export async function getSalesFloorCustomers(query = "", take = 40) {
   const db = getDb();
   const normalizedQuery = normalizeUserSearchQuery(query);
+  const phoneMatchIds = await findCustomerIdsByPhoneDigits(normalizedQuery);
+  const where = buildSalesFloorCustomerWhere(normalizedQuery);
 
   return db.user.findMany({
-    where: buildSalesFloorCustomerWhere(normalizedQuery),
+    where: phoneMatchIds.length
+      ? {
+          OR: [
+            where,
+            {
+              ...buildSalesFloorCustomerWhere(""),
+              id: { in: phoneMatchIds },
+            },
+          ],
+        }
+      : where,
     orderBy: normalizedQuery
       ? [{ updatedAt: "desc" }, { email: "asc" }]
       : [{ updatedAt: "desc" }, { email: "asc" }],
