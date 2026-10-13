@@ -4690,6 +4690,21 @@ export async function updateRequestCuttingDetailsAction(formData: FormData) {
   revalidatePath(`/admin/requests/${requestId}/route-sheet`);
 }
 
+// Этап, который менеджер видел на экране при отправке формы. Если оператор
+// за это время продвинул заказ, сохранение не должно молча вернуть его назад.
+function getExpectedStageFromForm(formData: FormData) {
+  if (!formData.has("expectedStage")) {
+    return {};
+  }
+
+  const value = getString(formData, "expectedStage");
+
+  return {
+    expectedStage:
+      Object.values(CuttingStage).find((item) => item === value) ?? null,
+  };
+}
+
 type CuttingProgressMutationInput = {
   requestId: string;
   stage: CuttingStage;
@@ -4825,6 +4840,7 @@ export async function updateRequestCuttingProgressAction(formData: FormData) {
     stage,
     pickupCell: getOptionalString(formData, "cuttingPickupCell"),
     note: getOptionalString(formData, "cuttingStageNote"),
+    ...getExpectedStageFromForm(formData),
     actor,
   });
 }
@@ -4915,8 +4931,13 @@ export async function setProductionStageAction(formData: FormData) {
     stage,
     pickupCell: getOptionalString(formData, "cuttingPickupCell"),
     note: getOptionalString(formData, "cuttingStageNote"),
+    ...getExpectedStageFromForm(formData),
     actor,
   });
+
+  if (result === "conflict") {
+    redirect(productionActionReturn(formData, requestId, "stage-conflict"));
+  }
 
   redirect(
     productionActionReturn(

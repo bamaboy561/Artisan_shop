@@ -412,6 +412,11 @@ export default async function ProductionRequestPage({
           ) : manager ? (
             <form action={setProductionStageAction} className="mt-5 grid gap-4">
               <input type="hidden" name="requestId" value={request.id} />
+              <input
+                type="hidden"
+                name="expectedStage"
+                value={request.cuttingStage ?? ""}
+              />
               <input type="hidden" name="returnTo" value={returnTo} />
               <label className="grid gap-2 text-sm font-medium text-[var(--foreground)]">
                 Этап
