@@ -1,7 +1,10 @@
 import "server-only";
 import { getDb } from "@/lib/db";
+import { getSiteUrl } from "@/lib/seo";
+import { companyContacts } from "@/lib/site-config";
 import {
   getProductPromotionPrice,
+  getPromotionCompareAtPrice,
   PROMOTION_PRICE_SELECT,
 } from "@/lib/server/product-promotion-pricing";
 
@@ -17,11 +20,14 @@ export async function getPhotoCatalogData(brandId: string, inStock: boolean) {
         },
         select: {
           sku: true,
+          slug: true,
           name: true,
           brandId: true,
           categoryId: true,
           price: true,
+          compareAtPrice: true,
           stockQuantity: true,
+          inventoryStatus: true,
           format: true,
           thicknessMm: true,
           edgeThicknessMm: true,
@@ -75,24 +81,51 @@ export async function getPhotoCatalogData(brandId: string, inStock: boolean) {
     }
     return names.join(" / ");
   }
+  const siteUrl = getSiteUrl();
   return {
+    siteUrl,
+    contacts: companyContacts,
     title: brandId
       ? brands.find((brand) => brand.id === brandId)!.name
       : "Все бренды",
     createdAt: new Date(),
-    products: products.map((product) => ({
-      ...product,
-      price: getProductPromotionPrice(
-        product.price,
-        product.promotions,
-        product.category.promotions,
-      ).finalPrice,
-      brand:
-        brands.find((brand) => brand.id === product.brandId)?.name ??
-        "Без бренда",
-      category: categoryPath(product.categoryId),
-      imageUrl: product.images[0]?.url ?? null,
-    })),
+    products: products
+      .map(({ promotions, category, images, ...product }) => {
+        const pricing = getProductPromotionPrice(
+          product.price,
+          promotions,
+          category.promotions,
+        );
+        const price = pricing.finalPrice;
+        // Зачёркнутая цена как на витрине: большая из обычной цены при акции
+        // и «старой цены» из карточки.
+        const compareAt = getPromotionCompareAtPrice(
+          product.compareAtPrice,
+          pricing,
+        );
+        const oldPrice =
+          price != null && compareAt != null && compareAt > price
+            ? compareAt
+            : null;
+        return {
+          ...product,
+          price,
+          oldPrice,
+          url: `${siteUrl}/product/${encodeURIComponent(product.slug)}`,
+          brand:
+            brands.find((brand) => brand.id === product.brandId)?.name ??
+            "Без бренда",
+          category: categoryPath(product.categoryId),
+          imageUrl: images[0]?.url ?? null,
+        };
+      })
+      // Каталог листается разделами: категория, внутри бренд и название.
+      .sort(
+        (a, b) =>
+          a.category.localeCompare(b.category, "ru", { numeric: true }) ||
+          a.brand.localeCompare(b.brand, "ru", { numeric: true }) ||
+          a.name.localeCompare(b.name, "ru", { numeric: true }),
+      ),
   };
 }
 
