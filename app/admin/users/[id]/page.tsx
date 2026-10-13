@@ -211,6 +211,12 @@ export default async function AdminUserProfilePage({
               defaultValue={
                 isTechnicalClientEmail(user.email) ? "" : user.email
               }
+              readOnly={!isTechnicalClientEmail(user.email)}
+              title={
+                isTechnicalClientEmail(user.email)
+                  ? undefined
+                  : "Почту меняет сам клиент в кабинете"
+              }
               className="h-10"
             />
           </label>

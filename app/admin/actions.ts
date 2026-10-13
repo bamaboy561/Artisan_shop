@@ -150,6 +150,7 @@ import {
   updateRequestCuttingProgress,
   updateRequestProductionResult,
 } from "@/lib/server/request-production";
+import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -6080,7 +6081,7 @@ export async function updateClientContactsAction(formData: FormData) {
       id,
       role: { code: { in: [RoleCode.CUSTOMER, RoleCode.DEALER] } },
     },
-    select: { id: true, email: true },
+    select: { id: true, email: true, hashedPassword: true },
   });
 
   if (!client) {
@@ -6100,7 +6101,19 @@ export async function updateClientContactsAction(formData: FormData) {
     redirect(back("contacts-invalid"));
   }
 
-  if (emailInput && emailInput !== client.email) {
+  // Менеджер вписывает почту только клиенту, заведённому без неё: смена
+  // настоящей почты открыла бы чужой кабинет через «Забыли пароль».
+  const emailChanges = Boolean(emailInput) && emailInput !== client.email;
+
+  if (emailChanges && !isTechnicalClientEmail(client.email)) {
+    redirect(back("contacts-invalid"));
+  }
+
+  if (emailInput && isTechnicalClientEmail(emailInput)) {
+    redirect(back("contacts-invalid"));
+  }
+
+  if (emailChanges) {
     const emailOwner = await db.user.findUnique({
       where: { email: emailInput },
       select: { id: true },
@@ -6119,7 +6132,16 @@ export async function updateClientContactsAction(formData: FormData) {
       companyName:
         getOptionalString(formData, "companyName")?.slice(0, 120) ?? null,
       ...(phone ? { phone: `+${phone}` } : {}),
-      ...(emailInput ? { email: emailInput } : {}),
+      ...(emailChanges ? { email: emailInput } : {}),
+      // Восстановление пароля работает только для аккаунта с паролем:
+      // ставим случайный, клиент задаёт свой через «Забыли пароль?».
+      ...(emailChanges && !client.hashedPassword
+        ? {
+            hashedPassword: await (
+              await import("bcryptjs")
+            ).hash(randomBytes(24).toString("base64url"), 10),
+          }
+        : {}),
     },
   });
 
