@@ -13,6 +13,7 @@ import { cuttingStageLabels } from "@/features/cutting/progress";
 import { formatPrice } from "@/lib/commerce";
 import { getDb, hasDatabaseUrl, isDemoModeEnabled } from "@/lib/db";
 import { absoluteUrl } from "@/lib/seo";
+import { formatTelegramHtml } from "@/features/telegram/format";
 import { sendClientDirectMessage } from "@/lib/server/client-notifications";
 import { sendCustomerEmail } from "@/lib/server/customer-email";
 
@@ -703,6 +704,10 @@ async function sendTelegramMessage(payload: TelegramMessagePayload) {
   }
 
   const text = [`${payload.title}`, ...payload.lines].join("\n");
+  const formattedText = formatTelegramHtml(payload.title, payload.lines);
+  // Если Telegram не примет оформление, второй раз шлём простой текст:
+  // сообщение важнее вида.
+  let plainFallback = false;
   const threadId = getTypedTelegramThreadId(payload.threadKey);
 
   console.info("[telegram:manager:send]", {
@@ -723,7 +728,9 @@ async function sendTelegramMessage(payload: TelegramMessagePayload) {
       },
       body: JSON.stringify({
         chat_id: process.env.TELEGRAM_CHAT_ID,
-        text,
+        ...(plainFallback
+          ? { text }
+          : { text: formattedText, parse_mode: "HTML" }),
         disable_web_page_preview: true,
         ...(payload.actions?.length
           ? {
@@ -744,6 +751,12 @@ async function sendTelegramMessage(payload: TelegramMessagePayload) {
     }
 
     responseText = await response.text();
+
+    if (attempt === 0 && response.status === 400 && !plainFallback) {
+      plainFallback = true;
+      continue;
+    }
+
     const canRetry =
       attempt === 0 &&
       (response.status === 429 ||

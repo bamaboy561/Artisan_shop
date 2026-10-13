@@ -2,6 +2,8 @@ import "server-only";
 
 import crypto from "node:crypto";
 
+import { formatTelegramHtml } from "@/features/telegram/format";
+
 import {
   CuttingStage,
   DiscountType,
@@ -1297,13 +1299,24 @@ export async function sendTelegramDirectMessage(
     return false;
   }
 
-  await sendBotMessage(
-    user.telegramChatId,
-    [payload.title, ...payload.lines].filter(Boolean).join("\n"),
-    {
-      replyMarkup: buildActionMarkup(payload.actions),
-    },
-  );
+  const replyMarkup = buildActionMarkup(payload.actions);
+
+  // Если Telegram не примет оформление, шлём простой текст: сообщение
+  // важнее вида.
+  try {
+    await sendBotMessage(
+      user.telegramChatId,
+      formatTelegramHtml(payload.title, payload.lines),
+      { parseMode: "HTML", replyMarkup },
+    );
+  } catch (error) {
+    console.warn("[telegram:direct:plain-fallback]", error);
+    await sendBotMessage(
+      user.telegramChatId,
+      [payload.title, ...payload.lines].filter(Boolean).join("\n"),
+      { replyMarkup },
+    );
+  }
 
   console.info("[telegram:direct:sent]", {
     userId: maskUserId(userId),
