@@ -15,6 +15,7 @@ export type BazisImportRow = {
   edgedLengthSides: number;
   edgedWidthSides: number;
   complexContour: boolean;
+  textured?: boolean;
 };
 
 export type BazisMaterialGroup = {
@@ -49,6 +50,7 @@ export function bazisRowToDetail(row: BazisImportRow): ImportedDetail {
     width: Math.round(row.width),
     quantity: row.quantity,
     edgedSides: SIDE_ORDER.filter((side) => sides.has(side)),
+    fixedGrain: row.textured === true,
   };
 }
 

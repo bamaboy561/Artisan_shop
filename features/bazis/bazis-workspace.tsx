@@ -23,6 +23,7 @@ type Row = {
   edgedLengthSides: number;
   edgedWidthSides: number;
   complexContour: boolean;
+  textured: boolean;
   panelIndexes: number[];
 };
 
@@ -52,6 +53,7 @@ function buildRows(project: BazisViewProject): Row[] {
       panel.edgedLengthSides,
       panel.edgedWidthSides,
       panel.complexContour,
+      panel.textured,
     ]);
     const existing = rows.get(key);
 
@@ -69,6 +71,7 @@ function buildRows(project: BazisViewProject): Row[] {
         edgedLengthSides: Math.min(panel.edgedLengthSides, 2),
         edgedWidthSides: Math.min(panel.edgedWidthSides, 2),
         complexContour: panel.complexContour,
+        textured: panel.textured,
         panelIndexes: [index],
       });
     }
@@ -137,7 +140,7 @@ export function BazisWorkspace({ catalogBoards }: { catalogBoards: string[] }) {
         const panel = project.panels[index];
         const length = toNumber(row.length) || panel.length;
         const width = toNumber(row.width) || panel.width;
-        const lengthAlongX = panel.box.sizeX >= panel.box.sizeY;
+        const lengthAlongX = panel.box.lengthAlongX;
 
         return {
           ...panel.box,
@@ -218,7 +221,8 @@ export function BazisWorkspace({ catalogBoards }: { catalogBoards: string[] }) {
           ...["top", "bottom"].slice(0, row.edgedLengthSides),
           ...["right", "left"].slice(0, row.edgedWidthSides),
         ],
-        orientationMode: "free",
+        // Деталь с текстурой в Базисе нельзя поворачивать при раскрое.
+        orientationMode: row.textured ? "fixed" : "free",
       }));
 
     if (details.length === 0) {
@@ -384,6 +388,7 @@ export function BazisWorkspace({ catalogBoards }: { catalogBoards: string[] }) {
                         edgedLengthSides: 0,
                         edgedWidthSides: 0,
                         complexContour: false,
+                        textured: false,
                         panelIndexes: [],
                       },
                     ])

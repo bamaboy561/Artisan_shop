@@ -8,6 +8,8 @@ export type ImportedDetail = {
   width: number;
   quantity: number;
   edgedSides: ImportedEdgeSide[];
+  /** Текстура важна: деталь не поворачивать при раскрое. */
+  fixedGrain?: boolean;
 };
 
 export type CutListImportResult = {

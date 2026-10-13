@@ -541,6 +541,7 @@ function importedDetailToRow(detail: ImportedDetail, index: number): DetailRow {
     height: String(detail.width),
     quantity: String(detail.quantity),
     edgedSides: normalizeEdgeSides(detail.edgedSides),
+    orientationMode: detail.fixedGrain ? "fixed" : "free",
   };
 }
 

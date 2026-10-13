@@ -14,11 +14,13 @@ export type BazisViewPanel = {
   edgedWidthSides: number;
   edgeMaterial: string;
   complexContour: boolean;
+  textured: boolean;
   box: {
     x: number;
     y: number;
     sizeX: number;
     sizeY: number;
+    lengthAlongX: boolean;
     matrix: number[];
   };
 };
@@ -56,6 +58,7 @@ export function toBazisViewProject(project: BazisProject): BazisViewProject {
         ...new Set(panel.edges.map((edge) => edge.material).filter(Boolean)),
       ].join(", "),
       complexContour: panel.complexContour,
+      textured: panel.textured,
       box: panel.box,
     })),
   };
