@@ -25,6 +25,22 @@ export type BazisPanel = {
   edges: BazisEdge[];
   // Вырезы и скругления: габарит взят по внешнему прямоугольнику.
   complexContour: boolean;
+  // Положение детали в модели для объёмного просмотра: прямоугольник
+  // контура в плоскости детали (x, y, sizeX, sizeY), толщина идёт по оси Z
+  // детали, matrix переводит точки детали в координаты модели
+  // (три строки по четыре числа).
+  box: {
+    x: number;
+    y: number;
+    sizeX: number;
+    sizeY: number;
+    matrix: number[];
+  };
+};
+
+export type BazisHardwareRow = {
+  name: string;
+  quantity: number;
 };
 
 export type BazisPartRow = {
@@ -49,6 +65,7 @@ export type BazisProject = {
   materials: string[];
   panels: BazisPanel[];
   rows: BazisPartRow[];
+  hardware: BazisHardwareRow[];
 };
 
 export class BazisParseError extends Error {}
@@ -60,6 +77,29 @@ const MAX_NODES = 2_000_000;
 const MAX_DEPTH = 64;
 const MAX_MODEL_BYTES = 96 * 1024 * 1024;
 const PANEL_TYPE = 4002;
+const HARDWARE_TYPE = 3001;
+
+// Матрица 3×4 (поворот и сдвиг), записанная по строкам.
+type Matrix = number[];
+
+const IDENTITY: Matrix = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0];
+
+function multiply(a: Matrix, b: Matrix): Matrix {
+  const result: number[] = [];
+
+  for (let row = 0; row < 3; row += 1) {
+    for (let column = 0; column < 4; column += 1) {
+      result.push(
+        a[row * 4] * b[column] +
+          a[row * 4 + 1] * b[4 + column] +
+          a[row * 4 + 2] * b[8 + column] +
+          (column === 3 ? a[row * 4 + 3] : 0),
+      );
+    }
+  }
+
+  return result;
+}
 const SECTION_MARK = Buffer.from([0x01, 0x00, 0x00, 0xff]);
 
 class Reader {
@@ -250,7 +290,37 @@ function round(value: number) {
   return Math.round(value * 10) / 10;
 }
 
-function readPanel(node: Node): BazisPanel | null {
+// Положение объекта в родителе: сдвиг (X, Y, Z) и поворот кватернионом
+// (Rx, Ry, Rz, Rw). Объект без Trans стоит на месте.
+function readTransform(node: Node): Matrix {
+  const trans = child(node, "Trans");
+
+  if (!trans) {
+    return IDENTITY;
+  }
+
+  const x = numeric(trans, "Rx") ?? 0;
+  const y = numeric(trans, "Ry") ?? 0;
+  const z = numeric(trans, "Rz") ?? 0;
+  const w = numeric(trans, "Rw") ?? 1;
+
+  return [
+    1 - 2 * (y * y + z * z),
+    2 * (x * y - z * w),
+    2 * (x * z + y * w),
+    numeric(trans, "X") ?? 0,
+    2 * (x * y + z * w),
+    1 - 2 * (x * x + z * z),
+    2 * (y * z - x * w),
+    numeric(trans, "Y") ?? 0,
+    2 * (x * z - y * w),
+    2 * (y * z + x * w),
+    1 - 2 * (x * x + y * y),
+    numeric(trans, "Z") ?? 0,
+  ];
+}
+
+function readPanel(node: Node, matrix: Matrix): BazisPanel | null {
   const contour = child(node, "Contour")?.value;
   const thickness = numeric(node, "Thick");
 
@@ -304,25 +374,51 @@ function readPanel(node: Node): BazisPanel | null {
     width,
     edges,
     complexContour: total !== 4 || lines.length !== 4,
+    box: {
+      x: Math.min(...xs),
+      y: Math.min(...ys),
+      sizeX,
+      sizeY,
+      matrix: matrix.map((value) => Math.round(value * 1000) / 1000),
+    },
   };
 }
 
-function collectPanels(node: Node, panels: BazisPanel[], depth = 0) {
+function collectPanels(
+  node: Node,
+  panels: BazisPanel[],
+  hardware: Map<string, number>,
+  parentMatrix: Matrix = IDENTITY,
+  depth = 0,
+) {
   if (depth > MAX_DEPTH) {
     return;
   }
 
-  if (numeric(node, "Type") === PANEL_TYPE) {
-    const panel = readPanel(node);
+  // Положение вложенных объектов задано относительно родителя.
+  const matrix =
+    node.name === "Obj"
+      ? multiply(parentMatrix, readTransform(node))
+      : parentMatrix;
+  const type = numeric(node, "Type");
+
+  if (type === PANEL_TYPE) {
+    const panel = readPanel(node, matrix);
 
     if (panel) {
       panels.push(panel);
+    }
+  } else if (type === HARDWARE_TYPE) {
+    const name = cleanName(text(node, "Name"));
+
+    if (name) {
+      hardware.set(name, (hardware.get(name) ?? 0) + 1);
     }
   }
 
   for (const item of node.children) {
     if (item.name === "Objs" || item.name === "Obj" || item.name === "Model") {
-      collectPanels(item, panels, depth + 1);
+      collectPanels(item, panels, hardware, matrix, depth + 1);
     }
   }
 }
@@ -429,13 +525,14 @@ export function parseBazisProject(file: Buffer): BazisProject {
   const model = new Reader(modelBytes);
   model.readKeys();
   const panels: BazisPanel[] = [];
+  const hardware = new Map<string, number>();
 
   while (model.position < modelBytes.length) {
     const node = model.readNode();
 
     for (const item of node.children) {
       if (item.name === "Model") {
-        collectPanels(item, panels);
+        collectPanels(item, panels, hardware);
       }
     }
   }
@@ -452,5 +549,12 @@ export function parseBazisProject(file: Buffer): BazisProject {
     materials,
     panels,
     rows: groupBazisPanels(panels),
+    hardware: [...hardware.entries()]
+      .map(([name, quantity]) => ({ name, quantity }))
+      .sort(
+        (left, right) =>
+          right.quantity - left.quantity ||
+          left.name.localeCompare(right.name, "ru"),
+      ),
   };
 }

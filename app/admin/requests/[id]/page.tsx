@@ -143,6 +143,16 @@ function RequestWorkflowTrail({ status }: { status: RequestStatus }) {
   );
 }
 
+// Файлы, которые браузер не умеет показывать (проекты Базиса, чертежи,
+// архивы), отдаём на скачивание: Vercel Blob делает это по ?download=1.
+function getRequestFileHref(file: { fileName: string; fileUrl: string }) {
+  const viewable = /\.(pdf|jpe?g|png|webp)$/i.test(file.fileName);
+
+  return !viewable && /^https:\/\//.test(file.fileUrl)
+    ? `${file.fileUrl}${file.fileUrl.includes("?") ? "&" : "?"}download=1`
+    : file.fileUrl;
+}
+
 export default async function AdminRequestDetailPage({
   params,
   searchParams,
@@ -410,9 +420,10 @@ export default async function AdminRequestDetailPage({
                 {clientFiles.map((file) => (
                   <div key={file.id} className="grid gap-2">
                     <a
-                      href={file.fileUrl}
+                      href={getRequestFileHref(file)}
                       target="_blank"
                       rel="noreferrer"
+                      download={file.fileName}
                       className="flex flex-col gap-1 rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] px-4 py-3 transition hover:border-[color:var(--line-strong)]"
                     >
                       <span className="font-medium text-[var(--foreground)]">
@@ -430,7 +441,7 @@ export default async function AdminRequestDetailPage({
                         href={`/admin/requests/${request.id}/bazis/${file.id}`}
                         className="inline-flex h-10 items-center justify-center bg-[var(--foreground)] px-4 text-sm font-semibold text-white transition hover:bg-[var(--accent)]"
                       >
-                        Открыть проект Базиса: вид и список деталей
+                        Открыть проект Базиса: макет и список деталей
                       </Link>
                     ) : null}
                   </div>

@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 
 import { DownloadCsvButton } from "@/components/admin/download-csv-button";
+import { BazisViewer } from "@/components/bazis/bazis-viewer";
 import { PrintRouteSheetButton } from "@/components/admin/print-route-sheet-button";
 import { requireAdminSession } from "@/lib/auth/dal";
 import {
@@ -108,6 +109,13 @@ export default async function BazisProjectPage({
   }
 
   const requestNumber = request.number ?? request.id.slice(0, 8).toUpperCase();
+  // Vercel Blob отдаёт файл на скачивание, если добавить ?download=1.
+  const downloadHref = /^https:\/\//.test(file.fileUrl)
+    ? `${file.fileUrl}${file.fileUrl.includes("?") ? "&" : "?"}download=1`
+    : file.fileUrl;
+  const viewerMaterials = [
+    ...new Set(project?.panels.map((panel) => panel.material) ?? []),
+  ];
   const totalParts =
     project?.rows.reduce((sum, row) => sum + row.quantity, 0) ?? 0;
   const areaByMaterial = new Map<string, number>();
@@ -131,16 +139,37 @@ export default async function BazisProjectPage({
         >
           <ArrowLeft className="size-4" />К заявке
         </Link>
-        {project ? (
-          <div className="flex flex-wrap gap-2">
-            <DownloadCsvButton
-              csvContent={buildCsv(project.rows)}
-              fileName={`bazis-${requestNumber}.csv`}
-            />
-            <PrintRouteSheetButton />
-          </div>
-        ) : null}
+        <div className="flex flex-wrap gap-2">
+          <a
+            href={downloadHref}
+            download={file.fileName}
+            className="inline-flex h-11 items-center justify-center border border-[color:var(--line-strong)] bg-white px-4 text-sm font-medium text-[var(--foreground)] transition hover:border-[color:var(--accent)] hover:text-[var(--accent)]"
+          >
+            Скачать файл Базиса
+          </a>
+          {project ? (
+            <>
+              <DownloadCsvButton
+                csvContent={buildCsv(project.rows)}
+                fileName={`bazis-${requestNumber}.csv`}
+              />
+              <PrintRouteSheetButton />
+            </>
+          ) : null}
+        </div>
       </div>
+
+      {project && project.panels.length > 0 ? (
+        <section className="mb-4 print:hidden">
+          <BazisViewer
+            boxes={project.panels.map((panel) => ({
+              ...panel.box,
+              thickness: panel.thickness,
+              tone: viewerMaterials.indexOf(panel.material),
+            }))}
+          />
+        </section>
+      ) : null}
 
       <article className="border border-[#cbc7bf] bg-white p-[10mm] shadow-sm print:border-0 print:p-[8mm] print:shadow-none">
         <header className="flex items-start justify-between gap-[8mm] border-b-2 border-[#171714] pb-[5mm]">
@@ -251,6 +280,38 @@ export default async function BazisProjectPage({
               габариту детали, без учёта толщины кромки. Перед раскроем сверьте
               с проектом, особенно детали со сложным контуром.
             </p>
+
+            {project.hardware.length > 0 ? (
+              <section className="mt-[6mm] break-inside-avoid">
+                <h2 className="text-[11px] font-bold tracking-[0.14em] uppercase">
+                  Фурнитура в проекте
+                </h2>
+                <table className="mt-2 w-full border-collapse border border-[#bdb9b1] text-[9px] leading-[1.4]">
+                  <thead>
+                    <tr className="bg-[#f0eeea] text-left">
+                      <th className="border border-[#bdb9b1] px-1.5 py-1 font-semibold">
+                        Наименование
+                      </th>
+                      <th className="w-[20mm] border border-[#bdb9b1] px-1.5 py-1 text-right font-semibold">
+                        Кол-во
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {project.hardware.map((item) => (
+                      <tr key={item.name} className="break-inside-avoid">
+                        <td className="border border-[#d7d4ce] px-1.5 py-1">
+                          {item.name}
+                        </td>
+                        <td className="border border-[#d7d4ce] px-1.5 py-1 text-right font-semibold">
+                          {item.quantity}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </section>
+            ) : null}
           </>
         ) : null}
       </article>
