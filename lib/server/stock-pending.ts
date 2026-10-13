@@ -64,6 +64,13 @@ export async function pruneStockPendingItems(
     await db.stockPendingItem.deleteMany({ where: { id: { in: resolved } } });
 }
 
+// Убирает позицию, из которой по кнопке «Добавить» создали товар, даже если
+// артикул или название при создании поменяли.
+export async function resolveStockPendingItem(db: PrismaClient, id: string) {
+  await ensureStockPendingItemsTable(db);
+  await db.stockPendingItem.deleteMany({ where: { id } });
+}
+
 export async function getStockPendingItems(
   db: PrismaClient,
 ): Promise<StockPendingListItem[]> {

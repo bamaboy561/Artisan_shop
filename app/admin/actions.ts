@@ -101,6 +101,7 @@ import {
 import { ensureLoyaltyAuditSchema } from "@/lib/server/loyalty-audit-schema";
 import type { OrderLoyaltyCancellationResult } from "@/lib/server/order-loyalty-cancellation";
 import { ensureProductBundleItemsTable } from "@/lib/server/product-bundle-schema";
+import { resolveStockPendingItem } from "@/lib/server/stock-pending";
 import {
   applyPromotion,
   clampPersonalDiscountPercent,
@@ -2020,6 +2021,12 @@ export async function createProductAction(formData: FormData) {
           : undefined,
     },
   });
+
+  const pendingItemId = getString(formData, "pendingItemId");
+  if (pendingItemId) {
+    // Список «Нет на сайте» вспомогательный: его сбой не мешает созданию.
+    await resolveStockPendingItem(db, pendingItemId).catch(() => undefined);
+  }
 
   revalidateAdminCatalog();
 

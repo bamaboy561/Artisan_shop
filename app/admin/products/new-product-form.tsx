@@ -105,6 +105,7 @@ type Props = {
 };
 
 export type ProductFormPrefill = {
+  pendingItemId: string;
   name: string;
   sku: string | null;
   stockQuantity: number | null;
@@ -801,6 +802,13 @@ export function NewProductForm({
       className={cn("grid min-w-0 gap-3", compact ? "mt-3" : "mt-4")}
     >
       {defaults ? <input type="hidden" name="id" value={defaults.id} /> : null}
+      {!defaults && prefill ? (
+        <input
+          type="hidden"
+          name="pendingItemId"
+          value={prefill.pendingItemId}
+        />
+      ) : null}
 
       <CompactPanel title="Быстрое заполнение">
         <div className={quickGridClassName}>

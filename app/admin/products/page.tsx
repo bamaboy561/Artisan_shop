@@ -242,6 +242,7 @@ export default async function AdminProductsPage({
       : Math.max(0, Math.floor(pendingPrefillItem.quantity));
   const pendingPrefill = pendingPrefillItem
     ? {
+        pendingItemId: pendingPrefillItem.id,
         name: pendingPrefillItem.name,
         sku: pendingPrefillItem.sku,
         stockQuantity: pendingPrefillStock,
