@@ -269,6 +269,7 @@ function saleFixture({ stock = 20, missing = false } = {}) {
     }),
     getLoyaltyProgramConfig: async () => ({}),
     getEffectiveDiscountPercent: () => 0,
+    isTechnicalClientEmail: () => false,
     getEffectiveProductPrice: (item) => item.price,
     getProductPromotionPrice: (price) => ({ unitDiscountAmount: price * 0.1 }),
     getRedeemableLoyaltyPoints: () => 0,

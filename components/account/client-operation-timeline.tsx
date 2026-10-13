@@ -46,7 +46,7 @@ export function ClientOperationTimeline({
                 {event.description}
               </span>
             ) : null}
-            <span className="mt-1 block font-mono text-[10px] tracking-[0.14em] text-[var(--muted)] uppercase">
+            <span className="mt-1 block text-xs font-medium text-[var(--muted)]">
               {formatDate(event.createdAt)}
             </span>
           </span>
