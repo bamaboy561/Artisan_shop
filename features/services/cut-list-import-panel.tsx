@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 
 import { ClipboardPaste, FileSpreadsheet, Upload } from "lucide-react";
 
+import { BazisFilePreview } from "@/components/bazis/bazis-file-preview";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -109,6 +110,7 @@ export function CutListImportPanel({
     source: "bazis" | "table";
   } | null>(null);
   const [isReadingFile, setIsReadingFile] = useState(false);
+  const [bazisPreviewFile, setBazisPreviewFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const applyResult = (result: CutListImportResult) => {
@@ -186,6 +188,7 @@ export function CutListImportPanel({
     }
 
     onProjectFile?.(file);
+    setBazisPreviewFile(file);
 
     if (result.groups.length > 1) {
       setBazisChoice({
@@ -267,6 +270,12 @@ export function CutListImportPanel({
           />
         </div>
       </div>
+
+      {bazisPreviewFile ? (
+        <div className="mt-3">
+          <BazisFilePreview file={bazisPreviewFile} />
+        </div>
+      ) : null}
 
       {bazisChoice ? (
         <div className="mt-3 grid gap-2">

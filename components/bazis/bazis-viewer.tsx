@@ -108,8 +108,11 @@ export function BazisViewer({
   boxes,
   highlightTone = null,
   toneColors,
+  heightClassName = "h-[60vh] min-h-72",
 }: {
   boxes: BazisViewerBox[];
+  // Высота окна макета: в формах оно ниже, чем на отдельной странице.
+  heightClassName?: string;
   // Цвет материала по его номеру (красный, зелёный, синий). Если цвета нет,
   // берём условный из палитры.
   toneColors?: Array<number[] | null>;
@@ -277,7 +280,7 @@ export function BazisViewer({
         ref={canvasRef}
         role="img"
         aria-label="Объёмный вид проекта. Поворачивайте мышью или пальцем."
-        className="h-[60vh] min-h-72 w-full cursor-grab touch-none border border-[#d7d4ce] bg-[#f6f4f0] active:cursor-grabbing"
+        className={`${heightClassName} w-full cursor-grab touch-none border border-[#d7d4ce] bg-[#f6f4f0] active:cursor-grabbing`}
         onPointerDown={(event) => {
           event.currentTarget.setPointerCapture(event.pointerId);
           pointers.current.set(event.pointerId, {

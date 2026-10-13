@@ -14,6 +14,7 @@ import {
   createAdminCuttingRequestAction,
   type AdminCuttingRequestFormState,
 } from "@/app/admin/actions";
+import { BazisFilePreview } from "@/components/bazis/bazis-file-preview";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -91,6 +92,7 @@ export function CuttingRequestForm({ customers }: CuttingRequestFormProps) {
   const [loading, setLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [fileNames, setFileNames] = useState<string[]>([]);
+  const [bazisFile, setBazisFile] = useState<File | null>(null);
 
   const selectedCustomer = useMemo(
     () => options.find((customer) => customer.id === selectedCustomerId),
@@ -450,13 +452,14 @@ export function CuttingRequestForm({ customers }: CuttingRequestFormProps) {
                 multiple
                 accept=".pdf,.xls,.xlsx,.csv,.txt,.doc,.docx,.zip,.rar,.jpg,.jpeg,.png,.webp,.heic,.dwg,.dxf,.project,.b3d,.bpr,.sto,.xml"
                 className="sr-only"
-                onChange={(event) =>
-                  setFileNames(
-                    Array.from(event.currentTarget.files ?? []).map(
-                      (file) => file.name,
-                    ),
-                  )
-                }
+                onChange={(event) => {
+                  const files = Array.from(event.currentTarget.files ?? []);
+
+                  setFileNames(files.map((file) => file.name));
+                  setBazisFile(
+                    files.find((file) => /\.b3d$/i.test(file.name)) ?? null,
+                  );
+                }}
               />
               <span className="block text-sm font-semibold text-[var(--foreground)]">
                 {fileNames.length > 0
@@ -468,6 +471,12 @@ export function CuttingRequestForm({ customers }: CuttingRequestFormProps) {
                 Можно добавить позже
               </span>
             </label>
+
+            {bazisFile ? (
+              <div className="mt-3">
+                <BazisFilePreview file={bazisFile} />
+              </div>
+            ) : null}
 
             {fileNames.length > 0 ? (
               <div className="mt-3 flex flex-wrap gap-2">

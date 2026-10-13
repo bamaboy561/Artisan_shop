@@ -48,8 +48,12 @@ export async function POST(request: Request) {
 
     // Сохраняем только файлы, которые действительно оказались проектом.
     // Если хранилище недоступно, клиент всё равно видит свой проект.
+    // Предпросмотр в формах (?keep=0) копию не сохраняет: там файл и так
+    // уходит вместе с заявкой.
     try {
-      await saveBazisTempFile(file);
+      if (new URL(request.url).searchParams.get("keep") !== "0") {
+        await saveBazisTempFile(file);
+      }
     } catch (error) {
       console.error("[bazis] не удалось сохранить копию проекта", error);
     }
