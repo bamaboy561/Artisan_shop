@@ -239,3 +239,36 @@ export async function getAdminUserProfile(id: string) {
     },
   });
 }
+
+// Скольким клиентам сайт может сам отправить оповещение: в Telegram-бот
+// или в приложение. Остальным о заказе и бонусах сообщает только менеджер.
+export async function getClientReachability() {
+  const db = getDb();
+  const clients: Prisma.UserWhereInput = {
+    isActive: true,
+    role: { code: { in: [RoleCode.CUSTOMER, RoleCode.DEALER] } },
+  };
+  const hasTelegram: Prisma.UserWhereInput = { telegramChatId: { not: null } };
+  const [total, telegram] = await Promise.all([
+    db.user.count({ where: clients }),
+    db.user.count({ where: { ...clients, ...hasTelegram } }),
+  ]);
+  let app = 0;
+  let reachable = telegram;
+
+  // Таблица устройств создаётся при первой подписке: её может ещё не быть.
+  try {
+    const hasApp: Prisma.UserWhereInput = {
+      pushDevices: { some: { enabled: true } },
+    };
+
+    [app, reachable] = await Promise.all([
+      db.user.count({ where: { ...clients, ...hasApp } }),
+      db.user.count({ where: { ...clients, OR: [hasTelegram, hasApp] } }),
+    ]);
+  } catch (error) {
+    console.error("[users:reachability:push]", error);
+  }
+
+  return { total, telegram, app, reachable, unreachable: total - reachable };
+}

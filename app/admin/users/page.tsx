@@ -39,7 +39,7 @@ import {
 import { getLoyaltyProgramConfig } from "@/lib/server/loyalty-settings";
 import { createClientQrPayload } from "@/lib/server/client-qr";
 import { canManageLoyalty } from "@/lib/server/loyalty-permissions";
-import { getAdminUsers } from "@/lib/server/users-admin";
+import { getAdminUsers, getClientReachability } from "@/lib/server/users-admin";
 
 export const dynamic = "force-dynamic";
 
@@ -108,9 +108,13 @@ export default async function AdminUsersPage({
     "telegramMessage",
   );
 
-  const [users, loyaltyConfig] = await Promise.all([
+  const [users, loyaltyConfig, reachability] = await Promise.all([
     getAdminUsers({ query: userSearchQuery }),
     getLoyaltyProgramConfig(),
+    getClientReachability().catch((error) => {
+      console.error("[admin:users:reachability]", error);
+      return null;
+    }),
   ]);
 
   const vipUsers = users.filter((user) => vipTiers.has(user.loyaltyTier));
@@ -484,6 +488,41 @@ export default async function AdminUsersPage({
           detail="Доступный баланс клиентов для оплаты будущих заказов"
         />
       </section>
+
+      {reachability && reachability.total > 0 ? (
+        <section className="surface-glow rounded-[20px] border border-[color:var(--line)] bg-white/88 p-4 sm:p-5">
+          <h2 className="text-base font-semibold text-[var(--foreground)]">
+            Кому сайт может сам написать
+          </h2>
+          <p className="mt-1 max-w-3xl text-sm leading-6 text-[var(--muted)]">
+            Оповещения о заказе, распиле и бонусах приходят клиенту в
+            Telegram-бот или в приложение. Остальным о готовности сообщает
+            только менеджер.
+          </p>
+          <div className="mt-3 grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-4">
+            <MetricCard
+              label="Получают оповещения"
+              value={`${reachability.reachable} из ${reachability.total}`}
+              detail={`${Math.round((reachability.reachable / reachability.total) * 100)}% активных клиентов`}
+            />
+            <MetricCard
+              label="Не получают"
+              value={reachability.unreachable}
+              detail="Нет ни бота, ни приложения"
+            />
+            <MetricCard
+              label="Telegram-бот"
+              value={reachability.telegram}
+              detail="Клиент подключил бота"
+            />
+            <MetricCard
+              label="Приложение"
+              value={reachability.app}
+              detail="Уведомления в приложении включены"
+            />
+          </div>
+        </section>
+      ) : null}
 
       <section className="surface-glow rounded-[20px] border border-[color:var(--line)] bg-white/88 p-4 sm:p-5">
         <form

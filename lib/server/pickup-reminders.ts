@@ -167,7 +167,7 @@ export async function sendPickupReminders(now = new Date()) {
       eventType: "system",
       title: delivered
         ? "Клиенту отправлено напоминание забрать заказ"
-        : "Напомнить клиенту не удалось: у него нет Telegram, уведомлений сайта и email",
+        : "Напомнить клиенту не удалось: у него нет Telegram-бота, приложения и email",
       description: null,
       actorName: "Сайт",
       isVisibleToClient: false,

@@ -62,7 +62,7 @@ export async function GET(request: Request) {
           `Напоминаний клиентам о готовых заказах: ${pickupReminders.sent}`,
           ...(pickupReminders.unreachable > 0
             ? [
-                `Не удалось напомнить (нет Telegram, уведомлений сайта и email): ${pickupReminders.unreachable}. Позвоните этим клиентам.`,
+                `Не удалось напомнить (нет Telegram-бота, приложения и email): ${pickupReminders.unreachable}. Позвоните этим клиентам.`,
               ]
             : []),
         );
