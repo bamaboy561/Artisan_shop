@@ -991,3 +991,20 @@ test("stock pending table is created once at runtime", async () => {
     /UNIQUE INDEX IF NOT EXISTS "StockPendingItem_matchKey_key"/,
   );
 });
+
+test("stock pending table creation retries a concurrent create failure", async () => {
+  const schema = loadAction("../lib/server/stock-pending-schema.ts", {});
+  let calls = 0;
+  const db = {
+    $executeRawUnsafe: async () => {
+      calls += 1;
+      if (calls === 1)
+        throw new Error("duplicate key pg_type_typname_nsp_index");
+    },
+  };
+  await Promise.all([
+    schema.ensureStockPendingItemsTable(db),
+    schema.ensureStockPendingItemsTable(db),
+  ]);
+  assert.equal(calls, 4);
+});
