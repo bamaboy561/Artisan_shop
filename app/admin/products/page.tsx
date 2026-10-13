@@ -17,6 +17,7 @@ import {
 import { ProductImportForm } from "@/app/admin/products/product-import-form";
 import { ProductStockImportForm } from "@/app/admin/products/product-stock-import-form";
 import { StockPendingList } from "@/app/admin/products/stock-pending-list";
+import { getInventoryStatusForStock } from "@/lib/server/inventory-reservations";
 import { NewProductForm } from "@/app/admin/products/new-product-form";
 import { BulkProductsSubmitButton } from "@/components/admin/bulk-products-submit-button";
 import { BulkSelectionTools } from "@/components/admin/bulk-selection-tools";
@@ -231,6 +232,26 @@ export default async function AdminProductsPage({
     // Таблица списка может ещё не существовать, если схема не применена.
     getStockPendingItems(getDb()).catch(() => null),
   ]);
+
+  const pendingPrefillItem = pendingItems?.find(
+    (item) => item.id === getImportText(resolvedSearchParams, "fromPending"),
+  );
+  const pendingPrefillStock =
+    pendingPrefillItem?.quantity == null
+      ? null
+      : Math.max(0, Math.floor(pendingPrefillItem.quantity));
+  const pendingPrefill = pendingPrefillItem
+    ? {
+        pendingItemId: pendingPrefillItem.id,
+        name: pendingPrefillItem.name,
+        sku: pendingPrefillItem.sku,
+        stockQuantity: pendingPrefillStock,
+        inventoryStatus:
+          pendingPrefillStock === null
+            ? null
+            : getInventoryStatusForStock(pendingPrefillStock),
+      }
+    : undefined;
 
   const parsedState = parseAdminProductSearchParams(resolvedSearchParams);
   const state = sanitizeAdminProductFilterState(parsedState, {
@@ -450,7 +471,15 @@ export default async function AdminProductsPage({
         </div>
 
         <div className="p-3 sm:p-4">
+          {pendingPrefillItem ? (
+            <p className="mb-3 rounded-2xl bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              Заполнено из списка «Нет на сайте». Выберите категорию, укажите
+              цену и сохраните.
+            </p>
+          ) : null}
           <NewProductForm
+            key={pendingPrefillItem?.id ?? "new"}
+            prefill={pendingPrefill}
             categories={categories}
             brands={brands}
             calculatorMaterials={calculatorMaterials}

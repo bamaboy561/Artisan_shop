@@ -1,4 +1,5 @@
 import { Download, ListPlus } from "lucide-react";
+import Link from "next/link";
 import { dismissStockPendingItemAction } from "@/app/admin/products/stock-import-actions";
 import { ConfirmDeleteButton } from "@/components/admin/confirm-delete-button";
 import type { StockPendingListItem } from "@/lib/server/stock-pending";
@@ -23,6 +24,7 @@ export function StockPendingList({
   return (
     <details
       id="stock-pending"
+      open={Boolean(items?.length)}
       className="min-w-0 border-y border-[color:var(--line)] bg-white p-3 sm:p-4"
     >
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
@@ -63,11 +65,11 @@ export function StockPendingList({
                 className="inline-flex items-center gap-2 font-medium text-[var(--foreground)] underline underline-offset-4"
               >
                 <Download className="size-4" />
-                Скачать Excel для полного импорта
+                Или скачать всё в Excel
               </a>
               <span>
-                Заполните категорию, цену и фото и загрузите файл в «Полный
-                импорт товаров». Добавленные позиции уйдут из списка сами.
+                Проще всего нажать «Добавить» у позиции: название, артикул и
+                остаток подставятся сами. Добавленные товары уйдут из списка.
               </span>
             </div>
             <div
@@ -113,16 +115,24 @@ export function StockPendingList({
                       >
                         {formatDate(item.lastSeenAt)}
                       </td>
-                      <td className="p-2 text-right">
-                        <form action={dismissStockPendingItemAction}>
-                          <input type="hidden" name="id" value={item.id} />
-                          <ConfirmDeleteButton
-                            confirmMessage={`Не добавлять «${item.name}» на сайт? Позиция больше не появится в списке.`}
-                            className="rounded-full border border-zinc-300 px-2.5 py-1 font-medium whitespace-nowrap text-zinc-600 hover:border-zinc-500"
+                      <td className="p-2">
+                        <div className="flex flex-wrap justify-end gap-1.5">
+                          <Link
+                            href={`/admin/products?fromPending=${encodeURIComponent(item.id)}#new-product`}
+                            className="rounded-full bg-[#171613] px-2.5 py-1 font-medium whitespace-nowrap text-white hover:bg-black"
                           >
-                            Не добавлять
-                          </ConfirmDeleteButton>
-                        </form>
+                            Добавить
+                          </Link>
+                          <form action={dismissStockPendingItemAction}>
+                            <input type="hidden" name="id" value={item.id} />
+                            <ConfirmDeleteButton
+                              confirmMessage={`Не добавлять «${item.name}» на сайт? Позиция больше не появится в списке.`}
+                              className="rounded-full border border-zinc-300 px-2.5 py-1 font-medium whitespace-nowrap text-zinc-600 hover:border-zinc-500"
+                            >
+                              Не добавлять
+                            </ConfirmDeleteButton>
+                          </form>
+                        </div>
                       </td>
                     </tr>
                   ))}

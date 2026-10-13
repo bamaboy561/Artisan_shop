@@ -99,7 +99,17 @@ type Props = {
   bundleProductOptions: BundleProductOption[];
   canUploadImages: boolean;
   defaults?: ProductFormDefaults;
+  // Начальные значения для нового товара из списка «Нет на сайте».
+  prefill?: ProductFormPrefill;
   compact?: boolean;
+};
+
+export type ProductFormPrefill = {
+  pendingItemId: string;
+  name: string;
+  sku: string | null;
+  stockQuantity: number | null;
+  inventoryStatus: InventoryStatus | null;
 };
 
 function FieldHint({ children }: { children: ReactNode }) {
@@ -609,12 +619,13 @@ export function NewProductForm({
   bundleProductOptions,
   canUploadImages,
   defaults,
+  prefill,
   compact = false,
 }: Props) {
   const isEdit = Boolean(defaults);
   const allowServerSubmitRef = useRef(false);
   const isUploadingImagesRef = useRef(false);
-  const [name, setName] = useState(defaults?.name ?? "");
+  const [name, setName] = useState(defaults?.name ?? prefill?.name ?? "");
   const [categoryId, setCategoryId] = useState(defaults?.categoryId ?? "");
   const [brandId, setBrandId] = useState(defaults?.brandId ?? "");
   const [isUploadingImages, setIsUploadingImages] = useState(false);
@@ -791,6 +802,13 @@ export function NewProductForm({
       className={cn("grid min-w-0 gap-3", compact ? "mt-3" : "mt-4")}
     >
       {defaults ? <input type="hidden" name="id" value={defaults.id} /> : null}
+      {!defaults && prefill ? (
+        <input
+          type="hidden"
+          name="pendingItemId"
+          value={prefill.pendingItemId}
+        />
+      ) : null}
 
       <CompactPanel title="Быстрое заполнение">
         <div className={quickGridClassName}>
@@ -853,7 +871,7 @@ export function NewProductForm({
             }
           >
             <GeneratedSkuInput
-              defaultValue={defaults?.sku}
+              defaultValue={defaults?.sku ?? prefill?.sku ?? undefined}
               compact={compact}
               hideHelp={compact}
               sourceValue={productIdentity || name}
@@ -886,7 +904,9 @@ export function NewProductForm({
               type="number"
               min="0"
               placeholder="0"
-              defaultValue={defaults?.stockQuantity ?? ""}
+              defaultValue={
+                defaults?.stockQuantity ?? prefill?.stockQuantity ?? ""
+              }
               className={inputClassName}
             />
           </FieldLabel>
@@ -928,7 +948,9 @@ export function NewProductForm({
             <Select
               name="inventoryStatus"
               defaultValue={
-                defaults?.inventoryStatus ?? InventoryStatus.ON_REQUEST
+                defaults?.inventoryStatus ??
+                prefill?.inventoryStatus ??
+                InventoryStatus.ON_REQUEST
               }
               className={inputClassName}
             >
