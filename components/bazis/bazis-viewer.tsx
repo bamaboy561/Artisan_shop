@@ -19,6 +19,7 @@ type Face = {
   points: number[][];
   normal: number[];
   tone: number;
+  box: number;
 };
 
 const palette = [
@@ -58,7 +59,7 @@ function buildScene(boxes: BazisViewerBox[]) {
   const min = [Infinity, Infinity, Infinity];
   const max = [-Infinity, -Infinity, -Infinity];
 
-  for (const box of boxes) {
+  for (const [boxIndex, box] of boxes.entries()) {
     const corners = [0, 1].flatMap((layer) =>
       [
         [box.x, box.y],
@@ -93,6 +94,7 @@ function buildScene(boxes: BazisViewerBox[]) {
         points,
         normal: normal.map((value) => value / length),
         tone: box.tone,
+        box: boxIndex,
       });
     }
   }
@@ -109,8 +111,12 @@ export function BazisViewer({
   highlightTone = null,
   toneColors,
   heightClassName = "h-[60vh] min-h-72",
+  highlightBoxes,
 }: {
   boxes: BazisViewerBox[];
+  // Номера деталей в boxes, которые нужно выделить: остальные бледнеют.
+  // Так показываем, где в изделии стоит конкретная деталь.
+  highlightBoxes?: number[];
   // Высота окна макета: в формах оно ниже, чем на отдельной странице.
   heightClassName?: string;
   // Цвет материала по его номеру (красный, зелёный, синий). Если цвета нет,
@@ -124,6 +130,10 @@ export function BazisViewer({
   const [size, setSize] = useState({ width: 0, height: 0 });
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const scene = useMemo(() => buildScene(boxes), [boxes]);
+  const markedBoxes = useMemo(
+    () => (highlightBoxes ? new Set(highlightBoxes) : null),
+    [highlightBoxes],
+  );
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -197,24 +207,39 @@ export function BazisViewer({
                 normal[2] * light[2],
             );
 
-        return { points, depth, shade, tone: face.tone };
+        return {
+          points,
+          depth,
+          shade,
+          tone: face.tone,
+          marked: markedBoxes?.has(face.box) ?? false,
+        };
       })
       .filter((face) => face !== null)
-      .sort((left, right) => left.depth - right.depth);
+      // Выделенные детали рисуем последними, чтобы их было видно сквозь
+      // остальные.
+      .sort(
+        (left, right) =>
+          Number(left.marked) - Number(right.marked) ||
+          left.depth - right.depth,
+      );
 
     context.lineJoin = "round";
     context.lineWidth = 0.6;
     context.strokeStyle = "rgba(60, 48, 38, 0.55)";
 
     for (const face of drawn) {
-      const muted = highlightTone !== null && face.tone !== highlightTone;
+      const selecting = markedBoxes !== null || highlightTone !== null;
+      const muted = markedBoxes
+        ? !face.marked
+        : highlightTone !== null && face.tone !== highlightTone;
       const color = muted
         ? [226, 224, 220]
-        : highlightTone !== null
+        : selecting
           ? [201, 104, 78]
           : (toneColors?.[face.tone] ?? palette[face.tone % palette.length]);
 
-      context.globalAlpha = muted ? 0.45 : 1;
+      context.globalAlpha = muted ? (markedBoxes ? 0.22 : 0.45) : 1;
 
       context.beginPath();
       face.points.forEach((point, index) => {
@@ -235,7 +260,7 @@ export function BazisViewer({
       context.stroke();
     }
     context.globalAlpha = 1;
-  }, [highlightTone, scene, size, toneColors, view]);
+  }, [highlightTone, markedBoxes, scene, size, toneColors, view]);
 
   return (
     <div className="grid gap-2">

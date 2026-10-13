@@ -15,6 +15,7 @@ export type BazisViewPanel = {
   edgeMaterial: string;
   complexContour: boolean;
   textured: boolean;
+  block: string;
   box: {
     x: number;
     y: number;
@@ -59,6 +60,7 @@ export function toBazisViewProject(project: BazisProject): BazisViewProject {
       ].join(", "),
       complexContour: panel.complexContour,
       textured: panel.textured,
+      block: panel.block,
       box: panel.box,
     })),
   };

@@ -25,6 +25,9 @@ export type BazisPanel = {
   edges: BazisEdge[];
   // Вырезы и скругления: габарит взят по внешнему прямоугольнику.
   complexContour: boolean;
+  // Блок проекта, в который входит деталь («Тумба», «Шкаф правый»).
+  // Пусто, если деталь лежит в модели сама по себе.
+  block: string;
   // Текстура задана в Базисе: длина идёт вдоль текстуры, поворачивать
   // деталь при раскрое нельзя (в GibLab это txt="true").
   textured: boolean;
@@ -83,6 +86,7 @@ const MAX_NODES = 2_000_000;
 const MAX_DEPTH = 64;
 const MAX_MODEL_BYTES = 96 * 1024 * 1024;
 const PANEL_TYPE = 4002;
+const BLOCK_TYPE = 1005;
 const HARDWARE_TYPE = 3001;
 
 // Матрица 3×4 (поворот и сдвиг), записанная по строкам.
@@ -364,7 +368,11 @@ function readTransform(node: Node): Matrix {
   ];
 }
 
-function readPanel(node: Node, matrix: Matrix): BazisPanel | null {
+function readPanel(
+  node: Node,
+  matrix: Matrix,
+  block: string,
+): BazisPanel | null {
   const contour = child(node, "Contour")?.value;
   const thickness = numeric(node, "Thick");
 
@@ -421,6 +429,7 @@ function readPanel(node: Node, matrix: Matrix): BazisPanel | null {
     length,
     width,
     edges,
+    block,
     complexContour:
       total !== 4 ||
       elements.length !== 4 ||
@@ -443,6 +452,7 @@ function collectPanels(
   hardware: Map<string, number>,
   parentMatrix: Matrix = IDENTITY,
   depth = 0,
+  parentBlock = "",
 ) {
   if (depth > MAX_DEPTH) {
     return;
@@ -454,9 +464,14 @@ function collectPanels(
       ? multiply(parentMatrix, readTransform(node))
       : parentMatrix;
   const type = numeric(node, "Type");
+  // Вложенные блоки складываются в путь: «Шкаф / Ящик».
+  const ownBlock = type === BLOCK_TYPE ? cleanName(text(node, "Name")) : "";
+  const block = ownBlock
+    ? [parentBlock, ownBlock].filter(Boolean).join(" / ").slice(0, 120)
+    : parentBlock;
 
   if (type === PANEL_TYPE) {
-    const panel = readPanel(node, matrix);
+    const panel = readPanel(node, matrix, block);
 
     if (panel) {
       panels.push(panel);
@@ -471,7 +486,7 @@ function collectPanels(
 
   for (const item of node.children) {
     if (item.name === "Objs" || item.name === "Obj" || item.name === "Model") {
-      collectPanels(item, panels, hardware, matrix, depth + 1);
+      collectPanels(item, panels, hardware, matrix, depth + 1, block);
     }
   }
 }
