@@ -22,6 +22,10 @@ type PartPageProps = {
 async function loadProject(token: string) {
   const ref = verifyBazisPartToken(decodeURIComponent(token));
 
+  if (ref === "expired") {
+    return "expired" as const;
+  }
+
   if (!ref) {
     return null;
   }
@@ -59,7 +63,17 @@ export default async function PartPage({ params }: PartPageProps) {
   return (
     <div className="bg-[#f3f5f3]">
       <section className="mx-auto max-w-[900px] px-4 py-6 sm:px-8 sm:py-10">
-        {found ? (
+        {found === "expired" ? (
+          <div className="bg-white p-6">
+            <h1 className="text-xl font-semibold text-[#252b29]">
+              Срок действия кода истёк
+            </h1>
+            <p className="mt-2 text-sm leading-6 text-[#69716d]">
+              Код на этикетке работает месяц со дня печати. Попросите менеджера
+              напечатать этикетки заново.
+            </p>
+          </div>
+        ) : found ? (
           <PartLocator project={found.project} panelIndex={found.panelIndex} />
         ) : (
           <div className="bg-white p-6">

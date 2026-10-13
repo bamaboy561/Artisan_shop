@@ -5,7 +5,9 @@ import crypto from "node:crypto";
 // Ссылка из QR-кода на этикетке детали: открывает страницу, где видно, в
 // каком месте изделия стоит деталь. Страницу открывает сборщик с телефона
 // без входа на сайт, поэтому в ссылке лежит подпись: подобрать адрес чужого
-// проекта нельзя. Срока у ссылки нет: мебель могут собирать через месяц.
+// проекта нельзя. Ссылка живёт месяц со дня печати этикеток.
+export const BAZIS_PART_LINK_DAYS = 31;
+const DAY_MS = 24 * 60 * 60 * 1000;
 function getSecret() {
   const secret =
     process.env.BAZIS_PART_SECRET ||
@@ -34,15 +36,20 @@ export type BazisPartRef = {
   panelIndex: number;
 };
 
-export function createBazisPartToken(ref: BazisPartRef) {
+export function createBazisPartToken(ref: BazisPartRef, now = new Date()) {
+  // Срок храним номером дня: так код короче.
+  const expiresDay = Math.floor(now.getTime() / DAY_MS) + BAZIS_PART_LINK_DAYS;
   const data = Buffer.from(
-    `${ref.requestId}|${ref.fileId}|${ref.panelIndex}`,
+    `${ref.requestId}|${ref.fileId}|${ref.panelIndex}|${expiresDay}`,
   ).toString("base64url");
 
   return `${data}.${sign(data)}`;
 }
 
-export function verifyBazisPartToken(token: string): BazisPartRef | null {
+export function verifyBazisPartToken(
+  token: string,
+  now = new Date(),
+): BazisPartRef | "expired" | null {
   const [data, signature, ...rest] = token.trim().split(".");
 
   if (!data || !signature || rest.length > 0 || data.length > 400) {
@@ -67,10 +74,11 @@ export function verifyBazisPartToken(token: string): BazisPartRef | null {
     return null;
   }
 
-  const [requestId, fileId, index] = Buffer.from(data, "base64url")
+  const [requestId, fileId, index, day] = Buffer.from(data, "base64url")
     .toString("utf8")
     .split("|");
   const panelIndex = Number.parseInt(index ?? "", 10);
+  const expiresDay = Number.parseInt(day ?? "", 10);
 
   if (
     !requestId ||
@@ -79,6 +87,14 @@ export function verifyBazisPartToken(token: string): BazisPartRef | null {
     panelIndex < 0
   ) {
     return null;
+  }
+
+  if (!Number.isInteger(expiresDay)) {
+    return null;
+  }
+
+  if (Math.floor(now.getTime() / DAY_MS) > expiresDay) {
+    return "expired";
   }
 
   return { requestId, fileId, panelIndex };

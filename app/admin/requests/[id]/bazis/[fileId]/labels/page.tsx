@@ -8,7 +8,10 @@ import { describeEdgedSides } from "@/features/bazis/part-groups";
 import { requireAdminSession } from "@/lib/auth/dal";
 import { BazisParseError, parseBazisProject } from "@/lib/bazis-b3d";
 import { getSiteUrl } from "@/lib/seo";
-import { createBazisPartToken } from "@/lib/server/bazis-part-link";
+import {
+  BAZIS_PART_LINK_DAYS,
+  createBazisPartToken,
+} from "@/lib/server/bazis-part-link";
 import { readRequestFileBytes } from "@/lib/server/request-file-content";
 import { getRequestDetailById } from "@/lib/server/request-inbox";
 
@@ -16,6 +19,7 @@ export const dynamic = "force-dynamic";
 
 type LabelsPageProps = {
   params: Promise<{ id: string; fileId: string }>;
+  searchParams: Promise<{ format?: string }>;
 };
 
 type Label = {
@@ -35,8 +39,13 @@ const numberFormatter = new Intl.NumberFormat("ru-RU", {
   maximumFractionDigits: 1,
 });
 
-export default async function BazisLabelsPage({ params }: LabelsPageProps) {
+export default async function BazisLabelsPage({
+  params,
+  searchParams,
+}: LabelsPageProps) {
   const { id, fileId } = await params;
+  // Термопринтер с наклейками 58 × 80 мм или лист А4 с этикетками 70 × 37.
+  const thermal = (await searchParams).format !== "a4";
   await requireAdminSession(
     "/login?next=/admin/requests",
     `/admin/requests/${id}`,
@@ -134,11 +143,17 @@ export default async function BazisLabelsPage({ params }: LabelsPageProps) {
   }
 
   const requestNumber = request.number ?? request.id.slice(0, 8).toUpperCase();
+  const basePath = `/admin/requests/${request.id}/bazis/${file.id}/labels`;
 
   return (
     <div className="mx-auto max-w-[210mm] bg-white text-[#171714] print:max-w-none">
-      {/* Лист А4 без полей: 3 этикетки 70 × 37 мм в ряд, 8 рядов. */}
-      <style>{`@media print { @page { size: A4; margin: 0; } }`}</style>
+      {/* Термопринтер: одна наклейка 58 × 80 мм на страницу. Лист А4 без
+          полей: 3 этикетки 70 × 37 мм в ряд, 8 рядов. */}
+      <style>
+        {thermal
+          ? `@media print { @page { size: 58mm 80mm; margin: 0; } }`
+          : `@media print { @page { size: A4; margin: 0; } }`}
+      </style>
 
       <div className="mb-4 grid gap-3 print:hidden">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -155,11 +170,31 @@ export default async function BazisLabelsPage({ params }: LabelsPageProps) {
             Этикетки для сборки: {orderName} · заявка {requestNumber} ·{" "}
             {labels.length} шт.
           </p>
-          <p className="mt-1 text-[var(--muted)]">
-            Печатайте на самоклеящейся бумаге А4 с этикетками 70 × 37 мм (24 на
-            листе), масштаб 100%, без полей. Сборщик наводит камеру телефона на
-            код и видит, где деталь стоит в изделии. Одинаковые детали имеют
-            одинаковый код.
+          <div className="mt-2 flex flex-wrap gap-2">
+            {[
+              { href: basePath, label: "Термопринтер 58 × 80 мм", on: thermal },
+              {
+                href: `${basePath}?format=a4`,
+                label: "Лист А4, этикетки 70 × 37 мм",
+                on: !thermal,
+              },
+            ].map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`inline-flex h-9 items-center border px-3 text-sm font-medium transition ${item.on ? "border-[color:var(--foreground)] bg-[var(--foreground)] text-white" : "border-[color:var(--line-strong)] bg-white hover:border-[color:var(--foreground)]"}`}
+              >
+                {item.label}
+              </Link>
+            ))}
+          </div>
+          <p className="mt-2 text-[var(--muted)]">
+            {thermal
+              ? "Одна наклейка 58 × 80 мм на деталь. В окне печати выберите термопринтер, размер бумаги 58 × 80 мм, масштаб 100%, поля «нет»."
+              : "Самоклеящаяся бумага А4 с этикетками 70 × 37 мм (24 на листе), масштаб 100%, поля «нет»."}{" "}
+            Сборщик наводит камеру телефона на код и видит, где деталь стоит в
+            изделии. Одинаковые детали имеют одинаковый код. Код работает{" "}
+            {BAZIS_PART_LINK_DAYS} день со дня, когда открыта эта страница.
           </p>
         </div>
       </div>
@@ -170,18 +205,30 @@ export default async function BazisLabelsPage({ params }: LabelsPageProps) {
         </p>
       ) : null}
 
-      <div className="grid grid-cols-3">
+      <div
+        className={
+          thermal ? "flex flex-wrap gap-3 print:block" : "grid grid-cols-3"
+        }
+      >
         {labels.map((label) => (
           <div
             key={label.key}
-            className="flex h-[37mm] w-[70mm] break-inside-avoid items-center gap-[2mm] overflow-hidden border border-dashed border-[#cbc7bf] p-[2.5mm] print:border-0"
+            className={
+              thermal
+                ? "flex h-[80mm] w-[58mm] break-after-page flex-col items-center gap-[2mm] overflow-hidden border border-dashed border-[#cbc7bf] p-[3mm] print:border-0"
+                : "flex h-[37mm] w-[70mm] break-inside-avoid items-center gap-[2mm] overflow-hidden border border-dashed border-[#cbc7bf] p-[2.5mm] print:border-0"
+            }
           >
             <div
-              className="size-[27mm] shrink-0 [&>svg]:size-full"
+              className={`shrink-0 [&>svg]:size-full ${thermal ? "size-[40mm]" : "size-[27mm]"}`}
               dangerouslySetInnerHTML={{ __html: label.qrSvg }}
             />
-            <div className="min-w-0 text-[7.5pt] leading-[1.25]">
-              <p className="line-clamp-2 text-[9pt] leading-[1.15] font-bold">
+            <div
+              className={`min-w-0 leading-[1.25] ${thermal ? "w-full text-[8.5pt]" : "text-[7.5pt]"}`}
+            >
+              <p
+                className={`line-clamp-2 leading-[1.15] font-bold ${thermal ? "text-[11pt]" : "text-[9pt]"}`}
+              >
                 {label.name}
               </p>
               <p className="mt-[0.6mm] font-semibold whitespace-nowrap">
