@@ -46,7 +46,7 @@ export type AdminOrderFilterState = {
   managerId: string;
   assignment: AdminAssignmentFilter;
   delivery: "all" | "delivery" | "pickup";
-  due: "all" | "overdue";
+  due: "all" | "overdue" | "unpaid";
   sort: AdminOrderSort;
 };
 
@@ -163,6 +163,17 @@ const overdueOrderStatuses = new Set<OrderStatus>([
 ]);
 
 // Просрочен: срок готовности прошёл, а заказ ещё не готов к выдаче.
+const unpaidOrderStatuses = new Set<OrderStatus>([
+  OrderStatus.NEW,
+  OrderStatus.RESERVED,
+  OrderStatus.CONFIRMED,
+]);
+
+// Заказ создан, но ещё не оплачен: товар под него держится в резерве.
+export function isOrderUnpaid(order: { status: OrderStatus }) {
+  return unpaidOrderStatuses.has(order.status);
+}
+
 export function isOrderOverdue(
   order: Pick<AdminOrderItem, "status" | "productionDueAt">,
   now = new Date(),
@@ -258,6 +269,7 @@ export function parseAdminOrderSearchParams(
   const assignmentCandidate = getFirstSearchValue(searchParams, "assignment");
   const deliveryCandidate = getFirstSearchValue(searchParams, "delivery");
   const sortCandidate = getFirstSearchValue(searchParams, "sort");
+  const dueCandidate = getFirstSearchValue(searchParams, "due");
 
   return {
     q: getFirstSearchValue(searchParams, "q").trim(),
@@ -275,8 +287,8 @@ export function parseAdminOrderSearchParams(
         ? deliveryCandidate
         : "all",
     due:
-      getFirstSearchValue(searchParams, "due") === "overdue"
-        ? "overdue"
+      dueCandidate === "overdue" || dueCandidate === "unpaid"
+        ? dueCandidate
         : "all",
     sort: validOrderSorts.has(sortCandidate as AdminOrderSort)
       ? (sortCandidate as AdminOrderSort)
@@ -328,6 +340,10 @@ export function filterAdminOrders(
     }
 
     if (state.due === "overdue" && !isOrderOverdue(order)) {
+      return false;
+    }
+
+    if (state.due === "unpaid" && !isOrderUnpaid(order)) {
       return false;
     }
 

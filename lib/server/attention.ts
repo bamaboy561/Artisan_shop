@@ -232,7 +232,7 @@ export async function getAttentionSummary(
       key: "unpaidOrders",
       title: "Заказы без оплаты",
       hint: `Не оплачены дольше ${ATTENTION_RULES.unpaidOrderHours / 24} дней, товар в резерве`,
-      href: "/admin/orders",
+      href: "/admin/orders?due=unpaid&sort=created-desc",
       count: unpaidCount,
       items: unpaidItems.map((item) => ({
         id: item.id,

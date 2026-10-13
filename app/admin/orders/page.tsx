@@ -31,6 +31,7 @@ import {
   buildAdminOrdersHref,
   filterAdminOrders,
   isOrderOverdue,
+  isOrderUnpaid,
   getManagerDisplayName,
   orderStatusLabels,
   parseAdminOrderSearchParams,
@@ -141,6 +142,7 @@ export default async function AdminOrdersPage({
     state.sort,
   );
   const overdueCount = orders.filter((order) => isOrderOverdue(order)).length;
+  const unpaidCount = orders.filter((order) => isOrderUnpaid(order)).length;
   const csvCell = (value: string | number) =>
     `"${String(value).replaceAll('"', '""')}"`;
   const ordersCsv = [
@@ -537,10 +539,13 @@ export default async function AdminOrdersPage({
           </label>
 
           <label className="grid gap-2">
-            <span className="text-sm text-[var(--foreground)]">Срок</span>
+            <span className="text-sm text-[var(--foreground)]">
+              Срок и оплата
+            </span>
             <Select name="due" defaultValue={state.due}>
               <option value="all">Любой</option>
               <option value="overdue">Просроченные ({overdueCount})</option>
+              <option value="unpaid">Без оплаты ({unpaidCount})</option>
             </Select>
           </label>
 
