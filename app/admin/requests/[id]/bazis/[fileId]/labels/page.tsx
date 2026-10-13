@@ -13,6 +13,7 @@ import {
   BAZIS_PART_LINK_DAYS,
   createBazisPartToken,
 } from "@/lib/server/bazis-part-link";
+import { getOrCreateBazisProjectCode } from "@/lib/server/bazis-project-code";
 import { readRequestFileBytes } from "@/lib/server/request-file-content";
 import { getRequestDetailById } from "@/lib/server/request-inbox";
 
@@ -149,6 +150,15 @@ export default async function BazisLabelsPage({
   }
 
   const requestNumber = request.number ?? request.id.slice(0, 8).toUpperCase();
+  const projectCode =
+    labels.length > 0
+      ? await getOrCreateBazisProjectCode(request.id, file.id).catch(
+          (error) => {
+            console.error("[bazis:project-code]", error);
+            return null;
+          },
+        )
+      : null;
   const basePath = `/admin/requests/${request.id}/bazis/${file.id}/labels`;
 
   return (
@@ -204,6 +214,29 @@ export default async function BazisLabelsPage({
           </p>
         </div>
       </div>
+
+      {projectCode ? (
+        <div className="mb-4 border border-[color:var(--line-strong)] bg-white p-4 text-sm leading-6 print:hidden">
+          <p className="font-semibold">
+            Если этикетки печатает GibLab — код проекта:{" "}
+            <span className="ml-1 bg-[#252b29] px-2 py-1 font-mono text-base tracking-[0.2em] text-white">
+              {projectCode.code}
+            </span>
+          </p>
+          <p className="mt-2 text-[var(--muted)]">
+            Впишите этот код в название проекта в GibLab, без пробелов внутри
+            кода. Например: «{requestNumber}_{projectCode.code}». Тогда QR-код
+            на этикетке GibLab откроет ту же страницу детали. Код действует до{" "}
+            {new Intl.DateTimeFormat("ru-RU", {
+              timeZone: "Asia/Bishkek",
+              day: "2-digit",
+              month: "2-digit",
+              year: "numeric",
+            }).format(projectCode.expiresAt)}
+            .
+          </p>
+        </div>
+      ) : null}
 
       {problem ? (
         <p className="border border-red-200 bg-red-50 p-3 text-sm text-red-800">
