@@ -13,9 +13,14 @@ export const metadata: Metadata = createSeoMetadata({
 
 export default async function BazisPage() {
   const bundle = await getCalculatorBundle();
-  const catalogBoards = [
-    ...new Set(bundle.presets.map((preset) => preset.label).filter(Boolean)),
-  ];
+  const seenLabels = new Set<string>();
+  const catalogBoards = bundle.presets
+    .filter((preset) => {
+      if (!preset.label || seenLabels.has(preset.label)) return false;
+      seenLabels.add(preset.label);
+      return true;
+    })
+    .map((preset) => ({ id: preset.id, label: preset.label }));
 
   return (
     <div className="bg-[#f3f5f3]">

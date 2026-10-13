@@ -107,8 +107,12 @@ function buildScene(boxes: BazisViewerBox[]) {
 export function BazisViewer({
   boxes,
   highlightTone = null,
+  toneColors,
 }: {
   boxes: BazisViewerBox[];
+  // Цвет материала по его номеру (красный, зелёный, синий). Если цвета нет,
+  // берём условный из палитры.
+  toneColors?: Array<number[] | null>;
   // Номер материала, который нужно выделить: остальные детали бледнеют.
   highlightTone?: number | null;
 }) {
@@ -205,7 +209,7 @@ export function BazisViewer({
         ? [226, 224, 220]
         : highlightTone !== null
           ? [201, 104, 78]
-          : palette[face.tone % palette.length];
+          : (toneColors?.[face.tone] ?? palette[face.tone % palette.length]);
 
       context.globalAlpha = muted ? 0.45 : 1;
 
@@ -228,7 +232,7 @@ export function BazisViewer({
       context.stroke();
     }
     context.globalAlpha = 1;
-  }, [highlightTone, scene, size, view]);
+  }, [highlightTone, scene, size, toneColors, view]);
 
   return (
     <div className="grid gap-2">

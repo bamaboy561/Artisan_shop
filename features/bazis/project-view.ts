@@ -68,3 +68,11 @@ export function toBazisViewProject(project: BazisProject): BazisViewProject {
 // features/services/cut-calculator.tsx. Через него список деталей
 // передаётся в калькулятор.
 export const CALCULATOR_DRAFT_KEY = "artisan:cut-calculator:draft:v1";
+
+// Плита из каталога, выбранная на странице проекта: калькулятор распила
+// читает её один раз при открытии и подставляет в выбор материала.
+export const CALCULATOR_PRESET_HANDOFF_KEY =
+  "artisan:cut-calculator:preset-handoff:v1";
+
+// Открытый проект с правками клиента. Хранится только в его браузере.
+export const BAZIS_WORKSPACE_KEY = "artisan:bazis-workspace:v1";

@@ -26,6 +26,7 @@ import {
   type SubmitCuttingRequestInput,
 } from "@/app/(public)/calculator/actions";
 import type { CalculatorProductContext } from "@/features/catalog/data";
+import { CALCULATOR_PRESET_HANDOFF_KEY } from "@/features/bazis/project-view";
 import type { ImportedDetail } from "@/features/services/cut-list-import";
 import { CutDetailTable } from "@/features/services/cut-detail-table";
 import { CutListImportPanel } from "@/features/services/cut-list-import-panel";
@@ -1526,7 +1527,25 @@ export function CutCalculator({
       setRestoredDraftAt(draft.savedAt || null);
     }
 
+    try {
+      const handedPresetId = window.localStorage.getItem(
+        CALCULATOR_PRESET_HANDOFF_KEY,
+      );
+
+      if (handedPresetId) {
+        window.localStorage.removeItem(CALCULATOR_PRESET_HANDOFF_KEY);
+
+        if (presets.some((preset) => preset.id === handedPresetId)) {
+          setManualPresetId(handedPresetId);
+        }
+      }
+    } catch {
+      // Хранилище недоступно: материал клиент выберет сам.
+    }
+
     draftReadyRef.current = true;
+    // Читаем один раз при открытии страницы.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {

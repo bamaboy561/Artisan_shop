@@ -1,12 +1,15 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Eye, Plus, Scissors, Trash2, Upload } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Eye, Plus, Scissors, Trash2, Upload, X } from "lucide-react";
 
 import { DownloadCsvButton } from "@/components/admin/download-csv-button";
 import { BazisViewer } from "@/components/bazis/bazis-viewer";
+import { guessDecorColor } from "@/features/bazis/decor-color";
 import {
+  BAZIS_WORKSPACE_KEY,
   CALCULATOR_DRAFT_KEY,
+  CALCULATOR_PRESET_HANDOFF_KEY,
   type BazisViewProject,
   type BazisViewResponse,
 } from "@/features/bazis/project-view";
@@ -85,7 +88,15 @@ function buildRows(project: BazisViewProject): Row[] {
   );
 }
 
-export function BazisWorkspace({ catalogBoards }: { catalogBoards: string[] }) {
+// Больше этого в хранилище браузера не кладём: проект останется открыт,
+// но после закрытия страницы его придётся загрузить заново.
+const MAX_SAVED_CHARS = 3_000_000;
+
+export function BazisWorkspace({
+  catalogBoards,
+}: {
+  catalogBoards: Array<{ id: string; label: string }>;
+}) {
   const [project, setProject] = useState<BazisViewProject | null>(null);
   const [materials, setMaterials] = useState<string[]>([]);
   const [rows, setRows] = useState<Row[]>([]);
@@ -93,6 +104,84 @@ export function BazisWorkspace({ catalogBoards }: { catalogBoards: string[] }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [fileName, setFileName] = useState("");
+  const [restored, setRestored] = useState(false);
+  const storageReady = useRef(false);
+
+  // Возвращаем проект с правками, если клиент уже открывал его в этом
+  // браузере.
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(BAZIS_WORKSPACE_KEY);
+      const saved = raw
+        ? (JSON.parse(raw) as {
+            project?: BazisViewProject;
+            materials?: string[];
+            rows?: Row[];
+            fileName?: string;
+          })
+        : null;
+
+      if (
+        saved?.project &&
+        Array.isArray(saved.project.panels) &&
+        Array.isArray(saved.materials) &&
+        Array.isArray(saved.rows)
+      ) {
+        // Хранилище браузера доступно только после гидратации.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setProject(saved.project);
+        setMaterials(saved.materials);
+        setRows(saved.rows);
+        setFileName(String(saved.fileName ?? ""));
+        setRestored(true);
+      }
+    } catch {
+      // Сохранённый проект испорчен или хранилище закрыто: начинаем с нуля.
+    }
+
+    storageReady.current = true;
+  }, []);
+
+  useEffect(() => {
+    if (!storageReady.current) return;
+
+    const timer = window.setTimeout(() => {
+      try {
+        if (!project) {
+          window.localStorage.removeItem(BAZIS_WORKSPACE_KEY);
+          return;
+        }
+
+        const payload = JSON.stringify({ project, materials, rows, fileName });
+
+        if (payload.length <= MAX_SAVED_CHARS) {
+          window.localStorage.setItem(BAZIS_WORKSPACE_KEY, payload);
+        } else {
+          window.localStorage.removeItem(BAZIS_WORKSPACE_KEY);
+        }
+      } catch {
+        // Хранилище недоступно или переполнено: работаем без сохранения.
+      }
+    }, 400);
+
+    return () => window.clearTimeout(timer);
+  }, [fileName, materials, project, rows]);
+
+  function closeProject() {
+    setProject(null);
+    setMaterials([]);
+    setRows([]);
+    setHighlight(null);
+    setFileName("");
+    setRestored(false);
+    setError("");
+  }
+
+  // Цвет деталей на макете подбираем по названию материала.
+  const toneColors = useMemo(
+    () => materials.map((name) => guessDecorColor(name)),
+    [materials],
+  );
 
   async function openFile(file: File) {
     setLoading(true);
@@ -117,6 +206,7 @@ export function BazisWorkspace({ catalogBoards }: { catalogBoards: string[] }) {
       setRows(buildRows(result.project));
       setHighlight(null);
       setFileName(file.name);
+      setRestored(false);
     } catch {
       setError("Не получилось отправить файл. Проверьте интернет и повторите.");
     } finally {
@@ -244,6 +334,19 @@ export function BazisWorkspace({ catalogBoards }: { catalogBoards: string[] }) {
           savedAt: new Date().toISOString(),
         }),
       );
+
+      // Если материал выбран из каталога, калькулятор сразу подставит эту
+      // плиту.
+      const board = catalogBoards.find(
+        (item) => item.label === (materials[materialIndex] ?? "").trim(),
+      );
+
+      if (board) {
+        window.localStorage.setItem(CALCULATOR_PRESET_HANDOFF_KEY, board.id);
+      } else {
+        window.localStorage.removeItem(CALCULATOR_PRESET_HANDOFF_KEY);
+      }
+
       window.location.assign("/calculator#cut-calculator");
     } catch {
       setError(
@@ -266,7 +369,7 @@ export function BazisWorkspace({ catalogBoards }: { catalogBoards: string[] }) {
         <span className="text-xs text-[#69716d]">
           {fileName
             ? `Открыт: ${fileName}`
-            : "Файл не сохраняется на сайте, до 4 МБ"}
+            : "Файл не сохраняется на сайте, до 4 МБ. Правки хранятся в вашем браузере"}
         </span>
         <input
           type="file"
@@ -294,10 +397,33 @@ export function BazisWorkspace({ catalogBoards }: { catalogBoards: string[] }) {
       {project ? (
         <>
           <section className="grid gap-3 bg-white p-4 sm:p-5">
-            <h2 className="text-xl font-semibold text-[#252b29]">
-              {project.orderName || "Проект"}: макет
-            </h2>
-            <BazisViewer boxes={boxes} highlightTone={highlight} />
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-xl font-semibold text-[#252b29]">
+                {project.orderName || "Проект"}: макет
+              </h2>
+              <button
+                type="button"
+                onClick={closeProject}
+                className="inline-flex h-9 items-center justify-center gap-2 border border-[#cbc7bf] bg-white px-3 text-sm font-medium text-[#252b29] transition hover:border-[#252b29]"
+              >
+                <X className="size-4" />
+                Закрыть проект
+              </button>
+            </div>
+            {restored ? (
+              <p className="border border-[#e1e5e1] bg-[#f3f5f3] px-3 py-2 text-sm text-[#252b29]">
+                Открыт проект, с которым вы работали в прошлый раз, вместе с
+                вашими правками. Он хранится только в этом браузере.
+              </p>
+            ) : null}
+            <BazisViewer
+              boxes={boxes}
+              highlightTone={highlight}
+              toneColors={toneColors}
+            />
+            <p className="text-xs text-[#69716d]">
+              Цвет деталей примерный: он подобран по названию материала.
+            </p>
           </section>
 
           <section className="grid gap-3 bg-white p-4 sm:p-5">
@@ -308,7 +434,7 @@ export function BazisWorkspace({ catalogBoards }: { catalogBoards: string[] }) {
             </p>
             <datalist id="bazis-catalog-boards">
               {catalogBoards.map((board) => (
-                <option key={board} value={board} />
+                <option key={board.id} value={board.label} />
               ))}
             </datalist>
             <div className="grid gap-3">
@@ -363,7 +489,8 @@ export function BazisWorkspace({ catalogBoards }: { catalogBoards: string[] }) {
             </div>
             <p className="text-xs text-[#69716d]">
               «Рассчитать раскрой» открывает калькулятор с деталями этого
-              материала. Плиту и кромку для расчёта цены выберите уже там.
+              материала. Плита из нашего каталога подставится сама, кромку
+              выберите уже там.
             </p>
           </section>
 
