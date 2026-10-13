@@ -5,8 +5,8 @@
       "schedule": "0 4 * * *"
     },
     {
-      "path": "/api/cron/bazis-temp-cleanup",
-      "schedule": "30 4 * * *"
+      "path": "/api/cron/daily-maintenance",
+      "schedule": "0 3 * * *"
     }
   ]
 }

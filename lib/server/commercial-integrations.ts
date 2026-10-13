@@ -1328,3 +1328,24 @@ export async function handleOrderUpdated(input: OrderIntegrationInput) {
     ),
   ]);
 }
+
+// Сводка для рабочего чата. Если Telegram не настроен, молча пропускаем:
+// сводка не должна ломать ночные задачи.
+export async function sendStaffDigestMessage(input: {
+  title: string;
+  lines: string[];
+}) {
+  if (!isTelegramEnabled()) {
+    return { ok: false, message: "Telegram не настроен." };
+  }
+
+  try {
+    await sendTelegramMessage({ title: input.title, lines: input.lines });
+
+    return { ok: true, message: "Сводка отправлена." };
+  } catch (error) {
+    console.error("[telegram:digest:error]", error);
+
+    return { ok: false, message: "Не удалось отправить сводку." };
+  }
+}
