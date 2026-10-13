@@ -108,6 +108,7 @@ export type ProductFormPrefill = {
   name: string;
   sku: string | null;
   stockQuantity: number | null;
+  inventoryStatus: InventoryStatus | null;
 };
 
 function FieldHint({ children }: { children: ReactNode }) {
@@ -940,9 +941,8 @@ export function NewProductForm({
               name="inventoryStatus"
               defaultValue={
                 defaults?.inventoryStatus ??
-                (prefill?.stockQuantity
-                  ? InventoryStatus.IN_STOCK
-                  : InventoryStatus.ON_REQUEST)
+                prefill?.inventoryStatus ??
+                InventoryStatus.ON_REQUEST
               }
               className={inputClassName}
             >

@@ -17,6 +17,7 @@ import {
 import { ProductImportForm } from "@/app/admin/products/product-import-form";
 import { ProductStockImportForm } from "@/app/admin/products/product-stock-import-form";
 import { StockPendingList } from "@/app/admin/products/stock-pending-list";
+import { getInventoryStatusForStock } from "@/lib/server/inventory-reservations";
 import { NewProductForm } from "@/app/admin/products/new-product-form";
 import { BulkProductsSubmitButton } from "@/components/admin/bulk-products-submit-button";
 import { BulkSelectionTools } from "@/components/admin/bulk-selection-tools";
@@ -235,14 +236,19 @@ export default async function AdminProductsPage({
   const pendingPrefillItem = pendingItems?.find(
     (item) => item.id === getImportText(resolvedSearchParams, "fromPending"),
   );
+  const pendingPrefillStock =
+    pendingPrefillItem?.quantity == null
+      ? null
+      : Math.max(0, Math.floor(pendingPrefillItem.quantity));
   const pendingPrefill = pendingPrefillItem
     ? {
         name: pendingPrefillItem.name,
         sku: pendingPrefillItem.sku,
-        stockQuantity:
-          pendingPrefillItem.quantity === null
+        stockQuantity: pendingPrefillStock,
+        inventoryStatus:
+          pendingPrefillStock === null
             ? null
-            : Math.max(0, Math.floor(pendingPrefillItem.quantity)),
+            : getInventoryStatusForStock(pendingPrefillStock),
       }
     : undefined;
 
