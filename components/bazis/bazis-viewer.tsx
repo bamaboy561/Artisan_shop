@@ -104,7 +104,14 @@ function buildScene(boxes: BazisViewerBox[]) {
   return { faces, center, radius };
 }
 
-export function BazisViewer({ boxes }: { boxes: BazisViewerBox[] }) {
+export function BazisViewer({
+  boxes,
+  highlightTone = null,
+}: {
+  boxes: BazisViewerBox[];
+  // Номер материала, который нужно выделить: остальные детали бледнеют.
+  highlightTone?: number | null;
+}) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [view, setView] = useState({ yaw: -0.5, pitch: 0.3, zoom: 1 });
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -193,7 +200,14 @@ export function BazisViewer({ boxes }: { boxes: BazisViewerBox[] }) {
     context.strokeStyle = "rgba(60, 48, 38, 0.55)";
 
     for (const face of drawn) {
-      const color = palette[face.tone % palette.length];
+      const muted = highlightTone !== null && face.tone !== highlightTone;
+      const color = muted
+        ? [226, 224, 220]
+        : highlightTone !== null
+          ? [201, 104, 78]
+          : palette[face.tone % palette.length];
+
+      context.globalAlpha = muted ? 0.45 : 1;
 
       context.beginPath();
       face.points.forEach((point, index) => {
@@ -213,7 +227,8 @@ export function BazisViewer({ boxes }: { boxes: BazisViewerBox[] }) {
       context.fill();
       context.stroke();
     }
-  }, [scene, size, view]);
+    context.globalAlpha = 1;
+  }, [highlightTone, scene, size, view]);
 
   return (
     <div className="grid gap-2">

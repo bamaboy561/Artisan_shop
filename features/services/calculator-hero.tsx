@@ -129,6 +129,12 @@ export function CalculatorHero() {
               >
                 <Paperclip className="size-4" /> Есть файл Базиса или фото
               </a>
+              <a
+                href="/bazis"
+                className="inline-flex items-center justify-center gap-2.5 rounded-full border border-white/25 px-6 py-3.5 text-sm font-semibold text-white transition hover:border-white/60"
+              >
+                Открыть проект Базиса: макет и детали
+              </a>
             </div>
           </div>
 
