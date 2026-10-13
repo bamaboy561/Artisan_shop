@@ -25,6 +25,9 @@ export type BazisPanel = {
   edges: BazisEdge[];
   // Вырезы и скругления: габарит взят по внешнему прямоугольнику.
   complexContour: boolean;
+  // Текстура задана в Базисе: длина идёт вдоль текстуры, поворачивать
+  // деталь при раскрое нельзя (в GibLab это txt="true").
+  textured: boolean;
   // Положение детали в модели для объёмного просмотра: прямоугольник
   // контура в плоскости детали (x, y, sizeX, sizeY), толщина идёт по оси Z
   // детали, matrix переводит точки детали в координаты модели
@@ -34,6 +37,8 @@ export type BazisPanel = {
     y: number;
     sizeX: number;
     sizeY: number;
+    // Длина детали идёт по оси X контура (иначе по Y).
+    lengthAlongX: boolean;
     matrix: number[];
   };
 };
@@ -55,6 +60,7 @@ export type BazisPartRow = {
   edgedWidthSides: number;
   edgeMaterial: string;
   complexContour: boolean;
+  textured: boolean;
 };
 
 export type BazisProject = {
@@ -376,9 +382,13 @@ function readPanel(node: Node, matrix: Matrix): BazisPanel | null {
   const ys = elements.flatMap((item) => item.points.map((point) => point[1]));
   const sizeX = round(Math.max(...xs) - Math.min(...xs));
   const sizeY = round(Math.max(...ys) - Math.min(...ys));
-  const length = Math.max(sizeX, sizeY);
-  const width = Math.min(sizeX, sizeY);
-  const lengthAlongX = sizeX >= sizeY;
+  // TexDir: 1 текстура вдоль X контура, 2 вдоль Y. Так же длину и ширину
+  // выгружает сам Базис в GibLab. Без текстуры длина это большая сторона.
+  const textureDirection = numeric(node, "TexDir");
+  const textured = textureDirection === 1 || textureDirection === 2;
+  const lengthAlongX = textured ? textureDirection === 1 : sizeX >= sizeY;
+  const length = lengthAlongX ? sizeX : sizeY;
+  const width = lengthAlongX ? sizeY : sizeX;
   const edges: BazisEdge[] = (child(node, "Butts")?.children ?? [])
     .filter((item) => item.name === "Butt")
     .map((butt) => {
@@ -415,11 +425,13 @@ function readPanel(node: Node, matrix: Matrix): BazisPanel | null {
       total !== 4 ||
       elements.length !== 4 ||
       elements.some((item) => !item.line),
+    textured,
     box: {
       x: Math.min(...xs),
       y: Math.min(...ys),
       sizeX,
       sizeY,
+      lengthAlongX,
       matrix: matrix.map((value) => Math.round(value * 1000) / 1000),
     },
   };
@@ -487,6 +499,7 @@ export function groupBazisPanels(panels: BazisPanel[]): BazisPartRow[] {
       edgedWidthSides,
       edgeMaterial,
       panel.complexContour,
+      panel.textured,
     ]);
     const existing = rows.get(key);
 
@@ -505,6 +518,7 @@ export function groupBazisPanels(panels: BazisPanel[]): BazisPartRow[] {
         edgedWidthSides,
         edgeMaterial,
         complexContour: panel.complexContour,
+        textured: panel.textured,
       });
     }
   }
