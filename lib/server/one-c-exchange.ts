@@ -16,7 +16,9 @@ import {
   ProductStatus,
   type Prisma,
 } from "@/generated/prisma";
+import { buildOrderStatusClientText } from "@/features/telegram/client-messages";
 import { formatPrice } from "@/lib/commerce";
+import { companyContacts } from "@/lib/site-config";
 import { getDb, hasDatabaseUrl } from "@/lib/db";
 import { getSiteUrl } from "@/lib/seo";
 import { sendClientDirectMessage } from "@/lib/server/client-notifications";
@@ -788,12 +790,14 @@ export async function syncOneCOrderStatuses(
 
       if (statusChanged && transition.userId) {
         await sendTelegramDirectMessage(transition.userId, {
-          title: `Статус заказа ${transition.number ?? order.id} обновлен`,
+          ...buildOrderStatusClientText({
+            number: transition.number ?? order.id,
+            status: nextStatus,
+            statusLabel: getOrderStatusLabel(nextStatus),
+            total: formatPrice(transition.total),
+            contacts: companyContacts,
+          }),
           category: "orders",
-          lines: [
-            `Новый статус: ${getOrderStatusLabel(nextStatus)}`,
-            `Сумма: ${formatPrice(transition.total)}`,
-          ],
           actions: [{ text: "Открыть заказ", url: "/account/orders" }],
         }).catch((error) => console.error("[1c:telegram:order-status]", error));
       }

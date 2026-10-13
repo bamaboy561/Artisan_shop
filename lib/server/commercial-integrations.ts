@@ -13,7 +13,9 @@ import { cuttingStageLabels } from "@/features/cutting/progress";
 import { formatPrice } from "@/lib/commerce";
 import { getDb, hasDatabaseUrl, isDemoModeEnabled } from "@/lib/db";
 import { absoluteUrl } from "@/lib/seo";
+import { buildOrderStatusClientText } from "@/features/telegram/client-messages";
 import { formatTelegramHtml } from "@/features/telegram/format";
+import { companyContacts } from "@/lib/site-config";
 import { sendClientDirectMessage } from "@/lib/server/client-notifications";
 import { sendCustomerEmail } from "@/lib/server/customer-email";
 
@@ -900,12 +902,13 @@ function buildClientOrderCreatedMessage(input: OrderIntegrationInput) {
 
 function buildClientOrderStatusMessage(input: OrderIntegrationInput) {
   return {
-    title: `Статус заказа ${input.number ?? input.id} обновлен`,
-    lines: [
-      `Теперь: ${orderStatusLabels[input.status] ?? input.status}`,
-      `Сумма: ${formatPrice(Math.round(input.total))}`,
-      `Менеджер: ${buildManagerLabel(input.manager)}`,
-    ],
+    ...buildOrderStatusClientText({
+      number: input.number ?? input.id,
+      status: input.status,
+      statusLabel: orderStatusLabels[input.status] ?? input.status,
+      total: formatPrice(Math.round(input.total)),
+      contacts: companyContacts,
+    }),
     actions: [
       {
         text: "Открыть заказ",
@@ -1287,9 +1290,14 @@ export async function handleOrderCreated(input: OrderIntegrationInput) {
 export async function handleOrderUpdated(input: OrderIntegrationInput) {
   const orderPayload = buildOrderPayload(input);
   const telegramPayload = buildOrderStatusTelegramMessage(input);
-  const clientPayload = telegramPayload
-    ? buildClientOrderStatusMessage(input)
-    : null;
+  // Клиенту пишем только о смене статуса: смена менеджера его не касается.
+  const statusUnchanged =
+    typeof input.previousStatus === "string" &&
+    input.previousStatus === input.status;
+  const clientPayload =
+    telegramPayload && !statusUnchanged
+      ? buildClientOrderStatusMessage(input)
+      : null;
 
   await Promise.all([
     ...(telegramPayload
