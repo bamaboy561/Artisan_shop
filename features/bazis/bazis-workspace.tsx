@@ -127,16 +127,22 @@ export function BazisWorkspace({ catalogBoards }: { catalogBoards: string[] }) {
     );
 
   // Макет показывает детали тех строк, что остались в списке, и красит их
-  // по материалу, выбранному в строке.
+  // по материалу, выбранному в строке. Если размер в строке поменяли,
+  // деталь на макете растягивается от своего угла до нового размера.
   const boxes = useMemo(() => {
     if (!project) return [];
 
     return rows.flatMap((row) =>
       row.panelIndexes.map((index) => {
         const panel = project.panels[index];
+        const length = toNumber(row.length) || panel.length;
+        const width = toNumber(row.width) || panel.width;
+        const lengthAlongX = panel.box.sizeX >= panel.box.sizeY;
 
         return {
           ...panel.box,
+          sizeX: lengthAlongX ? length : width,
+          sizeY: lengthAlongX ? width : length,
           thickness: panel.thickness,
           tone: row.material,
         };
@@ -395,7 +401,9 @@ export function BazisWorkspace({ catalogBoards }: { catalogBoards: string[] }) {
             </div>
             <p className="text-sm text-[#69716d]">
               Размеры указаны для готовой детали. Всё в списке можно править:
-              название, размеры, количество, материал и кромку.
+              название, размеры, количество, материал и кромку. Новый размер
+              сразу виден на макете: деталь меняется от своего угла, соседние
+              детали остаются на месте.
             </p>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[920px] border-collapse text-sm">

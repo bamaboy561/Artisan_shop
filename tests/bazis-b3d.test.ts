@@ -10,6 +10,7 @@ type Value =
   | { kind: "object" }
   | { kind: "int"; value: number }
   | { kind: "double"; value: number }
+  | { kind: "date"; value: number }
   | { kind: "text"; value: string }
   | { kind: "blob"; value: Buffer };
 type Node = { key: string | null; value: Value; children?: Node[] };
@@ -39,8 +40,9 @@ function encode(nodes: Node[]) {
     } else if (value.kind === "int") {
       type = 4;
       payload = int32(value.value);
-    } else if (value.kind === "double") {
-      type = 5;
+    } else if (value.kind === "double" || value.kind === "date") {
+      // Дата записана так же, как дробное число, но со своим типом 9.
+      type = value.kind === "date" ? 9 : 5;
       payload = Buffer.alloc(8);
       payload.writeDoubleLE(value.value);
     } else if (value.kind === "text") {
@@ -148,7 +150,10 @@ function project(panels: Node[]) {
     ]),
   ]);
   const model = encode([
-    object("Document", [object("Model", [object("Objs", panels)])]),
+    object("Document", [
+      { key: "DateTimeLastSaved", value: { kind: "date", value: 46000.5 } },
+      object("Model", [object("Objs", panels)]),
+    ]),
   ]);
 
   return Buffer.concat([

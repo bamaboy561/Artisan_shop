@@ -193,6 +193,8 @@ class Reader {
         value = this.int32();
         break;
       case 5:
+      // 9 — дата и время, записаны тем же восьмибайтным числом.
+      case 9:
         this.need(8);
         value = this.buffer.readDoubleLE(this.position);
         this.position += 8;
