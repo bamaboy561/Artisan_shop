@@ -3,10 +3,17 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 
 import { LoyaltyTransactionStatus } from "@/generated/prisma";
+import { updateClientContactsAction } from "@/app/admin/actions";
+import { AdminSubmitButton } from "@/components/admin/admin-submit-button";
 import { MetricCard } from "@/components/admin/metric-card";
 import { StatusBadge } from "@/components/admin/status-badge";
+import { Input } from "@/components/ui/input";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { DataTable } from "@/components/ui/table";
+import {
+  getClientEmailLabel,
+  isTechnicalClientEmail,
+} from "@/features/admin/client-identity";
 import {
   activeOrderStatuses,
   activeRequestStatuses,
@@ -26,6 +33,27 @@ export const dynamic = "force-dynamic";
 
 type AdminUserProfilePageProps = {
   params: Promise<{ id: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
+
+const noticeMessages: Record<string, { ok: boolean; text: string }> = {
+  created: {
+    ok: true,
+    text: "Клиент создан. Он уже может покупать в зале и копить баллы.",
+  },
+  exists: {
+    ok: true,
+    text: "Клиент с таким телефоном уже есть: открыта его карточка, новый не создан.",
+  },
+  "contacts-saved": { ok: true, text: "Контакты сохранены." },
+  "contacts-invalid": {
+    ok: false,
+    text: "Не сохранено: проверьте имя, телефон и почту.",
+  },
+  "email-taken": {
+    ok: false,
+    text: "Не сохранено: эта почта уже занята другим аккаунтом.",
+  },
 };
 
 const dateFormatter = new Intl.DateTimeFormat("ru-RU", {
@@ -46,6 +74,7 @@ function formatNumber(value: number) {
 
 export default async function AdminUserProfilePage({
   params,
+  searchParams,
 }: AdminUserProfilePageProps) {
   await requireAdminSession("/login?next=/admin/users", "/admin/users");
 
@@ -56,6 +85,11 @@ export default async function AdminUserProfilePage({
     notFound();
   }
 
+  const noticeParam = (await searchParams)?.notice;
+  const notice =
+    noticeMessages[
+      (Array.isArray(noticeParam) ? noticeParam[0] : noticeParam) ?? ""
+    ];
   const loyaltyConfig = await getLoyaltyProgramConfig();
   const clientName =
     [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email;
@@ -86,7 +120,7 @@ export default async function AdminUserProfilePage({
         description={[
           user.companyName,
           user.phone,
-          user.email,
+          getClientEmailLabel(user.email),
           user.telegramChatId
             ? user.telegramUsername
               ? `Telegram @${user.telegramUsername}`
@@ -97,6 +131,15 @@ export default async function AdminUserProfilePage({
           .join(" · ")}
         titleClassName="text-3xl sm:text-4xl"
       />
+
+      {notice ? (
+        <p
+          role="status"
+          className={`rounded-[14px] border px-4 py-3 text-sm font-medium ${notice.ok ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-red-200 bg-red-50 text-red-800"}`}
+        >
+          {notice.text}
+        </p>
+      ) : null}
 
       <div className="flex flex-wrap gap-2">
         <StatusBadge tone="neutral">{user.role.name}</StatusBadge>
@@ -112,6 +155,82 @@ export default async function AdminUserProfilePage({
           Клиент с {dateFormatter.format(user.createdAt)}
         </StatusBadge>
       </div>
+
+      <section className="rounded-[18px] border border-[color:var(--line)] bg-white p-4 sm:p-5">
+        <h2 className="text-lg font-semibold text-[var(--foreground)]">
+          Контакты
+        </h2>
+        <form
+          action={updateClientContactsAction}
+          className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_1fr_1.3fr_auto] lg:items-end"
+        >
+          <input type="hidden" name="id" value={user.id} />
+          <label className="grid gap-1.5 text-xs font-medium text-[var(--foreground)]">
+            Имя
+            <Input
+              name="firstName"
+              required
+              maxLength={80}
+              defaultValue={user.firstName ?? ""}
+              className="h-10"
+            />
+          </label>
+          <label className="grid gap-1.5 text-xs font-medium text-[var(--foreground)]">
+            Фамилия
+            <Input
+              name="lastName"
+              maxLength={80}
+              defaultValue={user.lastName ?? ""}
+              className="h-10"
+            />
+          </label>
+          <label className="grid gap-1.5 text-xs font-medium text-[var(--foreground)]">
+            Телефон
+            <Input
+              name="phone"
+              type="tel"
+              defaultValue={user.phone ?? ""}
+              className="h-10"
+            />
+          </label>
+          <label className="grid gap-1.5 text-xs font-medium text-[var(--foreground)]">
+            Компания
+            <Input
+              name="companyName"
+              maxLength={120}
+              defaultValue={user.companyName ?? ""}
+              className="h-10"
+            />
+          </label>
+          <label className="grid gap-1.5 text-xs font-medium text-[var(--foreground)]">
+            Почта
+            <Input
+              name="email"
+              type="email"
+              placeholder="Не указана"
+              defaultValue={
+                isTechnicalClientEmail(user.email) ? "" : user.email
+              }
+              className="h-10"
+            />
+          </label>
+          <AdminSubmitButton
+            type="submit"
+            variant="secondary"
+            size="sm"
+            className="h-10"
+            idleLabel="Сохранить"
+            pendingLabel="Сохраняем..."
+          />
+        </form>
+        {isTechnicalClientEmail(user.email) ? (
+          <p className="mt-2 text-xs leading-5 text-[var(--muted)]">
+            Клиент заведён по телефону, почты нет. В личный кабинет на сайте он
+            сможет войти после того, как здесь укажут его настоящую почту и он
+            задаст пароль через «Забыли пароль?».
+          </p>
+        ) : null}
+      </section>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard

@@ -71,6 +71,11 @@ import {
   setLoyaltyManagerAccess,
 } from "@/lib/server/loyalty-permissions";
 import { saveProductionPlan } from "@/lib/server/production-planning";
+import {
+  buildTechnicalClientEmail,
+  isTechnicalClientEmail,
+  normalizeClientPhone,
+} from "@/features/admin/client-identity";
 import { hasDatabaseUrl, getDb } from "@/lib/db";
 import { ensureBrandLogoColumn } from "@/lib/server/brand-schema";
 import { sendClientDirectMessage } from "@/lib/server/client-notifications";
@@ -5309,7 +5314,9 @@ export async function createSalesFloorOrderAction(formData: FormData) {
           inventoryReservedAt: soldAt,
           contactName: customerName,
           contactPhone: customer.phone ?? "",
-          contactEmail: customer.email,
+          contactEmail: isTechnicalClientEmail(customer.email)
+      ? null
+      : customer.email,
           companyName: customer.companyName,
           comment: commentParts.join("\n"),
           subtotal,
@@ -5412,7 +5419,9 @@ export async function createSalesFloorOrderAction(formData: FormData) {
     status: OrderStatus.COMPLETED,
     contactName: customerName,
     contactPhone: customer.phone ?? "",
-    contactEmail: customer.email,
+    contactEmail: isTechnicalClientEmail(customer.email)
+      ? null
+      : customer.email,
     companyName: customer.companyName,
     comment: commentParts.join("\n"),
     total,
@@ -5961,6 +5970,161 @@ export async function deleteBannerAction(formData: FormData) {
   await getDb().banner.delete({ where: { id } });
 
   revalidateAdminContent();
+}
+
+// Менеджер заводит клиента у прилавка по имени и телефону. Если клиент с
+// таким номером уже есть, новый не создаётся, открывается существующий.
+export async function createClientByManagerAction(formData: FormData) {
+  if (!hasDatabaseUrl()) {
+    return;
+  }
+
+  await ensureAdminAccess();
+
+  const fromSalesFloor = getString(formData, "returnTo") === "sales-floor";
+  const back = (params: Record<string, string>) =>
+    `${fromSalesFloor ? "/admin/sales-floor" : "/admin/users"}?${new URLSearchParams(params)}`;
+  const firstName = getString(formData, "firstName").slice(0, 80);
+  const lastName = getOptionalString(formData, "lastName")?.slice(0, 80);
+  const companyName = getOptionalString(formData, "companyName")?.slice(0, 120);
+  const phone = normalizeClientPhone(getString(formData, "phone"));
+
+  if (!firstName || !phone) {
+    redirect(back({ clientNotice: "invalid" }));
+  }
+
+  const db = getDb();
+  const clients = await db.user.findMany({
+    where: {
+      phone: { not: null },
+      role: { code: { in: [RoleCode.CUSTOMER, RoleCode.DEALER] } },
+    },
+    select: { id: true, phone: true },
+  });
+  const existing = clients.find(
+    (client) => normalizeClientPhone(client.phone) === phone,
+  );
+
+  if (existing) {
+    redirect(
+      fromSalesFloor
+        ? back({ clientNotice: "exists", client: `+${phone}` })
+        : `/admin/users/${existing.id}?notice=exists`,
+    );
+  }
+
+  const definition = roleDefinitions[RoleCode.CUSTOMER];
+  const role = await db.role.upsert({
+    where: { code: RoleCode.CUSTOMER },
+    update: {},
+    create: {
+      code: RoleCode.CUSTOMER,
+      name: definition.label,
+      description: definition.description,
+    },
+  });
+  const email = buildTechnicalClientEmail(phone);
+  const taken = await db.user.findUnique({
+    where: { email },
+    select: { id: true },
+  });
+
+  if (taken) {
+    redirect(
+      fromSalesFloor
+        ? back({ clientNotice: "exists", client: `+${phone}` })
+        : `/admin/users/${taken.id}?notice=exists`,
+    );
+  }
+
+  const created = await db.user.create({
+    data: {
+      email,
+      firstName,
+      lastName: lastName ?? null,
+      phone: `+${phone}`,
+      companyName: companyName ?? null,
+      roleId: role.id,
+      isActive: true,
+    },
+    select: { id: true },
+  });
+
+  revalidateAdminUsers();
+  revalidatePath("/admin/sales-floor");
+  redirect(
+    fromSalesFloor
+      ? back({ clientNotice: "created", client: `+${phone}` })
+      : `/admin/users/${created.id}?notice=created`,
+  );
+}
+
+// Контакты клиента в его карточке. Настоящая почта открывает вход в кабинет.
+export async function updateClientContactsAction(formData: FormData) {
+  if (!hasDatabaseUrl()) {
+    return;
+  }
+
+  await ensureAdminAccess();
+
+  const id = getString(formData, "id");
+
+  if (!id) {
+    return;
+  }
+
+  const back = (notice: string) => `/admin/users/${id}?notice=${notice}`;
+  const db = getDb();
+  const client = await db.user.findFirst({
+    where: {
+      id,
+      role: { code: { in: [RoleCode.CUSTOMER, RoleCode.DEALER] } },
+    },
+    select: { id: true, email: true },
+  });
+
+  if (!client) {
+    return;
+  }
+
+  const firstName = getString(formData, "firstName").slice(0, 80);
+  const rawPhone = getString(formData, "phone");
+  const phone = normalizeClientPhone(rawPhone);
+  const emailInput = getString(formData, "email").toLowerCase();
+
+  if (!firstName || (rawPhone && !phone)) {
+    redirect(back("contacts-invalid"));
+  }
+
+  if (emailInput && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailInput)) {
+    redirect(back("contacts-invalid"));
+  }
+
+  if (emailInput && emailInput !== client.email) {
+    const emailOwner = await db.user.findUnique({
+      where: { email: emailInput },
+      select: { id: true },
+    });
+
+    if (emailOwner) {
+      redirect(back("email-taken"));
+    }
+  }
+
+  await db.user.update({
+    where: { id },
+    data: {
+      firstName,
+      lastName: getOptionalString(formData, "lastName")?.slice(0, 80) ?? null,
+      companyName:
+        getOptionalString(formData, "companyName")?.slice(0, 120) ?? null,
+      ...(phone ? { phone: `+${phone}` } : {}),
+      ...(emailInput ? { email: emailInput } : {}),
+    },
+  });
+
+  revalidateAdminUsers();
+  redirect(back("contacts-saved"));
 }
 
 export async function setLoyaltyManagerAccessAction(formData: FormData) {
