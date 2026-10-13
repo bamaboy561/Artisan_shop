@@ -21,6 +21,7 @@ import {
   requestStatusLabels,
   requestTypeLabels,
 } from "@/features/admin/operations-filters";
+import { ClientTelegramConnect } from "@/components/admin/client-telegram-connect";
 import { requireAdminSession } from "@/lib/auth/dal";
 import { formatPrice } from "@/lib/commerce";
 import { hasDatabaseUrl } from "@/lib/db";
@@ -132,6 +133,10 @@ export default async function AdminUserProfilePage({
           .join(" · ")}
         titleClassName="text-3xl sm:text-4xl"
       />
+
+      <div className="empty:hidden">
+        <ClientTelegramConnect userId={user.id} />
+      </div>
 
       {notice ? (
         <p

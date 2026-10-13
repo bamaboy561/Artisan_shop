@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { Textarea } from "@/components/ui/textarea";
+import { ClientTelegramConnect } from "@/components/admin/client-telegram-connect";
 import { requireAdminSession } from "@/lib/auth/dal";
 import { canDeleteOrders } from "@/lib/auth/roles";
 import { getAdminProductFormOptions } from "@/lib/server/catalog-admin";
@@ -281,6 +282,9 @@ export default async function AdminOrderDetailPage({
                     isReady: order.status === OrderStatus.READY_FOR_PICKUP,
                   })}
                 />
+                <div className="mt-3 empty:hidden">
+                  <ClientTelegramConnect userId={order.userId} />
+                </div>
                 {order.contactEmail ? (
                   <p className="mt-1 text-sm text-[var(--muted)]">
                     {order.contactEmail}

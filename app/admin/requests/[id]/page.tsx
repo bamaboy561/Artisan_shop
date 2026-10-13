@@ -28,6 +28,7 @@ import { Select } from "@/components/ui/select";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { Textarea } from "@/components/ui/textarea";
 import { GibLabProjectCode } from "@/components/admin/giblab-project-code";
+import { ClientTelegramConnect } from "@/components/admin/client-telegram-connect";
 import { requireAdminSession } from "@/lib/auth/dal";
 import {
   canAccessRequestType,
@@ -282,6 +283,9 @@ export default async function AdminRequestDetailPage({
                     isReady: request.cuttingStage === "READY_FOR_PICKUP",
                   })}
                 />
+                <div className="mt-3 empty:hidden">
+                  <ClientTelegramConnect userId={request.userId} />
+                </div>
                 {request.contactEmail ? (
                   <p className="mt-1 text-sm text-[var(--muted)]">
                     {request.contactEmail}
