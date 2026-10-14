@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 import { BazisViewer } from "@/components/bazis/bazis-viewer";
 import {
@@ -22,6 +22,8 @@ export function PartLocator({
   panelIndex: number;
 }) {
   const panel = project.panels[panelIndex];
+  // Каждое нажатие «Показать ещё раз» запускает анимацию заново.
+  const [replay, setReplay] = useState(0);
   const sameParts = useMemo(
     () => findSameParts(project.panels, panelIndex),
     [project, panelIndex],
@@ -77,14 +79,24 @@ export function PartLocator({
       </dl>
 
       <div className="grid gap-2 bg-white p-4">
-        <p className="text-sm font-semibold text-[#252b29]">
-          {sameParts.length > 1
-            ? `Таких деталей в изделии ${sameParts.length}. Деталь подходит в любое из выделенных мест.`
-            : "Место детали в изделии выделено цветом."}
-        </p>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm font-semibold text-[#252b29]">
+            {sameParts.length > 1
+              ? `Таких деталей в изделии ${sameParts.length}. Деталь подходит в любое из выделенных мест.`
+              : "Место детали в изделии выделено цветом."}
+          </p>
+          <button
+            type="button"
+            onClick={() => setReplay((current) => current + 1)}
+            className="inline-flex h-9 items-center justify-center bg-[#a94730] px-3 text-sm font-semibold text-white transition hover:bg-[#8c3a26]"
+          >
+            Показать ещё раз
+          </button>
+        </div>
         <BazisViewer
           boxes={boxes}
           highlightBoxes={sameParts}
+          animationKey={replay}
           heightClassName="h-[62vh] min-h-80"
         />
       </div>

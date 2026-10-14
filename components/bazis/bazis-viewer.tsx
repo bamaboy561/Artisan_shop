@@ -20,7 +20,23 @@ type Face = {
   normal: number[];
   tone: number;
   box: number;
+  // Середина детали: при показе деталь «дышит», увеличиваясь от неё.
+  pivot: number[];
 };
+
+// Показ детали после сканирования QR-кода: камера облетает изделие,
+// деталь дважды выдвигается из своего места и возвращается, всё это время
+// мигая. Потом остаётся просто выделенной.
+const INTRO_MS = 1300;
+const PULSE_MS = 1300;
+const PULSES = 2;
+const ANIMATION_MS = INTRO_MS + PULSE_MS * PULSES;
+const MARK_COLOR = [201, 104, 78];
+const FLASH_COLOR = [255, 176, 72];
+
+const easeOutCubic = (value: number) => 1 - (1 - value) ** 3;
+const mix = (from: number, to: number, amount: number) =>
+  from + (to - from) * amount;
 
 const palette = [
   [214, 190, 160],
@@ -58,23 +74,32 @@ function buildScene(boxes: BazisViewerBox[]) {
   const faces: Face[] = [];
   const min = [Infinity, Infinity, Infinity];
   const max = [-Infinity, -Infinity, -Infinity];
-
-  for (const [boxIndex, box] of boxes.entries()) {
-    const corners = [0, 1].flatMap((layer) =>
+  const boxCorners = boxes.map((box) =>
+    [0, 1].flatMap((layer) =>
       [
         [box.x, box.y],
         [box.x + box.sizeX, box.y],
         [box.x + box.sizeX, box.y + box.sizeY],
         [box.x, box.y + box.sizeY],
       ].map(([x, y]) => toWorld(box.matrix, x, y, layer * box.thickness)),
-    );
+    ),
+  );
 
+  for (const corners of boxCorners) {
     for (const corner of corners) {
       for (let axis = 0; axis < 3; axis += 1) {
         min[axis] = Math.min(min[axis], corner[axis]);
         max[axis] = Math.max(max[axis], corner[axis]);
       }
     }
+  }
+
+  for (const [boxIndex, box] of boxes.entries()) {
+    const corners = boxCorners[boxIndex];
+    const boxCenter = [0, 1, 2].map(
+      (axis) =>
+        corners.reduce((sum, corner) => sum + corner[axis], 0) / corners.length,
+    );
 
     for (const indexes of cornerIndexes) {
       const points = indexes.map((index) => corners[index]);
@@ -95,6 +120,7 @@ function buildScene(boxes: BazisViewerBox[]) {
         normal: normal.map((value) => value / length),
         tone: box.tone,
         box: boxIndex,
+        pivot: boxCenter,
       });
     }
   }
@@ -112,8 +138,12 @@ export function BazisViewer({
   toneColors,
   heightClassName = "h-[60vh] min-h-72",
   highlightBoxes,
+  animationKey,
 }: {
   boxes: BazisViewerBox[];
+  // Если задан, выделенные детали показываются с анимацией. Новое значение
+  // запускает показ заново.
+  animationKey?: number;
   // Номера деталей в boxes, которые нужно выделить: остальные бледнеют.
   // Так показываем, где в изделии стоит конкретная деталь.
   highlightBoxes?: number[];
@@ -134,6 +164,46 @@ export function BazisViewer({
     () => (highlightBoxes ? new Set(highlightBoxes) : null),
     [highlightBoxes],
   );
+  // Сколько миллисекунд идёт показ; null — показа нет.
+  const [elapsed, setElapsed] = useState<number | null>(null);
+  const frameRef = useRef(0);
+
+  function stopAnimation() {
+    cancelAnimationFrame(frameRef.current);
+    setElapsed(null);
+  }
+
+  useEffect(() => {
+    if (
+      animationKey === undefined ||
+      !markedBoxes ||
+      markedBoxes.size === 0 ||
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ) {
+      return;
+    }
+
+    const start = performance.now();
+    const tick = (now: number) => {
+      const passed = now - start;
+
+      if (passed >= ANIMATION_MS) {
+        setElapsed(null);
+        return;
+      }
+
+      setElapsed(passed);
+      frameRef.current = requestAnimationFrame(tick);
+    };
+
+    frameRef.current = requestAnimationFrame((now) => {
+      // Показ заканчивается в обычном общем виде.
+      setView({ yaw: -0.5, pitch: 0.3, zoom: 1 });
+      tick(now);
+    });
+
+    return () => cancelAnimationFrame(frameRef.current);
+  }, [animationKey, markedBoxes]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -165,10 +235,34 @@ export function BazisViewer({
     context.setTransform(ratio, 0, 0, ratio, 0, 0);
     context.clearRect(0, 0, size.width, size.height);
 
-    const cosYaw = Math.cos(view.yaw);
-    const sinYaw = Math.sin(view.yaw);
-    const cosPitch = Math.cos(view.pitch);
-    const sinPitch = Math.sin(view.pitch);
+    // Первые мгновения показа камера подлетает к изделию сбоку и сверху.
+    const intro =
+      elapsed !== null && elapsed < INTRO_MS
+        ? easeOutCubic(elapsed / INTRO_MS)
+        : 1;
+    const shown = {
+      yaw: mix(view.yaw - 1.2, view.yaw, intro),
+      pitch: mix(0.75, view.pitch, intro),
+      zoom: mix(0.6, view.zoom, intro),
+    };
+    // Деталь дважды плавно увеличивается и возвращается к своему размеру,
+    // оставаясь на своём месте в изделии.
+    const pulse =
+      elapsed !== null && elapsed >= INTRO_MS
+        ? Math.sin((((elapsed - INTRO_MS) % PULSE_MS) / PULSE_MS) * Math.PI) **
+          2
+        : 0;
+    const grow = 1 + 0.22 * pulse;
+    // Мигание цветом во время показа.
+    const flash =
+      elapsed !== null ? 0.5 + 0.5 * Math.sin((elapsed / 330) * Math.PI) : 0;
+    const markColor = MARK_COLOR.map((value, index) =>
+      mix(value, FLASH_COLOR[index], flash),
+    );
+    const cosYaw = Math.cos(shown.yaw);
+    const sinYaw = Math.sin(shown.yaw);
+    const cosPitch = Math.cos(shown.pitch);
+    const sinPitch = Math.sin(shown.pitch);
     // Поворот вокруг вертикали (Y), затем наклон вокруг горизонтали (X).
     const rotate = (point: number[]) => {
       const x = point[0] * cosYaw + point[2] * sinYaw;
@@ -181,7 +275,7 @@ export function BazisViewer({
       ];
     };
     const scale =
-      (Math.min(size.width, size.height) / (scene.radius * 2.05)) * view.zoom;
+      (Math.min(size.width, size.height) / (scene.radius * 2.05)) * shown.zoom;
     const light = [0.35, 0.55, 0.76];
     const drawn = scene.faces
       .map((face) => {
@@ -192,8 +286,17 @@ export function BazisViewer({
           return null;
         }
 
+        const marked = markedBoxes?.has(face.box) ?? false;
+        const factor = marked ? grow : 1;
         const points = face.points.map((point) =>
-          rotate(point.map((value, axis) => value - scene.center[axis])),
+          rotate(
+            point.map(
+              (value, axis) =>
+                face.pivot[axis] +
+                (value - face.pivot[axis]) * factor -
+                scene.center[axis],
+            ),
+          ),
         );
         const depth =
           points.reduce((sum, point) => sum + point[2], 0) / points.length;
@@ -212,7 +315,7 @@ export function BazisViewer({
           depth,
           shade,
           tone: face.tone,
-          marked: markedBoxes?.has(face.box) ?? false,
+          marked,
         };
       })
       .filter((face) => face !== null)
@@ -235,11 +338,18 @@ export function BazisViewer({
         : highlightTone !== null && face.tone !== highlightTone;
       const color = muted
         ? [226, 224, 220]
-        : selecting
-          ? [201, 104, 78]
-          : (toneColors?.[face.tone] ?? palette[face.tone % palette.length]);
+        : face.marked
+          ? markColor
+          : selecting
+            ? MARK_COLOR
+            : (toneColors?.[face.tone] ?? palette[face.tone % palette.length]);
 
       context.globalAlpha = muted ? (markedBoxes ? 0.22 : 0.45) : 1;
+      // У выделенной детали контур темнее и толще.
+      context.lineWidth = face.marked ? 1.4 : 0.6;
+      context.strokeStyle = face.marked
+        ? "rgba(110, 38, 18, 0.9)"
+        : "rgba(60, 48, 38, 0.55)";
 
       context.beginPath();
       face.points.forEach((point, index) => {
@@ -260,7 +370,7 @@ export function BazisViewer({
       context.stroke();
     }
     context.globalAlpha = 1;
-  }, [highlightTone, markedBoxes, scene, size, toneColors, view]);
+  }, [elapsed, highlightTone, markedBoxes, scene, size, toneColors, view]);
 
   return (
     <div className="grid gap-2">
@@ -269,9 +379,10 @@ export function BazisViewer({
           <button
             key={item.label}
             type="button"
-            onClick={() =>
-              setView({ yaw: item.yaw, pitch: item.pitch, zoom: 1 })
-            }
+            onClick={() => {
+              stopAnimation();
+              setView({ yaw: item.yaw, pitch: item.pitch, zoom: 1 });
+            }}
             className="border border-[#cbc7bf] bg-white px-3 py-1.5 text-xs font-medium text-[#171714] transition hover:border-[#171714]"
           >
             {item.label}
@@ -307,6 +418,7 @@ export function BazisViewer({
         aria-label="Объёмный вид проекта. Поворачивайте мышью или пальцем."
         className={`${heightClassName} w-full cursor-grab touch-none border border-[#d7d4ce] bg-[#f6f4f0] active:cursor-grabbing`}
         onPointerDown={(event) => {
+          stopAnimation();
           event.currentTarget.setPointerCapture(event.pointerId);
           pointers.current.set(event.pointerId, {
             x: event.clientX,
@@ -364,6 +476,7 @@ export function BazisViewer({
         onPointerUp={(event) => pointers.current.delete(event.pointerId)}
         onPointerCancel={(event) => pointers.current.delete(event.pointerId)}
         onWheel={(event) => {
+          stopAnimation();
           const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
 
           setView((current) => ({
