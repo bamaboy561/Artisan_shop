@@ -18,7 +18,12 @@ export const metadata: Metadata = {
 //   /dg?c=<название проекта GibLab с кодом сайта>&p=<номер позиции детали>
 // Номер позиции в GibLab тот же, что в проекте Базиса.
 type GibLabPartPageProps = {
-  searchParams: Promise<{ c?: string | string[]; p?: string | string[] }>;
+  searchParams: Promise<{
+    c?: string | string[];
+    p?: string | string[];
+    // Если шаблон GibLab не раскодировал «&amp;», позиция приходит так.
+    "amp;p"?: string | string[];
+  }>;
 };
 
 const first = (value: string | string[] | undefined) =>
@@ -61,7 +66,10 @@ export default async function GibLabPartPage({
   let found: PartPageResult = null;
 
   try {
-    found = await loadProject(first(query.c).trim(), first(query.p).trim());
+    found = await loadProject(
+      first(query.c).trim(),
+      (first(query.p) || first(query["amp;p"])).trim(),
+    );
   } catch (error) {
     console.error("[bazis:giblab-part-page]", error);
   }
