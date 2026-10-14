@@ -34,6 +34,13 @@ const ANIMATION_MS = INTRO_MS + PULSE_MS * PULSES;
 const MARK_COLOR = [201, 104, 78];
 const FLASH_COLOR = [255, 176, 72];
 
+// После показа камера остаётся приближенной к детали, а от неё несколько
+// раз расходится кольцо, как от маяка: на длинном изделии деталь иначе
+// теряется на экране телефона.
+const BEACON_MS = 2200;
+const BEACON_WAVES = 6;
+const FOCUS_MAX_ZOOM = 2.6;
+
 const easeOutCubic = (value: number) => 1 - (1 - value) ** 3;
 const mix = (from: number, to: number, amount: number) =>
   from + (to - from) * amount;
@@ -129,7 +136,7 @@ function buildScene(boxes: BazisViewerBox[]) {
   const radius =
     Math.hypot(max[0] - min[0], max[1] - min[1], max[2] - min[2]) / 2 || 1;
 
-  return { faces, center, radius };
+  return { faces, center, radius, boxCorners };
 }
 
 export function BazisViewer({
@@ -167,6 +174,45 @@ export function BazisViewer({
   // Сколько миллисекунд идёт показ; null — показа нет.
   const [elapsed, setElapsed] = useState<number | null>(null);
   const frameRef = useRef(0);
+  // Камера наведена на выделенные детали; кнопки видов возвращают весь макет.
+  const [focused, setFocused] = useState(true);
+  // Сколько миллисекунд идёт «маяк» после показа; null — кольца нет.
+  const [beacon, setBeacon] = useState<number | null>(null);
+  const showing = animationKey !== undefined && (markedBoxes?.size ?? 0) > 0;
+  // Куда и насколько приблизить камеру, чтобы выделенные детали были крупно,
+  // но вокруг оставалась часть изделия и было понятно, где они стоят.
+  const focusTarget = useMemo(() => {
+    if (!showing || !highlightBoxes) {
+      return null;
+    }
+
+    const min = [Infinity, Infinity, Infinity];
+    const max = [-Infinity, -Infinity, -Infinity];
+
+    for (const box of highlightBoxes) {
+      for (const corner of scene.boxCorners[box] ?? []) {
+        for (let axis = 0; axis < 3; axis += 1) {
+          min[axis] = Math.min(min[axis], corner[axis]);
+          max[axis] = Math.max(max[axis], corner[axis]);
+        }
+      }
+    }
+
+    if (!Number.isFinite(min[0])) {
+      return null;
+    }
+
+    const radius =
+      Math.hypot(max[0] - min[0], max[1] - min[1], max[2] - min[2]) / 2 || 1;
+
+    return {
+      center: min.map((value, axis) => (value + max[axis]) / 2),
+      zoom: Math.min(
+        FOCUS_MAX_ZOOM,
+        Math.max(1, (scene.radius * 0.4) / radius),
+      ),
+    };
+  }, [highlightBoxes, scene, showing]);
 
   function stopAnimation() {
     cancelAnimationFrame(frameRef.current);
@@ -199,11 +245,43 @@ export function BazisViewer({
     frameRef.current = requestAnimationFrame((now) => {
       // Показ заканчивается в обычном общем виде.
       setView({ yaw: -0.5, pitch: 0.3, zoom: 1 });
+      setFocused(true);
       tick(now);
     });
 
     return () => cancelAnimationFrame(frameRef.current);
   }, [animationKey, markedBoxes]);
+
+  useEffect(() => {
+    if (
+      !showing ||
+      !focused ||
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ) {
+      return;
+    }
+
+    let frame = 0;
+    const start = performance.now() + ANIMATION_MS;
+    const tick = (now: number) => {
+      const passed = now - start;
+
+      if (passed >= BEACON_MS * BEACON_WAVES) {
+        setBeacon(null);
+        return;
+      }
+
+      setBeacon(passed >= 0 ? passed : null);
+      frame = requestAnimationFrame(tick);
+    };
+
+    frame = requestAnimationFrame(tick);
+
+    return () => {
+      cancelAnimationFrame(frame);
+      setBeacon(null);
+    };
+  }, [animationKey, focused, showing]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -240,10 +318,26 @@ export function BazisViewer({
       elapsed !== null && elapsed < INTRO_MS
         ? easeOutCubic(elapsed / INTRO_MS)
         : 1;
+    // Камера наезжает на деталь во время первого «вдоха».
+    const focus =
+      focusTarget && focused
+        ? elapsed === null
+          ? 1
+          : easeOutCubic(
+              Math.min(1, Math.max(0, (elapsed - INTRO_MS) / PULSE_MS)),
+            )
+        : 0;
+    const center = focusTarget
+      ? scene.center.map((value, axis) =>
+          mix(value, focusTarget.center[axis], focus),
+        )
+      : scene.center;
     const shown = {
       yaw: mix(view.yaw - 1.2, view.yaw, intro),
       pitch: mix(0.75, view.pitch, intro),
-      zoom: mix(0.6, view.zoom, intro),
+      zoom:
+        mix(0.6, view.zoom, intro) *
+        (focusTarget ? mix(1, focusTarget.zoom, focus) : 1),
     };
     // Деталь дважды плавно увеличивается и возвращается к своему размеру,
     // оставаясь на своём месте в изделии.
@@ -294,7 +388,7 @@ export function BazisViewer({
               (value, axis) =>
                 face.pivot[axis] +
                 (value - face.pivot[axis]) * factor -
-                scene.center[axis],
+                center[axis],
             ),
           ),
         );
@@ -315,6 +409,7 @@ export function BazisViewer({
           depth,
           shade,
           tone: face.tone,
+          box: face.box,
           marked,
         };
       })
@@ -330,6 +425,9 @@ export function BazisViewer({
     context.lineJoin = "round";
     context.lineWidth = 0.6;
     context.strokeStyle = "rgba(60, 48, 38, 0.55)";
+
+    // Границы выделенных деталей на экране: вокруг них рисуем кольцо.
+    const markedBounds = new Map<number, number[]>();
 
     for (const face of drawn) {
       const selecting = markedBoxes !== null || highlightTone !== null;
@@ -368,9 +466,87 @@ export function BazisViewer({
         .join(",")})`;
       context.fill();
       context.stroke();
+
+      if (face.marked) {
+        const bounds = markedBounds.get(face.box) ?? [
+          Infinity,
+          Infinity,
+          -Infinity,
+          -Infinity,
+        ];
+
+        for (const point of face.points) {
+          const x = size.width / 2 + point[0] * scale;
+          const y = size.height / 2 - point[1] * scale;
+
+          bounds[0] = Math.min(bounds[0], x);
+          bounds[1] = Math.min(bounds[1], y);
+          bounds[2] = Math.max(bounds[2], x);
+          bounds[3] = Math.max(bounds[3], y);
+        }
+
+        markedBounds.set(face.box, bounds);
+      }
     }
     context.globalAlpha = 1;
-  }, [elapsed, highlightTone, markedBoxes, scene, size, toneColors, view]);
+
+    if (beacon !== null && elapsed === null) {
+      const wave = (beacon % BEACON_MS) / BEACON_MS;
+      // Соседние детали обводим одним кольцом, чтобы кольца не путались.
+      const circles = [...markedBounds.values()].map(
+        ([minX, minY, maxX, maxY]) => ({
+          x: (minX + maxX) / 2,
+          y: (minY + maxY) / 2,
+          r: Math.max(14, Math.hypot(maxX - minX, maxY - minY) / 2 + 8),
+        }),
+      );
+
+      for (let merged = true; merged; ) {
+        merged = false;
+
+        for (let i = 0; i < circles.length && !merged; i += 1) {
+          for (let j = i + 1; j < circles.length && !merged; j += 1) {
+            const a = circles[i];
+            const b = circles[j];
+            const distance = Math.hypot(a.x - b.x, a.y - b.y);
+
+            if (distance < a.r + b.r) {
+              const r = Math.max(a.r, b.r, (distance + a.r + b.r) / 2);
+              const shift = distance > 0 ? (r - a.r) / distance : 0;
+
+              circles[i] = {
+                x: a.x + (b.x - a.x) * shift,
+                y: a.y + (b.y - a.y) * shift,
+                r,
+              };
+              circles.splice(j, 1);
+              merged = true;
+            }
+          }
+        }
+      }
+
+      context.lineWidth = 2.5;
+      context.strokeStyle = `rgba(232, 104, 40, ${0.75 * (1 - wave)})`;
+
+      for (const { x, y, r } of circles) {
+        context.beginPath();
+        context.arc(x, y, r + wave * 36, 0, Math.PI * 2);
+        context.stroke();
+      }
+    }
+  }, [
+    beacon,
+    elapsed,
+    focusTarget,
+    focused,
+    highlightTone,
+    markedBoxes,
+    scene,
+    size,
+    toneColors,
+    view,
+  ]);
 
   return (
     <div className="grid gap-2">
@@ -381,6 +557,7 @@ export function BazisViewer({
             type="button"
             onClick={() => {
               stopAnimation();
+              setFocused(false);
               setView({ yaw: item.yaw, pitch: item.pitch, zoom: 1 });
             }}
             className="border border-[#cbc7bf] bg-white px-3 py-1.5 text-xs font-medium text-[#171714] transition hover:border-[#171714]"
