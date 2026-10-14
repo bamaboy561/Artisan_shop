@@ -7,6 +7,10 @@ import { ArrowLeft } from "lucide-react";
 import { DownloadCsvButton } from "@/components/admin/download-csv-button";
 import { BazisViewer } from "@/components/bazis/bazis-viewer";
 import { PrintRouteSheetButton } from "@/components/admin/print-route-sheet-button";
+import {
+  drillingDiameter,
+  formatDrillingRow,
+} from "@/features/bazis/drilling-summary";
 import { requireAdminSession } from "@/lib/auth/dal";
 import { canAccessRequestType } from "@/lib/auth/roles";
 import {
@@ -292,6 +296,44 @@ export default async function BazisProjectPage({
               готовой детали, как в проекте. Перед раскроем сверьте с проектом,
               особенно детали со сложным контуром.
             </p>
+
+            {project.drilling.holes > 0 ? (
+              <section className="mt-[6mm] break-inside-avoid">
+                <h2 className="text-[11px] font-bold tracking-[0.14em] uppercase">
+                  Присадка: {project.drilling.holes} отв.
+                </h2>
+                <table className="mt-2 w-full border-collapse border border-[#bdb9b1] text-[9px] leading-[1.4]">
+                  <thead>
+                    <tr className="bg-[#f0eeea] text-left">
+                      <th className="border border-[#bdb9b1] px-1.5 py-1 font-semibold">
+                        Диаметр
+                      </th>
+                      <th className="border border-[#bdb9b1] px-1.5 py-1 font-semibold">
+                        Куда
+                      </th>
+                      <th className="w-[20mm] border border-[#bdb9b1] px-1.5 py-1 text-right font-semibold">
+                        Кол-во
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {project.drilling.rows.map((row) => (
+                      <tr key={row.diameter} className="break-inside-avoid">
+                        <td className="border border-[#d7d4ce] px-1.5 py-1">
+                          {drillingDiameter(row.diameter)}
+                        </td>
+                        <td className="border border-[#d7d4ce] px-1.5 py-1">
+                          {formatDrillingRow(row)}
+                        </td>
+                        <td className="border border-[#d7d4ce] px-1.5 py-1 text-right font-semibold">
+                          {row.face + row.edge}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </section>
+            ) : null}
 
             {project.hardware.length > 0 ? (
               <section className="mt-[6mm] break-inside-avoid">

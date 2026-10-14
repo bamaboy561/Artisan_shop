@@ -6,6 +6,7 @@ import { Eye, Plus, Scissors, Trash2, Upload, X } from "lucide-react";
 import { DownloadCsvButton } from "@/components/admin/download-csv-button";
 import { BazisViewer } from "@/components/bazis/bazis-viewer";
 import { guessDecorColor } from "@/features/bazis/decor-color";
+import { DrillingSummary } from "@/features/bazis/drilling-summary";
 import {
   BAZIS_WORKSPACE_KEY,
   CALCULATOR_DRAFT_KEY,
@@ -661,6 +662,8 @@ export function BazisWorkspace({
               </table>
             </div>
           </section>
+
+          <DrillingSummary drilling={project.drilling} />
 
           {project.hardware.length > 0 ? (
             <section className="grid gap-3 bg-white p-4 sm:p-5">

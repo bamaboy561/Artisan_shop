@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 
 import { BazisViewer } from "@/components/bazis/bazis-viewer";
 import { guessDecorColor } from "@/features/bazis/decor-color";
+import { DrillingSummary } from "@/features/bazis/drilling-summary";
 import {
   describeEdgedSides,
   getPartGroupKey,
@@ -131,6 +132,8 @@ export function BazisProjectReadonly({
           </table>
         </div>
       </section>
+
+      <DrillingSummary drilling={project.drilling} />
 
       {project.hardware.length > 0 ? (
         <section className="grid gap-3 bg-white p-4 sm:p-5">

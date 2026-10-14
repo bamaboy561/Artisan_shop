@@ -141,7 +141,7 @@ const png = Buffer.concat([
   Buffer.alloc(8),
 ]);
 
-function project(panels: Node[]) {
+function project(panels: Node[], documentExtra: Node[] = []) {
   const header = encode([
     object("Header", [
       { key: "Version", value: { kind: "int", value: 14 } },
@@ -153,6 +153,7 @@ function project(panels: Node[]) {
     object("Document", [
       { key: "DateTimeLastSaved", value: { kind: "date", value: 46000.5 } },
       object("Model", [object("Objs", panels)]),
+      ...documentExtra,
     ]),
   ]);
 
@@ -249,4 +250,91 @@ test("edge after a rounded corner is still assigned to its side", () => {
   assert.deepEqual([row.length, row.width], [2000, 350]);
   assert.deepEqual([row.edgedLengthSides, row.edgedWidthSides], [1, 1]);
   assert.equal(row.complexContour, true);
+});
+
+const double = (key: string, value: number): Node => ({
+  key,
+  value: { kind: "double", value },
+});
+const int = (key: string, value: number): Node => ({
+  key,
+  value: { kind: "int", value },
+});
+
+// Отверстие модели фурнитуры: точка, направление, диаметр и глубина.
+function hole(
+  [x, y, z]: number[],
+  [dirX, dirY, dirZ]: number[],
+  diameter: number,
+  depth: number,
+): Node {
+  return object("Hole", [
+    double("X", x),
+    double("Y", y),
+    double("Z", z),
+    double("DirX", dirX),
+    double("DirY", dirY),
+    double("DirZ", dirZ),
+    double("Radius", diameter / 2),
+    double("Depth", depth),
+  ]);
+}
+
+test("counts drilling from furniture holes like the GibLab export", () => {
+  // Деталь 500 × 300 × 16 стоит в начале координат, у фурнитуры нет
+  // сдвига: отверстия заданы прямо в координатах детали.
+  const furniture = object("FurnList", [
+    object("F7", [
+      int("FastID", 7),
+      object("Holes", [
+        // Чашка петли с лицевой пласти.
+        hole([100, 100, 16], [0, 0, -1], 35, 13),
+        // Шуруп фасада сквозь стенку ящика: начинается на 0,5 мм внутри.
+        hole([200, 100, 0.5], [0, 0, 1], 4, 30),
+        // Саморез из середины толщины: не сверлят.
+        hole([300, 100, 8], [0, 0, 1], 3.5, 16),
+        // Евровинт в торец: 20 мм внутри детали.
+        hole([-10, 150, 8], [1, 0, 0], 5, 30),
+        // Отверстие соседней детали только касается пласти.
+        hole([400, 100, -16], [0, 0, 1], 8, 16),
+        // Разметка меньше 1,5 мм.
+        hole([450, 100, 16], [0, 0, -1], 1, 3),
+      ]),
+    ]),
+  ]);
+  const fastener = object("Obj", [
+    int("Type", 3001),
+    text("Name", "Крепёж"),
+    int("FastID", 7),
+  ]);
+  // Блок из библиотеки (DatumMode): тем же признаком отмечены и фасады,
+  // поэтому его детали остаются в списке.
+  const leg = object("Obj", [
+    int("Type", 1005),
+    text("Name", "Опора в сборе"),
+    int("DatumMode", 1),
+    object("Objs", [panel("Фронтальная1", 100, 30, [])]),
+  ]);
+
+  const parsed = parseBazisProject(
+    project([panel("Дверь", 500, 300, []), fastener, leg], [furniture]),
+  );
+
+  assert.deepEqual(
+    parsed.panels.map((item) => item.name),
+    ["Дверь", "Фронтальная1"],
+  );
+  assert.deepEqual(parsed.drilling, {
+    holes: 3,
+    rows: [
+      { diameter: 35, face: 1, edge: 0 },
+      { diameter: 5, face: 0, edge: 1 },
+      { diameter: 4, face: 1, edge: 0 },
+    ],
+  });
+  assert.equal(parsed.rows.find((row) => row.name === "Дверь")?.holes, 3);
+  assert.deepEqual(
+    parsed.hardware.map((item) => item.name),
+    ["Крепёж"],
+  );
 });

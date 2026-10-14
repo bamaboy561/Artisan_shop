@@ -31,6 +31,8 @@ export type BazisPanel = {
   // Текстура задана в Базисе: длина идёт вдоль текстуры, поворачивать
   // деталь при раскрое нельзя (в GibLab это txt="true").
   textured: boolean;
+  // Отверстия присадки на детали (см. collectDrilling).
+  holes: number;
   // Положение детали в модели для объёмного просмотра: прямоугольник
   // контура в плоскости детали (x, y, sizeX, sizeY), толщина идёт по оси Z
   // детали, matrix переводит точки детали в координаты модели
@@ -51,6 +53,19 @@ export type BazisHardwareRow = {
   quantity: number;
 };
 
+// Присадка: отверстия, которые станок сверлит в деталях, по диаметрам.
+// face — в пласть, edge — в торец.
+export type BazisDrillingRow = {
+  diameter: number;
+  face: number;
+  edge: number;
+};
+
+export type BazisDrilling = {
+  holes: number;
+  rows: BazisDrillingRow[];
+};
+
 export type BazisPartRow = {
   name: string;
   position: string;
@@ -64,6 +79,8 @@ export type BazisPartRow = {
   edgeMaterial: string;
   complexContour: boolean;
   textured: boolean;
+  // Отверстия во всех деталях строки (уже с учётом количества).
+  holes: number;
 };
 
 export type BazisProject = {
@@ -75,6 +92,7 @@ export type BazisProject = {
   panels: BazisPanel[];
   rows: BazisPartRow[];
   hardware: BazisHardwareRow[];
+  drilling: BazisDrilling;
 };
 
 export class BazisParseError extends Error {}
@@ -88,6 +106,18 @@ const MAX_MODEL_BYTES = 96 * 1024 * 1024;
 const PANEL_TYPE = 4002;
 const BLOCK_TYPE = 1005;
 const HARDWARE_TYPE = 3001;
+// Как в выгрузке Базиса в GibLab: тоньше 6,1 мм (ХДФ) не сверлят,
+// отверстия меньше 1,5 мм — разметка, а не сверление.
+const MIN_DRILL_THICKNESS = 6.1;
+const MIN_DRILL_DIAMETER = 1.5;
+// Отверстие может начинаться чуть в глубине детали (шуруп фасада сквозь
+// стенку ящика начинается на 0,5 мм внутри). Глубже — это саморез,
+// его вкручивают без сверления.
+const HOLE_START_TOLERANCE = 1;
+// Отверстие засчитывается детали, если уходит в неё глубже 0,5 мм,
+// а в торец — глубже 2 мм.
+const MIN_HOLE_DEPTH = 0.5;
+const MIN_EDGE_DEPTH = 2;
 
 // Матрица 3×4 (поворот и сдвиг), записанная по строкам.
 type Matrix = number[];
@@ -435,6 +465,7 @@ function readPanel(
       elements.length !== 4 ||
       elements.some((item) => !item.line),
     textured,
+    holes: 0,
     box: {
       x: Math.min(...xs),
       y: Math.min(...ys),
@@ -446,10 +477,31 @@ function readPanel(
   };
 }
 
+type Hole = {
+  point: number[];
+  direction: number[];
+  diameter: number;
+  depth: number;
+};
+
+type Fastener = { matrix: Matrix; holes: Hole[] };
+
+type Collected = {
+  panels: BazisPanel[];
+  // Точная матрица детали: в box.matrix числа округлены для просмотра.
+  panelMatrices: Matrix[];
+  hardware: Map<string, number>;
+  fasteners: Fastener[];
+  // Отверстия фурнитуры по FastID (раздел FurnList проекта).
+  furniture: Map<number, Hole[]>;
+};
+
+// Блоки фурнитуры из библиотеки (с DatumMode) не пропускаем: тем же
+// признаком отмечены и целые модули кухни, и отдельные фасады, их детали
+// пилить нужно. Лишняя деталь опоры в списке безопаснее пропавшего фасада.
 function collectPanels(
   node: Node,
-  panels: BazisPanel[],
-  hardware: Map<string, number>,
+  collected: Collected,
   parentMatrix: Matrix = IDENTITY,
   depth = 0,
   parentBlock = "",
@@ -474,21 +526,227 @@ function collectPanels(
     const panel = readPanel(node, matrix, block);
 
     if (panel) {
-      panels.push(panel);
+      collected.panels.push(panel);
+      collected.panelMatrices.push(matrix);
     }
   } else if (type === HARDWARE_TYPE) {
     const name = cleanName(text(node, "Name"));
 
     if (name) {
-      hardware.set(name, (hardware.get(name) ?? 0) + 1);
+      collected.hardware.set(name, (collected.hardware.get(name) ?? 0) + 1);
+    }
+
+    const holes = collected.furniture.get(numeric(node, "FastID") ?? NaN);
+
+    if (holes) {
+      collected.fasteners.push({ matrix, holes });
     }
   }
 
   for (const item of node.children) {
     if (item.name === "Objs" || item.name === "Obj" || item.name === "Model") {
-      collectPanels(item, panels, hardware, matrix, depth + 1, block);
+      collectPanels(item, collected, matrix, depth + 1, block);
     }
   }
+}
+
+// Раздел FurnList: для каждой модели фурнитуры (FastID) её отверстия
+// в собственных координатах модели.
+function readFurnitureHoles(
+  node: Node,
+  furniture: Map<number, Hole[]>,
+  depth = 0,
+) {
+  if (depth > MAX_DEPTH) {
+    return;
+  }
+
+  if (node.name === "FurnList") {
+    for (const item of node.children) {
+      const id = numeric(item, "FastID");
+      const holes = (child(item, "Holes")?.children ?? [])
+        .filter((hole) => hole.name === "Hole")
+        .map((hole) => ({
+          point: [
+            numeric(hole, "X") ?? 0,
+            numeric(hole, "Y") ?? 0,
+            numeric(hole, "Z") ?? 0,
+          ],
+          direction: [
+            numeric(hole, "DirX") ?? 0,
+            numeric(hole, "DirY") ?? 0,
+            numeric(hole, "DirZ") ?? 0,
+          ],
+          diameter: 2 * (numeric(hole, "Radius") ?? 0),
+          depth: numeric(hole, "Depth") ?? 0,
+        }))
+        .filter(
+          (hole) => hole.diameter >= MIN_DRILL_DIAMETER && hole.depth > 0,
+        );
+
+      if (id !== null && holes.length > 0) {
+        furniture.set(id, holes);
+      }
+    }
+
+    return;
+  }
+
+  for (const item of node.children) {
+    readFurnitureHoles(item, furniture, depth + 1);
+  }
+}
+
+function transform(matrix: Matrix, vector: number[], isPoint: boolean) {
+  return [0, 1, 2].map(
+    (row) =>
+      matrix[row * 4] * vector[0] +
+      matrix[row * 4 + 1] * vector[1] +
+      matrix[row * 4 + 2] * vector[2] +
+      (isPoint ? matrix[row * 4 + 3] : 0),
+  );
+}
+
+// Обратное преобразование (поворот без масштаба): из модели в деталь.
+function toLocal(matrix: Matrix, vector: number[], isPoint: boolean) {
+  const shifted = isPoint
+    ? [vector[0] - matrix[3], vector[1] - matrix[7], vector[2] - matrix[11]]
+    : vector;
+
+  return [0, 1, 2].map(
+    (column) =>
+      matrix[column] * shifted[0] +
+      matrix[4 + column] * shifted[1] +
+      matrix[8 + column] * shifted[2],
+  );
+}
+
+// Сколько миллиметров отрезка start→end лежит внутри коробки детали.
+function lengthInside(
+  start: number[],
+  end: number[],
+  low: number[],
+  high: number[],
+) {
+  let from = 0;
+  let to = 1;
+
+  for (let axis = 0; axis < 3; axis += 1) {
+    const delta = end[axis] - start[axis];
+
+    if (Math.abs(delta) < 1e-9) {
+      if (start[axis] < low[axis] - 0.01 || start[axis] > high[axis] + 0.01) {
+        return 0;
+      }
+    } else {
+      let enter = (low[axis] - 0.01 - start[axis]) / delta;
+      let leave = (high[axis] + 0.01 - start[axis]) / delta;
+
+      if (enter > leave) {
+        [enter, leave] = [leave, enter];
+      }
+
+      from = Math.max(from, enter);
+      to = Math.min(to, leave);
+
+      if (from >= to) {
+        return 0;
+      }
+    }
+  }
+
+  return (
+    (to - from) *
+    Math.hypot(end[0] - start[0], end[1] - start[1], end[2] - start[2])
+  );
+}
+
+// Присадка по правилам выгрузки Базиса в GibLab: отверстие фурнитуры
+// засчитывается детали, если начинается на её пласти и уходит внутрь
+// (в пласть) или входит в неё через торец глубже 2 мм (в торец).
+// Сквозное отверстие через две детали считается в каждой.
+// Контур детали берётся габаритом: для вырезов это приближение.
+function collectDrilling(collected: Collected): BazisDrilling {
+  const rows = new Map<number, BazisDrillingRow>();
+  let total = 0;
+
+  collected.panels.forEach((panel, index) => {
+    if (panel.thickness < MIN_DRILL_THICKNESS) {
+      return;
+    }
+
+    const matrix = collected.panelMatrices[index];
+    const low = [panel.box.x, panel.box.y, 0];
+    const high = [
+      panel.box.x + panel.box.sizeX,
+      panel.box.y + panel.box.sizeY,
+      panel.thickness,
+    ];
+
+    for (const fastener of collected.fasteners) {
+      for (const hole of fastener.holes) {
+        const start = toLocal(
+          matrix,
+          transform(fastener.matrix, hole.point, true),
+          true,
+        );
+        const direction = toLocal(
+          matrix,
+          transform(fastener.matrix, hole.direction, false),
+          false,
+        );
+        const end = start.map(
+          (value, axis) => value + direction[axis] * hole.depth,
+        );
+        const inside = lengthInside(start, end, low, high);
+
+        // Отверстие соседней детали, которое лишь касается этой, не в счёт.
+        if (inside < MIN_HOLE_DEPTH) {
+          continue;
+        }
+
+        let kind: "face" | "edge" | null = null;
+
+        if (Math.abs(direction[2]) > 0.99) {
+          const fromSurface =
+            direction[2] > 0
+              ? start[2] <= HOLE_START_TOLERANCE
+              : start[2] >= panel.thickness - HOLE_START_TOLERANCE;
+
+          kind = fromSurface ? "face" : null;
+        } else if (
+          Math.abs(direction[2]) < 0.01 &&
+          start[2] > 0 &&
+          start[2] < panel.thickness &&
+          inside > MIN_EDGE_DEPTH &&
+          end[0] >= low[0] - 0.01 &&
+          end[0] <= high[0] + 0.01 &&
+          end[1] >= low[1] - 0.01 &&
+          end[1] <= high[1] + 0.01
+        ) {
+          kind = "edge";
+        }
+
+        if (!kind) {
+          continue;
+        }
+
+        const diameter = Math.round(hole.diameter * 10) / 10;
+        const row = rows.get(diameter) ?? { diameter, face: 0, edge: 0 };
+        row[kind] += 1;
+        rows.set(diameter, row);
+        panel.holes += 1;
+        total += 1;
+      }
+    }
+  });
+
+  return {
+    holes: total,
+    rows: [...rows.values()].sort(
+      (left, right) => right.diameter - left.diameter,
+    ),
+  };
 }
 
 export function groupBazisPanels(panels: BazisPanel[]): BazisPartRow[] {
@@ -520,6 +778,7 @@ export function groupBazisPanels(panels: BazisPanel[]): BazisPartRow[] {
 
     if (existing) {
       existing.quantity += 1;
+      existing.holes += panel.holes;
     } else {
       rows.set(key, {
         name: panel.name,
@@ -534,6 +793,7 @@ export function groupBazisPanels(panels: BazisPanel[]): BazisPartRow[] {
         edgeMaterial,
         complexContour: panel.complexContour,
         textured: panel.textured,
+        holes: panel.holes,
       });
     }
   }
@@ -594,18 +854,34 @@ export function parseBazisProject(file: Buffer): BazisProject {
 
   const model = new Reader(modelBytes);
   model.readKeys();
-  const panels: BazisPanel[] = [];
-  const hardware = new Map<string, number>();
+  const roots: Node[] = [];
 
   while (model.position < modelBytes.length) {
-    const node = model.readNode();
+    roots.push(model.readNode());
+  }
 
+  const collected: Collected = {
+    panels: [],
+    panelMatrices: [],
+    hardware: new Map(),
+    fasteners: [],
+    furniture: new Map(),
+  };
+
+  for (const node of roots) {
+    readFurnitureHoles(node, collected.furniture);
+  }
+
+  for (const node of roots) {
     for (const item of node.children) {
       if (item.name === "Model") {
-        collectPanels(item, panels, hardware);
+        collectPanels(item, collected);
       }
     }
   }
+
+  const { panels, hardware } = collected;
+  const drilling = collectDrilling(collected);
 
   return {
     orderName: cleanName(text(article, "OrderName")),
@@ -626,5 +902,6 @@ export function parseBazisProject(file: Buffer): BazisProject {
           right.quantity - left.quantity ||
           left.name.localeCompare(right.name, "ru"),
       ),
+    drilling,
   };
 }

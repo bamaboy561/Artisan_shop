@@ -1,4 +1,4 @@
-import type { BazisProject } from "@/lib/bazis-b3d";
+import type { BazisDrilling, BazisProject } from "@/lib/bazis-b3d";
 
 // Проект Базиса в том виде, в каком его получает страница просмотра.
 // Детали идут по одной (для объёмного макета), строки списка собираются
@@ -31,6 +31,8 @@ export type BazisViewProject = {
   materials: string[];
   panels: BazisViewPanel[];
   hardware: Array<{ name: string; quantity: number }>;
+  // В проектах, сохранённых в браузере до появления присадки, поля нет.
+  drilling?: BazisDrilling;
 };
 
 export type BazisViewResponse =
@@ -44,6 +46,7 @@ export function toBazisViewProject(project: BazisProject): BazisViewProject {
     orderName: project.orderName || project.modelName,
     materials,
     hardware: project.hardware,
+    drilling: project.drilling,
     panels: project.panels.map((panel) => ({
       name: panel.name,
       position: panel.position,
