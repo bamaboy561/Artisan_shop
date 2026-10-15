@@ -261,6 +261,7 @@ const homoglyphs: Record<string, string> = {
 };
 function looseSkuKey(value: string) {
   return skuKey(value)
+    .replace(/[а-я]/g, (char) => homoglyphs[char] ?? char)
     .replace(/[^0-9a-zа-я]/g, "")
     .replace(/(^|\D)0+(?=\d)/g, "$1");
 }
@@ -271,7 +272,10 @@ function foldLetters(value: string) {
 // Его можно убрать из названия на сайте, остальное название должно совпасть.
 function isNameCode(word: string) {
   const plain = word.replace(/[^0-9a-zа-я]/g, "");
-  if (/^\d{6,}$/.test(plain)) return true;
+  // Число с разделителями — размер или диапазон («564-764»), не артикул.
+  if (/^\d{6,}$/.test(word)) return true;
+  // Размер вида «M8x100» или «1*22» тоже не код.
+  if (/\d[x×*]\d/.test(word)) return false;
   // Коды пишутся латиницей: слово с русскими буквами («печенье1*22мм») не код.
   return (
     plain.length >= 6 &&
@@ -295,16 +299,22 @@ function coreTokens(value: string) {
   const words = foldLetters(value)
     .split(/[\s/\\(),;"«»]+/)
     .filter(Boolean);
-  // Коды поставщика стоят в начале названия. В середине такое слово чаще
+  // Коды поставщика стоят в начале или в конце названия. В середине такое слово чаще
   // размер или исполнение («AKS:192MM», «M.101.S01»), его не выбрасываем;
   // там убираем только числовой артикул.
-  let leading = true;
+  let start = 0;
+  let end = words.length;
+  while (start < end && isNameCode(words[start])) start += 1;
+  // В конце убираем только явный код поставщика («WQ63853M», «6051606S»):
+  // «AKS:320MM» или «M.101.S01» в конце — это исполнение товара.
+  if (
+    end > start + 1 &&
+    /^([a-z]{1,4}\d{4,}[a-z]?|\d{6,}[a-z]?)$/.test(words[end - 1])
+  )
+    end -= 1;
   return words
-    .filter((word) => {
-      if (leading && isNameCode(word)) return false;
-      leading = false;
-      return !/^\d{6,}$/.test(word.replace(/[^0-9a-zа-я]/g, ""));
-    })
+    .slice(start, end)
+    .filter((word) => !/^\d{6,}$/.test(word))
     .flatMap(nameTokens);
 }
 // Одна опечатка в длинном слове допустима: «Галифакс» и «Галифах».
@@ -347,7 +357,7 @@ export function stockNamesSimilar(left: string, right: string) {
 // Сопоставление строки отчёта с товаром сайта, от строгого к мягкому:
 // артикул, артикул без знаков и ведущих нулей, артикул в названии,
 // точное название и, наконец, то же название без кодов и с одной опечаткой.
-function createStockMatcher<
+export function createStockMatcher<
   P extends { id: string; sku: string; name: string },
 >(products: P[]) {
   const bySku = groupBy(products, (product) => skuKey(product.sku));

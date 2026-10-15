@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@/generated/prisma";
 import {
+  createStockMatcher,
   stockPendingCatalogKeys,
   type StockPendingCandidate,
 } from "@/features/admin/stock-import";
@@ -94,8 +95,20 @@ export async function getStockPendingItems(
         lastSeenAt: true,
       },
     }),
-    db.product.findMany({ select: { sku: true, name: true } }),
+    db.product.findMany({ select: { id: true, sku: true, name: true } }),
   ]);
   const catalogKeys = stockPendingCatalogKeys(products);
-  return items.filter((item) => !catalogKeys.has(item.matchKey));
+  // Тот же поиск, что при загрузке остатков: позиция, которую теперь можно
+  // сопоставить с товаром сайта, в списке не показывается.
+  const matcher = createStockMatcher(products);
+  return items.filter(
+    (item) =>
+      !catalogKeys.has(item.matchKey) &&
+      // Артикул, общий для разных позиций 1С, не доказывает совпадение:
+      // такие позиции ищем только по названию.
+      !matcher.find({
+        sku: item.matchKey.includes("|name:") ? "" : (item.sku ?? ""),
+        name: item.name,
+      }).product,
+  );
 }

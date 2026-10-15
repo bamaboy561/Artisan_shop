@@ -401,6 +401,17 @@ test("names that differ by a colour, variant letter or extra word are not merged
     stock.stockNamesSimilar("Кромка ABS СЛОТЕКС-МК", "кромка  abs слотекс-мк"),
     true,
   );
+  assert.equal(
+    stock.stockNamesSimilar(
+      "Меренга 1*22мм WQ63853M",
+      "WQ63853M Меренга 1*22мм",
+    ),
+    true,
+  );
+  assert.equal(
+    stock.stockNamesSimilar("Меренга 1*22мм", "WQ63853М Меренга 1*22мм"),
+    true,
+  );
 });
 test("similar name never steals a product matched exactly by another row", async () => {
   const rows = await plan(
