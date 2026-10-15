@@ -223,6 +223,11 @@ export function StockReconciliationTable({
                       Сопоставлено по названию
                     </p>
                   )}
+                  {entry.match === "similar" && (
+                    <p className="mt-1 text-amber-800">
+                      Похожее название, проверьте
+                    </p>
+                  )}
                   {entry.reason && (
                     <p className="mt-1 leading-5 text-zinc-600">
                       {entry.reason}

@@ -320,13 +320,112 @@ test("empty cells preserve values; absent products are never zeroed; zero stock 
   assert.equal(rows.length, 1);
   assert.equal(rows[0].changes.inventoryStatus, "OUT_OF_STOCK");
 });
-test("unknown SKU never falls back to an unrelated matching name", async () => {
+test("unknown SKU falls back to the same name on the site", async () => {
   const [row] = await plan([
     ["Артикул", "Название", "Цена"],
     ["missing", product().name, 10],
   ]);
-  assert.equal(row.status, "skipped");
-  assert.equal(row.productId, null);
+  assert.equal(row.status, "ready");
+  assert.equal(row.productId, "p1");
+  assert.equal(row.match, "name");
+  assert.match(row.reason, /Артикул missing не найден/);
+});
+test("loose SKU, SKU inside the site name and similar names update existing products", async () => {
+  const catalog = [
+    product({
+      id: "edge",
+      sku: "edge-auto",
+      name: "Кромка ABS 0651 Ar Bergen 1,0 (160001112)",
+    }),
+    product({
+      id: "lsp",
+      sku: "LSP-00042",
+      name: "ЛДСП Egger Дуб Галифакс 16 мм",
+    }),
+    product({
+      id: "lsp18",
+      sku: "LSP-00043",
+      name: "ЛДСП Egger Дуб Галифакс 18 мм",
+    }),
+    product({
+      id: "hinge",
+      sku: "WQ",
+      name: "Петля накладная Blum Clip Top 110",
+    }),
+  ];
+  const rows = await plan(
+    [
+      ["Артикул", "Название", "Остаток"],
+      ["160001112", "Кромка АВS/0651 Bergen", 7],
+      ["lsp 42", "ЛДСП Дуб Галифакс", 3],
+      ["", "ЛДСП  EGGER дуб Галифакс 18мм", 4],
+      ["", "WQ9WE71406-02 Петля накладня BLUM Clip-Top 110", 9],
+      ["", "Петля Blum Clip Top накладная 95", 9],
+    ],
+    catalog,
+    "stock",
+  );
+  assert.deepEqual(
+    rows.map((row) => [row.productId, row.match]),
+    [
+      ["edge", "sku"],
+      ["lsp", "sku"],
+      ["lsp18", "similar"],
+      ["hinge", "similar"],
+      [null, null],
+    ],
+  );
+  assert.match(rows[2].reason, /Похожее название в файле/);
+});
+test("names that differ by a colour, variant letter or extra word are not merged", () => {
+  for (const [left, right] of [
+    [
+      "WQ9WE71406-02 Дуб Кэсл темный 1*22мм",
+      "WQ9WE71406 Дуб Кэсл светлый 1*22мм",
+    ],
+    ["Кромка Китай 1*19", "Кромка Китай"],
+    ["INDO-В 134 КМБР", "INDO 134 КМБР"],
+    ["Плинтус Арбитон", "Плинтус Арбитон (распродажа)"],
+    ["Кромка ПВХ Серый Графит 19/1", "Кромка ПВХ Серый Апельсин 19/1"],
+    [
+      "ARTOS AKS:192MM РУЧКА ЧЕРНЫЙ МАТОВЫЙ",
+      "ARTOS AKS:320MM РУЧКА ЧЕРНЫЙ МАТОВЫЙ",
+    ],
+    [
+      "Кромка ABS M.101.S01 Белый снежный 19*0,8",
+      "Кромка ABS M.101.T01 Белый снежный 19*0,8",
+    ],
+  ])
+    assert.equal(stock.stockNamesSimilar(left, right), false, left);
+  assert.equal(
+    stock.stockNamesSimilar("Кромка ABS СЛОТЕКС-МК", "кромка  abs слотекс-мк"),
+    true,
+  );
+});
+test("similar name never steals a product matched exactly by another row", async () => {
+  const rows = await plan(
+    [
+      ["Название", "Остаток"],
+      ["Петля тестовая", 3],
+      ["Петля тестовая большая", 4],
+    ],
+    [product()],
+    "stock",
+  );
+  assert.equal(rows[0].productId, "p1");
+  assert.equal(rows[0].status, "ready");
+  assert.equal(rows[1].productId, null);
+});
+test("rows matched on the site are removed from the pending list", async () => {
+  const parsed = await parser.parseProductImportFile(
+    excel([
+      ["Артикул", "Название", "Остаток"],
+      ["160001112", "Петля тестовая", 2],
+    ]),
+  );
+  const rows = stock.buildStockImportPlan(parsed.rows, [product()], "stock");
+  const keys = stock.stockMatchedPendingKeys(parsed.rows, rows);
+  assert.ok(keys.has(stock.stockPendingKey({ sku: "160001112", name: "x" })));
 });
 test("unique-name fallback is explicit and ambiguous names or SKUs are skipped", async () => {
   const rows = [
@@ -870,7 +969,7 @@ test("reconciliation includes missing catalog items and shows exact fractional f
   assert.equal(state.writes.length, 0);
 });
 
-test("ambiguous names are review rows, not missing rows, and unknown SKU never falls back to name", async () => {
+test("ambiguous names are review rows, not missing rows, also when the SKU is unknown", async () => {
   const parsed = await parser.parseProductImportFile(
     excel([
       ["Название", "Остаток"],
@@ -892,8 +991,8 @@ test("ambiguous names are review rows, not missing rows, and unknown SKU never f
     products,
     stock.buildStockImportPlan(parsed.rows, products, "stock"),
   );
-  assert.equal(unknown[0].kind, "notFound");
-  assert.equal(unknown.filter((entry) => entry.kind === "missing").length, 2);
+  assert.equal(unknown[0].kind, "review");
+  assert.equal(unknown.filter((entry) => entry.kind === "missing").length, 0);
 });
 
 test("stock reconciliation returns all rows beyond the legacy sample and isolates price changes", async () => {
@@ -1007,4 +1106,26 @@ test("stock pending table creation retries a concurrent create failure", async (
     schema.ensureStockPendingItemsTable(db),
   ]);
   assert.equal(calls, 4);
+});
+
+test("ambiguous similar candidates are never listed as missing from the file", async () => {
+  const parsed = await parser.parseProductImportFile(
+    excel([
+      ["Название", "Остаток"],
+      ["WQ63853M Меренга 1*22мм", 5],
+    ]),
+  );
+  const products = [
+    product({ id: "a", sku: "A", name: "Меренга 1*22мм" }),
+    product({ id: "b", sku: "B", name: "меренга 1*22 мм" }),
+  ];
+  const entries = stock.buildStockReconciliation(
+    parsed.rows,
+    products,
+    stock.buildStockImportPlan(parsed.rows, products, "stock"),
+  );
+  assert.deepEqual(
+    entries.map((entry) => entry.kind),
+    ["review"],
+  );
 });
