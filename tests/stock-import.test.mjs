@@ -992,7 +992,7 @@ test("ambiguous names are review rows, not missing rows, also when the SKU is un
     stock.buildStockImportPlan(parsed.rows, products, "stock"),
   );
   assert.equal(unknown[0].kind, "review");
-  assert.equal(unknown.filter((entry) => entry.kind === "missing").length, 2);
+  assert.equal(unknown.filter((entry) => entry.kind === "missing").length, 0);
 });
 
 test("stock reconciliation returns all rows beyond the legacy sample and isolates price changes", async () => {
@@ -1106,4 +1106,26 @@ test("stock pending table creation retries a concurrent create failure", async (
     schema.ensureStockPendingItemsTable(db),
   ]);
   assert.equal(calls, 4);
+});
+
+test("ambiguous similar candidates are never listed as missing from the file", async () => {
+  const parsed = await parser.parseProductImportFile(
+    excel([
+      ["Название", "Остаток"],
+      ["WQ63853M Меренга 1*22мм", 5],
+    ]),
+  );
+  const products = [
+    product({ id: "a", sku: "A", name: "Меренга 1*22мм" }),
+    product({ id: "b", sku: "B", name: "меренга 1*22 мм" }),
+  ];
+  const entries = stock.buildStockReconciliation(
+    parsed.rows,
+    products,
+    stock.buildStockImportPlan(parsed.rows, products, "stock"),
+  );
+  assert.deepEqual(
+    entries.map((entry) => entry.kind),
+    ["review"],
+  );
 });

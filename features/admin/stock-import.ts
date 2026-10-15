@@ -38,6 +38,8 @@ export type StockImportPlanEntry = StockImportEntry & {
   match?: StockMatch | null;
   // Подходит несколько товаров сайта: строку нужно проверить, а не добавлять.
   ambiguous?: boolean;
+  // Товары, между которыми не удалось выбрать: они не считаются «нет в файле».
+  candidateIds?: string[];
 };
 export type StockImportResult = {
   phase: "preview" | "done" | "error";
@@ -84,7 +86,9 @@ export function buildStockReconciliation(
   const referencedNames = new Set(
     rows.filter((row) => !row.sku).map((row) => nameKey(row.name)),
   );
-  const referencedIds = new Set(plan.map((entry) => entry.productId));
+  const referencedIds = new Set(
+    plan.flatMap((entry) => [entry.productId, ...(entry.candidateIds ?? [])]),
+  );
   const catalogSkus = new Set(products.map((product) => skuKey(product.sku)));
   const catalogNames = new Set(
     products.map((product) => nameKey(product.name)),
@@ -466,7 +470,10 @@ export function buildStockImportPlan(
       match: product ? via : null,
     };
     if (!product) {
-      if (matches.length) entry.ambiguous = true;
+      if (matches.length) {
+        entry.ambiguous = true;
+        entry.candidateIds = matches.map((match) => match.id);
+      }
       entry.reason = matches.length
         ? "Несколько товаров совпадают. Уточните артикул."
         : "Товар не найден. Добавьте карточку через полный импорт товаров.";
