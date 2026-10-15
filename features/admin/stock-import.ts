@@ -285,8 +285,8 @@ function nameTokens(value: string) {
     .map((token) => token.replace(/^\.+|\.+$/g, ""))
     .filter(Boolean);
 }
-// Название без кодов, разбитое на слова и числа, отсортированное: порядок
-// слов, регистр, пробелы, знаки и похожие буквы не важны.
+// Название без кодов, разбитое на слова и числа: регистр, пробелы, знаки
+// и похожие буквы не важны.
 function coreTokens(value: string) {
   const words = foldLetters(value)
     .split(/[\s/\\(),;"«»]+/)
@@ -301,8 +301,7 @@ function coreTokens(value: string) {
       leading = false;
       return !/^\d{6,}$/.test(word.replace(/[^0-9a-zа-я]/g, ""));
     })
-    .flatMap(nameTokens)
-    .sort();
+    .flatMap(nameTokens);
 }
 // Одна опечатка в длинном слове допустима: «Галифакс» и «Галифах».
 function oneEditApart(left: string, right: string) {
@@ -329,17 +328,13 @@ function oneEditApart(left: string, right: string) {
   }
   return edits + (left.length - i) + (right.length - j) <= 1;
 }
+// Порядок слов важен: «под панель L / над R» и «под панель R / над L» разные.
 function sameCore(left: string[], right: string[]) {
   if (left.length !== right.length || left.length < 2) return false;
-  const pool = [...right];
-  for (const token of left) {
-    let index = pool.indexOf(token);
-    if (index < 0)
-      index = pool.findIndex((other) => oneEditApart(token, other));
-    if (index < 0) return false;
-    pool.splice(index, 1);
-  }
-  return true;
+  return left.every(
+    (token, index) =>
+      token === right[index] || oneEditApart(token, right[index]),
+  );
 }
 export function stockNamesSimilar(left: string, right: string) {
   return sameCore(coreTokens(left), coreTokens(right));

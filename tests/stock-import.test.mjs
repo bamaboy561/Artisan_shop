@@ -359,7 +359,7 @@ test("loose SKU, SKU inside the site name and similar names update existing prod
       ["160001112", "Кромка АВS/0651 Bergen", 7],
       ["lsp 42", "ЛДСП Дуб Галифакс", 3],
       ["", "ЛДСП  EGGER дуб Галифакс 18мм", 4],
-      ["", "WQ9WE71406-02 Петля накладня Blum Clip Top 110", 9],
+      ["", "WQ9WE71406-02 Петля накладня BLUM Clip-Top 110", 9],
       ["", "Петля Blum Clip Top накладная 95", 9],
     ],
     catalog,
