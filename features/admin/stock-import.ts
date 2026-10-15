@@ -430,6 +430,44 @@ export function createStockMatcher<
             return { product: inName[0], matches: inName, via: "sku" };
         }
       }
+      // Артикул записан в названии строки («WQ63853M Меренга 1*22мм»),
+      // а на сайте он стоит в поле «Артикул».
+      const words = foldLetters(row.name)
+        .split(/[\s/\\(),;"«»]+/)
+        .filter(Boolean);
+      const rowCore = new Set(
+        coreTokens(row.name).filter((token) => /^[a-zа-я]{4,}$/.test(token)),
+      );
+      const shareWord = (product: P) =>
+        cores.get(product.id)!.some((token) => rowCore.has(token));
+      const bySkuInName = new Set<P>();
+      words.forEach((word, index) => {
+        // Размеры («1*22мм», «2000x22») артикулом не считаем.
+        // Короткие коды тоже бывают: «S-1032-», «WQ1234».
+        const short =
+          !/[а-я]/.test(word) &&
+          /^[a-z]{1,4}\d{4,}[a-z]?$/.test(word.replace(/[^0-9a-z]/g, ""));
+        if (!isNameCode(word) && !short) return;
+        const hits =
+          bySku.get(skuKey(word)) ?? byLooseSku.get(looseSkuKey(word));
+        // Код в начале названия — это артикул самой позиции; в середине
+        // («шуруп для 48080140YA») может быть чужой, тогда нужно общее слово.
+        for (const product of hits ?? [])
+          if (index === 0 || shareWord(product)) bySkuInName.add(product);
+      });
+      if (bySkuInName.size) {
+        let hits = [...bySkuInName];
+        if (hits.length > 1) {
+          const narrowed = hits.filter(
+            (product) => nameKey(product.name) === nameKey(row.name),
+          );
+          hits = narrowed.length ? narrowed : similar(row.name, hits);
+        }
+        if (hits.length === 1)
+          return { product: hits[0], matches: hits, via: "sku" };
+        // Несколько товаров с похожими артикулами: решает человек.
+        return { product: null, matches: [...bySkuInName], via: null };
+      }
       const named = byName.get(nameKey(row.name)) ?? [];
       if (named.length === 1)
         return { product: named[0], matches: named, via: "name" };
@@ -565,9 +603,11 @@ export function buildStockImportPlan(
           ? row.sku
             ? `Артикул ${row.sku} не найден на сайте, совпало название`
             : "Совпадение по уникальному названию (артикул в файле отсутствует)"
-          : row.sku && skuKey(row.sku) !== skuKey(product.sku)
-            ? `Артикул в файле: ${row.sku}`
-            : "",
+          : !row.sku
+            ? `Артикул ${product.sku} найден в названии в файле`
+            : skuKey(row.sku) !== skuKey(product.sku)
+              ? `Артикул в файле: ${row.sku}`
+              : "",
       fractionalStock && (fields as readonly string[]).includes("stockQuantity")
         ? `Остаток округлён вниз: ${String(row.stockQuantity).replace(".", ",")} → ${stockQuantity}`
         : "",

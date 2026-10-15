@@ -1140,3 +1140,47 @@ test("ambiguous similar candidates are never listed as missing from the file", a
     ["review"],
   );
 });
+
+test("article written inside the file name matches the site SKU field", async () => {
+  const parsed = await parser.parseProductImportFile(
+    excel([
+      ["Артикул", "Название", "Остаток"],
+      ["", "WQ63853M Меренга 1*22мм", 5],
+      ["", "Кромка WQ 9WE71406-02 Дуб сонома", 3],
+      ["XX-1", "6051606S Петля накладная", 7],
+      ["", "Шуруп для 48080140YA", 9],
+      ["", "Кромка 2000x22 белая", 4],
+      ["", "S-1032- ABS-Медные сумерки/BS/22/1.0", 2],
+    ]),
+  );
+  const products = [
+    product({ id: "m", sku: "WQ63853M", name: "Кромка Меренга" }),
+    product({ id: "d", sku: "9WE71406-02", name: "Кромка дуб сонома 22мм" }),
+    product({ id: "p", sku: "6051606S", name: "Петля Blum" }),
+    product({ id: "h", sku: "48080140YA", name: "Ручка рейлинг" }),
+    product({ id: "w", sku: "200022", name: "Кромка белая" }),
+    product({ id: "s", sku: "S-1032", name: "Кромка ABS медные сумерки" }),
+  ];
+  const plan = stock.buildStockImportPlan(parsed.rows, products, "stock");
+  assert.deepEqual(
+    plan.map((entry) => entry.productId ?? null),
+    ["m", "d", "p", null, null, "s"],
+  );
+  assert.match(plan[0].reason, /WQ63853M найден в названии/);
+});
+
+test("article in the name stays ambiguous when site SKUs differ only in punctuation", async () => {
+  const parsed = await parser.parseProductImportFile(
+    excel([
+      ["Название", "Остаток"],
+      ["AB_001234 Кромка синяя", 5],
+    ]),
+  );
+  const products = [
+    product({ id: "a", sku: "AB-01234", name: "Кромка белая" }),
+    product({ id: "b", sku: "AB01234", name: "Кромка красная" }),
+  ];
+  const plan = stock.buildStockImportPlan(parsed.rows, products, "stock");
+  assert.equal(plan[0].productId ?? null, null);
+  assert.equal(plan[0].ambiguous, true);
+});
