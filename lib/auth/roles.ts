@@ -184,7 +184,7 @@ export function canAccessAdminPath(roleCode: RoleCode, pathname: string) {
     // Маршрутный лист и проект Базиса с этикетками для сборки.
     return (
       isProductionManager(roleCode) &&
-      /^\/admin\/requests\/[^/]+\/(?:route-sheet|bazis\/[^/]+(?:\/labels)?)\/?$/.test(
+      /^\/admin\/requests\/[^/]+\/(?:route-sheet|bazis\/[^/]+(?:\/labels|\/giblab)?)\/?$/.test(
         pathname,
       )
     );
@@ -205,7 +205,7 @@ export function canAccessAdminPath(roleCode: RoleCode, pathname: string) {
     return true;
   }
 
-  return /^\/admin\/requests\/[^/]+(?:\/route-sheet|\/bazis\/[^/]+(?:\/labels)?)?\/?$/.test(
+  return /^\/admin\/requests\/[^/]+(?:\/route-sheet|\/bazis\/[^/]+(?:\/labels|\/giblab)?)?\/?$/.test(
     pathname,
   );
 }

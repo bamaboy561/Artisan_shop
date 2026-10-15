@@ -2,7 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { deflateSync } from "node:zlib";
 
-import { BazisParseError, parseBazisProject } from "../lib/bazis-b3d";
+import {
+  BazisParseError,
+  parseBazisProject,
+  readBazisGibLabSource,
+} from "../lib/bazis-b3d";
+import { buildGibLabProject } from "../lib/bazis-giblab";
 
 // Собираем маленький проект в том же двоичном виде, что пишет Базис:
 // словарь имён, затем узлы (ключ, число детей, тип, значение).
@@ -336,5 +341,49 @@ test("counts drilling from furniture holes like the GibLab export", () => {
   assert.deepEqual(
     parsed.hardware.map((item) => item.name),
     ["Крепёж"],
+  );
+});
+
+test("GibLab export writes parts, sheet with code, edges and drilling", () => {
+  const furniture = object("FurnList", [
+    object("F7", [
+      int("FastID", 7),
+      object("Holes", [hole([100, 100, 16], [0, 0, -1], 35, 13)]),
+    ]),
+  ]);
+  const fastener = object("Obj", [
+    int("Type", 3001),
+    text("Name", "Петля"),
+    int("FastID", 7),
+  ]);
+  const xml = buildGibLabProject(
+    readBazisGibLabSource(
+      project(
+        [
+          panel("Дверь", 500, 300, [0, 2]),
+          panel("Дверь", 500, 300, [0, 2]),
+          fastener,
+        ],
+        [furniture],
+      ),
+    ),
+  );
+
+  // Две одинаковые двери — одна строка с количеством 2: петля стоит только
+  // в одной, поэтому строк две.
+  assert.match(xml, /<project importBMV="1\.86">/);
+  assert.match(
+    xml,
+    /name="Дверь" dl="500\.00" dw="300\.00" count="1" txt="false" code="1"/,
+  );
+  assert.match(
+    xml,
+    /<good typeId="sheet" id="\d+" t="16\.00" name="ЛДСП 16 мм Белый" code="77">/,
+  );
+  assert.match(xml, /<operation typeId="EL" id="1" tool1="\d+" >/);
+  assert.match(xml, /elt="@operation#1" elb ="@operation#1"/);
+  assert.match(
+    xml,
+    /&lt;bf x=&quot;100&quot; y=&quot;200&quot; dp=&quot;13&quot; name=&quot;Bore35&quot;/,
   );
 });

@@ -490,6 +490,8 @@ type Collected = {
   panels: BazisPanel[];
   // Точная матрица детали: в box.matrix числа округлены для просмотра.
   panelMatrices: Matrix[];
+  // Исходные узлы деталей: из них выгрузка в GibLab берёт контур и кромку.
+  panelNodes: Node[];
   hardware: Map<string, number>;
   fasteners: Fastener[];
   // Отверстия фурнитуры по FastID (раздел FurnList проекта).
@@ -528,6 +530,7 @@ function collectPanels(
     if (panel) {
       collected.panels.push(panel);
       collected.panelMatrices.push(matrix);
+      collected.panelNodes.push(node);
     }
   } else if (type === HARDWARE_TYPE) {
     const name = cleanName(text(node, "Name"));
@@ -806,7 +809,7 @@ export function groupBazisPanels(panels: BazisPanel[]): BazisPartRow[] {
   );
 }
 
-export function parseBazisProject(file: Buffer): BazisProject {
+function readProject(file: Buffer) {
   if (file.length < 32 || file.subarray(0, 4).toString("latin1") !== "BZ85") {
     throw new BazisParseError("Это не проект Базис-Мебельщик (.b3d).");
   }
@@ -863,6 +866,7 @@ export function parseBazisProject(file: Buffer): BazisProject {
   const collected: Collected = {
     panels: [],
     panelMatrices: [],
+    panelNodes: [],
     hardware: new Map(),
     fasteners: [],
     furniture: new Map(),
@@ -880,6 +884,12 @@ export function parseBazisProject(file: Buffer): BazisProject {
     }
   }
 
+  return { headerNode, article, version, thumbnail, materials, collected };
+}
+
+export function parseBazisProject(file: Buffer): BazisProject {
+  const { article, version, thumbnail, materials, collected } =
+    readProject(file);
   const { panels, hardware } = collected;
   const drilling = collectDrilling(collected);
 
@@ -903,5 +913,152 @@ export function parseBazisProject(file: Buffer): BazisProject {
           left.name.localeCompare(right.name, "ru"),
       ),
     drilling,
+  };
+}
+
+// Данные для выгрузки в GibLab (lib/bazis-giblab.ts): контур детали
+// элементами, кромка по элементам, текстура, материал вместе с кодом
+// (вторая строка названия) и все отверстия фурнитуры в координатах модели.
+export type GibLabContourElement =
+  | { type: 1; x1: number; y1: number; x2: number; y2: number }
+  | {
+      type: 2;
+      cx: number;
+      cy: number;
+      x1: number;
+      y1: number;
+      x2: number;
+      y2: number;
+      flag: number;
+    }
+  | { type: 3; cx: number; cy: number; r: number };
+
+export type GibLabButt = {
+  elem: number;
+  material: string;
+  thickness: number;
+  width: number;
+  clip: boolean;
+};
+
+export type GibLabSourcePanel = {
+  name: string;
+  artPos: string;
+  material: string;
+  thickness: number;
+  texDir: number;
+  frontFace: number | null;
+  matrix: number[];
+  elements: GibLabContourElement[];
+  butts: GibLabButt[];
+};
+
+export type GibLabSourceHole = {
+  start: number[];
+  direction: number[];
+  diameter: number;
+  depth: number;
+};
+
+export type GibLabSource = {
+  modelName: string;
+  orderName: string;
+  modelCode: string;
+  panels: GibLabSourcePanel[];
+  holes: GibLabSourceHole[];
+};
+
+function readContourElements(blob: Buffer) {
+  const elements: GibLabContourElement[] = [];
+
+  if (blob.length < 4) {
+    return elements;
+  }
+
+  const total = blob.readUInt32LE(0);
+  let position = 4;
+  const numbers = (count: number) =>
+    Array.from({ length: count }, (_, index) =>
+      blob.readDoubleLE(position + 1 + index * 8),
+    );
+
+  for (let index = 0; index < total && index < 10_000; index += 1) {
+    const kind = blob[position];
+
+    if (kind === 0x10 && position + 33 <= blob.length) {
+      const [x1, y1, x2, y2] = numbers(4);
+      elements.push({ type: 1, x1, y1, x2, y2 });
+      position += 33;
+    } else if (kind === 0x11 && position + 25 <= blob.length) {
+      const [cx, cy, r] = numbers(3);
+      elements.push({ type: 3, cx, cy, r });
+      position += 25;
+    } else if (kind === 0x12 && position + 50 <= blob.length) {
+      const [cx, cy, x1, y1, x2, y2] = numbers(6);
+      elements.push({
+        type: 2,
+        cx,
+        cy,
+        x1,
+        y1,
+        x2,
+        y2,
+        flag: blob[position + 49],
+      });
+      position += 50;
+    } else {
+      break;
+    }
+  }
+
+  return elements;
+}
+
+export function readBazisGibLabSource(file: Buffer): GibLabSource {
+  const { article, collected } = readProject(file);
+  const panels = collected.panelNodes.map((node, index) => {
+    const contour = child(node, "Contour")?.value;
+
+    return {
+      name: text(node, "Name"),
+      artPos: text(node, "ArtPos"),
+      material: text(node, "Mat"),
+      thickness: numeric(node, "Thick") ?? 0,
+      texDir: numeric(node, "TexDir") ?? 0,
+      frontFace: numeric(node, "FrontFace"),
+      matrix: collected.panelMatrices[index],
+      elements: Buffer.isBuffer(contour) ? readContourElements(contour) : [],
+      butts: (child(node, "Butts")?.children ?? [])
+        .filter((item) => item.name === "Butt")
+        .map((butt) => ({
+          elem: numeric(butt, "Elem") ?? -1,
+          material: text(butt, "Mat"),
+          thickness: numeric(butt, "Thick") ?? 0,
+          width: numeric(butt, "Width") ?? -1,
+          // Нет поля Clip — кромка с подрезкой (так считает Базис).
+          clip: child(butt, "Clip")?.value !== false,
+        })),
+    };
+  });
+  const holes = collected.fasteners.flatMap((fastener) =>
+    fastener.holes.map((hole) => {
+      const direction = transform(fastener.matrix, hole.direction, false);
+      const length = Math.hypot(...direction) || 1;
+
+      return {
+        start: transform(fastener.matrix, hole.point, true),
+        direction: direction.map((value) => value / length),
+        diameter: hole.diameter,
+        depth: hole.depth,
+      };
+    }),
+  );
+
+  return {
+    modelName: text(article, "Name"),
+    orderName: text(article, "OrderName"),
+    modelCode: text(article, "Code"),
+    panels,
+    holes,
   };
 }

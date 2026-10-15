@@ -159,6 +159,12 @@ export default async function BazisProjectPage({
           </a>
           {project ? (
             <>
+              <a
+                href={`/admin/requests/${request.id}/bazis/${file.id}/giblab`}
+                className="inline-flex h-11 items-center justify-center bg-[var(--foreground)] px-4 text-sm font-semibold text-white transition hover:bg-[var(--accent)]"
+              >
+                Скачать для GibLab (.project)
+              </a>
               <Link
                 href={`/admin/requests/${request.id}/bazis/${file.id}/labels`}
                 className="inline-flex h-11 items-center justify-center border border-[color:var(--line-strong)] bg-white px-4 text-sm font-medium text-[var(--foreground)] transition hover:border-[color:var(--accent)] hover:text-[var(--accent)]"
