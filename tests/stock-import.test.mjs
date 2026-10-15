@@ -358,8 +358,8 @@ test("loose SKU, SKU inside the site name and similar names update existing prod
       ["Артикул", "Название", "Остаток"],
       ["160001112", "Кромка АВS/0651 Bergen", 7],
       ["lsp 42", "ЛДСП Дуб Галифакс", 3],
-      ["", "ЛДСП EGGER дуб Галифакс натуральный 18мм", 4],
-      ["", "Петля Blum Clip Top накладная 110", 9],
+      ["", "ЛДСП  EGGER дуб Галифакс 18мм", 4],
+      ["", "WQ9WE71406-02 Петля накладня Blum Clip Top 110", 9],
       ["", "Петля Blum Clip Top накладная 95", 9],
     ],
     catalog,
@@ -376,6 +376,23 @@ test("loose SKU, SKU inside the site name and similar names update existing prod
     ],
   );
   assert.match(rows[2].reason, /Похожее название в файле/);
+});
+test("names that differ by a colour, variant letter or extra word are not merged", () => {
+  for (const [left, right] of [
+    [
+      "WQ9WE71406-02 Дуб Кэсл темный 1*22мм",
+      "WQ9WE71406 Дуб Кэсл светлый 1*22мм",
+    ],
+    ["Кромка Китай 1*19", "Кромка Китай"],
+    ["INDO-В 134 КМБР", "INDO 134 КМБР"],
+    ["Плинтус Арбитон", "Плинтус Арбитон (распродажа)"],
+    ["Кромка ПВХ Серый Графит 19/1", "Кромка ПВХ Серый Апельсин 19/1"],
+  ])
+    assert.equal(stock.stockNamesSimilar(left, right), false, left);
+  assert.equal(
+    stock.stockNamesSimilar("Кромка ABS СЛОТЕКС-МК", "кромка  abs слотекс-мк"),
+    true,
+  );
 });
 test("similar name never steals a product matched exactly by another row", async () => {
   const rows = await plan(
@@ -944,7 +961,7 @@ test("reconciliation includes missing catalog items and shows exact fractional f
   assert.equal(state.writes.length, 0);
 });
 
-test("ambiguous names are review rows, not missing rows, and unknown SKU never falls back to name", async () => {
+test("ambiguous names are review rows, not missing rows, also when the SKU is unknown", async () => {
   const parsed = await parser.parseProductImportFile(
     excel([
       ["Название", "Остаток"],
@@ -966,7 +983,7 @@ test("ambiguous names are review rows, not missing rows, and unknown SKU never f
     products,
     stock.buildStockImportPlan(parsed.rows, products, "stock"),
   );
-  assert.equal(unknown[0].kind, "notFound");
+  assert.equal(unknown[0].kind, "review");
   assert.equal(unknown.filter((entry) => entry.kind === "missing").length, 2);
 });
 

@@ -36,6 +36,8 @@ export type StockImportPlanEntry = StockImportEntry & {
   productId: string | null;
   updatedAt: string | null;
   match?: StockMatch | null;
+  // Подходит несколько товаров сайта: строку нужно проверить, а не добавлять.
+  ambiguous?: boolean;
 };
 export type StockImportResult = {
   phase: "preview" | "done" | "error";
@@ -108,6 +110,7 @@ export function buildStockReconciliation(
         entry.status === "error" ||
         entry.status === "conflict"
           ? !entry.productId &&
+            !entry.ambiguous &&
             !(row.sku
               ? catalogSkus.has(skuKey(row.sku))
               : catalogNames.has(nameKey(row.name)))
@@ -257,102 +260,111 @@ function looseSkuKey(value: string) {
     .replace(/[^0-9a-zа-я]/g, "")
     .replace(/(^|\D)0+(?=\d)/g, "$1");
 }
+function foldLetters(value: string) {
+  return nameKey(value).replace(/[а-я]/g, (char) => homoglyphs[char] ?? char);
+}
+// Слово-код: артикул или код 1С внутри названия («WQ9WE71406-02», «160001112»).
+// Его можно убрать из названия на сайте, остальное название должно совпасть.
+function isNameCode(word: string) {
+  const plain = word.replace(/[^0-9a-zа-я]/g, "");
+  if (/^\d{6,}$/.test(plain)) return true;
+  // Коды пишутся латиницей: слово с русскими буквами («печенье1*22мм») не код.
+  return (
+    plain.length >= 6 &&
+    /\d/.test(plain) &&
+    /[a-z]/.test(plain) &&
+    !/[а-я]/.test(plain) &&
+    !/^\d+([*x×.,/]\d+)*(mm|m|cm|мм|см|м)?$/.test(word)
+  );
+}
 function nameTokens(value: string) {
-  return nameKey(value)
-    .replace(
-      /[абвгдеёжзийклмнопрстуфхцчшщъыьэюяa-z]/g,
-      (char) => homoglyphs[char] ?? char,
-    )
+  return foldLetters(value)
     .replace(/(\d),(\d)/g, "$1.$2")
     .replace(/(\d)(?=[a-zа-я])|([a-zа-я])(?=\d)/g, "$1$2 ")
     .split(/[^0-9a-zа-я.]+/)
     .map((token) => token.replace(/^\.+|\.+$/g, ""))
     .filter(Boolean);
 }
-function trigrams(tokens: string[]) {
-  const text = ` ${[...tokens].sort().join(" ")} `;
-  const grams = new Set<string>();
-  for (let index = 0; index < text.length - 2; index += 1)
-    grams.add(text.slice(index, index + 3));
-  return grams;
+// Название без кодов, разбитое на слова и числа, отсортированное: порядок
+// слов, регистр, пробелы, знаки и похожие буквы не важны.
+function coreTokens(value: string) {
+  return foldLetters(value)
+    .split(/[\s/\\(),;"«»]+/)
+    .filter((word) => word && !isNameCode(word))
+    .flatMap(nameTokens)
+    .sort();
 }
-function dice(left: Set<string>, right: Set<string>) {
-  if (!left.size || !right.size) return 0;
-  let shared = 0;
-  for (const item of left) if (right.has(item)) shared += 1;
-  return (2 * shared) / (left.size + right.size);
+// Одна опечатка в длинном слове допустима: «Галифакс» и «Галифах».
+function oneEditApart(left: string, right: string) {
+  if (left.length < 6 || right.length < 6) return false;
+  if (/\d/.test(left) || /\d/.test(right)) return false;
+  if (Math.abs(left.length - right.length) > 1) return false;
+  let i = 0;
+  let j = 0;
+  let edits = 0;
+  while (i < left.length && j < right.length) {
+    if (left[i] === right[j]) {
+      i += 1;
+      j += 1;
+      continue;
+    }
+    edits += 1;
+    if (edits > 1) return false;
+    if (left.length > right.length) i += 1;
+    else if (right.length > left.length) j += 1;
+    else {
+      i += 1;
+      j += 1;
+    }
+  }
+  return edits + (left.length - i) + (right.length - j) <= 1;
 }
-type NameProfile = {
-  tokens: Set<string>;
-  numbers: string[];
-  grams: Set<string>;
-};
-function nameProfile(value: string): NameProfile {
-  const tokens = nameTokens(value);
-  return {
-    tokens: new Set(tokens),
-    numbers: tokens.filter((token) => /\d/.test(token)),
-    grams: trigrams(tokens),
-  };
-}
-// Числа в названии (толщина, размер, код цвета) различают товары: у похожих
-// названий числа одного должны входить в числа другого.
-function numbersCompatible(left: string[], right: string[]) {
-  const [small, large] =
-    left.length <= right.length ? [left, right] : [right, left];
-  const pool = [...large];
-  for (const number of small) {
-    const index = pool.indexOf(number);
+function sameCore(left: string[], right: string[]) {
+  if (left.length !== right.length || left.length < 2) return false;
+  const pool = [...right];
+  for (const token of left) {
+    let index = pool.indexOf(token);
+    if (index < 0)
+      index = pool.findIndex((other) => oneEditApart(token, other));
     if (index < 0) return false;
     pool.splice(index, 1);
   }
   return true;
 }
-const SIMILAR_MIN_SCORE = 0.72;
-const SIMILAR_MIN_GAP = 0.08;
-export function stockNameSimilarity(left: string, right: string) {
-  return profileSimilarity(nameProfile(left), nameProfile(right));
-}
-function profileSimilarity(left: NameProfile, right: NameProfile) {
-  if (!numbersCompatible(left.numbers, right.numbers)) return 0;
-  return (dice(left.tokens, right.tokens) + dice(left.grams, right.grams)) / 2;
+export function stockNamesSimilar(left: string, right: string) {
+  return sameCore(coreTokens(left), coreTokens(right));
 }
 
 // Сопоставление строки отчёта с товаром сайта, от строгого к мягкому:
 // артикул, артикул без знаков и ведущих нулей, артикул в названии,
-// точное название и, наконец, однозначно похожее название.
+// точное название и, наконец, то же название без кодов и с одной опечаткой.
 function createStockMatcher<
   P extends { id: string; sku: string; name: string },
 >(products: P[]) {
   const bySku = groupBy(products, (product) => skuKey(product.sku));
   const byLooseSku = groupBy(products, (product) => looseSkuKey(product.sku));
   const byName = groupBy(products, (product) => nameKey(product.name));
+  const cores = new Map<string, string[]>();
+  const byCoreToken = new Map<string, P[]>();
   const byNameToken = new Map<string, P[]>();
-  const profiles = new Map<string, NameProfile>();
+  const add = (map: Map<string, P[]>, key: string, product: P) => {
+    const list = map.get(key);
+    if (list) {
+      if (list[list.length - 1] !== product) list.push(product);
+    } else map.set(key, [product]);
+  };
   for (const product of products) {
-    const profile = nameProfile(product.name);
-    profiles.set(product.id, profile);
-    for (const token of profile.tokens) {
-      const list = byNameToken.get(token);
-      if (list) list.push(product);
-      else byNameToken.set(token, [product]);
-    }
+    const core = coreTokens(product.name);
+    cores.set(product.id, core);
+    for (const token of core) add(byCoreToken, token, product);
+    for (const word of foldLetters(product.name).split(/[\s/\\(),;"«»]+/))
+      if (word) add(byNameToken, looseSkuKey(word), product);
   }
-  const unique = (list: P[] | undefined) =>
-    list?.length === 1 ? list[0] : null;
-  const closest = (profile: NameProfile, candidates: Iterable<P>) => {
-    let best: P | null = null;
-    let bestScore = 0;
-    let secondScore = 0;
-    for (const candidate of candidates) {
-      const score = profileSimilarity(profile, profiles.get(candidate.id)!);
-      if (score > bestScore) {
-        secondScore = bestScore;
-        bestScore = score;
-        best = candidate;
-      } else if (score > secondScore) secondScore = score;
-    }
-    return { best, bestScore, secondScore };
+  const similar = (name: string, candidates: Iterable<P>) => {
+    const core = coreTokens(name);
+    return [...new Set(candidates)].filter((candidate) =>
+      sameCore(core, cores.get(candidate.id)!),
+    );
   };
 
   return {
@@ -361,36 +373,39 @@ function createStockMatcher<
       matches: P[];
       via: StockMatch | null;
     } {
-      const profile = nameProfile(row.name);
       if (row.sku) {
         const exact = bySku.get(skuKey(row.sku)) ?? [];
         if (exact.length === 1)
           return { product: exact[0], matches: exact, via: "sku" };
         if (exact.length > 1) {
           // Один артикул у нескольких товаров: выбираем по названию.
-          const named = exact.filter(
+          let named = exact.filter(
             (product) => nameKey(product.name) === nameKey(row.name),
           );
-          if (named.length === 1)
-            return { product: named[0], matches: exact, via: "sku" };
-          const { best, bestScore, secondScore } = closest(profile, exact);
-          if (
-            best &&
-            bestScore >= SIMILAR_MIN_SCORE &&
-            bestScore - secondScore >= SIMILAR_MIN_GAP
-          )
-            return { product: best, matches: exact, via: "sku" };
-          return { product: null, matches: exact, via: null };
+          if (!named.length) named = similar(row.name, exact);
+          return named.length === 1
+            ? { product: named[0], matches: exact, via: "sku" }
+            : { product: null, matches: exact, via: null };
         }
         const loose = looseSkuKey(row.sku);
-        const looseProduct =
-          loose.length >= 3 ? unique(byLooseSku.get(loose)) : null;
-        if (looseProduct)
-          return { product: looseProduct, matches: [looseProduct], via: "sku" };
+        const looseMatches = loose.length >= 3 ? byLooseSku.get(loose) : null;
+        if (looseMatches?.length === 1)
+          return {
+            product: looseMatches[0],
+            matches: looseMatches,
+            via: "sku",
+          };
         // Артикул из 1С записан на сайте в названии товара.
-        if (loose.length >= 4) {
-          const inName = (byNameToken.get(loose) ?? []).filter(
-            (product) => looseSkuKey(product.sku) !== loose,
+        if (loose.length >= 5) {
+          // «Шуруп для 48080140YA» упоминает чужой артикул: нужно хотя бы
+          // одно общее слово в названиях.
+          const rowCore = new Set(
+            coreTokens(row.name).filter((token) =>
+              /^[a-zа-я]{4,}$/.test(token),
+            ),
+          );
+          const inName = (byNameToken.get(loose) ?? []).filter((product) =>
+            cores.get(product.id)!.some((token) => rowCore.has(token)),
           );
           if (inName.length === 1)
             return { product: inName[0], matches: inName, via: "sku" };
@@ -401,20 +416,25 @@ function createStockMatcher<
         return { product: named[0], matches: named, via: "name" };
       if (named.length > 1) return { product: null, matches: named, via: null };
 
-      const candidates = new Set<P>();
-      for (const token of profile.tokens) {
-        if (token.length < 3) continue;
-        for (const product of byNameToken.get(token) ?? [])
-          candidates.add(product);
-      }
-      const { best, bestScore, secondScore } = closest(profile, candidates);
-      if (
-        best &&
-        bestScore >= SIMILAR_MIN_SCORE &&
-        bestScore - secondScore >= SIMILAR_MIN_GAP
-      )
-        return { product: best, matches: [best], via: "similar" };
-      return { product: null, matches: [], via: null };
+      const core = coreTokens(row.name);
+      const rare = [...core]
+        .filter((token) => token.length >= 3)
+        .sort(
+          (a, b) =>
+            (byCoreToken.get(a)?.length ?? 0) -
+            (byCoreToken.get(b)?.length ?? 0),
+        )[0];
+      const pool = rare
+        ? (byCoreToken.get(rare) ?? [])
+        : core.length
+          ? (byCoreToken.get(core[0]) ?? [])
+          : [];
+      let found = similar(row.name, pool);
+      // Опечатка могла попасть в самое редкое слово: проверяем всех.
+      if (!found.length && rare) found = similar(row.name, products);
+      if (found.length === 1)
+        return { product: found[0], matches: found, via: "similar" };
+      return { product: null, matches: found, via: null };
     },
   };
 }
@@ -441,6 +461,7 @@ export function buildStockImportPlan(
       match: product ? via : null,
     };
     if (!product) {
+      if (matches.length) entry.ambiguous = true;
       entry.reason = matches.length
         ? "Несколько товаров совпадают. Уточните артикул."
         : "Товар не найден. Добавьте карточку через полный импорт товаров.";
