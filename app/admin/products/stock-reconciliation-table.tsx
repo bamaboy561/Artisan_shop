@@ -3,7 +3,9 @@
 import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { StockProductPicker } from "@/app/admin/products/stock-product-picker";
 import {
+  type StockProductOption,
   type StockReconciliationEntry,
   stockImportStatusLabels,
 } from "@/features/admin/stock-import";
@@ -30,12 +32,16 @@ export function StockReconciliationTable({
   onSelection,
   disabled,
   preview,
+  manualLinks = {},
+  onLink,
 }: {
   entries: StockReconciliationEntry[];
   selected: Set<string>;
   onSelection: (keys: Set<string>) => void;
   disabled: boolean;
   preview: boolean;
+  manualLinks?: Record<string, StockProductOption>;
+  onLink?: (linkKey: string, product: StockProductOption | null) => void;
 }) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("issues");
@@ -228,11 +234,42 @@ export function StockReconciliationTable({
                       Похожее название, проверьте
                     </p>
                   )}
+                  {entry.match === "linked" && (
+                    <p className="mt-1 text-emerald-800">
+                      {entry.linkKey && manualLinks[entry.linkKey]
+                        ? "Выбрано вами, запомнится после «Применить»"
+                        : "Запомненное совпадение"}
+                      {preview &&
+                      entry.linkKey &&
+                      manualLinks[entry.linkKey] &&
+                      onLink ? (
+                        <button
+                          type="button"
+                          disabled={disabled}
+                          onClick={() => onLink(entry.linkKey!, null)}
+                          className="ml-2 text-zinc-500 underline underline-offset-2"
+                        >
+                          Отменить
+                        </button>
+                      ) : null}
+                    </p>
+                  )}
                   {entry.reason && (
                     <p className="mt-1 leading-5 text-zinc-600">
                       {entry.reason}
                     </p>
                   )}
+                  {preview &&
+                  onLink &&
+                  entry.linkKey &&
+                  entry.match === null &&
+                  (entry.kind === "notFound" || entry.kind === "review") ? (
+                    <StockProductPicker
+                      suggestions={entry.suggestions ?? []}
+                      disabled={disabled}
+                      onPick={(product) => onLink(entry.linkKey!, product)}
+                    />
+                  ) : null}
                 </td>
               </tr>
             ))}

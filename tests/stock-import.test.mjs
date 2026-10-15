@@ -609,6 +609,24 @@ function actionFixture({
       },
       pruneStockPendingItems: async () => {},
       getStockLinks: async () => state.links ?? new Map(),
+      saveStockLinks: async (_db, links, options) => {
+        state.savedLinks = [
+          ...(state.savedLinks ?? []),
+          ...links.map((link) => ({ ...link, ...options })),
+        ];
+        return links.map((link) => ({
+          matchKey: link.matchKey,
+          previousProductId: null,
+        }));
+      },
+    },
+    "@/lib/server/stock-history": {
+      recordStockImport: async (_db, log) => {
+        state.logs = [...(state.logs ?? []), log];
+        return { id: `log${state.logs.length}` };
+      },
+      attachStockImportLinks: async () => {},
+      undoStockImport: async () => null,
     },
     "@/lib/server/stock-pending-schema": {
       ensureStockPendingItemsTable: async () => {},
@@ -1095,7 +1113,9 @@ test("stock pending table is created once at runtime", async () => {
   };
   await schema.ensureStockPendingItemsTable(db);
   await schema.ensureStockPendingItemsTable(db);
-  assert.equal(statements.length, 4);
+  assert.equal(statements.length, 9);
+  assert.match(statements[4], /CREATE TABLE IF NOT EXISTS "StockLink"/);
+  assert.match(statements[7], /CREATE TABLE IF NOT EXISTS "StockImportLog"/);
   assert.match(statements[3], /ADD COLUMN IF NOT EXISTS "linkedProductId"/);
   assert.match(statements[0], /CREATE TABLE IF NOT EXISTS "StockPendingItem"/);
   assert.match(
@@ -1118,7 +1138,7 @@ test("stock pending table creation retries a concurrent create failure", async (
     schema.ensureStockPendingItemsTable(db),
     schema.ensureStockPendingItemsTable(db),
   ]);
-  assert.equal(calls, 5);
+  assert.equal(calls, 10);
 });
 
 test("ambiguous similar candidates are never listed as missing from the file", async () => {
@@ -1258,4 +1278,154 @@ test("rows missing on the site get the nearest site product as a suggestion", ()
     matcher.suggest(row).map((item) => item.id),
     ["a"],
   );
+});
+
+test("«Это он» in the check table links a row, and apply remembers matches and logs changes", async () => {
+  const { action, state, data } = actionFixture();
+  state.products.push(
+    product({
+      id: "p2",
+      sku: "KR-1",
+      name: "Кромка ПВХ белая",
+      stockQuantity: 0,
+    }),
+  );
+  const file = accountingReport();
+  const first = await action(data("preview", undefined, "stock", file));
+  const edge = first.reconciliation.find((entry) => entry.name === "Кромка");
+  assert.equal(edge.kind, "notFound");
+  assert.ok(edge.linkKey);
+  const manualLinks = JSON.stringify({ [edge.linkKey]: "p2" });
+  const relinked = data("preview", undefined, "stock", file);
+  relinked.set("manualLinks", manualLinks);
+  const second = await action(relinked);
+  const linked = second.reconciliation.find(
+    (entry) => entry.linkKey === edge.linkKey,
+  );
+  assert.equal(linked.match, "linked");
+  assert.equal(linked.selectable, true);
+
+  const apply = data("apply", second.fingerprint, "stock", file);
+  apply.set("manualLinks", manualLinks);
+  apply.set(
+    "selectedRows",
+    JSON.stringify(
+      second.reconciliation
+        .filter((entry) => entry.selectable)
+        .map((entry) => entry.key),
+    ),
+  );
+  const done = await action(apply);
+  assert.equal(done.phase, "done");
+  assert.deepEqual(
+    state.savedLinks.map((link) => [link.productId, link.manual]),
+    [
+      ["p1", false],
+      ["p2", true],
+    ],
+  );
+  assert.equal(state.logs.length, 1);
+  assert.deepEqual(
+    state.logs[0].changes.map((change) => [
+      change.productId,
+      change.before.stockQuantity,
+      change.after.stockQuantity,
+    ]),
+    [
+      ["p1", 8, 2],
+      ["p2", 0, 127],
+    ],
+  );
+  // Связь с несуществующим товаром не принимается.
+  const forged = data("preview", undefined, "stock", file);
+  forged.set("manualLinks", JSON.stringify({ [edge.linkKey]: "missing" }));
+  const ignored = await action(forged);
+  assert.equal(
+    ignored.reconciliation.find((entry) => entry.linkKey === edge.linkKey).kind,
+    "notFound",
+  );
+});
+
+test("exact SKU matches are not remembered, similar ones are once approved", () => {
+  const rows = [
+    { sku: "A-1", name: "Петля" },
+    { sku: "", name: "WQ63853M Меренга 1*22мм" },
+  ];
+  const plan = [
+    { productId: "a", sku: "A-1", match: "sku", status: "updated" },
+    { productId: "m", sku: "M", match: "similar", status: "updated" },
+  ];
+  assert.deepEqual(
+    stock
+      .stockLinksToRemember(rows, plan, new Set(["a", "m"]))
+      .map((link) => link.productId),
+    ["m"],
+  );
+  assert.deepEqual(stock.stockLinksToRemember(rows, plan, new Set()), []);
+});
+
+test("undo restores only products untouched since the import and drops its links", async () => {
+  const history = loadAction("../lib/server/stock-history.ts", {
+    "@/lib/server/stock-pending-schema": {
+      ensureStockPendingItemsTable: async () => {},
+    },
+  });
+  const calls = { updates: [], deletes: [], logUpdate: null };
+  const products = {
+    a: { stockQuantity: 5, inventoryStatus: "LIMITED" },
+    b: { stockQuantity: 9, inventoryStatus: "IN_STOCK" },
+  };
+  const db = {
+    stockImportLog: {
+      findUnique: async () => ({
+        id: "log1",
+        createdAt: new Date("2026-10-15"),
+        undoneAt: null,
+        changes: [
+          {
+            productId: "a",
+            before: { stockQuantity: 1, inventoryStatus: "LIMITED" },
+            after: { stockQuantity: 5, inventoryStatus: "LIMITED" },
+          },
+          {
+            productId: "b",
+            before: { stockQuantity: 2, inventoryStatus: "LIMITED" },
+            after: { stockQuantity: 7, inventoryStatus: "IN_STOCK" },
+          },
+        ],
+        links: [{ matchKey: "k", previousProductId: null }],
+      }),
+      count: async () => 0,
+      update: async (query) => {
+        calls.logUpdate = query;
+      },
+    },
+    product: {
+      updateMany: (query) => {
+        calls.updates.push(query);
+        return query;
+      },
+    },
+    stockLink: {
+      deleteMany: async (query) => calls.deletes.push(query),
+      updateMany: async () => {},
+    },
+    $transaction: async (queries) =>
+      queries.map(({ where, data }) => {
+        const current = products[where.id];
+        const same = Object.entries(where).every(
+          ([key, value]) => key === "id" || current[key] === value,
+        );
+        if (same) Object.assign(current, data);
+        return { count: same ? 1 : 0 };
+      }),
+  };
+  const result = await history.undoStockImport(db, "log1");
+  assert.deepEqual(result, { restored: 1, skipped: 1, blocked: false });
+  assert.equal(products.a.stockQuantity, 1);
+  assert.equal(products.b.stockQuantity, 9);
+  assert.deepEqual(calls.deletes, [
+    { where: { matchKey: "k", importLogId: "log1" } },
+  ]);
+  assert.ok(calls.logUpdate.data.undoneAt instanceof Date);
 });

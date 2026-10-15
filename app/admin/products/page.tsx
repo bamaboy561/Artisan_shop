@@ -16,6 +16,7 @@ import {
 } from "@/app/admin/actions";
 import { ProductImportForm } from "@/app/admin/products/product-import-form";
 import { ProductStockImportForm } from "@/app/admin/products/product-stock-import-form";
+import { StockImportHistory } from "@/app/admin/products/stock-import-history";
 import { StockPendingList } from "@/app/admin/products/stock-pending-list";
 import { StockThresholdsForm } from "@/app/admin/products/stock-thresholds-form";
 import {
@@ -36,6 +37,7 @@ import { SectionHeading } from "@/components/ui/section-heading";
 import { Select } from "@/components/ui/select";
 import { requireAdminSession } from "@/lib/auth/dal";
 import { getDb, hasDatabaseUrl } from "@/lib/db";
+import { getStockImportHistory } from "@/lib/server/stock-history";
 import { getStockPendingItems } from "@/lib/server/stock-pending";
 import {
   getAdminProductFormOptions,
@@ -231,6 +233,7 @@ export default async function AdminProductsPage({
     resolvedSearchParams,
     pendingItems,
     stockThresholds,
+    stockHistory,
   ] = await Promise.all([
     getAdminProductFormOptions(),
     getAdminProducts(),
@@ -238,6 +241,7 @@ export default async function AdminProductsPage({
     // Таблица списка может ещё не существовать, если схема не применена.
     getStockPendingItems(getDb()).catch(() => null),
     getStockThresholds().catch(() => DEFAULT_STOCK_THRESHOLDS),
+    getStockImportHistory(getDb()).catch(() => null),
   ]);
 
   const pendingPrefillItem = pendingItems?.find(
@@ -526,6 +530,8 @@ export default async function AdminProductsPage({
         </details>
 
         <StockPendingList items={pendingItems} />
+
+        <StockImportHistory items={stockHistory} />
 
         <StockThresholdsForm thresholds={stockThresholds} />
 

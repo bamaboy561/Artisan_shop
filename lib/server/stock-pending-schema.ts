@@ -61,4 +61,44 @@ async function createStockPendingItemsTable(db: SchemaDb) {
     ALTER TABLE "StockPendingItem"
     ADD COLUMN IF NOT EXISTS "linkedProductId" TEXT;
   `);
+
+  await db.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "StockLink" (
+      "id" TEXT NOT NULL,
+      "matchKey" TEXT NOT NULL,
+      "productId" TEXT NOT NULL,
+      "sku" TEXT,
+      "name" TEXT NOT NULL,
+      "manual" BOOLEAN NOT NULL DEFAULT false,
+      "importLogId" TEXT,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "StockLink_pkey" PRIMARY KEY ("id")
+    );
+  `);
+  await db.$executeRawUnsafe(`
+    CREATE UNIQUE INDEX IF NOT EXISTS "StockLink_matchKey_key"
+    ON "StockLink" ("matchKey");
+  `);
+  await db.$executeRawUnsafe(`
+    CREATE INDEX IF NOT EXISTS "StockLink_productId_idx"
+    ON "StockLink" ("productId");
+  `);
+  await db.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "StockImportLog" (
+      "id" TEXT NOT NULL,
+      "fileName" TEXT NOT NULL,
+      "userId" TEXT,
+      "mode" TEXT NOT NULL,
+      "changes" JSONB NOT NULL,
+      "links" JSONB NOT NULL,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "undoneAt" TIMESTAMP(3),
+      CONSTRAINT "StockImportLog_pkey" PRIMARY KEY ("id")
+    );
+  `);
+  await db.$executeRawUnsafe(`
+    CREATE INDEX IF NOT EXISTS "StockImportLog_createdAt_idx"
+    ON "StockImportLog" ("createdAt");
+  `);
 }
