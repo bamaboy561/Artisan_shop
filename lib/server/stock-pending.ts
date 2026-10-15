@@ -1,6 +1,7 @@
 import type { PrismaClient } from "@/generated/prisma";
 import {
   createStockMatcher,
+  stockLinkKey,
   stockPendingCatalogKeys,
   type StockPendingCandidate,
 } from "@/features/admin/stock-import";
@@ -16,7 +17,21 @@ export type StockPendingListItem = {
   sourceFile: string | null;
   firstSeenAt: Date;
   lastSeenAt: Date;
+  // Похожие товары сайта: если позиция на самом деле есть, её связывают.
+  suggestions: Array<{ id: string; sku: string; name: string }>;
 };
+
+// Связи «позиция 1С → товар сайта», заданные вручную.
+export async function getStockLinks(db: PrismaClient) {
+  await ensureStockPendingItemsTable(db);
+  const items = await db.stockPendingItem.findMany({
+    where: { linkedProductId: { not: null } },
+    select: { sku: true, name: true, linkedProductId: true },
+  });
+  return new Map(
+    items.map((item) => [stockLinkKey(item), item.linkedProductId!] as const),
+  );
+}
 
 // Сохраняет позиции отчёта, которых нет на сайте. Повторная загрузка
 // обновляет количество и дату, а скрытые позиции остаются скрытыми.
@@ -57,7 +72,9 @@ export async function pruneStockPendingItems(
   await ensureStockPendingItemsTable(db);
   const catalogKeys = stockPendingCatalogKeys(products);
   for (const key of matchedKeys) catalogKeys.add(key);
+  // Связанные вручную позиции хранят связь, их не удаляем.
   const items = await db.stockPendingItem.findMany({
+    where: { linkedProductId: null },
     select: { id: true, matchKey: true },
   });
   const resolved = items
@@ -93,6 +110,7 @@ export async function getStockPendingItems(
         sourceFile: true,
         firstSeenAt: true,
         lastSeenAt: true,
+        linkedProductId: true,
       },
     }),
     db.product.findMany({ select: { id: true, sku: true, name: true } }),
@@ -101,14 +119,21 @@ export async function getStockPendingItems(
   // Тот же поиск, что при загрузке остатков: позиция, которую теперь можно
   // сопоставить с товаром сайта, в списке не показывается.
   const matcher = createStockMatcher(products);
-  return items.filter(
-    (item) =>
-      !catalogKeys.has(item.matchKey) &&
-      // Артикул, общий для разных позиций 1С, не доказывает совпадение:
-      // такие позиции ищем только по названию.
-      !matcher.find({
-        sku: item.matchKey.includes("|name:") ? "" : (item.sku ?? ""),
-        name: item.name,
-      }).product,
-  );
+  const productIds = new Set(products.map((product) => product.id));
+  return items.flatMap(({ matchKey, linkedProductId, ...item }) => {
+    // Связанная позиция скрыта, пока жив товар; если его удалили, позиция
+    // снова видна и её можно связать заново.
+    if (linkedProductId && productIds.has(linkedProductId)) return [];
+    // Артикул, общий для разных позиций 1С, не доказывает совпадение:
+    // такие позиции ищем только по названию.
+    const row = {
+      sku: matchKey.includes("|name:") ? "" : (item.sku ?? ""),
+      name: item.name,
+    };
+    if (catalogKeys.has(matchKey) || matcher.find(row).product) return [];
+    const suggestions = matcher
+      .suggest({ sku: item.sku ?? "", name: item.name })
+      .map(({ id, sku, name }) => ({ id, sku, name }));
+    return [{ ...item, suggestions }];
+  });
 }

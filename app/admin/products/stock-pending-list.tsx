@@ -1,6 +1,9 @@
 import { Download, ListPlus } from "lucide-react";
 import Link from "next/link";
-import { dismissStockPendingItemAction } from "@/app/admin/products/stock-import-actions";
+import {
+  dismissStockPendingItemAction,
+  linkStockPendingItemAction,
+} from "@/app/admin/products/stock-import-actions";
 import { ConfirmDeleteButton } from "@/components/admin/confirm-delete-button";
 import type { StockPendingListItem } from "@/lib/server/stock-pending";
 
@@ -69,7 +72,9 @@ export function StockPendingList({
               </a>
               <span>
                 Проще всего нажать «Добавить» у позиции: название, артикул и
-                остаток подставятся сами. Добавленные товары уйдут из списка.
+                остаток подставятся сами. Если товар уже есть на сайте под
+                другим названием, выберите его и нажмите «Это он», затем снова
+                проверьте файл: остаток запишется, и дальше товар найдётся сам.
               </span>
             </div>
             <div
@@ -98,6 +103,37 @@ export function StockPendingList({
                         <p className="font-medium">{item.name}</p>
                         {item.note ? (
                           <p className="mt-1 text-amber-800">{item.note}</p>
+                        ) : null}
+                        {item.suggestions.length ? (
+                          <form
+                            action={linkStockPendingItemAction}
+                            className="mt-2 flex flex-wrap items-center gap-1.5"
+                          >
+                            <input type="hidden" name="id" value={item.id} />
+                            <label
+                              className="sr-only"
+                              htmlFor={`link-${item.id}`}
+                            >
+                              Товар на сайте
+                            </label>
+                            <select
+                              id={`link-${item.id}`}
+                              name="productId"
+                              className="max-w-full min-w-0 rounded-lg border border-zinc-300 bg-white px-2 py-1"
+                            >
+                              {item.suggestions.map((product) => (
+                                <option key={product.id} value={product.id}>
+                                  Есть на сайте: {product.name} ({product.sku})
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              type="submit"
+                              className="rounded-full border border-emerald-700 px-2.5 py-1 font-medium whitespace-nowrap text-emerald-800 hover:bg-emerald-50"
+                            >
+                              Это он
+                            </button>
+                          </form>
                         ) : null}
                       </td>
                       <td className="p-2 font-mono break-all text-zinc-600">

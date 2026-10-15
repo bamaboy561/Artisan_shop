@@ -23,6 +23,7 @@ import {
   getUnpaidReservedQuantities,
 } from "@/lib/server/inventory-reservations";
 import {
+  getStockLinks,
   pruneStockPendingItems,
   saveStockPendingItems,
 } from "@/lib/server/stock-pending";
@@ -83,6 +84,12 @@ export async function processStockImportAction(
 
   const db = getDb();
   let products: StockProduct[];
+  let links = new Map<string, string>();
+  try {
+    links = await getStockLinks(db);
+  } catch {
+    // Без связей, заданных вручную, сверка всё равно работает.
+  }
   try {
     products = await db.product.findMany({
       select: {
@@ -104,7 +111,7 @@ export async function processStockImportAction(
         "Не удалось загрузить каталог для сверки. Товары не изменены; повторите проверку.",
     };
   }
-  const plan = buildStockImportPlan(parsed.rows, products, mode);
+  const plan = buildStockImportPlan(parsed.rows, products, mode, links);
   const reconcile =
     mode === "stock" ||
     (mode === "all" && parsed.rows.every((row) => row.inventoryReport));
@@ -426,6 +433,33 @@ export async function dismissStockPendingItemAction(formData: FormData) {
   await getDb().stockPendingItem.updateMany({
     where: { id, dismissedAt: null },
     data: { dismissedAt: new Date() },
+  });
+  revalidatePath("/admin/products");
+}
+
+// «Это он»: позиция 1С есть на сайте под другим названием или артикулом.
+// Связь запоминается; остаток записывается при следующей проверке файла,
+// где он сложится со всеми позициями 1С этого товара.
+export async function linkStockPendingItemAction(formData: FormData) {
+  const session = await requireAdminSession(
+    "/login?next=/admin/products",
+    "/admin/products",
+  );
+  if (!canAccessGeneralAdmin(session.roleCode) || !hasDatabaseUrl()) return;
+  const id = formData.get("id");
+  const productId = formData.get("productId");
+  if (typeof id !== "string" || !id) return;
+  if (typeof productId !== "string" || !productId) return;
+  const db = getDb();
+  await ensureStockPendingItemsTable(db);
+  const product = await db.product.findUnique({
+    where: { id: productId },
+    select: { id: true },
+  });
+  if (!product) return;
+  await db.stockPendingItem.updateMany({
+    where: { id },
+    data: { linkedProductId: productId, dismissedAt: null },
   });
   revalidatePath("/admin/products");
 }

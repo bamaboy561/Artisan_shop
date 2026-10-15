@@ -31,7 +31,7 @@ export type StockImportEntry = {
   before: StockValues | null;
   changes: Partial<StockValues>;
 };
-export type StockMatch = "sku" | "name" | "similar";
+export type StockMatch = "sku" | "name" | "similar" | "linked";
 export type StockImportPlanEntry = StockImportEntry & {
   productId: string | null;
   updatedAt: string | null;
@@ -40,6 +40,8 @@ export type StockImportPlanEntry = StockImportEntry & {
   ambiguous?: boolean;
   // Товары, между которыми не удалось выбрать: они не считаются «нет в файле».
   candidateIds?: string[];
+  // Сумма остатков нескольких позиций 1С, которые ведут на один товар сайта.
+  fileQuantity?: number;
 };
 export type StockImportResult = {
   phase: "preview" | "done" | "error";
@@ -96,7 +98,7 @@ export function buildStockReconciliation(
   const entries: StockReconciliationEntry[] = plan.map((entry, index) => {
     const row = rows[index];
     const siteQuantity = entry.before?.stockQuantity ?? null;
-    const fileQuantity = row.stockQuantity;
+    const fileQuantity = entry.fileQuantity ?? row.stockQuantity;
     const difference =
       siteQuantity !== null && fileQuantity !== null
         ? fileQuantity - siteQuantity
@@ -285,6 +287,13 @@ function isNameCode(word: string) {
     !/^\d+([*x×.,/]\d+)*(mm|m|cm|мм|см|м)?$/.test(word)
   );
 }
+// Короткий код поставщика: «S-1032-», «WQ1234».
+function isShortCode(word: string) {
+  return (
+    !/[а-я]/.test(word) &&
+    /^[a-z]{1,4}\d{4,}[a-z]?$/.test(word.replace(/[^0-9a-z]/g, ""))
+  );
+}
 function nameTokens(value: string) {
   return foldLetters(value)
     .replace(/(\d),(\d)/g, "$1.$2")
@@ -304,7 +313,11 @@ function coreTokens(value: string) {
   // там убираем только числовой артикул.
   let start = 0;
   let end = words.length;
-  while (start < end && isNameCode(words[start])) start += 1;
+  while (
+    start < end - 1 &&
+    (isNameCode(words[start]) || isShortCode(words[start]))
+  )
+    start += 1;
   // В конце убираем только явный код поставщика («WQ63853M», «6051606S»):
   // «AKS:320MM» или «M.101.S01» в конце — это исполнение товара.
   if (
@@ -359,7 +372,8 @@ export function stockNamesSimilar(left: string, right: string) {
 // точное название и, наконец, то же название без кодов и с одной опечаткой.
 export function createStockMatcher<
   P extends { id: string; sku: string; name: string },
->(products: P[]) {
+>(products: P[], links: ReadonlyMap<string, string> = new Map()) {
+  const byId = new Map(products.map((product) => [product.id, product]));
   const bySku = groupBy(products, (product) => skuKey(product.sku));
   const byLooseSku = groupBy(products, (product) => looseSkuKey(product.sku));
   const byName = groupBy(products, (product) => nameKey(product.name));
@@ -392,6 +406,11 @@ export function createStockMatcher<
       matches: P[];
       via: StockMatch | null;
     } {
+      // Позицию 1С уже связали с товаром вручную в списке «Нет на сайте».
+      // Связь привязана к артикулу вместе с названием: другая позиция 1С
+      // с тем же артикулом её не наследует.
+      const linked = byId.get(links.get(stockLinkKey(row)) ?? "");
+      if (linked) return { product: linked, matches: [linked], via: "linked" };
       if (row.sku) {
         const exact = bySku.get(skuKey(row.sku)) ?? [];
         if (exact.length === 1)
@@ -443,11 +462,7 @@ export function createStockMatcher<
       const bySkuInName = new Set<P>();
       words.forEach((word, index) => {
         // Размеры («1*22мм», «2000x22») артикулом не считаем.
-        // Короткие коды тоже бывают: «S-1032-», «WQ1234».
-        const short =
-          !/[а-я]/.test(word) &&
-          /^[a-z]{1,4}\d{4,}[a-z]?$/.test(word.replace(/[^0-9a-z]/g, ""));
-        if (!isNameCode(word) && !short) return;
+        if (!isNameCode(word) && !isShortCode(word)) return;
         const hits =
           bySku.get(skuKey(word)) ?? byLooseSku.get(looseSkuKey(word));
         // Код в начале названия — это артикул самой позиции; в середине
@@ -493,6 +508,45 @@ export function createStockMatcher<
         return { product: found[0], matches: found, via: "similar" };
       return { product: null, matches: found, via: null };
     },
+    // Ближайшие товары сайта для позиции, которую не удалось сопоставить:
+    // человек выбирает нужный, и связь запоминается.
+    suggest(row: { sku: string; name: string }, limit = 3): P[] {
+      // Редкое слово («кашемир») весит больше частого («кромка», «22»).
+      const weight = (token: string) =>
+        1 / Math.log(2 + (byCoreToken.get(token)?.length ?? 0));
+      const total = (tokens: Iterable<string>) =>
+        [...new Set(tokens)].reduce((sum, token) => sum + weight(token), 0);
+      const core = new Set(coreTokens(row.name));
+      const rowWeight = total(core);
+      const codes = [row.sku, ...foldLetters(row.name).split(/\s+/)]
+        .map(looseSkuKey)
+        .filter((code) => code.length >= 4 && /\d/.test(code));
+      const shared = new Map<P, number>();
+      for (const token of core)
+        for (const product of byCoreToken.get(token) ?? [])
+          shared.set(product, (shared.get(product) ?? 0) + weight(token));
+      const scores = [...shared].map(
+        ([product, value]) =>
+          [
+            product,
+            (2 * value) / (rowWeight + total(cores.get(product.id)!)),
+          ] as const,
+      );
+      for (const code of codes)
+        for (const product of [
+          ...(byLooseSku.get(code) ?? []),
+          ...(byNameToken.get(code) ?? []),
+        ])
+          scores.push([product, 1]);
+      const best = new Map<P, number>();
+      for (const [product, score] of scores)
+        best.set(product, Math.max(best.get(product) ?? 0, score));
+      return [...best]
+        .filter(([, score]) => score >= 0.5)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, limit)
+        .map(([product]) => product);
+    },
   };
 }
 
@@ -500,8 +554,9 @@ export function buildStockImportPlan(
   rows: ProductImportRow[],
   products: StockProduct[],
   mode: StockImportMode,
+  links: ReadonlyMap<string, string> = new Map(),
 ) {
-  const matcher = createStockMatcher(products);
+  const matcher = createStockMatcher(products, links);
   const plan: StockImportPlanEntry[] = rows.map((row) => {
     const { product, matches, via } = matcher.find(row);
     const entry: StockImportPlanEntry = {
@@ -522,9 +577,12 @@ export function buildStockImportPlan(
         entry.ambiguous = true;
         entry.candidateIds = matches.map((match) => match.id);
       }
+      const nearest = matches.length ? [] : matcher.suggest(row, 1);
       entry.reason = matches.length
         ? "Несколько товаров совпадают. Уточните артикул."
-        : "Товар не найден. Добавьте карточку через полный импорт товаров.";
+        : nearest.length
+          ? `Товар не найден. Похожий на сайте: «${nearest[0].name}» (${nearest[0].sku}). Если это он, нажмите «Это он» в списке «Нет на сайте» и проверьте файл снова.`
+          : "Товар не найден. Добавьте карточку через полный импорт товаров.";
       return entry;
     }
     const fileName = row.name.trim();
@@ -575,12 +633,7 @@ export function buildStockImportPlan(
     }
     if (mode !== "price") {
       if (stockQuantity !== null) {
-        proposed.inventoryStatus =
-          stockQuantity <= 0
-            ? InventoryStatus.OUT_OF_STOCK
-            : stockQuantity <= 5
-              ? InventoryStatus.LIMITED
-              : InventoryStatus.IN_STOCK;
+        proposed.inventoryStatus = stockStatus(stockQuantity);
       } else if (row.inventoryStatus) {
         proposed.inventoryStatus = row.inventoryStatus;
       }
@@ -597,17 +650,19 @@ export function buildStockImportPlan(
     );
     entry.status = Object.keys(entry.changes).length ? "ready" : "unchanged";
     entry.reason = [
-      via === "similar"
-        ? `Похожее название в файле: «${fileName}»`
-        : via === "name"
-          ? row.sku
-            ? `Артикул ${row.sku} не найден на сайте, совпало название`
-            : "Совпадение по уникальному названию (артикул в файле отсутствует)"
-          : !row.sku
-            ? `Артикул ${product.sku} найден в названии в файле`
-            : skuKey(row.sku) !== skuKey(product.sku)
-              ? `Артикул в файле: ${row.sku}`
-              : "",
+      via === "linked"
+        ? `Связано вручную: «${fileName}»`
+        : via === "similar"
+          ? `Похожее название в файле: «${fileName}»`
+          : via === "name"
+            ? row.sku
+              ? `Артикул ${row.sku} не найден на сайте, совпало название`
+              : "Совпадение по уникальному названию (артикул в файле отсутствует)"
+            : !row.sku
+              ? `Артикул ${product.sku} найден в названии в файле`
+              : skuKey(row.sku) !== skuKey(product.sku)
+                ? `Артикул в файле: ${row.sku}`
+                : "",
       fractionalStock && (fields as readonly string[]).includes("stockQuantity")
         ? `Остаток округлён вниз: ${String(row.stockQuantity).replace(".", ",")} → ${stockQuantity}`
         : "",
@@ -621,8 +676,63 @@ export function buildStockImportPlan(
     plan.filter((entry) => entry.productId),
     (entry) => entry.productId!,
   );
+  const productById = new Map(products.map((product) => [product.id, product]));
   for (const entries of byProduct.values()) {
     if (entries.length < 2) continue;
+    const groupRows = entries.map((entry) => rows[plan.indexOf(entry)]);
+    // Один цвет кромки от разных поставщиков (PGR, WQ) — разные позиции 1С,
+    // а на сайте одна карточка: её остаток равен сумме этих позиций.
+    const distinctItems =
+      new Set(groupRows.map((row) => `${skuKey(row.sku)}|${nameKey(row.name)}`))
+        .size === entries.length;
+    const stockOnly = groupRows.every(
+      (row) => mode === "stock" || (mode === "all" && row.inventoryReport),
+    );
+    if (
+      distinctItems &&
+      stockOnly &&
+      entries.every(
+        (entry) => entry.status === "ready" || entry.status === "unchanged",
+      ) &&
+      groupRows.every(
+        (row) => row.stockQuantity !== null && row.stockQuantity >= 0,
+      )
+    ) {
+      const product = productById.get(entries[0].productId!)!;
+      const primary =
+        entries.find((entry) => entry.match !== "similar") ?? entries[0];
+      const total =
+        Math.round(
+          groupRows.reduce((sum, row) => sum + row.stockQuantity!, 0) * 1000,
+        ) / 1000;
+      const quantity = Math.floor(total);
+      const proposed: Partial<StockValues> = {
+        stockQuantity: quantity,
+        inventoryStatus: stockStatus(quantity),
+      };
+      primary.changes = Object.fromEntries(
+        Object.entries(proposed).filter(
+          ([key, value]) => product[key as keyof StockValues] !== value,
+        ),
+      );
+      primary.status = Object.keys(primary.changes).length
+        ? "ready"
+        : "unchanged";
+      primary.fileQuantity = total;
+      const format = (value: number) => String(value).replace(".", ",");
+      primary.reason = `Остатки сложены (${entries.length} позиции файла): ${groupRows
+        .map((row) => `«${row.name.trim()}» ${format(row.stockQuantity!)}`)
+        .join(" + ")} = ${format(total)}${
+        quantity !== total ? `, округлено до ${quantity}` : ""
+      }`;
+      for (const entry of entries) {
+        if (entry === primary) continue;
+        entry.status = "unchanged";
+        entry.changes = {};
+        entry.reason = `Тот же товар на сайте: остаток прибавлен к строке ${primary.row}`;
+      }
+      continue;
+    }
     // Похожее название уступает точному совпадению с тем же товаром.
     const exact = entries.filter((entry) => entry.match !== "similar");
     if (exact.length === 1) {
@@ -652,6 +762,14 @@ export function buildStockImportPlan(
     }
   }
   return plan;
+}
+
+function stockStatus(quantity: number) {
+  return quantity <= 0
+    ? InventoryStatus.OUT_OF_STOCK
+    : quantity <= 5
+      ? InventoryStatus.LIMITED
+      : InventoryStatus.IN_STOCK;
 }
 
 export function summarizeStockImport(entries: StockImportEntry[]) {
@@ -725,6 +843,10 @@ export type StockPendingCandidate = {
 
 // Один ключ на позицию: по артикулу, а без артикула по названию.
 // Так повторная загрузка того же отчёта не создаёт дублей в списке.
+export function stockLinkKey(item: { sku?: string | null; name: string }) {
+  return `${stockPendingKey(item)}|name:${nameKey(item.name)}`;
+}
+
 export function stockPendingKey(item: { sku?: string | null; name: string }) {
   const sku = item.sku ? skuKey(item.sku) : "";
   return sku ? `sku:${sku}` : `name:${nameKey(item.name)}`;

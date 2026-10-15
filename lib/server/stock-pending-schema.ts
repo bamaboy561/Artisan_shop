@@ -55,4 +55,10 @@ async function createStockPendingItemsTable(db: SchemaDb) {
     CREATE INDEX IF NOT EXISTS "StockPendingItem_dismissedAt_lastSeenAt_idx"
     ON "StockPendingItem" ("dismissedAt", "lastSeenAt");
   `);
+
+  // Связь с товаром сайта, заданная вручную (кнопка «Это он»).
+  await db.$executeRawUnsafe(`
+    ALTER TABLE "StockPendingItem"
+    ADD COLUMN IF NOT EXISTS "linkedProductId" TEXT;
+  `);
 }

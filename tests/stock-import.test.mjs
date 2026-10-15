@@ -608,6 +608,7 @@ function actionFixture({
         state.pending.push(...items.map((item) => ({ ...item, fileName })));
       },
       pruneStockPendingItems: async () => {},
+      getStockLinks: async () => state.links ?? new Map(),
     },
     "@/lib/server/stock-pending-schema": {
       ensureStockPendingItemsTable: async () => {},
@@ -1094,7 +1095,8 @@ test("stock pending table is created once at runtime", async () => {
   };
   await schema.ensureStockPendingItemsTable(db);
   await schema.ensureStockPendingItemsTable(db);
-  assert.equal(statements.length, 3);
+  assert.equal(statements.length, 4);
+  assert.match(statements[3], /ADD COLUMN IF NOT EXISTS "linkedProductId"/);
   assert.match(statements[0], /CREATE TABLE IF NOT EXISTS "StockPendingItem"/);
   assert.match(
     statements[1],
@@ -1116,7 +1118,7 @@ test("stock pending table creation retries a concurrent create failure", async (
     schema.ensureStockPendingItemsTable(db),
     schema.ensureStockPendingItemsTable(db),
   ]);
-  assert.equal(calls, 4);
+  assert.equal(calls, 5);
 });
 
 test("ambiguous similar candidates are never listed as missing from the file", async () => {
@@ -1183,4 +1185,77 @@ test("article in the name stays ambiguous when site SKUs differ only in punctuat
   const plan = stock.buildStockImportPlan(parsed.rows, products, "stock");
   assert.equal(plan[0].productId ?? null, null);
   assert.equal(plan[0].ambiguous, true);
+});
+
+test("one colour from two suppliers adds up into the single site product", async () => {
+  const parsed = await parser.parseProductImportFile(
+    excel([
+      ["Название", "Остаток"],
+      ["PGR4212 Меренга 1*22мм", 800],
+      ["WQ63853M Меренга 1*22мм", 2850],
+    ]),
+  );
+  const products = [
+    product({ id: "m", sku: "WQ63853M", name: "Меренга 1*22мм" }),
+  ];
+  const plan = stock.buildStockImportPlan(parsed.rows, products, "stock");
+  const merged = plan.find((entry) => entry.status === "ready");
+  assert.equal(merged.changes.stockQuantity, 3650);
+  assert.match(merged.reason, /Остатки сложены/);
+  assert.ok(plan.every((entry) => entry.productId === "m"));
+  const entries = stock.buildStockReconciliation(parsed.rows, products, plan);
+  assert.ok(entries.every((entry) => entry.kind !== "notFound"));
+  assert.equal(entries.find((entry) => entry.selectable).fileQuantity, 3650);
+});
+
+test("a link chosen by hand matches the row on later uploads", async () => {
+  const parsed = await parser.parseProductImportFile(
+    excel([
+      ["Артикул", "Название", "Остаток"],
+      ["160001112", "ABS/3001/SUPER MATT LIGHT GREY 1*22*0", 1200],
+    ]),
+  );
+  const products = [
+    product({ id: "g", sku: "KR-1", name: "Кромка светло-серая матовая" }),
+  ];
+  const before = stock.buildStockImportPlan(parsed.rows, products, "stock");
+  assert.equal(before[0].productId, null);
+  const links = new Map([
+    [
+      stock.stockLinkKey({
+        sku: "160001112",
+        name: "ABS/3001/SUPER MATT LIGHT GREY 1*22*0",
+      }),
+      "g",
+    ],
+  ]);
+  const after = stock.buildStockImportPlan(
+    parsed.rows,
+    products,
+    "stock",
+    links,
+  );
+  assert.equal(after[0].productId, "g");
+  assert.equal(after[0].match, "linked");
+  // Другая позиция 1С с тем же артикулом связь не наследует.
+  const other = stock.buildStockImportPlan(
+    [{ ...parsed.rows[0], name: "ABS/3002/MATT DARK GREY 1*22*0" }],
+    products,
+    "stock",
+    links,
+  );
+  assert.equal(other[0].productId, null);
+});
+
+test("rows missing on the site get the nearest site product as a suggestion", () => {
+  const matcher = stock.createStockMatcher([
+    { id: "a", sku: "KR-7", name: "Кромка ABS Дуб Сонома 22 мм" },
+    { id: "b", sku: "KR-8", name: "Петля накладная" },
+  ]);
+  const row = { sku: "", name: "ABS Дуб Сонома светлый 1*22мм" };
+  assert.equal(matcher.find(row).product, null);
+  assert.deepEqual(
+    matcher.suggest(row).map((item) => item.id),
+    ["a"],
+  );
 });
