@@ -438,8 +438,8 @@ export async function dismissStockPendingItemAction(formData: FormData) {
 }
 
 // «Это он»: позиция 1С есть на сайте под другим названием или артикулом.
-// Связь запоминается для следующих загрузок, остаток из отчёта записывается
-// в выбранный товар сразу.
+// Связь запоминается; остаток записывается при следующей проверке файла,
+// где он сложится со всеми позициями 1С этого товара.
 export async function linkStockPendingItemAction(formData: FormData) {
   const session = await requireAdminSession(
     "/login?next=/admin/products",
@@ -452,30 +452,14 @@ export async function linkStockPendingItemAction(formData: FormData) {
   if (typeof productId !== "string" || !productId) return;
   const db = getDb();
   await ensureStockPendingItemsTable(db);
-  const [item, product] = await Promise.all([
-    db.stockPendingItem.findUnique({
-      where: { id },
-      select: { quantity: true },
-    }),
-    db.product.findUnique({ where: { id: productId }, select: { id: true } }),
-  ]);
-  if (!item || !product) return;
-  await db.stockPendingItem.update({
+  const product = await db.product.findUnique({
+    where: { id: productId },
+    select: { id: true },
+  });
+  if (!product) return;
+  await db.stockPendingItem.updateMany({
     where: { id },
     data: { linkedProductId: productId, dismissedAt: null },
   });
-  if (item.quantity !== null && item.quantity >= 0) {
-    const reserved =
-      (await getUnpaidReservedQuantities(db, [productId])).get(productId) ?? 0;
-    const quantity = Math.max(0, Math.floor(item.quantity) - reserved);
-    await db.product.update({
-      where: { id: productId },
-      data: {
-        stockQuantity: quantity,
-        inventoryStatus: getInventoryStatusForStock(quantity),
-      },
-    });
-  }
-  for (const path of ["/admin/products", "/catalog", "/"]) revalidatePath(path);
-  revalidatePath("/product/[slug]", "page");
+  revalidatePath("/admin/products");
 }

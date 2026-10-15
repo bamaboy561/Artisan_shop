@@ -1220,7 +1220,15 @@ test("a link chosen by hand matches the row on later uploads", async () => {
   ];
   const before = stock.buildStockImportPlan(parsed.rows, products, "stock");
   assert.equal(before[0].productId, null);
-  const links = new Map([["sku:160001112", "g"]]);
+  const links = new Map([
+    [
+      stock.stockLinkKey({
+        sku: "160001112",
+        name: "ABS/3001/SUPER MATT LIGHT GREY 1*22*0",
+      }),
+      "g",
+    ],
+  ]);
   const after = stock.buildStockImportPlan(
     parsed.rows,
     products,
@@ -1229,6 +1237,14 @@ test("a link chosen by hand matches the row on later uploads", async () => {
   );
   assert.equal(after[0].productId, "g");
   assert.equal(after[0].match, "linked");
+  // Другая позиция 1С с тем же артикулом связь не наследует.
+  const other = stock.buildStockImportPlan(
+    [{ ...parsed.rows[0], name: "ABS/3002/MATT DARK GREY 1*22*0" }],
+    products,
+    "stock",
+    links,
+  );
+  assert.equal(other[0].productId, null);
 });
 
 test("rows missing on the site get the nearest site product as a suggestion", () => {

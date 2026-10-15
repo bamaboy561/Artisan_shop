@@ -407,10 +407,9 @@ export function createStockMatcher<
       via: StockMatch | null;
     } {
       // Позицию 1С уже связали с товаром вручную в списке «Нет на сайте».
-      const key = stockPendingKey(row);
-      const linked = byId.get(
-        links.get(`${key}|name:${nameKey(row.name)}`) ?? links.get(key) ?? "",
-      );
+      // Связь привязана к артикулу вместе с названием: другая позиция 1С
+      // с тем же артикулом её не наследует.
+      const linked = byId.get(links.get(stockLinkKey(row)) ?? "");
       if (linked) return { product: linked, matches: [linked], via: "linked" };
       if (row.sku) {
         const exact = bySku.get(skuKey(row.sku)) ?? [];
@@ -582,7 +581,7 @@ export function buildStockImportPlan(
       entry.reason = matches.length
         ? "Несколько товаров совпадают. Уточните артикул."
         : nearest.length
-          ? `Товар не найден. Похожий на сайте: «${nearest[0].name}» (${nearest[0].sku}). Если это он, свяжите их в списке «Нет на сайте».`
+          ? `Товар не найден. Похожий на сайте: «${nearest[0].name}» (${nearest[0].sku}). Если это он, нажмите «Это он» в списке «Нет на сайте» и проверьте файл снова.`
           : "Товар не найден. Добавьте карточку через полный импорт товаров.";
       return entry;
     }
@@ -844,6 +843,10 @@ export type StockPendingCandidate = {
 
 // Один ключ на позицию: по артикулу, а без артикула по названию.
 // Так повторная загрузка того же отчёта не создаёт дублей в списке.
+export function stockLinkKey(item: { sku?: string | null; name: string }) {
+  return `${stockPendingKey(item)}|name:${nameKey(item.name)}`;
+}
+
 export function stockPendingKey(item: { sku?: string | null; name: string }) {
   const sku = item.sku ? skuKey(item.sku) : "";
   return sku ? `sku:${sku}` : `name:${nameKey(item.name)}`;

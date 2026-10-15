@@ -1,6 +1,7 @@
 import type { PrismaClient } from "@/generated/prisma";
 import {
   createStockMatcher,
+  stockLinkKey,
   stockPendingCatalogKeys,
   type StockPendingCandidate,
 } from "@/features/admin/stock-import";
@@ -25,10 +26,10 @@ export async function getStockLinks(db: PrismaClient) {
   await ensureStockPendingItemsTable(db);
   const items = await db.stockPendingItem.findMany({
     where: { linkedProductId: { not: null } },
-    select: { matchKey: true, linkedProductId: true },
+    select: { sku: true, name: true, linkedProductId: true },
   });
   return new Map(
-    items.map((item) => [item.matchKey, item.linkedProductId!] as const),
+    items.map((item) => [stockLinkKey(item), item.linkedProductId!] as const),
   );
 }
 
@@ -96,7 +97,7 @@ export async function getStockPendingItems(
   await ensureStockPendingItemsTable(db);
   const [items, products] = await Promise.all([
     db.stockPendingItem.findMany({
-      where: { dismissedAt: null, linkedProductId: null },
+      where: { dismissedAt: null },
       orderBy: [{ lastSeenAt: "desc" }, { name: "asc" }],
       select: {
         id: true,
@@ -109,6 +110,7 @@ export async function getStockPendingItems(
         sourceFile: true,
         firstSeenAt: true,
         lastSeenAt: true,
+        linkedProductId: true,
       },
     }),
     db.product.findMany({ select: { id: true, sku: true, name: true } }),
@@ -117,7 +119,11 @@ export async function getStockPendingItems(
   // Тот же поиск, что при загрузке остатков: позиция, которую теперь можно
   // сопоставить с товаром сайта, в списке не показывается.
   const matcher = createStockMatcher(products);
-  return items.flatMap(({ matchKey, ...item }) => {
+  const productIds = new Set(products.map((product) => product.id));
+  return items.flatMap(({ matchKey, linkedProductId, ...item }) => {
+    // Связанная позиция скрыта, пока жив товар; если его удалили, позиция
+    // снова видна и её можно связать заново.
+    if (linkedProductId && productIds.has(linkedProductId)) return [];
     // Артикул, общий для разных позиций 1С, не доказывает совпадение:
     // такие позиции ищем только по названию.
     const row = {
