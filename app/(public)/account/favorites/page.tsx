@@ -1,3 +1,4 @@
+import { formatPrice } from "@/lib/commerce";
 import Link from "next/link";
 
 import { SetupState } from "@/components/admin/setup-state";
@@ -15,11 +16,7 @@ function formatCurrency(value: number | null) {
     return "По запросу";
   }
 
-  return new Intl.NumberFormat("ru-RU", {
-    style: "currency",
-    currency: "KGS",
-    maximumFractionDigits: 0,
-  }).format(value);
+  return formatPrice(value);
 }
 
 export default async function AccountFavoritesPage() {

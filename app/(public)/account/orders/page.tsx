@@ -1,3 +1,4 @@
+import { formatPrice } from "@/lib/commerce";
 import { SetupState } from "@/components/admin/setup-state";
 import { RepeatOrderButton } from "@/components/account/repeat-order-button";
 import { StatusBadge } from "@/components/admin/status-badge";
@@ -12,11 +13,7 @@ import { getAccountOrders, getAccountUser } from "@/lib/server/account-data";
 export const dynamic = "force-dynamic";
 
 function formatCurrency(value: number) {
-  return new Intl.NumberFormat("ru-RU", {
-    style: "currency",
-    currency: "KGS",
-    maximumFractionDigits: 0,
-  }).format(value);
+  return formatPrice(value);
 }
 
 function formatDate(date: Date) {

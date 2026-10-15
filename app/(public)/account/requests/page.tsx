@@ -1,3 +1,4 @@
+import { formatPrice } from "@/lib/commerce";
 import Link from "next/link";
 
 import { SetupState } from "@/components/admin/setup-state";
@@ -37,11 +38,7 @@ function formatBudget(value: number | null) {
     return "По расчету";
   }
 
-  return new Intl.NumberFormat("ru-RU", {
-    style: "currency",
-    currency: "KGS",
-    maximumFractionDigits: 0,
-  }).format(value);
+  return formatPrice(value);
 }
 
 const requestUploadStatuses = new Set<RequestStatus>([
