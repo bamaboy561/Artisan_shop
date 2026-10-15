@@ -272,7 +272,10 @@ function foldLetters(value: string) {
 // Его можно убрать из названия на сайте, остальное название должно совпасть.
 function isNameCode(word: string) {
   const plain = word.replace(/[^0-9a-zа-я]/g, "");
-  if (/^\d{6,}$/.test(plain)) return true;
+  // Число с разделителями — размер или диапазон («564-764»), не артикул.
+  if (/^\d{6,}$/.test(word)) return true;
+  // Размер вида «M8x100» или «1*22» тоже не код.
+  if (/\d[x×*]\d/.test(word)) return false;
   // Коды пишутся латиницей: слово с русскими буквами («печенье1*22мм») не код.
   return (
     plain.length >= 6 &&
@@ -302,10 +305,10 @@ function coreTokens(value: string) {
   let start = 0;
   let end = words.length;
   while (start < end && isNameCode(words[start])) start += 1;
-  while (end > start && isNameCode(words[end - 1])) end -= 1;
+  if (end > start + 1 && isNameCode(words[end - 1])) end -= 1;
   return words
     .slice(start, end)
-    .filter((word) => !/^\d{6,}$/.test(word.replace(/[^0-9a-zа-я]/g, "")))
+    .filter((word) => !/^\d{6,}$/.test(word))
     .flatMap(nameTokens);
 }
 // Одна опечатка в длинном слове допустима: «Галифакс» и «Галифах».
