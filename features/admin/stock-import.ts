@@ -288,9 +288,19 @@ function nameTokens(value: string) {
 // Название без кодов, разбитое на слова и числа, отсортированное: порядок
 // слов, регистр, пробелы, знаки и похожие буквы не важны.
 function coreTokens(value: string) {
-  return foldLetters(value)
+  const words = foldLetters(value)
     .split(/[\s/\\(),;"«»]+/)
-    .filter((word) => word && !isNameCode(word))
+    .filter(Boolean);
+  // Коды поставщика стоят в начале названия. В середине такое слово чаще
+  // размер или исполнение («AKS:192MM», «M.101.S01»), его не выбрасываем;
+  // там убираем только числовой артикул.
+  let leading = true;
+  return words
+    .filter((word) => {
+      if (leading && isNameCode(word)) return false;
+      leading = false;
+      return !/^\d{6,}$/.test(word.replace(/[^0-9a-zа-я]/g, ""));
+    })
     .flatMap(nameTokens)
     .sort();
 }

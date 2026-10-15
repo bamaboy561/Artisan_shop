@@ -387,6 +387,14 @@ test("names that differ by a colour, variant letter or extra word are not merged
     ["INDO-В 134 КМБР", "INDO 134 КМБР"],
     ["Плинтус Арбитон", "Плинтус Арбитон (распродажа)"],
     ["Кромка ПВХ Серый Графит 19/1", "Кромка ПВХ Серый Апельсин 19/1"],
+    [
+      "ARTOS AKS:192MM РУЧКА ЧЕРНЫЙ МАТОВЫЙ",
+      "ARTOS AKS:320MM РУЧКА ЧЕРНЫЙ МАТОВЫЙ",
+    ],
+    [
+      "Кромка ABS M.101.S01 Белый снежный 19*0,8",
+      "Кромка ABS M.101.T01 Белый снежный 19*0,8",
+    ],
   ])
     assert.equal(stock.stockNamesSimilar(left, right), false, left);
   assert.equal(
