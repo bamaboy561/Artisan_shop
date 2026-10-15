@@ -14,6 +14,21 @@ export type BazisEdge = {
   thickness: number | null;
 };
 
+// Отверстие присадки в координатах детали: точка начала на поверхности
+// (x, y в плоскости контура, z по толщине), направление и глубина.
+// face — сверлят в пласть, edge — в торец.
+export type BazisHole = {
+  x: number;
+  y: number;
+  z: number;
+  dx: number;
+  dy: number;
+  dz: number;
+  diameter: number;
+  depth: number;
+  kind: "face" | "edge";
+};
+
 export type BazisPanel = {
   id: number | null;
   name: string;
@@ -33,6 +48,7 @@ export type BazisPanel = {
   textured: boolean;
   // Отверстия присадки на детали (см. collectDrilling).
   holes: number;
+  drillHoles: BazisHole[];
   // Положение детали в модели для объёмного просмотра: прямоугольник
   // контура в плоскости детали (x, y, sizeX, sizeY), толщина идёт по оси Z
   // детали, matrix переводит точки детали в координаты модели
@@ -93,6 +109,9 @@ export type BazisProject = {
   rows: BazisPartRow[];
   hardware: BazisHardwareRow[];
   drilling: BazisDrilling;
+  // Пары деталей (номера в panels), скреплённых одной фурнитурой: по ним
+  // строится порядок сборки на макете.
+  joints: number[][];
 };
 
 export class BazisParseError extends Error {}
@@ -466,6 +485,7 @@ function readPanel(
       elements.some((item) => !item.line),
     textured,
     holes: 0,
+    drillHoles: [],
     box: {
       x: Math.min(...xs),
       y: Math.min(...ys),
@@ -669,9 +689,14 @@ function lengthInside(
 // (в пласть) или входит в неё через торец глубже 2 мм (в торец).
 // Сквозное отверстие через две детали считается в каждой.
 // Контур детали берётся габаритом: для вырезов это приближение.
-function collectDrilling(collected: Collected): BazisDrilling {
+function collectDrilling(collected: Collected): {
+  drilling: BazisDrilling;
+  joints: number[][];
+} {
   const rows = new Map<number, BazisDrillingRow>();
   let total = 0;
+  // Какие детали сверлит каждая единица фурнитуры: они скреплены вместе.
+  const joined = collected.fasteners.map(() => new Set<number>());
 
   collected.panels.forEach((panel, index) => {
     if (panel.thickness < MIN_DRILL_THICKNESS) {
@@ -686,7 +711,7 @@ function collectDrilling(collected: Collected): BazisDrilling {
       panel.thickness,
     ];
 
-    for (const fastener of collected.fasteners) {
+    for (const [fastenerIndex, fastener] of collected.fasteners.entries()) {
       for (const hole of fastener.holes) {
         const start = toLocal(
           matrix,
@@ -739,16 +764,49 @@ function collectDrilling(collected: Collected): BazisDrilling {
         row[kind] += 1;
         rows.set(diameter, row);
         panel.holes += 1;
+        panel.drillHoles.push({
+          x: round(start[0]),
+          y: round(start[1]),
+          z: round(start[2]),
+          dx: round(direction[0]),
+          dy: round(direction[1]),
+          dz: round(direction[2]),
+          diameter,
+          depth: round(Math.min(hole.depth, inside)),
+          kind,
+        });
+        joined[fastenerIndex].add(index);
         total += 1;
       }
     }
   });
 
+  const pairs = new Set<string>();
+  const joints: number[][] = [];
+
+  for (const indexes of joined) {
+    const sorted = [...indexes].sort((left, right) => left - right);
+
+    for (let i = 0; i < sorted.length; i += 1) {
+      for (let j = i + 1; j < sorted.length; j += 1) {
+        const key = `${sorted[i]}:${sorted[j]}`;
+
+        if (!pairs.has(key)) {
+          pairs.add(key);
+          joints.push([sorted[i], sorted[j]]);
+        }
+      }
+    }
+  }
+
   return {
-    holes: total,
-    rows: [...rows.values()].sort(
-      (left, right) => right.diameter - left.diameter,
-    ),
+    drilling: {
+      holes: total,
+      rows: [...rows.values()].sort(
+        (left, right) => right.diameter - left.diameter,
+      ),
+    },
+    joints,
   };
 }
 
@@ -891,7 +949,7 @@ export function parseBazisProject(file: Buffer): BazisProject {
   const { article, version, thumbnail, materials, collected } =
     readProject(file);
   const { panels, hardware } = collected;
-  const drilling = collectDrilling(collected);
+  const { drilling, joints } = collectDrilling(collected);
 
   return {
     orderName: cleanName(text(article, "OrderName")),
@@ -913,6 +971,7 @@ export function parseBazisProject(file: Buffer): BazisProject {
           left.name.localeCompare(right.name, "ru"),
       ),
     drilling,
+    joints,
   };
 }
 

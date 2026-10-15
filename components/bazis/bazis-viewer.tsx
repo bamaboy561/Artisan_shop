@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import type { BazisHole } from "@/lib/bazis-b3d";
+
 // Что показать о детали, когда на неё нажали на макете.
 export type BazisPartInfo = {
   name: string;
@@ -18,6 +20,8 @@ export type BazisPartInfo = {
   textured?: boolean;
   complexContour?: boolean;
   holes?: number;
+  // Отверстия присадки в координатах детали: рисуются на выбранной детали.
+  drillHoles?: BazisHole[];
 };
 
 // Деталь для объёмного просмотра: прямоугольник контура (x, y, sizeX, sizeY)
@@ -72,8 +76,13 @@ const PART_FLY_MS = 650;
 const PART_STEP_MS = 160;
 const BUILD_MAX_MS = 9000;
 const SELECT_COLOR = [64, 128, 176];
+const HOLE_COLOR = "rgba(38, 28, 20, 0.85)";
 // Нажатие, а не поворот: палец сдвинулся меньше чем на столько пикселей.
 const TAP_SLOP = 6;
+// Инерция поворота: за кадр скорость падает на столько, остановка ниже порога.
+const SPIN_DECAY = 0.93;
+const SPIN_STOP = 0.0004;
+const DEFAULT_VIEW = { yaw: -0.5, pitch: 0.3, zoom: 1 };
 
 const numberFormatter = new Intl.NumberFormat("ru-RU", {
   maximumFractionDigits: 1,
@@ -117,7 +126,16 @@ function toWorld(matrix: number[], x: number, y: number, z: number) {
   ];
 }
 
-function buildScene(boxes: BazisViewerBox[]) {
+// Направление из координат детали в координаты модели (без сдвига).
+function toWorldDirection(matrix: number[], x: number, y: number, z: number) {
+  return [
+    matrix[0] * x + matrix[1] * y + matrix[2] * z,
+    matrix[4] * x + matrix[5] * y + matrix[6] * z,
+    matrix[8] * x + matrix[9] * y + matrix[10] * z,
+  ];
+}
+
+function buildScene(boxes: BazisViewerBox[], joints: number[][] | undefined) {
   const faces: Face[] = [];
   const min = [Infinity, Infinity, Infinity];
   const max = [-Infinity, -Infinity, -Infinity];
@@ -184,29 +202,37 @@ function buildScene(boxes: BazisViewerBox[]) {
   // Детали одного блока (ящик, тумба) сначала расходятся вместе с блоком,
   // а внутри блока — ещё и друг от друга. Иначе стенки ящика остаются
   // кучкой посреди разобранного шкафа.
-  const blockCenters = new Map<string, number[]>();
+  const blockSums = new Map<string, number[]>();
 
   for (const [index, box] of boxes.entries()) {
     const block = box.info?.block;
 
     if (!block) continue;
 
-    const sum = blockCenters.get(block) ?? [0, 0, 0, 0];
+    const sum = blockSums.get(block) ?? [0, 0, 0, 0];
 
     boxCenters[index].forEach((value, axis) => (sum[axis] += value));
     sum[3] += 1;
-    blockCenters.set(block, sum);
+    blockSums.set(block, sum);
   }
 
-  // Куда деталь уходит при разборке: от середины блока и изделия и ещё
-  // немного поперёк своей пласти, чтобы стенки, полки и фасады не слипались.
+  // Блок на всё изделие (так Базис часто называет модель целиком)
+  // отдельно не разбираем.
+  const innerBlocks = new Set(
+    [...blockSums.entries()]
+      .filter(([, sum]) => sum[3] > 1 && sum[3] < boxes.length / 2)
+      .map(([name]) => name),
+  );
+  // Куда деталь уходит при разборке всего изделия (explodeOffsets) и при
+  // разборке только своего блока (blockOffsets): от середины блока и
+  // изделия и ещё немного поперёк своей пласти, чтобы стенки, полки
+  // и фасады не слипались.
+  const blockOffsets: number[][] = [];
   const explodeOffsets = boxes.map((box, index) => {
     const own = boxCenters[index];
-    const sum = box.info?.block ? blockCenters.get(box.info.block) : undefined;
-    // Блок на всё изделие (так Базис часто называет модель целиком)
-    // отдельно не разбираем.
-    const inner = sum !== undefined && sum[3] > 1 && sum[3] < boxes.length / 2;
-    const blockCenter = inner
+    const block = box.info?.block;
+    const sum = block && innerBlocks.has(block) ? blockSums.get(block) : null;
+    const blockCenter = sum
       ? [0, 1, 2].map((axis) => sum[axis] / sum[3])
       : center;
     const away = own.map((value, axis) => value - center[axis]);
@@ -215,12 +241,20 @@ function buildScene(boxes: BazisViewerBox[]) {
     const side = Math.sign(
       away[0] * normal[0] + away[1] * normal[1] + away[2] * normal[2],
     );
+    const push = (axis: number) =>
+      (normal[axis] / normalLength) * side * radius * EXPLODE_PUSH;
+
+    blockOffsets.push(
+      own.map((value, axis) =>
+        sum ? (value - blockCenter[axis]) * 0.75 + push(axis) / 2 : 0,
+      ),
+    );
 
     return own.map(
       (value, axis) =>
         (blockCenter[axis] - center[axis]) * EXPLODE_SPREAD +
-        (value - blockCenter[axis]) * EXPLODE_SPREAD * (inner ? 1.6 : 1) +
-        (normal[axis] / normalLength) * side * radius * EXPLODE_PUSH,
+        (value - blockCenter[axis]) * EXPLODE_SPREAD * (sum ? 1.6 : 1) +
+        push(axis),
     );
   });
 
@@ -238,6 +272,15 @@ function buildScene(boxes: BazisViewerBox[]) {
       ),
     ),
   );
+  // С кем деталь скреплена фурнитурой.
+  const neighbors = boxes.map(() => new Set<number>());
+
+  for (const [a, b] of joints ?? []) {
+    if (neighbors[a] && neighbors[b]) {
+      neighbors[a].add(b);
+      neighbors[b].add(a);
+    }
+  }
 
   return {
     faces,
@@ -248,7 +291,10 @@ function buildScene(boxes: BazisViewerBox[]) {
     boxCorners,
     boxCenters,
     explodeOffsets,
-    buildOrder: buildOrder(boxes, boxCorners),
+    blockOffsets,
+    innerBlocks,
+    neighbors,
+    buildOrder: buildOrder(boxes, boxCorners, neighbors),
   };
 }
 
@@ -263,12 +309,18 @@ function buildStage(box: BazisViewerBox) {
   return 0;
 }
 
-function buildOrder(boxes: BazisViewerBox[], boxCorners: number[][][]) {
+// Если в проекте есть присадка, следующей ставится деталь, которая
+// крепится к уже поставленным: так сборка идёт по связям, а не по именам.
+// Детали без крепежа (задняя стенка на гвоздях) идут по общему порядку.
+function buildOrder(
+  boxes: BazisViewerBox[],
+  boxCorners: number[][][],
+  neighbors: Set<number>[],
+) {
   const bottoms = boxCorners.map((corners) =>
     Math.min(...corners.map((corner) => corner[1])),
   );
-
-  return boxes
+  const ranked = boxes
     .map((box, index) => ({
       index,
       stage: buildStage(box),
@@ -283,6 +335,34 @@ function buildOrder(boxes: BazisViewerBox[], boxCorners: number[][][]) {
         right.area - left.area,
     )
     .map((item) => item.index);
+
+  if (neighbors.every((set) => set.size === 0)) {
+    return ranked;
+  }
+
+  const placed = new Set<number>();
+  const order: number[] = [];
+  let remaining = ranked;
+
+  while (remaining.length > 0) {
+    // Внутри одной стадии ставим деталь, которая крепится к уже стоящим;
+    // нет такой, берём следующую по общему порядку. Стадии не смешиваем:
+    // фасады не вырываются вперёд корпуса, хотя к ним ничего не крепится.
+    const head = remaining[0];
+    const stage = buildStage(boxes[head]);
+    const next =
+      remaining.find(
+        (index) =>
+          buildStage(boxes[index]) === stage &&
+          [...neighbors[index]].some((other) => placed.has(other)),
+      ) ?? head;
+
+    placed.add(next);
+    order.push(next);
+    remaining = remaining.filter((index) => index !== next);
+  }
+
+  return order;
 }
 
 // Расстояние от точки до ближайшей стороны многоугольника на экране.
@@ -331,13 +411,19 @@ function insidePolygon(x: number, y: number, polygon: number[][]) {
 
 export function BazisViewer({
   boxes,
+  joints,
   highlightTone = null,
   toneColors,
   heightClassName = "h-[60vh] min-h-72",
   highlightBoxes,
   animationKey,
+  defaultSelected = null,
+  defaultExploded = false,
 }: {
   boxes: BazisViewerBox[];
+  // Пары деталей, скреплённых одной фурнитурой: по ним строится порядок
+  // сборки и подпись «крепится к».
+  joints?: number[][];
   // Если задан, выделенные детали показываются с анимацией. Новое значение
   // запускает показ заново.
   animationKey?: number;
@@ -351,12 +437,16 @@ export function BazisViewer({
   toneColors?: Array<number[] | null>;
   // Номер материала, который нужно выделить: остальные детали бледнеют.
   highlightTone?: number | null;
+  // Деталь, карточка которой открыта сразу (страница детали из QR-кода).
+  defaultSelected?: number | null;
+  // Открыть макет сразу разобранным.
+  defaultExploded?: boolean;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [view, setView] = useState({ yaw: -0.5, pitch: 0.3, zoom: 1 });
+  const [view, setView] = useState(DEFAULT_VIEW);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const pointers = useRef(new Map<number, { x: number; y: number }>());
-  const scene = useMemo(() => buildScene(boxes), [boxes]);
+  const scene = useMemo(() => buildScene(boxes, joints), [boxes, joints]);
   const markedBoxes = useMemo(
     () => (highlightBoxes ? new Set(highlightBoxes) : null),
     [highlightBoxes],
@@ -370,13 +460,25 @@ export function BazisViewer({
   const [beacon, setBeacon] = useState<number | null>(null);
   const showing = animationKey !== undefined && (markedBoxes?.size ?? 0) > 0;
   // Насколько изделие разобрано: 0 — собрано, 1 — детали разнесены.
-  const [explode, setExplode] = useState(0);
+  const [explode, setExplode] = useState(defaultExploded ? 1 : 0);
   const explodeFrame = useRef(0);
+  // Разобранный отдельно блок (ящик) и насколько он разобран.
+  const [explodedBlock, setExplodedBlock] = useState<string | null>(null);
+  const [blockAmount, setBlockAmount] = useState(0);
+  const blockFrame = useRef(0);
   // Сколько миллисекунд идёт анимация сборки; null — не идёт.
   const [building, setBuilding] = useState<number | null>(null);
   const buildFrame = useRef(0);
+  // Пошаговая сборка: сколько деталей уже поставлено (null — режим выключен)
+  // и сколько миллисекунд летит на место последняя из них.
+  const [step, setStep] = useState<number | null>(null);
+  const [stepFlight, setStepFlight] = useState(PART_FLY_MS);
+  const stepFrame = useRef(0);
+  // Инерция поворота после отпускания.
+  const spin = useRef({ yaw: 0, pitch: 0, at: 0 });
+  const spinFrame = useRef(0);
   const buildTiming = useMemo(() => {
-    const step =
+    const stepMs =
       scene.buildOrder.length > 1
         ? Math.min(
             PART_STEP_MS,
@@ -385,15 +487,15 @@ export function BazisViewer({
         : 0;
     const startAt = new Map<number, number>();
 
-    scene.buildOrder.forEach((box, order) => startAt.set(box, order * step));
+    scene.buildOrder.forEach((box, order) => startAt.set(box, order * stepMs));
 
     return {
       startAt,
-      total: step * Math.max(0, scene.buildOrder.length - 1) + PART_FLY_MS,
+      total: stepMs * Math.max(0, scene.buildOrder.length - 1) + PART_FLY_MS,
     };
   }, [scene]);
   // Деталь, на которую нажали, и деталь под мышью.
-  const [selected, setSelected] = useState<number | null>(null);
+  const [selected, setSelected] = useState<number | null>(defaultSelected);
   const [hovered, setHovered] = useState<number | null>(null);
   const selectedBox =
     selected !== null && selected < boxes.length ? selected : null;
@@ -414,8 +516,11 @@ export function BazisViewer({
     for (const box of highlightBoxes) {
       for (const corner of scene.boxCorners[box] ?? []) {
         for (let axis = 0; axis < 3; axis += 1) {
-          min[axis] = Math.min(min[axis], corner[axis]);
-          max[axis] = Math.max(max[axis], corner[axis]);
+          const value =
+            corner[axis] + scene.explodeOffsets[box][axis] * explode;
+
+          min[axis] = Math.min(min[axis], value);
+          max[axis] = Math.max(max[axis], value);
         }
       }
     }
@@ -434,7 +539,7 @@ export function BazisViewer({
         Math.max(1, (scene.radius * 0.4) / radius),
       ),
     };
-  }, [highlightBoxes, scene, showing]);
+  }, [explode, highlightBoxes, scene, showing]);
 
   function stopAnimation() {
     cancelAnimationFrame(frameRef.current);
@@ -446,15 +551,26 @@ export function BazisViewer({
     setBuilding(null);
   }
 
+  function stopSpin() {
+    cancelAnimationFrame(spinFrame.current);
+    spin.current = { yaw: 0, pitch: 0, at: 0 };
+  }
+
   // Плавно разбирает или собирает изделие.
   function animateExplode(target: number) {
     stopBuilding();
     cancelAnimationFrame(explodeFrame.current);
+    setStep(null);
+
+    if (target > 0 && explodedBlock !== null) {
+      animateBlock(null);
+    }
 
     const from = explode;
     const duration = EXPLODE_MS * Math.abs(target - from);
-    const start = performance.now();
+    let start: number | null = null;
     const tick = (now: number) => {
+      start ??= now;
       const progress = duration > 0 ? Math.min(1, (now - start) / duration) : 1;
 
       setExplode(mix(from, target, easeInOutCubic(progress)));
@@ -467,17 +583,54 @@ export function BazisViewer({
     explodeFrame.current = requestAnimationFrame(tick);
   }
 
+  // Разбирает один блок (ящик): его детали расходятся, остальное изделие
+  // стоит собранным. null — собрать блок обратно.
+  function animateBlock(block: string | null) {
+    cancelAnimationFrame(blockFrame.current);
+    stopBuilding();
+    setStep(null);
+
+    const from = blockAmount;
+    const target = block === null ? 0 : 1;
+
+    if (block !== null) {
+      setExplodedBlock(block);
+    }
+
+    const duration = EXPLODE_MS * Math.abs(target - from);
+    let start: number | null = null;
+    const tick = (now: number) => {
+      start ??= now;
+      const progress = duration > 0 ? Math.min(1, (now - start) / duration) : 1;
+
+      setBlockAmount(mix(from, target, easeInOutCubic(progress)));
+
+      if (progress < 1) {
+        blockFrame.current = requestAnimationFrame(tick);
+      } else if (block === null) {
+        setExplodedBlock(null);
+      }
+    };
+
+    blockFrame.current = requestAnimationFrame(tick);
+  }
+
   // Детали по одной прилетают на свои места в порядке сборки.
   function playBuild() {
     stopAnimation();
     cancelAnimationFrame(explodeFrame.current);
     cancelAnimationFrame(buildFrame.current);
+    cancelAnimationFrame(blockFrame.current);
     setExplode(0);
+    setBlockAmount(0);
+    setExplodedBlock(null);
+    setStep(null);
     setFocused(false);
     setSelected(null);
 
-    const start = performance.now();
+    let start: number | null = null;
     const tick = (now: number) => {
+      start ??= now;
       const passed = now - start;
 
       if (passed >= buildTiming.total) {
@@ -493,13 +646,148 @@ export function BazisViewer({
     buildFrame.current = requestAnimationFrame(tick);
   }
 
+  // Пошаговая сборка: показать первые count деталей, последняя прилетает
+  // на место и остаётся выделенной с карточкой.
+  function goToStep(count: number) {
+    const total = scene.buildOrder.length;
+    const next = Math.min(total, Math.max(1, count));
+
+    stopAnimation();
+    stopBuilding();
+    cancelAnimationFrame(explodeFrame.current);
+    cancelAnimationFrame(blockFrame.current);
+    cancelAnimationFrame(stepFrame.current);
+    setExplode(0);
+    setBlockAmount(0);
+    setExplodedBlock(null);
+    setFocused(false);
+    setStep(next);
+    setSelected(scene.buildOrder[next - 1] ?? null);
+
+    let start: number | null = null;
+    const tick = (now: number) => {
+      start ??= now;
+      const passed = now - start;
+
+      setStepFlight(Math.min(PART_FLY_MS, passed));
+
+      if (passed < PART_FLY_MS) {
+        stepFrame.current = requestAnimationFrame(tick);
+      }
+    };
+
+    setStepFlight(0);
+    stepFrame.current = requestAnimationFrame(tick);
+  }
+
+  function leaveSteps() {
+    cancelAnimationFrame(stepFrame.current);
+    setStep(null);
+    setSelected(null);
+  }
+
+  // Всё как при открытии: собрано, общий вид, ничего не выбрано.
+  function resetView() {
+    stopAnimation();
+    stopBuilding();
+    stopSpin();
+    cancelAnimationFrame(explodeFrame.current);
+    cancelAnimationFrame(blockFrame.current);
+    cancelAnimationFrame(stepFrame.current);
+    setExplode(0);
+    setBlockAmount(0);
+    setExplodedBlock(null);
+    setStep(null);
+    setSelected(null);
+    setFocused(false);
+    setView(DEFAULT_VIEW);
+  }
+
+  // Поворот докручивается по инерции после отпускания.
+  function startSpin() {
+    const { yaw, pitch, at } = spin.current;
+
+    // Палец остановился перед отпусканием: инерции нет.
+    if (performance.now() - at > 80) {
+      return;
+    }
+
+    let velocity = { yaw, pitch };
+    const tick = () => {
+      velocity = {
+        yaw: velocity.yaw * SPIN_DECAY,
+        pitch: velocity.pitch * SPIN_DECAY,
+      };
+
+      if (Math.hypot(velocity.yaw, velocity.pitch) < SPIN_STOP) {
+        return;
+      }
+
+      setView((current) => ({
+        ...current,
+        yaw: current.yaw + velocity.yaw,
+        pitch: Math.min(
+          Math.PI / 2,
+          Math.max(-Math.PI / 2, current.pitch + velocity.pitch),
+        ),
+      }));
+      spinFrame.current = requestAnimationFrame(tick);
+    };
+
+    spinFrame.current = requestAnimationFrame(tick);
+  }
+
   useEffect(
     () => () => {
       cancelAnimationFrame(explodeFrame.current);
       cancelAnimationFrame(buildFrame.current);
+      cancelAnimationFrame(blockFrame.current);
+      cancelAnimationFrame(stepFrame.current);
+      cancelAnimationFrame(spinFrame.current);
     },
     [],
   );
+
+  // Стрелки на клавиатуре листают шаги сборки.
+  const stepRef = useRef(step);
+  const goToStepRef = useRef(goToStep);
+
+  useEffect(() => {
+    stepRef.current = step;
+    goToStepRef.current = goToStep;
+  });
+
+  useEffect(() => {
+    if (step === null) {
+      return;
+    }
+
+    const onKey = (event: KeyboardEvent) => {
+      const current = stepRef.current;
+
+      if (current === null || event.altKey || event.metaKey || event.ctrlKey) {
+        return;
+      }
+
+      const target = event.target as HTMLElement | null;
+
+      if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) {
+        return;
+      }
+
+      if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+        event.preventDefault();
+        goToStepRef.current(current + 1);
+      } else if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+        event.preventDefault();
+        goToStepRef.current(current - 1);
+      }
+    };
+
+    window.addEventListener("keydown", onKey);
+
+    return () => window.removeEventListener("keydown", onKey);
+  }, [step]);
 
   function boxAt(clientX: number, clientY: number) {
     const rect = canvasRef.current?.getBoundingClientRect();
@@ -544,8 +832,9 @@ export function BazisViewer({
       return;
     }
 
-    const start = performance.now();
+    let start: number | null = null;
     const tick = (now: number) => {
+      start ??= now;
       const passed = now - start;
 
       if (passed >= ANIMATION_MS) {
@@ -559,7 +848,7 @@ export function BazisViewer({
 
     frameRef.current = requestAnimationFrame((now) => {
       // Показ заканчивается в обычном общем виде.
-      setView({ yaw: -0.5, pitch: 0.3, zoom: 1 });
+      setView(DEFAULT_VIEW);
       setFocused(true);
       tick(now);
     });
@@ -688,34 +977,65 @@ export function BazisViewer({
       (Math.min(size.width, size.height) /
         (mix(scene.radius, scene.explodedRadius, explode) * 2.05)) *
       shown.zoom;
+    const toScreen = (point: number[]) => [
+      size.width / 2 + point[0] * scale,
+      size.height / 2 - point[1] * scale,
+    ];
     const light = [0.35, 0.55, 0.76];
-    // Сдвиг каждой детали: разборка или полёт на место при сборке.
-    // appear — насколько деталь уже видна (0 — ещё не вылетела).
+    const stepOrder = new Map<number, number>();
+
+    if (step !== null) {
+      scene.buildOrder.forEach((box, order) => stepOrder.set(box, order));
+    }
+
+    // Сдвиг каждой детали: разборка, разборка блока или полёт на место при
+    // сборке. appear — насколько деталь уже видна (0 — ещё не вылетела).
     const placement = scene.boxCenters.map((_, box) => {
       const exploded = scene.explodeOffsets[box];
+      const flyIn = (progress: number) => {
+        const flight = 1 - easeOutCubic(progress);
 
-      if (building === null) {
         return {
-          offset: exploded.map((value) => value * explode),
-          appear: 1,
+          offset: exploded.map(
+            (value, axis) =>
+              (value * 1.2 + (axis === 1 ? scene.radius * 0.35 : 0)) * flight,
+          ),
+          appear: progress,
         };
+      };
+
+      if (building !== null) {
+        return flyIn(
+          Math.min(
+            1,
+            Math.max(
+              0,
+              (building - (buildTiming.startAt.get(box) ?? 0)) / PART_FLY_MS,
+            ),
+          ),
+        );
       }
 
-      const progress = Math.min(
-        1,
-        Math.max(
-          0,
-          (building - (buildTiming.startAt.get(box) ?? 0)) / PART_FLY_MS,
-        ),
-      );
-      const flight = 1 - easeOutCubic(progress);
+      if (step !== null) {
+        const order = stepOrder.get(box) ?? 0;
+
+        if (order >= step) return { offset: [0, 0, 0], appear: 0 };
+        if (order === step - 1) return flyIn(stepFlight / PART_FLY_MS);
+
+        return { offset: [0, 0, 0], appear: 1 };
+      }
+
+      const inBlock =
+        explodedBlock !== null && boxes[box].info?.block === explodedBlock
+          ? blockAmount
+          : 0;
 
       return {
         offset: exploded.map(
           (value, axis) =>
-            (value * 1.2 + (axis === 1 ? scene.radius * 0.35 : 0)) * flight,
+            value * explode + scene.blockOffsets[box][axis] * inBlock,
         ),
-        appear: progress,
+        appear: 1,
       };
     });
     const drawn = scene.faces
@@ -777,19 +1097,28 @@ export function BazisViewer({
     context.lineWidth = 0.6;
     context.strokeStyle = "rgba(60, 48, 38, 0.55)";
 
-    // Границы выделенных деталей на экране: вокруг них рисуем кольцо.
+    // Границы выделенных деталей на экране: вокруг них рисуем кольцо,
+    // а под выбранной подписываем размеры.
     const markedBounds = new Map<number, number[]>();
     const hits: Array<{ box: number; points: number[][] }> = [];
+    // В пошаговой сборке остальные детали не бледнеют: нужно видеть, куда
+    // встаёт новая.
+    const dimOthers = step === null && selectedBox !== null;
 
     for (const face of drawn) {
       const isSelected = face.box === selectedBox;
+      // Разобранный блок виден целиком, остальное изделие бледнеет.
+      const inOpenBlock =
+        explodedBlock !== null &&
+        blockAmount > 0 &&
+        boxes[face.box].info?.block === explodedBlock;
       const isMarked = face.marked && !isSelected;
       const selecting = markedBoxes !== null || highlightTone !== null;
       const muted = isSelected
         ? false
         : markedBoxes
           ? !isMarked
-          : selectedBox !== null ||
+          : (dimOthers && !inOpenBlock) ||
             (highlightTone !== null && face.tone !== highlightTone);
       const base = isSelected
         ? SELECT_COLOR
@@ -808,13 +1137,8 @@ export function BazisViewer({
           : base;
 
       context.globalAlpha =
-        (muted
-          ? markedBoxes
-            ? 0.22
-            : selectedBox !== null
-              ? 0.35
-              : 0.45
-          : 1) * Math.min(1, face.appear * 2.5);
+        (muted ? (markedBoxes ? 0.22 : dimOthers ? 0.35 : 0.45) : 1) *
+        Math.min(1, face.appear * 2.5);
       // У выделенной детали контур темнее и толще.
       context.lineWidth = face.marked ? 1.4 : 0.6;
       context.strokeStyle = isSelected
@@ -823,10 +1147,7 @@ export function BazisViewer({
           ? "rgba(110, 38, 18, 0.9)"
           : "rgba(60, 48, 38, 0.55)";
 
-      const screen = face.points.map((point) => [
-        size.width / 2 + point[0] * scale,
-        size.height / 2 - point[1] * scale,
-      ]);
+      const screen = face.points.map(toScreen);
 
       hits.push({ box: face.box, points: screen });
       context.beginPath();
@@ -844,7 +1165,7 @@ export function BazisViewer({
       context.fill();
       context.stroke();
 
-      if (isMarked) {
+      if (face.marked) {
         const bounds = markedBounds.get(face.box) ?? [
           Infinity,
           Infinity,
@@ -852,10 +1173,7 @@ export function BazisViewer({
           -Infinity,
         ];
 
-        for (const point of face.points) {
-          const x = size.width / 2 + point[0] * scale;
-          const y = size.height / 2 - point[1] * scale;
-
+        for (const [x, y] of screen) {
           bounds[0] = Math.min(bounds[0], x);
           bounds[1] = Math.min(bounds[1], y);
           bounds[2] = Math.max(bounds[2], x);
@@ -868,16 +1186,105 @@ export function BazisViewer({
     context.globalAlpha = 1;
     hitFaces.current = hits;
 
+    // Отверстия присадки на выбранной детали: кружок в месте сверления
+    // и штрих вглубь по направлению отверстия.
+    const selectedInfo = selectedBox !== null ? boxes[selectedBox] : null;
+
+    if (
+      selectedInfo?.info?.drillHoles &&
+      selectedBox !== null &&
+      placement[selectedBox].appear > 0
+    ) {
+      const { offset } = placement[selectedBox];
+      const project = (local: number[]) =>
+        toScreen(
+          rotate(
+            toWorld(selectedInfo.matrix, local[0], local[1], local[2]).map(
+              (value, axis) => value + offset[axis] - center[axis],
+            ),
+          ),
+        );
+
+      context.fillStyle = HOLE_COLOR;
+      context.strokeStyle = HOLE_COLOR;
+      context.lineWidth = 1.5;
+
+      for (const hole of selectedInfo.info.drillHoles) {
+        const start = project([hole.x, hole.y, hole.z]);
+        const end = project([
+          hole.x + hole.dx * hole.depth,
+          hole.y + hole.dy * hole.depth,
+          hole.z + hole.dz * hole.depth,
+        ]);
+        const direction = toWorldDirection(
+          selectedInfo.matrix,
+          hole.dx,
+          hole.dy,
+          hole.dz,
+        );
+        // Отверстие смотрит от зрителя: оно на обратной стороне детали.
+        const towardViewer = rotate(direction)[2] < 0;
+
+        context.globalAlpha = towardViewer ? 0.95 : 0.3;
+        context.beginPath();
+        context.moveTo(start[0], start[1]);
+        context.lineTo(end[0], end[1]);
+        context.stroke();
+        context.beginPath();
+        context.arc(
+          start[0],
+          start[1],
+          Math.max(2.2, (hole.diameter / 2) * scale),
+          0,
+          Math.PI * 2,
+        );
+        context.fill();
+      }
+
+      context.globalAlpha = 1;
+    }
+
+    // Размеры выбранной детали под ней на макете.
+    const selectedBounds =
+      selectedBox !== null ? markedBounds.get(selectedBox) : undefined;
+
+    if (selectedBounds && selectedInfo) {
+      const info = selectedInfo.info;
+      const label = info
+        ? `${numberFormatter.format(info.length)} × ${numberFormatter.format(info.width)} × ${numberFormatter.format(info.thickness)} мм`
+        : `${numberFormatter.format(selectedInfo.sizeX)} × ${numberFormatter.format(selectedInfo.sizeY)} × ${numberFormatter.format(selectedInfo.thickness)} мм`;
+
+      context.font =
+        "600 12px ui-sans-serif, system-ui, -apple-system, sans-serif";
+      context.textBaseline = "middle";
+      context.textAlign = "center";
+
+      const width = context.measureText(label).width + 14;
+      const x = Math.min(
+        size.width - width / 2 - 4,
+        Math.max(width / 2 + 4, (selectedBounds[0] + selectedBounds[2]) / 2),
+      );
+      const y = Math.min(size.height - 14, selectedBounds[3] + 14);
+
+      context.fillStyle = "rgba(255, 255, 255, 0.92)";
+      context.fillRect(x - width / 2, y - 10, width, 20);
+      context.strokeStyle = "rgba(20, 52, 82, 0.6)";
+      context.lineWidth = 1;
+      context.strokeRect(x - width / 2, y - 10, width, 20);
+      context.fillStyle = "rgb(20, 52, 82)";
+      context.fillText(label, x, y);
+    }
+
     if (beacon !== null && elapsed === null) {
       const wave = (beacon % BEACON_MS) / BEACON_MS;
       // Соседние детали обводим одним кольцом, чтобы кольца не путались.
-      const circles = [...markedBounds.values()].map(
-        ([minX, minY, maxX, maxY]) => ({
+      const circles = [...markedBounds.entries()]
+        .filter(([box]) => box !== selectedBox || markedBoxes?.has(box))
+        .map(([, [minX, minY, maxX, maxY]]) => ({
           x: (minX + maxX) / 2,
           y: (minY + maxY) / 2,
           r: Math.max(14, Math.hypot(maxX - minX, maxY - minY) / 2 + 8),
-        }),
-      );
+        }));
 
       for (let merged = true; merged; ) {
         merged = false;
@@ -915,10 +1322,13 @@ export function BazisViewer({
     }
   }, [
     beacon,
+    blockAmount,
+    boxes,
     building,
     buildTiming,
     elapsed,
     explode,
+    explodedBlock,
     focusTarget,
     focused,
     highlightTone,
@@ -927,6 +1337,8 @@ export function BazisViewer({
     scene,
     selectedBox,
     size,
+    step,
+    stepFlight,
     toneColors,
     view,
   ]);
@@ -957,6 +1369,43 @@ export function BazisViewer({
           ),
         )
       : null;
+  // К каким деталям крепится выбранная (по общему крепежу).
+  const attachedTo =
+    selectedBox !== null
+      ? [...scene.neighbors[selectedBox]]
+          .filter(
+            (other) =>
+              step === null ||
+              scene.buildOrder.indexOf(other) <
+                scene.buildOrder.indexOf(selectedBox),
+          )
+          .map((other) => boxes[other]?.info?.name || `деталь ${other + 1}`)
+      : [];
+  const attachedLabel =
+    attachedTo.length > 0
+      ? [...new Set(attachedTo)]
+          .map((name) => {
+            const count = attachedTo.filter((item) => item === name).length;
+
+            return count > 1 ? `${name} ×${count}` : name;
+          })
+          .join(", ")
+      : "";
+  const holesLabel = info?.drillHoles?.length
+    ? (() => {
+        const face = info.drillHoles.filter((hole) => hole.kind === "face");
+        const edge = info.drillHoles.filter((hole) => hole.kind === "edge");
+
+        return [
+          face.length > 0 ? `в пласть ${face.length}` : "",
+          edge.length > 0 ? `в торец ${edge.length}` : "",
+        ]
+          .filter(Boolean)
+          .join(", ");
+      })()
+    : info?.holes
+      ? `${info.holes} отв.`
+      : "";
   const facts: Array<[string, string]> = info
     ? [
         [
@@ -990,6 +1439,14 @@ export function BazisViewer({
               ],
             ] as Array<[string, string]>)
           : []),
+        ...(attachedLabel
+          ? ([
+              [step !== null ? "Крепится к" : "Скреплена с", attachedLabel],
+            ] as Array<[string, string]>)
+          : []),
+        ...(holesLabel
+          ? ([["Присадка", holesLabel]] as Array<[string, string]>)
+          : []),
         ...(info.textured
           ? ([["Текстура", "по длине, не поворачивать"]] as Array<
               [string, string]
@@ -1000,9 +1457,6 @@ export function BazisViewer({
               [string, string]
             >)
           : []),
-        ...(info.holes
-          ? ([["Присадка", `${info.holes} отв.`]] as Array<[string, string]>)
-          : []),
         ...(sameCount > 1
           ? ([["Таких в проекте", `${sameCount} шт.`]] as Array<
               [string, string]
@@ -1010,22 +1464,26 @@ export function BazisViewer({
           : []),
       ]
     : [];
+  const selectedBlock =
+    info?.block && scene.innerBlocks.has(info.block) ? info.block : null;
+  const stepTotal = scene.buildOrder.length;
   const buttonClassName =
-    "border border-[#cbc7bf] bg-white px-3 py-1.5 text-xs font-medium text-[#171714] transition hover:border-[#171714]";
+    "border border-[#cbc7bf] bg-white px-3 py-1.5 text-xs font-medium text-[#171714] transition hover:border-[#171714] disabled:cursor-default disabled:opacity-40 disabled:hover:border-[#cbc7bf]";
 
   return (
     <div className="grid gap-2">
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {views.map((item) => (
           <button
             key={item.label}
             type="button"
             onClick={() => {
               stopAnimation();
+              stopSpin();
               setFocused(false);
               setView({ yaw: item.yaw, pitch: item.pitch, zoom: 1 });
             }}
-            className="border border-[#cbc7bf] bg-white px-3 py-1.5 text-xs font-medium text-[#171714] transition hover:border-[#171714]"
+            className={buttonClassName}
           >
             {item.label}
           </button>
@@ -1036,7 +1494,7 @@ export function BazisViewer({
             setView((current) => ({ ...current, zoom: current.zoom * 1.3 }))
           }
           aria-label="Приблизить"
-          className="border border-[#cbc7bf] bg-white px-3 py-1.5 text-xs font-medium text-[#171714] transition hover:border-[#171714]"
+          className={buttonClassName}
         >
           +
         </button>
@@ -1049,12 +1507,13 @@ export function BazisViewer({
             }))
           }
           aria-label="Отдалить"
-          className="border border-[#cbc7bf] bg-white px-3 py-1.5 text-xs font-medium text-[#171714] transition hover:border-[#171714]"
+          className={buttonClassName}
         >
           −
         </button>
-      </div>
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <button type="button" onClick={resetView} className={buttonClassName}>
+          Сбросить вид
+        </button>
         <button
           type="button"
           onClick={() => animateExplode(explode > 0.5 ? 0 : 1)}
@@ -1069,6 +1528,14 @@ export function BazisViewer({
         >
           {building !== null ? "Остановить сборку" : "▶ Анимация сборки"}
         </button>
+        <button
+          type="button"
+          onClick={() => (step === null ? goToStep(1) : leaveSteps())}
+          aria-pressed={step !== null}
+          className={`${buttonClassName} ${step !== null ? "border-[#171714] bg-[#171714] text-white hover:bg-[#2b2b27]" : ""}`}
+        >
+          {step === null ? "Сборка по шагам" : "Выйти из сборки по шагам"}
+        </button>
         <label className="flex min-w-48 flex-1 items-center gap-2 text-xs text-[#55524c] sm:max-w-72">
           <span className="whitespace-nowrap">Разнести детали</span>
           <input
@@ -1079,12 +1546,53 @@ export function BazisViewer({
             onChange={(event) => {
               stopBuilding();
               cancelAnimationFrame(explodeFrame.current);
+              setStep(null);
               setExplode(Number(event.target.value) / 100);
             }}
             className="w-full accent-[#a94730]"
           />
         </label>
       </div>
+      {step !== null ? (
+        <div className="flex flex-wrap items-center gap-2 border border-[#171714] bg-white px-3 py-2 text-sm text-[#171714]">
+          <button
+            type="button"
+            onClick={() => goToStep(step - 1)}
+            disabled={step <= 1}
+            aria-label="Предыдущий шаг"
+            className={buttonClassName}
+          >
+            ◀
+          </button>
+          <button
+            type="button"
+            onClick={() => goToStep(step + 1)}
+            disabled={step >= stepTotal}
+            aria-label="Следующий шаг"
+            className={buttonClassName}
+          >
+            ▶
+          </button>
+          <p className="min-w-0 flex-1">
+            <span className="font-semibold">
+              Шаг {step} из {stepTotal}:
+            </span>{" "}
+            {info?.name || `деталь ${(scene.buildOrder[step - 1] ?? 0) + 1}`}
+            {attachedLabel ? (
+              <span className="text-[#55524c]">
+                {" "}
+                · крепится к: {attachedLabel}
+              </span>
+            ) : null}
+            {step >= stepTotal ? (
+              <span className="text-[#55524c]"> · изделие собрано</span>
+            ) : null}
+          </p>
+          <span className="hidden text-xs text-[#77736c] sm:inline">
+            Стрелки ← → на клавиатуре листают шаги
+          </span>
+        </div>
+      ) : null}
       <div className="relative grid gap-2">
         <canvas
           ref={canvasRef}
@@ -1093,6 +1601,7 @@ export function BazisViewer({
           className={`${heightClassName} w-full cursor-grab touch-none border border-[#d7d4ce] bg-[#f6f4f0] active:cursor-grabbing`}
           onPointerDown={(event) => {
             stopAnimation();
+            stopSpin();
             tapStart.current =
               pointers.current.size === 0
                 ? { x: event.clientX, y: event.clientY }
@@ -1153,15 +1662,16 @@ export function BazisViewer({
                 }
               }
             } else {
+              const yaw = (next.x - previous.x) * 0.008;
+              const pitch = (next.y - previous.y) * 0.008;
+
+              spin.current = { yaw, pitch, at: performance.now() };
               setView((current) => ({
                 ...current,
-                yaw: current.yaw + (next.x - previous.x) * 0.008,
+                yaw: current.yaw + yaw,
                 pitch: Math.min(
                   Math.PI / 2,
-                  Math.max(
-                    -Math.PI / 2,
-                    current.pitch + (next.y - previous.y) * 0.008,
-                  ),
+                  Math.max(-Math.PI / 2, current.pitch + pitch),
                 ),
               }));
             }
@@ -1175,8 +1685,19 @@ export function BazisViewer({
             if (tapStart.current) {
               const box = boxAt(event.clientX, event.clientY);
 
-              setSelected((current) => (box === current ? null : box));
+              if (step !== null) {
+                // В пошаговой сборке нажатие на поставленную деталь
+                // переходит к её шагу.
+                if (box !== null) {
+                  goToStep(scene.buildOrder.indexOf(box) + 1);
+                }
+              } else {
+                setSelected((current) => (box === current ? null : box));
+              }
+
               tapStart.current = null;
+            } else if (pointers.current.size === 0) {
+              startSpin();
             }
           }}
           onPointerCancel={(event) => {
@@ -1202,11 +1723,14 @@ export function BazisViewer({
           >
             <div className="flex items-start justify-between gap-3">
               <p className="font-semibold break-words text-[#171714]">
+                {step !== null ? `Шаг ${step}. ` : ""}
                 {info?.name || `Деталь ${selectedBox + 1}`}
               </p>
               <button
                 type="button"
-                onClick={() => setSelected(null)}
+                onClick={() =>
+                  step !== null ? leaveSteps() : setSelected(null)
+                }
                 aria-label="Закрыть"
                 className="-mt-1 -mr-1 px-2 text-lg leading-none text-[#77736c] hover:text-[#171714]"
               >
@@ -1227,13 +1751,31 @@ export function BazisViewer({
                 {`${numberFormatter.format(boxes[selectedBox].sizeX)} × ${numberFormatter.format(boxes[selectedBox].sizeY)} × ${numberFormatter.format(boxes[selectedBox].thickness)} мм`}
               </p>
             )}
+            {selectedBlock && step === null ? (
+              <button
+                type="button"
+                onClick={() =>
+                  animateBlock(
+                    explodedBlock === selectedBlock && blockAmount > 0.5
+                      ? null
+                      : selectedBlock,
+                  )
+                }
+                className={`${buttonClassName} justify-self-start`}
+              >
+                {explodedBlock === selectedBlock && blockAmount > 0.5
+                  ? `Собрать «${selectedBlock}»`
+                  : `Разобрать «${selectedBlock}»`}
+              </button>
+            ) : null}
           </aside>
         ) : null}
       </div>
       <p className="text-xs text-[#77736c]">
         Поворачивайте мышью или пальцем, приближайте колесом или двумя пальцами.
-        Нажмите на деталь, чтобы увидеть её размер, материал и место в изделии.
-        Показаны детали из плитных материалов; фурнитура и профили не рисуются.
+        Нажмите на деталь, чтобы увидеть её размер, материал, присадку и место в
+        изделии. Показаны детали из плитных материалов; фурнитура и профили не
+        рисуются.
       </p>
     </div>
   );

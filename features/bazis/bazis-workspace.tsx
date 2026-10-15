@@ -258,6 +258,25 @@ export function BazisWorkspace({
     );
   }, [materials, project, rows]);
 
+  // Скреплённые пары деталей в номерах деталей макета: удалённые из списка
+  // детали на макете пропали, их пары тоже.
+  const joints = useMemo(() => {
+    if (!project?.joints) return undefined;
+
+    const boxIndex = new Map<number, number>();
+
+    rows
+      .flatMap((row) => row.panelIndexes)
+      .forEach((panelIndex, index) => boxIndex.set(panelIndex, index));
+
+    return project.joints.flatMap(([a, b]) => {
+      const left = boxIndex.get(a);
+      const right = boxIndex.get(b);
+
+      return left !== undefined && right !== undefined ? [[left, right]] : [];
+    });
+  }, [project, rows]);
+
   const materialStats = materials.map((name, index) => {
     const own = rows.filter((row) => row.material === index);
 
@@ -433,6 +452,7 @@ export function BazisWorkspace({
             ) : null}
             <BazisViewer
               boxes={boxes}
+              joints={joints}
               highlightTone={highlight}
               toneColors={toneColors}
             />

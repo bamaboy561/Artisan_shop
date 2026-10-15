@@ -98,6 +98,7 @@ export function BazisFilePreview({ file }: { file: File | null }) {
           </p>
           <BazisViewer
             boxes={boxes}
+            joints={project.joints}
             toneColors={toneColors}
             heightClassName="h-[42vh] min-h-64"
           />

@@ -339,9 +339,69 @@ test("counts drilling from furniture holes like the GibLab export", () => {
   });
   assert.equal(parsed.rows.find((row) => row.name === "Дверь")?.holes, 3);
   assert.deepEqual(
+    parsed.panels[0].drillHoles.map((item) => [item.kind, item.diameter]),
+    [
+      ["face", 35],
+      ["face", 4],
+      ["edge", 5],
+    ],
+  );
+  // Евровинт в торец: начало на 10 мм снаружи, в детали остаётся 20 мм.
+  assert.deepEqual(parsed.panels[0].drillHoles[2], {
+    x: -10,
+    y: 150,
+    z: 8,
+    dx: 1,
+    dy: 0,
+    dz: 0,
+    diameter: 5,
+    depth: 20,
+    kind: "edge",
+  });
+  // Крепёж сверлит только одну деталь: скреплённых пар нет.
+  assert.deepEqual(parsed.joints, []);
+  assert.deepEqual(
     parsed.hardware.map((item) => item.name),
     ["Крепёж"],
   );
+});
+
+test("panels drilled by one fastener are recorded as a joint", () => {
+  // Две детали 500 × 300 рядом: вторая сдвинута на 500 по X. Евровинт
+  // уходит в торец первой и сквозь пласть второй.
+  const furniture = object("FurnList", [
+    object("F7", [
+      int("FastID", 7),
+      object("Holes", [
+        hole([470, 150, 8], [1, 0, 0], 5, 30),
+        hole([510, 150, 16], [0, 0, -1], 7, 13),
+      ]),
+    ]),
+  ]);
+  const shifted = panel("Полка", 500, 300, []);
+  shifted.children?.push(object("Trans", [double("X", 500)]));
+  const fastener = object("Obj", [
+    int("Type", 3001),
+    text("Name", "Евровинт"),
+    int("FastID", 7),
+  ]);
+  const parsed = parseBazisProject(
+    project([panel("Бок", 500, 300, []), shifted, fastener], [furniture]),
+  );
+
+  assert.deepEqual(parsed.joints, [[0, 1]]);
+  assert.equal(parsed.panels[0].drillHoles[0].kind, "edge");
+  assert.deepEqual(parsed.panels[1].drillHoles[0], {
+    x: 10,
+    y: 150,
+    z: 16,
+    dx: 0,
+    dy: 0,
+    dz: -1,
+    diameter: 7,
+    depth: 13,
+    kind: "face",
+  });
 });
 
 test("GibLab export writes parts, sheet with code, edges and drilling", () => {

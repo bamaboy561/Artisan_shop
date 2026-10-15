@@ -185,6 +185,7 @@ export default async function BazisProjectPage({
       {project && project.panels.length > 0 ? (
         <section className="mb-4 print:hidden">
           <BazisViewer
+            joints={project.joints}
             boxes={project.panels.map((panel) => ({
               ...panel.box,
               thickness: panel.thickness,
@@ -209,6 +210,7 @@ export default async function BazisProjectPage({
                 textured: panel.textured,
                 complexContour: panel.complexContour,
                 holes: panel.holes,
+                drillHoles: panel.drillHoles,
               },
             }))}
           />

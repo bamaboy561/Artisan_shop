@@ -72,6 +72,7 @@ export function BazisProjectReadonly({
       <section className="grid gap-2 bg-white p-4 sm:p-5">
         <BazisViewer
           boxes={boxes}
+          joints={project.joints}
           toneColors={toneColors}
           highlightBoxes={highlightBoxes}
         />

@@ -1,6 +1,6 @@
 import type { BazisPartInfo } from "@/components/bazis/bazis-viewer";
 import { describeEdgedSides } from "@/features/bazis/part-groups";
-import type { BazisDrilling, BazisProject } from "@/lib/bazis-b3d";
+import type { BazisDrilling, BazisHole, BazisProject } from "@/lib/bazis-b3d";
 
 // Проект Базиса в том виде, в каком его получает страница просмотра.
 // Детали идут по одной (для объёмного макета), строки списка собираются
@@ -18,6 +18,9 @@ export type BazisViewPanel = {
   complexContour: boolean;
   textured: boolean;
   block: string;
+  // Отверстия присадки на детали. В проектах, сохранённых в браузере
+  // раньше, поля нет.
+  drillHoles?: BazisHole[];
   box: {
     x: number;
     y: number;
@@ -35,6 +38,8 @@ export type BazisViewProject = {
   hardware: Array<{ name: string; quantity: number }>;
   // В проектах, сохранённых в браузере до появления присадки, поля нет.
   drilling?: BazisDrilling;
+  // Пары деталей, скреплённых одной фурнитурой (см. BazisProject.joints).
+  joints?: number[][];
 };
 
 export type BazisViewResponse =
@@ -49,6 +54,7 @@ export function toBazisViewProject(project: BazisProject): BazisViewProject {
     materials,
     hardware: project.hardware,
     drilling: project.drilling,
+    joints: project.joints,
     panels: project.panels.map((panel) => ({
       name: panel.name,
       position: panel.position,
@@ -66,6 +72,7 @@ export function toBazisViewProject(project: BazisProject): BazisViewProject {
       complexContour: panel.complexContour,
       textured: panel.textured,
       block: panel.block,
+      drillHoles: panel.drillHoles,
       box: panel.box,
     })),
   };
@@ -88,6 +95,8 @@ export function toBazisPartInfo(
     block: panel.block,
     textured: panel.textured,
     complexContour: panel.complexContour,
+    holes: panel.drillHoles?.length,
+    drillHoles: panel.drillHoles,
   };
 }
 

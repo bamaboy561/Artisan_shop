@@ -99,8 +99,11 @@ export function PartLocator({
         </div>
         <BazisViewer
           boxes={boxes}
+          joints={project.joints}
           highlightBoxes={sameParts}
           animationKey={replay}
+          defaultSelected={panelIndex}
+          defaultExploded
           heightClassName="h-[62vh] min-h-80"
         />
       </div>
