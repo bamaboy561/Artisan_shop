@@ -6,6 +6,7 @@ import { ArrowLeft } from "lucide-react";
 
 import { DownloadCsvButton } from "@/components/admin/download-csv-button";
 import { BazisViewer } from "@/components/bazis/bazis-viewer";
+import { describeEdgedSides } from "@/features/bazis/part-groups";
 import { PrintRouteSheetButton } from "@/components/admin/print-route-sheet-button";
 import {
   drillingDiameter,
@@ -188,6 +189,27 @@ export default async function BazisProjectPage({
               ...panel.box,
               thickness: panel.thickness,
               tone: viewerMaterials.indexOf(panel.material),
+              info: {
+                name: panel.name,
+                position: panel.position,
+                material: panel.material,
+                length: panel.length,
+                width: panel.width,
+                thickness: panel.thickness,
+                edges: describeEdgedSides(
+                  panel.edges.filter((edge) => edge.side === "length").length,
+                  panel.edges.filter((edge) => edge.side === "width").length,
+                ),
+                edgeMaterial: [
+                  ...new Set(
+                    panel.edges.map((edge) => edge.material).filter(Boolean),
+                  ),
+                ].join(", "),
+                block: panel.block,
+                textured: panel.textured,
+                complexContour: panel.complexContour,
+                holes: panel.holes,
+              },
             }))}
           />
         </section>

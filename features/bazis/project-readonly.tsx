@@ -9,7 +9,10 @@ import {
   describeEdgedSides,
   getPartGroupKey,
 } from "@/features/bazis/part-groups";
-import type { BazisViewProject } from "@/features/bazis/project-view";
+import {
+  type BazisViewProject,
+  toBazisPartInfo,
+} from "@/features/bazis/project-view";
 
 const numberFormatter = new Intl.NumberFormat("ru-RU", {
   maximumFractionDigits: 1,
@@ -29,6 +32,7 @@ export function BazisProjectReadonly({
         ...panel.box,
         thickness: panel.thickness,
         tone: panel.material,
+        info: toBazisPartInfo(panel, project.materials),
       })),
     [project],
   );

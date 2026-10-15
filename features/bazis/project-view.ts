@@ -1,3 +1,5 @@
+import type { BazisPartInfo } from "@/components/bazis/bazis-viewer";
+import { describeEdgedSides } from "@/features/bazis/part-groups";
 import type { BazisDrilling, BazisProject } from "@/lib/bazis-b3d";
 
 // Проект Базиса в том виде, в каком его получает страница просмотра.
@@ -66,6 +68,26 @@ export function toBazisViewProject(project: BazisProject): BazisViewProject {
       block: panel.block,
       box: panel.box,
     })),
+  };
+}
+
+// Подпись детали для карточки, которая открывается по нажатию на макете.
+export function toBazisPartInfo(
+  panel: BazisViewPanel,
+  materials: string[],
+): BazisPartInfo {
+  return {
+    name: panel.name,
+    position: panel.position,
+    material: materials[panel.material],
+    length: panel.length,
+    width: panel.width,
+    thickness: panel.thickness,
+    edges: describeEdgedSides(panel.edgedLengthSides, panel.edgedWidthSides),
+    edgeMaterial: panel.edgeMaterial,
+    block: panel.block,
+    textured: panel.textured,
+    complexContour: panel.complexContour,
   };
 }
 

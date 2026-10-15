@@ -7,7 +7,10 @@ import {
   describeEdgedSides,
   findSameParts,
 } from "@/features/bazis/part-groups";
-import type { BazisViewProject } from "@/features/bazis/project-view";
+import {
+  type BazisViewProject,
+  toBazisPartInfo,
+} from "@/features/bazis/project-view";
 
 const numberFormatter = new Intl.NumberFormat("ru-RU", {
   maximumFractionDigits: 1,
@@ -34,6 +37,7 @@ export function PartLocator({
         ...item.box,
         thickness: item.thickness,
         tone: item.material,
+        info: toBazisPartInfo(item, project.materials),
       })),
     [project],
   );
