@@ -42,7 +42,12 @@ export async function getStockLinks(db: PrismaClient) {
 
 export type SavedStockLink = {
   matchKey: string;
-  previousProductId: string | null;
+  // Что было до записи, чтобы отмена вернула связь в прежнее состояние.
+  previous: {
+    productId: string;
+    manual: boolean;
+    importLogId: string | null;
+  } | null;
 };
 
 // Запоминает связи; возвращает, что было раньше, чтобы загрузку можно было
@@ -63,7 +68,12 @@ export async function saveStockLinks(
     (
       await db.stockLink.findMany({
         where: { matchKey: { in: links.map((link) => link.matchKey) } },
-        select: { matchKey: true, productId: true, manual: true },
+        select: {
+          matchKey: true,
+          productId: true,
+          manual: true,
+          importLogId: true,
+        },
       })
     ).map((link) => [link.matchKey, link]),
   );
@@ -95,10 +105,19 @@ export async function saveStockLinks(
       ),
     );
   }
-  return changed.map((link) => ({
-    matchKey: link.matchKey,
-    previousProductId: existing.get(link.matchKey)?.productId ?? null,
-  }));
+  return changed.map((link) => {
+    const previous = existing.get(link.matchKey);
+    return {
+      matchKey: link.matchKey,
+      previous: previous
+        ? {
+            productId: previous.productId,
+            manual: previous.manual,
+            importLogId: previous.importLogId,
+          }
+        : null,
+    };
+  });
 }
 
 // Сохраняет позиции отчёта, которых нет на сайте. Повторная загрузка

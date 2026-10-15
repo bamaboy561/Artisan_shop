@@ -168,6 +168,7 @@ export async function processStockImportAction(
       )
     : [];
   const missingToZeroIds = new Set(missingToZero.map((item) => item.id));
+  const productById = new Map(products.map((product) => [product.id, product]));
   let zeroedCount: number | null = null;
   const fingerprint = createHash("sha256")
     .update(new Uint8Array(await file.arrayBuffer()))
@@ -298,7 +299,8 @@ export async function processStockImportAction(
         !Array.isArray(keys) ||
         (!keys.length &&
           !(zeroMissing && missingToZero.length > 0) &&
-          !pendingItems.length) ||
+          !pendingItems.length &&
+          !manualLinks.size) ||
         keys.some((key) => typeof key !== "string" || !allowed.has(key))
       )
         return result(
@@ -386,26 +388,40 @@ export async function processStockImportAction(
       }
     }
   }
+  // Обнуляем по одному товару: в историю попадают только те, что
+  // действительно обнулились, а не изменённые параллельно заказом.
+  const zeroedItems: typeof missingToZero = [];
   if (zeroMissing && missingToZero.length > 0) {
-    try {
-      const zeroed = await db.product.updateMany({
-        where: {
-          id: { in: [...missingToZeroIds] },
-          stockQuantity: { gt: 0 },
-        },
-        data: {
-          stockQuantity: 0,
-          inventoryStatus: getInventoryStatusForStock(0),
-        },
-      });
-      zeroedCount = zeroed.count;
-    } catch {
-      zeroedCount = 0;
+    zeroedCount = 0;
+    for (let offset = 0; offset < missingToZero.length; offset += 100) {
+      const batch = missingToZero.slice(offset, offset + 100);
+      try {
+        const updates = await db.$transaction(
+          batch.map((item) =>
+            db.product.updateMany({
+              where: {
+                id: item.id,
+                updatedAt: productById.get(item.id)?.updatedAt,
+                stockQuantity: item.quantity,
+              },
+              data: {
+                stockQuantity: 0,
+                inventoryStatus: getInventoryStatusForStock(0),
+              },
+            }),
+          ),
+        );
+        updates.forEach((update, index) => {
+          if (update.count === 1) zeroedItems.push(batch[index]);
+        });
+      } catch {
+        // Пакет не обнулился: товары остались как были.
+      }
     }
+    zeroedCount = zeroedItems.length;
   }
 
   // История для отмены и запоминание совпадений.
-  const productById = new Map(products.map((product) => [product.id, product]));
   const changes: StockImportChange[] = plan.flatMap((entry) =>
     entry.status === "updated" && entry.productId && entry.before
       ? [
@@ -423,21 +439,21 @@ export async function processStockImportAction(
         ]
       : [],
   );
-  if (zeroedCount)
-    for (const item of missingToZero)
-      changes.push({
-        productId: item.id,
-        name: item.name,
-        before: {
-          stockQuantity: item.quantity,
-          inventoryStatus: productById.get(item.id)?.inventoryStatus,
-        },
-        after: {
-          stockQuantity: 0,
-          inventoryStatus: getInventoryStatusForStock(0),
-        },
-      });
+  for (const item of zeroedItems)
+    changes.push({
+      productId: item.id,
+      name: item.name,
+      before: {
+        stockQuantity: item.quantity,
+        inventoryStatus: productById.get(item.id)?.inventoryStatus,
+      },
+      after: {
+        stockQuantity: 0,
+        inventoryStatus: getInventoryStatusForStock(0),
+      },
+    });
   let logId: string | null = null;
+  let linksSaved = 0;
   if (changes.length)
     try {
       logId = (
@@ -452,18 +468,16 @@ export async function processStockImportAction(
       logId = null;
     }
   try {
-    const approved = new Set(changes.map((change) => change.productId));
     const rowsByLinkKey = new Map(
       parsed.rows
         .filter((row) => row.name.trim())
         .map((row) => [stockLinkKey(row), row]),
     );
     const saved: SavedStockLink[] = [
-      ...(await saveStockLinks(
-        db,
-        stockLinksToRemember(parsed.rows, plan, approved),
-        { manual: false, importLogId: logId },
-      )),
+      ...(await saveStockLinks(db, stockLinksToRemember(parsed.rows, plan), {
+        manual: false,
+        importLogId: logId,
+      })),
       ...(await saveStockLinks(
         db,
         [...manualLinks].flatMap(([matchKey, productId]) => {
@@ -483,6 +497,7 @@ export async function processStockImportAction(
       )),
     ];
     if (logId) await attachStockImportLinks(db, logId, saved);
+    linksSaved = saved.length;
   } catch {
     // Совпадения не запомнились: остатки уже записаны, в следующий раз
     // строки снова найдутся по названию.
@@ -500,23 +515,8 @@ export async function processStockImportAction(
     pendingSaved = pendingItems.length ? 0 : null;
   }
 
-  if (plan.some((entry) => entry.status === "updated") || zeroedCount) {
-    for (const path of [
-      "/admin",
-      "/admin/products",
-      "/admin/brands",
-      "/admin/categories",
-      "/",
-      "/catalog",
-      "/brands",
-      "/cart",
-      "/calculator",
-    ])
-      revalidatePath(path);
-    revalidatePath("/product/[slug]", "page");
-    revalidatePath("/catalog/[slug]", "page");
-    revalidatePath("/brands/[slug]", "page");
-  }
+  if (plan.some((entry) => entry.status === "updated") || zeroedCount)
+    revalidateCatalog();
   const counts = summarizeStockImport(plan);
   return result(
     "done",
@@ -526,7 +526,9 @@ export async function processStockImportAction(
         ? "Цены и остатки обновлены."
         : pendingSaved
           ? "Остатки не менялись. Позиции, которых нет на сайте, сохранены в список."
-          : "Обновление не потребовалось. Проверьте результаты строк.",
+          : linksSaved
+            ? "Остатки не менялись. Совпадения запомнены для следующих загрузок."
+            : "Обновление не потребовалось. Проверьте результаты строк.",
   );
 }
 
@@ -623,9 +625,25 @@ export async function undoStockImportAction(formData: FormData) {
   const id = formData.get("id");
   if (typeof id !== "string" || !id) return;
   const result = await undoStockImport(getDb(), id);
-  if (result?.restored)
-    for (const path of ["/admin", "/admin/products", "/", "/catalog"])
-      revalidatePath(path);
-  revalidatePath("/admin/products");
+  if (result?.restored) revalidateCatalog();
+  else revalidatePath("/admin/products");
+}
+
+// Страницы, на которых видны цены и остатки.
+function revalidateCatalog() {
+  for (const path of [
+    "/admin",
+    "/admin/products",
+    "/admin/brands",
+    "/admin/categories",
+    "/",
+    "/catalog",
+    "/brands",
+    "/cart",
+    "/calculator",
+  ])
+    revalidatePath(path);
   revalidatePath("/product/[slug]", "page");
+  revalidatePath("/catalog/[slug]", "page");
+  revalidatePath("/brands/[slug]", "page");
 }

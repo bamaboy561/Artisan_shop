@@ -110,10 +110,11 @@ export async function undoStockImport(db: PrismaClient, id: string) {
     }
   }
   for (const link of links) {
-    if (link.previousProductId)
+    // Связь трогаем, только если её после этой загрузки не меняли.
+    if (link.previous)
       await db.stockLink.updateMany({
-        where: { matchKey: link.matchKey },
-        data: { productId: link.previousProductId },
+        where: { matchKey: link.matchKey, importLogId: id },
+        data: link.previous,
       });
     else
       await db.stockLink.deleteMany({

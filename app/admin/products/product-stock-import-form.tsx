@@ -72,10 +72,11 @@ export function ProductStockImportForm({
     links: Record<string, StockProductOption> = manualLinks,
   ) {
     if (!file || pending) return;
+    const linkCount = Object.keys(links).length;
     if (
       nextIntent === "apply" &&
       !window.confirm(
-        `Обновить товаров: ${result?.reconciliation ? selected.size : (result?.counts?.ready ?? 0)}? Остальные строки останутся без изменений.${zeroMissing ? " Остаток товаров, которых нет в файле, будет обнулён." : ""}${result?.pendingCount ? ` Позиции, которых нет на сайте (${result.pendingCount}), сохранятся в список «Добавить на сайт».` : ""}`,
+        `Обновить товаров: ${result?.reconciliation ? selected.size : (result?.counts?.ready ?? 0)}? Остальные строки останутся без изменений.${zeroMissing ? " Остаток товаров, которых нет в файле, будет обнулён." : ""}${result?.pendingCount ? ` Позиции, которых нет на сайте (${result.pendingCount}), сохранятся в список «Добавить на сайт».` : ""}${linkCount ? ` Выбранные совпадения (${linkCount}) запомнятся.` : ""}`,
       )
     )
       return;
@@ -389,7 +390,8 @@ export function ProductStockImportForm({
             {result.phase === "preview" &&
               (!!result.counts?.ready ||
                 zeroMissing ||
-                !!result.pendingCount) && (
+                !!result.pendingCount ||
+                !!Object.keys(manualLinks).length) && (
                 <Button
                   type="button"
                   variant="accent"
@@ -398,7 +400,8 @@ export function ProductStockImportForm({
                     (!!result.reconciliation &&
                       !selected.size &&
                       !zeroMissing &&
-                      !result.pendingCount)
+                      !result.pendingCount &&
+                      !Object.keys(manualLinks).length)
                   }
                   onClick={() => submit("apply")}
                   className="h-auto min-h-10 py-2 tracking-normal normal-case"
@@ -415,7 +418,12 @@ export function ProductStockImportForm({
                         !zeroMissing &&
                         result.pendingCount
                       ? `Сохранить «Нет на сайте»: ${result.pendingCount}`
-                      : `Применить: ${result.reconciliation ? selected.size : (result.counts?.ready ?? 0)}`}
+                      : result.reconciliation &&
+                          !selected.size &&
+                          !zeroMissing &&
+                          Object.keys(manualLinks).length
+                        ? `Запомнить совпадения: ${Object.keys(manualLinks).length}`
+                        : `Применить: ${result.reconciliation ? selected.size : (result.counts?.ready ?? 0)}`}
                 </Button>
               )}
             {result.reportCsv && (

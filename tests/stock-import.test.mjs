@@ -616,7 +616,7 @@ function actionFixture({
         ];
         return links.map((link) => ({
           matchKey: link.matchKey,
-          previousProductId: null,
+          previous: null,
         }));
       },
     },
@@ -651,6 +651,9 @@ function actionFixture({
           state.batches++;
           if (fail || state.batches === failBatch)
             throw new Error("DB unavailable");
+          // Имитация параллельного изменения между проверкой и записью.
+          state.beforeWrite?.();
+          state.beforeWrite = null;
           return updates.map(({ query }) => {
             state.writes.push(query);
             const current = state.products.find((p) => p.id === query.where.id);
@@ -1356,12 +1359,16 @@ test("exact SKU matches are not remembered, similar ones are once approved", () 
     { productId: "m", sku: "M", match: "similar", status: "updated" },
   ];
   assert.deepEqual(
-    stock
-      .stockLinksToRemember(rows, plan, new Set(["a", "m"]))
-      .map((link) => link.productId),
+    stock.stockLinksToRemember(rows, plan).map((link) => link.productId),
     ["m"],
   );
-  assert.deepEqual(stock.stockLinksToRemember(rows, plan, new Set()), []);
+  assert.deepEqual(
+    stock.stockLinksToRemember(
+      rows,
+      plan.map((entry) => ({ ...entry, status: "skipped" })),
+    ),
+    [],
+  );
 });
 
 test("undo restores only products untouched since the import and drops its links", async () => {
@@ -1370,7 +1377,7 @@ test("undo restores only products untouched since the import and drops its links
       ensureStockPendingItemsTable: async () => {},
     },
   });
-  const calls = { updates: [], deletes: [], logUpdate: null };
+  const calls = { updates: [], deletes: [], linkUpdates: [], logUpdate: null };
   const products = {
     a: { stockQuantity: 5, inventoryStatus: "LIMITED" },
     b: { stockQuantity: 9, inventoryStatus: "IN_STOCK" },
@@ -1393,7 +1400,13 @@ test("undo restores only products untouched since the import and drops its links
             after: { stockQuantity: 7, inventoryStatus: "IN_STOCK" },
           },
         ],
-        links: [{ matchKey: "k", previousProductId: null }],
+        links: [
+          { matchKey: "k", previous: null },
+          {
+            matchKey: "j",
+            previous: { productId: "z", manual: false, importLogId: "log0" },
+          },
+        ],
       }),
       count: async () => 0,
       update: async (query) => {
@@ -1408,7 +1421,7 @@ test("undo restores only products untouched since the import and drops its links
     },
     stockLink: {
       deleteMany: async (query) => calls.deletes.push(query),
-      updateMany: async () => {},
+      updateMany: async (query) => calls.linkUpdates.push(query),
     },
     $transaction: async (queries) =>
       queries.map(({ where, data }) => {
@@ -1427,5 +1440,69 @@ test("undo restores only products untouched since the import and drops its links
   assert.deepEqual(calls.deletes, [
     { where: { matchKey: "k", importLogId: "log1" } },
   ]);
+  assert.deepEqual(calls.linkUpdates, [
+    {
+      where: { matchKey: "j", importLogId: "log1" },
+      data: { productId: "z", manual: false, importLogId: "log0" },
+    },
+  ]);
   assert.ok(calls.logUpdate.data.undoneAt instanceof Date);
+});
+
+test("a manual link is saved even when the product already has the file quantity", async () => {
+  const { action, state, data } = actionFixture();
+  state.products.push(
+    product({ id: "p2", sku: "KR-1", name: "Кромка ПВХ", stockQuantity: 127 }),
+  );
+  const file = accountingReport();
+  const first = await action(data("preview", undefined, "stock", file));
+  const edge = first.reconciliation.find((entry) => entry.name === "Кромка");
+  const manualLinks = JSON.stringify({ [edge.linkKey]: "p2" });
+  const preview = data("preview", undefined, "stock", file);
+  preview.set("manualLinks", manualLinks);
+  const second = await action(preview);
+  const linked = second.reconciliation.find(
+    (entry) => entry.linkKey === edge.linkKey,
+  );
+  assert.equal(linked.kind, "unchanged");
+  const apply = data("apply", second.fingerprint, "stock", file);
+  apply.set("manualLinks", manualLinks);
+  apply.set("selectedRows", "[]");
+  const done = await action(apply);
+  assert.equal(done.phase, "done");
+  assert.deepEqual(
+    state.savedLinks.map((link) => [link.productId, link.manual]),
+    [["p2", true]],
+  );
+});
+
+test("zeroing records only products that were actually zeroed", async () => {
+  const { action, state, data } = actionFixture();
+  state.products.push(
+    product({ id: "p2", sku: "X-1", name: "Товар А", stockQuantity: 3 }),
+    product({ id: "p3", sku: "X-2", name: "Товар Б", stockQuantity: 4 }),
+  );
+  const file = accountingReport();
+  const preview = data("preview", undefined, "stock", file);
+  preview.set("zeroMissing", "on");
+  const first = await action(preview);
+  // Товар Б кто-то продал, пока шло обнуление.
+  state.beforeWrite = () => {
+    const item = state.products.find((product) => product.id === "p3");
+    item.stockQuantity = 1;
+    item.updatedAt = new Date("2026-02-02");
+  };
+  const apply = data("apply", first.fingerprint, "stock", file);
+  apply.set("zeroMissing", "on");
+  apply.set("selectedRows", "[]");
+  const done = await action(apply);
+  assert.equal(done.phase, "done");
+  assert.deepEqual(
+    state.logs[0].changes.map((change) => change.productId),
+    ["p2"],
+  );
+  assert.equal(
+    state.products.find((item) => item.id === "p3").stockQuantity,
+    1,
+  );
 });

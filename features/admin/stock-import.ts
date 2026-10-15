@@ -917,12 +917,11 @@ export function stockMatchedPendingKeys(
 }
 
 // Совпадения, которые стоит запомнить после применения: найденные не по
-// точному артикулу и подтверждённые обновлением товара. В следующий раз
-// эти строки найдутся сразу.
+// точному артикулу, обновлённые или уже совпадающие по остатку (строки,
+// снятые с обновления, не запоминаем). В следующий раз они найдутся сразу.
 export function stockLinksToRemember(
   rows: Array<{ sku: string; name: string }>,
   plan: StockImportPlanEntry[],
-  approvedProductIds: ReadonlySet<string>,
 ) {
   const links = new Map<
     string,
@@ -931,7 +930,6 @@ export function stockLinksToRemember(
   plan.forEach((entry, index) => {
     const row = rows[index];
     if (!row || !row.name.trim() || !entry.productId) return;
-    if (!approvedProductIds.has(entry.productId)) return;
     if (entry.status !== "updated" && entry.status !== "unchanged") return;
     const exactSku =
       entry.match === "sku" &&
