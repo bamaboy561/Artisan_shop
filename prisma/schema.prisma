@@ -332,6 +332,9 @@ model StockPendingItem {
   firstSeenAt DateTime  @default(now())
   lastSeenAt  DateTime  @default(now())
   dismissedAt DateTime?
+  // Товар сайта, с которым позицию связали вручную: следующие загрузки
+  // остатков находят его сами.
+  linkedProductId String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 

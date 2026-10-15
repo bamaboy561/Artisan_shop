@@ -23,6 +23,7 @@ import {
   getUnpaidReservedQuantities,
 } from "@/lib/server/inventory-reservations";
 import {
+  getStockLinks,
   pruneStockPendingItems,
   saveStockPendingItems,
 } from "@/lib/server/stock-pending";
@@ -83,6 +84,12 @@ export async function processStockImportAction(
 
   const db = getDb();
   let products: StockProduct[];
+  let links = new Map<string, string>();
+  try {
+    links = await getStockLinks(db);
+  } catch {
+    // Без связей, заданных вручную, сверка всё равно работает.
+  }
   try {
     products = await db.product.findMany({
       select: {
@@ -104,7 +111,7 @@ export async function processStockImportAction(
         "Не удалось загрузить каталог для сверки. Товары не изменены; повторите проверку.",
     };
   }
-  const plan = buildStockImportPlan(parsed.rows, products, mode);
+  const plan = buildStockImportPlan(parsed.rows, products, mode, links);
   const reconcile =
     mode === "stock" ||
     (mode === "all" && parsed.rows.every((row) => row.inventoryReport));
@@ -428,4 +435,47 @@ export async function dismissStockPendingItemAction(formData: FormData) {
     data: { dismissedAt: new Date() },
   });
   revalidatePath("/admin/products");
+}
+
+// «Это он»: позиция 1С есть на сайте под другим названием или артикулом.
+// Связь запоминается для следующих загрузок, остаток из отчёта записывается
+// в выбранный товар сразу.
+export async function linkStockPendingItemAction(formData: FormData) {
+  const session = await requireAdminSession(
+    "/login?next=/admin/products",
+    "/admin/products",
+  );
+  if (!canAccessGeneralAdmin(session.roleCode) || !hasDatabaseUrl()) return;
+  const id = formData.get("id");
+  const productId = formData.get("productId");
+  if (typeof id !== "string" || !id) return;
+  if (typeof productId !== "string" || !productId) return;
+  const db = getDb();
+  await ensureStockPendingItemsTable(db);
+  const [item, product] = await Promise.all([
+    db.stockPendingItem.findUnique({
+      where: { id },
+      select: { quantity: true },
+    }),
+    db.product.findUnique({ where: { id: productId }, select: { id: true } }),
+  ]);
+  if (!item || !product) return;
+  await db.stockPendingItem.update({
+    where: { id },
+    data: { linkedProductId: productId, dismissedAt: null },
+  });
+  if (item.quantity !== null && item.quantity >= 0) {
+    const reserved =
+      (await getUnpaidReservedQuantities(db, [productId])).get(productId) ?? 0;
+    const quantity = Math.max(0, Math.floor(item.quantity) - reserved);
+    await db.product.update({
+      where: { id: productId },
+      data: {
+        stockQuantity: quantity,
+        inventoryStatus: getInventoryStatusForStock(quantity),
+      },
+    });
+  }
+  for (const path of ["/admin/products", "/catalog", "/"]) revalidatePath(path);
+  revalidatePath("/product/[slug]", "page");
 }
