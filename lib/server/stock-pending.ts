@@ -104,6 +104,11 @@ export async function getStockPendingItems(
   return items.filter(
     (item) =>
       !catalogKeys.has(item.matchKey) &&
-      !matcher.find({ sku: item.sku ?? "", name: item.name }).product,
+      // Артикул, общий для разных позиций 1С, не доказывает совпадение:
+      // такие позиции ищем только по названию.
+      !matcher.find({
+        sku: item.matchKey.includes("|name:") ? "" : (item.sku ?? ""),
+        name: item.name,
+      }).product,
   );
 }

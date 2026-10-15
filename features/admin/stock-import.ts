@@ -305,7 +305,13 @@ function coreTokens(value: string) {
   let start = 0;
   let end = words.length;
   while (start < end && isNameCode(words[start])) start += 1;
-  if (end > start + 1 && isNameCode(words[end - 1])) end -= 1;
+  // В конце убираем только явный код поставщика («WQ63853M», «6051606S»):
+  // «AKS:320MM» или «M.101.S01» в конце — это исполнение товара.
+  if (
+    end > start + 1 &&
+    /^([a-z]{1,4}\d{4,}[a-z]?|\d{6,}[a-z]?)$/.test(words[end - 1])
+  )
+    end -= 1;
   return words
     .slice(start, end)
     .filter((word) => !/^\d{6,}$/.test(word))
