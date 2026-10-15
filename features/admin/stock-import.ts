@@ -261,6 +261,7 @@ const homoglyphs: Record<string, string> = {
 };
 function looseSkuKey(value: string) {
   return skuKey(value)
+    .replace(/[а-я]/g, (char) => homoglyphs[char] ?? char)
     .replace(/[^0-9a-zа-я]/g, "")
     .replace(/(^|\D)0+(?=\d)/g, "$1");
 }
@@ -295,16 +296,16 @@ function coreTokens(value: string) {
   const words = foldLetters(value)
     .split(/[\s/\\(),;"«»]+/)
     .filter(Boolean);
-  // Коды поставщика стоят в начале названия. В середине такое слово чаще
+  // Коды поставщика стоят в начале или в конце названия. В середине такое слово чаще
   // размер или исполнение («AKS:192MM», «M.101.S01»), его не выбрасываем;
   // там убираем только числовой артикул.
-  let leading = true;
+  let start = 0;
+  let end = words.length;
+  while (start < end && isNameCode(words[start])) start += 1;
+  while (end > start && isNameCode(words[end - 1])) end -= 1;
   return words
-    .filter((word) => {
-      if (leading && isNameCode(word)) return false;
-      leading = false;
-      return !/^\d{6,}$/.test(word.replace(/[^0-9a-zа-я]/g, ""));
-    })
+    .slice(start, end)
+    .filter((word) => !/^\d{6,}$/.test(word.replace(/[^0-9a-zа-я]/g, "")))
     .flatMap(nameTokens);
 }
 // Одна опечатка в длинном слове допустима: «Галифакс» и «Галифах».
@@ -347,7 +348,7 @@ export function stockNamesSimilar(left: string, right: string) {
 // Сопоставление строки отчёта с товаром сайта, от строгого к мягкому:
 // артикул, артикул без знаков и ведущих нулей, артикул в названии,
 // точное название и, наконец, то же название без кодов и с одной опечаткой.
-function createStockMatcher<
+export function createStockMatcher<
   P extends { id: string; sku: string; name: string },
 >(products: P[]) {
   const bySku = groupBy(products, (product) => skuKey(product.sku));
