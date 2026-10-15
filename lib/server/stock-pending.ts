@@ -51,9 +51,11 @@ export async function saveStockPendingItems(
 export async function pruneStockPendingItems(
   db: PrismaClient,
   products: Array<{ sku: string; name: string }>,
+  matchedKeys: Iterable<string> = [],
 ) {
   await ensureStockPendingItemsTable(db);
   const catalogKeys = stockPendingCatalogKeys(products);
+  for (const key of matchedKeys) catalogKeys.add(key);
   const items = await db.stockPendingItem.findMany({
     select: { id: true, matchKey: true },
   });

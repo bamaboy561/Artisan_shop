@@ -6,6 +6,7 @@ import { parseProductImportFile } from "@/features/admin/product-import";
 import {
   buildStockImportPlan,
   buildStockReconciliation,
+  stockMatchedPendingKeys,
   collectStockPendingItems,
   stockReconciliationCsv,
   stockRowKey,
@@ -371,7 +372,11 @@ export async function processStockImportAction(
 
   try {
     await saveStockPendingItems(db, pendingItems, fileName);
-    await pruneStockPendingItems(db, products);
+    await pruneStockPendingItems(
+      db,
+      products,
+      stockMatchedPendingKeys(parsed.rows, plan),
+    );
     pendingSaved = pendingItems.length;
   } catch {
     pendingSaved = pendingItems.length ? 0 : null;

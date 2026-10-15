@@ -31,9 +31,11 @@ export type StockImportEntry = {
   before: StockValues | null;
   changes: Partial<StockValues>;
 };
+export type StockMatch = "sku" | "name" | "similar";
 export type StockImportPlanEntry = StockImportEntry & {
   productId: string | null;
   updatedAt: string | null;
+  match?: StockMatch | null;
 };
 export type StockImportResult = {
   phase: "preview" | "done" | "error";
@@ -59,7 +61,7 @@ export type StockReconciliationEntry = {
   unit: string;
   difference: number | null;
   kind: "difference" | "unchanged" | "notFound" | "missing" | "review";
-  match: "sku" | "name" | null;
+  match: StockMatch | null;
   status: StockImportStatus;
   reason: string;
   selectable: boolean;
@@ -80,6 +82,7 @@ export function buildStockReconciliation(
   const referencedNames = new Set(
     rows.filter((row) => !row.sku).map((row) => nameKey(row.name)),
   );
+  const referencedIds = new Set(plan.map((entry) => entry.productId));
   const catalogSkus = new Set(products.map((product) => skuKey(product.sku)));
   const catalogNames = new Set(
     products.map((product) => nameKey(product.name)),
@@ -113,7 +116,9 @@ export function buildStockReconciliation(
           : entry.status === "unchanged"
             ? "unchanged"
             : "difference",
-      match: entry.productId ? (row.sku ? "sku" : "name") : null,
+      match: entry.productId
+        ? (entry.match ?? (row.sku ? "sku" : "name"))
+        : null,
       status: entry.status,
       reason: entry.reason,
       selectable: entry.status === "ready",
@@ -122,6 +127,7 @@ export function buildStockReconciliation(
   for (const product of products) {
     // An ambiguous match still references every candidate; absence is not proof of zero stock.
     if (
+      referencedIds.has(product.id) ||
       referencedSkus.has(skuKey(product.sku)) ||
       referencedNames.has(nameKey(product.name))
     )
@@ -230,18 +236,197 @@ function groupBy<T>(items: T[], key: (item: T) => string) {
   return groups;
 }
 
+// Латиница и кириллица в 1С и на сайте смешиваются в одинаковых по виду
+// буквах («ABS» и «АВS»), поэтому для сравнения названий приводим их к одной.
+const homoglyphs: Record<string, string> = {
+  а: "a",
+  в: "b",
+  с: "c",
+  е: "e",
+  н: "h",
+  к: "k",
+  м: "m",
+  о: "o",
+  р: "p",
+  т: "t",
+  х: "x",
+  у: "y",
+};
+function looseSkuKey(value: string) {
+  return skuKey(value)
+    .replace(/[^0-9a-zа-я]/g, "")
+    .replace(/(^|\D)0+(?=\d)/g, "$1");
+}
+function nameTokens(value: string) {
+  return nameKey(value)
+    .replace(
+      /[абвгдеёжзийклмнопрстуфхцчшщъыьэюяa-z]/g,
+      (char) => homoglyphs[char] ?? char,
+    )
+    .replace(/(\d),(\d)/g, "$1.$2")
+    .replace(/(\d)(?=[a-zа-я])|([a-zа-я])(?=\d)/g, "$1$2 ")
+    .split(/[^0-9a-zа-я.]+/)
+    .map((token) => token.replace(/^\.+|\.+$/g, ""))
+    .filter(Boolean);
+}
+function trigrams(tokens: string[]) {
+  const text = ` ${[...tokens].sort().join(" ")} `;
+  const grams = new Set<string>();
+  for (let index = 0; index < text.length - 2; index += 1)
+    grams.add(text.slice(index, index + 3));
+  return grams;
+}
+function dice(left: Set<string>, right: Set<string>) {
+  if (!left.size || !right.size) return 0;
+  let shared = 0;
+  for (const item of left) if (right.has(item)) shared += 1;
+  return (2 * shared) / (left.size + right.size);
+}
+type NameProfile = {
+  tokens: Set<string>;
+  numbers: string[];
+  grams: Set<string>;
+};
+function nameProfile(value: string): NameProfile {
+  const tokens = nameTokens(value);
+  return {
+    tokens: new Set(tokens),
+    numbers: tokens.filter((token) => /\d/.test(token)),
+    grams: trigrams(tokens),
+  };
+}
+// Числа в названии (толщина, размер, код цвета) различают товары: у похожих
+// названий числа одного должны входить в числа другого.
+function numbersCompatible(left: string[], right: string[]) {
+  const [small, large] =
+    left.length <= right.length ? [left, right] : [right, left];
+  const pool = [...large];
+  for (const number of small) {
+    const index = pool.indexOf(number);
+    if (index < 0) return false;
+    pool.splice(index, 1);
+  }
+  return true;
+}
+const SIMILAR_MIN_SCORE = 0.72;
+const SIMILAR_MIN_GAP = 0.08;
+export function stockNameSimilarity(left: string, right: string) {
+  return profileSimilarity(nameProfile(left), nameProfile(right));
+}
+function profileSimilarity(left: NameProfile, right: NameProfile) {
+  if (!numbersCompatible(left.numbers, right.numbers)) return 0;
+  return (dice(left.tokens, right.tokens) + dice(left.grams, right.grams)) / 2;
+}
+
+// Сопоставление строки отчёта с товаром сайта, от строгого к мягкому:
+// артикул, артикул без знаков и ведущих нулей, артикул в названии,
+// точное название и, наконец, однозначно похожее название.
+function createStockMatcher<
+  P extends { id: string; sku: string; name: string },
+>(products: P[]) {
+  const bySku = groupBy(products, (product) => skuKey(product.sku));
+  const byLooseSku = groupBy(products, (product) => looseSkuKey(product.sku));
+  const byName = groupBy(products, (product) => nameKey(product.name));
+  const byNameToken = new Map<string, P[]>();
+  const profiles = new Map<string, NameProfile>();
+  for (const product of products) {
+    const profile = nameProfile(product.name);
+    profiles.set(product.id, profile);
+    for (const token of profile.tokens) {
+      const list = byNameToken.get(token);
+      if (list) list.push(product);
+      else byNameToken.set(token, [product]);
+    }
+  }
+  const unique = (list: P[] | undefined) =>
+    list?.length === 1 ? list[0] : null;
+  const closest = (profile: NameProfile, candidates: Iterable<P>) => {
+    let best: P | null = null;
+    let bestScore = 0;
+    let secondScore = 0;
+    for (const candidate of candidates) {
+      const score = profileSimilarity(profile, profiles.get(candidate.id)!);
+      if (score > bestScore) {
+        secondScore = bestScore;
+        bestScore = score;
+        best = candidate;
+      } else if (score > secondScore) secondScore = score;
+    }
+    return { best, bestScore, secondScore };
+  };
+
+  return {
+    find(row: { sku: string; name: string }): {
+      product: P | null;
+      matches: P[];
+      via: StockMatch | null;
+    } {
+      const profile = nameProfile(row.name);
+      if (row.sku) {
+        const exact = bySku.get(skuKey(row.sku)) ?? [];
+        if (exact.length === 1)
+          return { product: exact[0], matches: exact, via: "sku" };
+        if (exact.length > 1) {
+          // Один артикул у нескольких товаров: выбираем по названию.
+          const named = exact.filter(
+            (product) => nameKey(product.name) === nameKey(row.name),
+          );
+          if (named.length === 1)
+            return { product: named[0], matches: exact, via: "sku" };
+          const { best, bestScore, secondScore } = closest(profile, exact);
+          if (
+            best &&
+            bestScore >= SIMILAR_MIN_SCORE &&
+            bestScore - secondScore >= SIMILAR_MIN_GAP
+          )
+            return { product: best, matches: exact, via: "sku" };
+          return { product: null, matches: exact, via: null };
+        }
+        const loose = looseSkuKey(row.sku);
+        const looseProduct =
+          loose.length >= 3 ? unique(byLooseSku.get(loose)) : null;
+        if (looseProduct)
+          return { product: looseProduct, matches: [looseProduct], via: "sku" };
+        // Артикул из 1С записан на сайте в названии товара.
+        if (loose.length >= 4) {
+          const inName = (byNameToken.get(loose) ?? []).filter(
+            (product) => looseSkuKey(product.sku) !== loose,
+          );
+          if (inName.length === 1)
+            return { product: inName[0], matches: inName, via: "sku" };
+        }
+      }
+      const named = byName.get(nameKey(row.name)) ?? [];
+      if (named.length === 1)
+        return { product: named[0], matches: named, via: "name" };
+      if (named.length > 1) return { product: null, matches: named, via: null };
+
+      const candidates = new Set<P>();
+      for (const token of profile.tokens) {
+        if (token.length < 3) continue;
+        for (const product of byNameToken.get(token) ?? [])
+          candidates.add(product);
+      }
+      const { best, bestScore, secondScore } = closest(profile, candidates);
+      if (
+        best &&
+        bestScore >= SIMILAR_MIN_SCORE &&
+        bestScore - secondScore >= SIMILAR_MIN_GAP
+      )
+        return { product: best, matches: [best], via: "similar" };
+      return { product: null, matches: [], via: null };
+    },
+  };
+}
+
 export function buildStockImportPlan(
   rows: ProductImportRow[],
   products: StockProduct[],
   mode: StockImportMode,
 ) {
-  const bySku = groupBy(products, (product) => skuKey(product.sku));
-  const byName = groupBy(products, (product) => nameKey(product.name));
+  const matcher = createStockMatcher(products);
   const plan: StockImportPlanEntry[] = rows.map((row) => {
-    const matches = row.sku
-      ? bySku.get(skuKey(row.sku))
-      : byName.get(nameKey(row.name));
-    const product = matches?.length === 1 ? matches[0] : null;
+    const { product, matches, via } = matcher.find(row);
     const entry: StockImportPlanEntry = {
       sheet: row.sheetName,
       row: row.rowNumber,
@@ -253,13 +438,15 @@ export function buildStockImportPlan(
       changes: {},
       productId: product?.id ?? null,
       updatedAt: product?.updatedAt.toISOString() ?? null,
+      match: product ? via : null,
     };
     if (!product) {
-      entry.reason = matches?.length
+      entry.reason = matches.length
         ? "Несколько товаров совпадают. Уточните артикул."
         : "Товар не найден. Добавьте карточку через полный импорт товаров.";
       return entry;
     }
+    const fileName = row.name.trim();
     entry.name = product.name;
     entry.sku = product.sku;
     entry.before = {
@@ -329,9 +516,15 @@ export function buildStockImportPlan(
     );
     entry.status = Object.keys(entry.changes).length ? "ready" : "unchanged";
     entry.reason = [
-      row.sku
-        ? ""
-        : "Совпадение по уникальному названию (артикул в файле отсутствует)",
+      via === "similar"
+        ? `Похожее название в файле: «${fileName}»`
+        : via === "name"
+          ? row.sku
+            ? `Артикул ${row.sku} не найден на сайте, совпало название`
+            : "Совпадение по уникальному названию (артикул в файле отсутствует)"
+          : row.sku && skuKey(row.sku) !== skuKey(product.sku)
+            ? `Артикул в файле: ${row.sku}`
+            : "",
       fractionalStock && (fields as readonly string[]).includes("stockQuantity")
         ? `Остаток округлён вниз: ${String(row.stockQuantity).replace(".", ",")} → ${stockQuantity}`
         : "",
@@ -347,6 +540,27 @@ export function buildStockImportPlan(
   );
   for (const entries of byProduct.values()) {
     if (entries.length < 2) continue;
+    // Похожее название уступает точному совпадению с тем же товаром.
+    const exact = entries.filter((entry) => entry.match !== "similar");
+    if (exact.length === 1) {
+      for (const entry of entries) {
+        if (entry === exact[0]) continue;
+        const row = rows[plan.indexOf(entry)];
+        Object.assign(entry, {
+          sku: row.sku,
+          name: row.name,
+          status: "skipped",
+          reason:
+            "Товар не найден. Добавьте карточку через полный импорт товаров.",
+          before: null,
+          changes: {},
+          productId: null,
+          updatedAt: null,
+          match: null,
+        });
+      }
+      continue;
+    }
     for (const entry of entries) {
       entry.status = "skipped";
       entry.reason =
@@ -467,6 +681,23 @@ export function collectStockPendingItems(
     }
   }
   return items;
+}
+
+// Ключи строк отчёта, которые теперь нашлись на сайте (в том числе по
+// похожему названию): такие позиции убираются из списка «Нет на сайте».
+export function stockMatchedPendingKeys(
+  rows: Array<{ sku: string; name: string }>,
+  plan: StockImportPlanEntry[],
+) {
+  const keys = new Set<string>();
+  plan.forEach((entry, index) => {
+    const row = rows[index];
+    if (!entry.productId || !row) return;
+    const key = stockPendingKey(row);
+    keys.add(key);
+    keys.add(`${key}|name:${nameKey(row.name)}`);
+  });
+  return keys;
 }
 
 // Ключи товаров сайта: позиция уходит из списка, когда появляется товар

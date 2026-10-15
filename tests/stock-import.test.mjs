@@ -320,13 +320,87 @@ test("empty cells preserve values; absent products are never zeroed; zero stock 
   assert.equal(rows.length, 1);
   assert.equal(rows[0].changes.inventoryStatus, "OUT_OF_STOCK");
 });
-test("unknown SKU never falls back to an unrelated matching name", async () => {
+test("unknown SKU falls back to the same name on the site", async () => {
   const [row] = await plan([
     ["Артикул", "Название", "Цена"],
     ["missing", product().name, 10],
   ]);
-  assert.equal(row.status, "skipped");
-  assert.equal(row.productId, null);
+  assert.equal(row.status, "ready");
+  assert.equal(row.productId, "p1");
+  assert.equal(row.match, "name");
+  assert.match(row.reason, /Артикул missing не найден/);
+});
+test("loose SKU, SKU inside the site name and similar names update existing products", async () => {
+  const catalog = [
+    product({
+      id: "edge",
+      sku: "edge-auto",
+      name: "Кромка ABS 0651 Ar Bergen 1,0 (160001112)",
+    }),
+    product({
+      id: "lsp",
+      sku: "LSP-00042",
+      name: "ЛДСП Egger Дуб Галифакс 16 мм",
+    }),
+    product({
+      id: "lsp18",
+      sku: "LSP-00043",
+      name: "ЛДСП Egger Дуб Галифакс 18 мм",
+    }),
+    product({
+      id: "hinge",
+      sku: "WQ",
+      name: "Петля накладная Blum Clip Top 110",
+    }),
+  ];
+  const rows = await plan(
+    [
+      ["Артикул", "Название", "Остаток"],
+      ["160001112", "Кромка АВS/0651 Bergen", 7],
+      ["lsp 42", "ЛДСП Дуб Галифакс", 3],
+      ["", "ЛДСП EGGER дуб Галифакс натуральный 18мм", 4],
+      ["", "Петля Blum Clip Top накладная 110", 9],
+      ["", "Петля Blum Clip Top накладная 95", 9],
+    ],
+    catalog,
+    "stock",
+  );
+  assert.deepEqual(
+    rows.map((row) => [row.productId, row.match]),
+    [
+      ["edge", "sku"],
+      ["lsp", "sku"],
+      ["lsp18", "similar"],
+      ["hinge", "similar"],
+      [null, null],
+    ],
+  );
+  assert.match(rows[2].reason, /Похожее название в файле/);
+});
+test("similar name never steals a product matched exactly by another row", async () => {
+  const rows = await plan(
+    [
+      ["Название", "Остаток"],
+      ["Петля тестовая", 3],
+      ["Петля тестовая большая", 4],
+    ],
+    [product()],
+    "stock",
+  );
+  assert.equal(rows[0].productId, "p1");
+  assert.equal(rows[0].status, "ready");
+  assert.equal(rows[1].productId, null);
+});
+test("rows matched on the site are removed from the pending list", async () => {
+  const parsed = await parser.parseProductImportFile(
+    excel([
+      ["Артикул", "Название", "Остаток"],
+      ["160001112", "Петля тестовая", 2],
+    ]),
+  );
+  const rows = stock.buildStockImportPlan(parsed.rows, [product()], "stock");
+  const keys = stock.stockMatchedPendingKeys(parsed.rows, rows);
+  assert.ok(keys.has(stock.stockPendingKey({ sku: "160001112", name: "x" })));
 });
 test("unique-name fallback is explicit and ambiguous names or SKUs are skipped", async () => {
   const rows = [
