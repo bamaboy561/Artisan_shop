@@ -21,16 +21,103 @@ export type StockPendingListItem = {
   suggestions: Array<{ id: string; sku: string; name: string }>;
 };
 
-// Связи «позиция 1С → товар сайта», заданные вручную.
+// Запомненные связи «позиция 1С → товар сайта»: заданные вручную
+// («Это он») и запомненные после применения загрузки.
 export async function getStockLinks(db: PrismaClient) {
   await ensureStockPendingItemsTable(db);
-  const items = await db.stockPendingItem.findMany({
-    where: { linkedProductId: { not: null } },
-    select: { sku: true, name: true, linkedProductId: true },
-  });
-  return new Map(
-    items.map((item) => [stockLinkKey(item), item.linkedProductId!] as const),
+  const [pending, links] = await Promise.all([
+    db.stockPendingItem.findMany({
+      where: { linkedProductId: { not: null } },
+      select: { sku: true, name: true, linkedProductId: true },
+    }),
+    db.stockLink.findMany({ select: { matchKey: true, productId: true } }),
+  ]);
+  return new Map([
+    ...pending.map(
+      (item) => [stockLinkKey(item), item.linkedProductId!] as const,
+    ),
+    ...links.map((link) => [link.matchKey, link.productId] as const),
+  ]);
+}
+
+export type SavedStockLink = {
+  matchKey: string;
+  // Что было до записи, чтобы отмена вернула связь в прежнее состояние.
+  previous: {
+    productId: string;
+    manual: boolean;
+    importLogId: string | null;
+  } | null;
+};
+
+// Запоминает связи; возвращает, что было раньше, чтобы загрузку можно было
+// отменить вместе со связями.
+export async function saveStockLinks(
+  db: PrismaClient,
+  links: Array<{
+    matchKey: string;
+    productId: string;
+    sku: string | null;
+    name: string;
+  }>,
+  options: { manual: boolean; importLogId?: string | null },
+): Promise<SavedStockLink[]> {
+  if (!links.length) return [];
+  await ensureStockPendingItemsTable(db);
+  const existing = new Map(
+    (
+      await db.stockLink.findMany({
+        where: { matchKey: { in: links.map((link) => link.matchKey) } },
+        select: {
+          matchKey: true,
+          productId: true,
+          manual: true,
+          importLogId: true,
+        },
+      })
+    ).map((link) => [link.matchKey, link]),
   );
+  // Ручную связь автоматическая не перезаписывает.
+  const changed = links.filter((link) => {
+    const current = existing.get(link.matchKey);
+    if (!current) return true;
+    if (current.productId === link.productId) return false;
+    return options.manual || !current.manual;
+  });
+  for (let offset = 0; offset < changed.length; offset += 100) {
+    await db.$transaction(
+      changed.slice(offset, offset + 100).map((link) =>
+        db.stockLink.upsert({
+          where: { matchKey: link.matchKey },
+          create: {
+            ...link,
+            manual: options.manual,
+            importLogId: options.importLogId ?? null,
+          },
+          update: {
+            productId: link.productId,
+            sku: link.sku,
+            name: link.name,
+            manual: options.manual,
+            importLogId: options.importLogId ?? null,
+          },
+        }),
+      ),
+    );
+  }
+  return changed.map((link) => {
+    const previous = existing.get(link.matchKey);
+    return {
+      matchKey: link.matchKey,
+      previous: previous
+        ? {
+            productId: previous.productId,
+            manual: previous.manual,
+            importLogId: previous.importLogId,
+          }
+        : null,
+    };
+  });
 }
 
 // Сохраняет позиции отчёта, которых нет на сайте. Повторная загрузка
@@ -95,7 +182,7 @@ export async function getStockPendingItems(
   db: PrismaClient,
 ): Promise<StockPendingListItem[]> {
   await ensureStockPendingItemsTable(db);
-  const [items, products] = await Promise.all([
+  const [items, products, links] = await Promise.all([
     db.stockPendingItem.findMany({
       where: { dismissedAt: null },
       orderBy: [{ lastSeenAt: "desc" }, { name: "asc" }],
@@ -114,11 +201,12 @@ export async function getStockPendingItems(
       },
     }),
     db.product.findMany({ select: { id: true, sku: true, name: true } }),
+    getStockLinks(db),
   ]);
   const catalogKeys = stockPendingCatalogKeys(products);
   // Тот же поиск, что при загрузке остатков: позиция, которую теперь можно
   // сопоставить с товаром сайта, в списке не показывается.
-  const matcher = createStockMatcher(products);
+  const matcher = createStockMatcher(products, links);
   const productIds = new Set(products.map((product) => product.id));
   return items.flatMap(({ matchKey, linkedProductId, ...item }) => {
     // Связанная позиция скрыта, пока жив товар; если его удалили, позиция

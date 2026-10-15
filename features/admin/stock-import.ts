@@ -42,7 +42,10 @@ export type StockImportPlanEntry = StockImportEntry & {
   candidateIds?: string[];
   // Сумма остатков нескольких позиций 1С, которые ведут на один товар сайта.
   fileQuantity?: number;
+  // Похожие товары сайта для строки без совпадения: из них выбирают «Это он».
+  suggestions?: StockProductOption[];
 };
+export type StockProductOption = { id: string; sku: string; name: string };
 export type StockImportResult = {
   phase: "preview" | "done" | "error";
   message: string;
@@ -71,6 +74,9 @@ export type StockReconciliationEntry = {
   status: StockImportStatus;
   reason: string;
   selectable: boolean;
+  // Ключ, по которому запоминается связь строки 1С с товаром сайта.
+  linkKey?: string;
+  suggestions?: StockProductOption[];
 };
 
 export function stockRowKey(entry: { sheet: string; row: number }) {
@@ -131,6 +137,8 @@ export function buildStockReconciliation(
       status: entry.status,
       reason: entry.reason,
       selectable: entry.status === "ready",
+      linkKey: row.name.trim() ? stockLinkKey(row) : undefined,
+      suggestions: entry.suggestions,
     };
   });
   for (const product of products) {
@@ -577,12 +585,15 @@ export function buildStockImportPlan(
         entry.ambiguous = true;
         entry.candidateIds = matches.map((match) => match.id);
       }
-      const nearest = matches.length ? [] : matcher.suggest(row, 1);
+      const nearest = matches.length ? matches : matcher.suggest(row);
+      entry.suggestions = nearest
+        .slice(0, 5)
+        .map(({ id, sku, name }) => ({ id, sku, name }));
       entry.reason = matches.length
-        ? "Несколько товаров совпадают. Уточните артикул."
+        ? "Несколько товаров совпадают. Выберите нужный: «Это он»."
         : nearest.length
-          ? `Товар не найден. Похожий на сайте: «${nearest[0].name}» (${nearest[0].sku}). Если это он, нажмите «Это он» в списке «Нет на сайте» и проверьте файл снова.`
-          : "Товар не найден. Добавьте карточку через полный импорт товаров.";
+          ? `Товар не найден. Похожий на сайте: «${nearest[0].name}» (${nearest[0].sku}). Если это он, выберите его: «Это он».`
+          : "Товар не найден. Найдите его на сайте через «Это он» или добавьте карточку.";
       return entry;
     }
     const fileName = row.name.trim();
@@ -903,6 +914,37 @@ export function stockMatchedPendingKeys(
     keys.add(`${key}|name:${nameKey(row.name)}`);
   });
   return keys;
+}
+
+// Совпадения, которые стоит запомнить после применения: найденные не по
+// точному артикулу, обновлённые или уже совпадающие по остатку (строки,
+// снятые с обновления, не запоминаем). В следующий раз они найдутся сразу.
+export function stockLinksToRemember(
+  rows: Array<{ sku: string; name: string }>,
+  plan: StockImportPlanEntry[],
+) {
+  const links = new Map<
+    string,
+    { matchKey: string; productId: string; sku: string | null; name: string }
+  >();
+  plan.forEach((entry, index) => {
+    const row = rows[index];
+    if (!row || !row.name.trim() || !entry.productId) return;
+    if (entry.status !== "updated" && entry.status !== "unchanged") return;
+    const exactSku =
+      entry.match === "sku" &&
+      !!row.sku &&
+      skuKey(row.sku) === skuKey(entry.sku);
+    if (entry.match === "linked" || exactSku) return;
+    const matchKey = stockLinkKey(row);
+    links.set(matchKey, {
+      matchKey,
+      productId: entry.productId,
+      sku: row.sku.trim() || null,
+      name: row.name.trim(),
+    });
+  });
+  return [...links.values()];
 }
 
 // Ключи товаров сайта: позиция уходит из списка, когда появляется товар

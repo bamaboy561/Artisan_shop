@@ -12,6 +12,7 @@ import {
   stockImportStatusLabels,
   type StockImportMode,
   type StockImportResult,
+  type StockProductOption,
   type StockValues,
 } from "@/features/admin/stock-import";
 
@@ -46,13 +47,36 @@ export function ProductStockImportForm({
   const [pending, startTransition] = useTransition();
   const router = useRouter();
   const [intent, setIntent] = useState<"preview" | "apply">("preview");
+  // «Это он» в таблице: строка 1С → выбранный товар сайта.
+  const [manualLinks, setManualLinks] = useState<
+    Record<string, StockProductOption>
+  >({});
 
-  function submit(nextIntent: "preview" | "apply") {
+  function reset() {
+    setResult(null);
+    setSelected(new Set());
+    setManualLinks({});
+  }
+
+  function link(linkKey: string, product: StockProductOption | null) {
+    const next = { ...manualLinks };
+    if (product) next[linkKey] = product;
+    else delete next[linkKey];
+    setManualLinks(next);
+    // Пересчитываем сверку сразу, файл заново выбирать не нужно.
+    submit("preview", next);
+  }
+
+  function submit(
+    nextIntent: "preview" | "apply",
+    links: Record<string, StockProductOption> = manualLinks,
+  ) {
     if (!file || pending) return;
+    const linkCount = Object.keys(links).length;
     if (
       nextIntent === "apply" &&
       !window.confirm(
-        `Обновить товаров: ${result?.reconciliation ? selected.size : (result?.counts?.ready ?? 0)}? Остальные строки останутся без изменений.${zeroMissing ? " Остаток товаров, которых нет в файле, будет обнулён." : ""}${result?.pendingCount ? ` Позиции, которых нет на сайте (${result.pendingCount}), сохранятся в список «Добавить на сайт».` : ""}`,
+        `Обновить товаров: ${result?.reconciliation ? selected.size : (result?.counts?.ready ?? 0)}? Остальные строки останутся без изменений.${zeroMissing ? " Остаток товаров, которых нет в файле, будет обнулён." : ""}${result?.pendingCount ? ` Позиции, которых нет на сайте (${result.pendingCount}), сохранятся в список «Добавить на сайт».` : ""}${linkCount ? ` Выбранные совпадения (${linkCount}) запомнятся.` : ""}`,
       )
     )
       return;
@@ -65,11 +89,37 @@ export function ProductStockImportForm({
     if (result?.fingerprint) data.set("fingerprint", result.fingerprint);
     if (result?.reconciliation)
       data.set("selectedRows", JSON.stringify([...selected]));
+    data.set(
+      "manualLinks",
+      JSON.stringify(
+        Object.fromEntries(
+          Object.entries(links).map(([key, product]) => [key, product.id]),
+        ),
+      ),
+    );
+    const relink = nextIntent === "preview" && !!result?.reconciliation;
+    const kept = selected;
     startTransition(async () => {
       try {
         const next = await importAction(data);
         setResult(next);
-        setSelected(new Set());
+        // После «Это он» отметка у проверенных строк сохраняется, а
+        // связанная строка отмечается сама.
+        setSelected(
+          relink && next.reconciliation
+            ? new Set(
+                next.reconciliation
+                  .filter(
+                    (entry) =>
+                      entry.selectable &&
+                      (kept.has(entry.key) ||
+                        (!!entry.linkKey && entry.linkKey in links)),
+                  )
+                  .map((entry) => entry.key),
+              )
+            : new Set(),
+        );
+        if (next.phase === "done") setManualLinks({});
         // Обновляем список «Нет на сайте» на странице.
         if (next.phase === "done") router.refresh();
       } catch {
@@ -120,8 +170,7 @@ export function ProductStockImportForm({
                   checked={mode === item.value}
                   onChange={() => {
                     setMode(item.value);
-                    setResult(null);
-                    setSelected(new Set());
+                    reset();
                   }}
                   className="peer sr-only"
                 />
@@ -137,8 +186,7 @@ export function ProductStockImportForm({
                 checked={zeroMissing}
                 onChange={(event) => {
                   setZeroMissing(event.target.checked);
-                  setResult(null);
-                  setSelected(new Set());
+                  reset();
                 }}
                 className="mt-1"
               />
@@ -159,8 +207,7 @@ export function ProductStockImportForm({
               className="h-auto min-h-11 min-w-0 py-2 text-xs"
               onChange={(event) => {
                 setFile(event.target.files?.[0] ?? null);
-                setResult(null);
-                setSelected(new Set());
+                reset();
               }}
             />
           </label>
@@ -251,12 +298,14 @@ export function ProductStockImportForm({
           )}
           {result.reconciliation && (
             <StockReconciliationTable
-              key={result.fingerprint ?? result.phase}
+              key={result.phase}
               entries={result.reconciliation}
               selected={selected}
               onSelection={setSelected}
               disabled={pending}
               preview={result.phase === "preview"}
+              manualLinks={manualLinks}
+              onLink={link}
             />
           )}
           {!result.reconciliation && !!result.entries?.length && (
@@ -341,7 +390,8 @@ export function ProductStockImportForm({
             {result.phase === "preview" &&
               (!!result.counts?.ready ||
                 zeroMissing ||
-                !!result.pendingCount) && (
+                !!result.pendingCount ||
+                !!Object.keys(manualLinks).length) && (
                 <Button
                   type="button"
                   variant="accent"
@@ -350,7 +400,8 @@ export function ProductStockImportForm({
                     (!!result.reconciliation &&
                       !selected.size &&
                       !zeroMissing &&
-                      !result.pendingCount)
+                      !result.pendingCount &&
+                      !Object.keys(manualLinks).length)
                   }
                   onClick={() => submit("apply")}
                   className="h-auto min-h-10 py-2 tracking-normal normal-case"
@@ -367,7 +418,12 @@ export function ProductStockImportForm({
                         !zeroMissing &&
                         result.pendingCount
                       ? `Сохранить «Нет на сайте»: ${result.pendingCount}`
-                      : `Применить: ${result.reconciliation ? selected.size : (result.counts?.ready ?? 0)}`}
+                      : result.reconciliation &&
+                          !selected.size &&
+                          !zeroMissing &&
+                          Object.keys(manualLinks).length
+                        ? `Запомнить совпадения: ${Object.keys(manualLinks).length}`
+                        : `Применить: ${result.reconciliation ? selected.size : (result.counts?.ready ?? 0)}`}
                 </Button>
               )}
             {result.reportCsv && (

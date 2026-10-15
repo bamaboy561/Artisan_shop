@@ -369,6 +369,37 @@ model ProductImage {
   @@index([productId, sortOrder])
 }
 
+// Запомненные совпадения «позиция 1С → товар сайта»: следующие загрузки
+// остатков находят товар сразу, без угадывания по названию.
+model StockLink {
+  id          String   @id @default(cuid())
+  matchKey    String   @unique
+  productId   String
+  sku         String?
+  name        String
+  manual      Boolean  @default(false)
+  importLogId String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([productId])
+}
+
+// История применённых загрузок остатков: что поменялось, чтобы можно было
+// отменить загрузку не того файла.
+model StockImportLog {
+  id        String    @id @default(cuid())
+  fileName  String
+  userId    String?
+  mode      String
+  changes   Json
+  links     Json
+  createdAt DateTime  @default(now())
+  undoneAt  DateTime?
+
+  @@index([createdAt])
+}
+
 model ProductAttribute {
   id        String   @id @default(cuid())
   productId String

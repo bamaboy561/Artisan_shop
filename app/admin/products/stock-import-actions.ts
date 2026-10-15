@@ -6,6 +6,8 @@ import { parseProductImportFile } from "@/features/admin/product-import";
 import {
   buildStockImportPlan,
   buildStockReconciliation,
+  stockLinkKey,
+  stockLinksToRemember,
   stockMatchedPendingKeys,
   collectStockPendingItems,
   stockReconciliationCsv,
@@ -14,6 +16,7 @@ import {
   summarizeStockImport,
   type StockImportResult,
   type StockProduct,
+  type StockProductOption,
 } from "@/features/admin/stock-import";
 import { requireAdminSession } from "@/lib/auth/dal";
 import { canAccessGeneralAdmin } from "@/lib/auth/roles";
@@ -23,9 +26,17 @@ import {
   getUnpaidReservedQuantities,
 } from "@/lib/server/inventory-reservations";
 import {
+  attachStockImportLinks,
+  recordStockImport,
+  undoStockImport,
+  type StockImportChange,
+} from "@/lib/server/stock-history";
+import {
   getStockLinks,
   pruneStockPendingItems,
+  saveStockLinks,
   saveStockPendingItems,
+  type SavedStockLink,
 } from "@/lib/server/stock-pending";
 import { ensureStockPendingItemsTable } from "@/lib/server/stock-pending-schema";
 
@@ -111,6 +122,21 @@ export async function processStockImportAction(
         "Не удалось загрузить каталог для сверки. Товары не изменены; повторите проверку.",
     };
   }
+  // «Это он» в таблице проверки: строка 1С связана с выбранным товаром.
+  const manualLinks = new Map<string, string>();
+  try {
+    const raw: unknown = JSON.parse(
+      String(formData.get("manualLinks") ?? "{}"),
+    );
+    const productIds = new Set(products.map((product) => product.id));
+    if (raw && typeof raw === "object" && !Array.isArray(raw))
+      for (const [key, value] of Object.entries(raw).slice(0, 2000))
+        if (typeof value === "string" && productIds.has(value))
+          manualLinks.set(key, value);
+  } catch {
+    // Повреждённый список ручных связей просто не применяем.
+  }
+  for (const [key, productId] of manualLinks) links.set(key, productId);
   const plan = buildStockImportPlan(parsed.rows, products, mode, links);
   const reconcile =
     mode === "stock" ||
@@ -142,6 +168,7 @@ export async function processStockImportAction(
       )
     : [];
   const missingToZeroIds = new Set(missingToZero.map((item) => item.id));
+  const productById = new Map(products.map((product) => [product.id, product]));
   let zeroedCount: number | null = null;
   const fingerprint = createHash("sha256")
     .update(new Uint8Array(await file.arrayBuffer()))
@@ -149,6 +176,7 @@ export async function processStockImportAction(
       JSON.stringify({
         mode,
         plan,
+        manualLinks: [...manualLinks],
         zeroMissing: zeroMissing ? [...missingToZeroIds] : false,
       }),
     )
@@ -271,7 +299,8 @@ export async function processStockImportAction(
         !Array.isArray(keys) ||
         (!keys.length &&
           !(zeroMissing && missingToZero.length > 0) &&
-          !pendingItems.length) ||
+          !pendingItems.length &&
+          !manualLinks.size) ||
         keys.some((key) => typeof key !== "string" || !allowed.has(key))
       )
         return result(
@@ -359,22 +388,119 @@ export async function processStockImportAction(
       }
     }
   }
+  // Обнуляем по одному товару: в историю попадают только те, что
+  // действительно обнулились, а не изменённые параллельно заказом.
+  const zeroedItems: typeof missingToZero = [];
   if (zeroMissing && missingToZero.length > 0) {
-    try {
-      const zeroed = await db.product.updateMany({
-        where: {
-          id: { in: [...missingToZeroIds] },
-          stockQuantity: { gt: 0 },
-        },
-        data: {
-          stockQuantity: 0,
-          inventoryStatus: getInventoryStatusForStock(0),
-        },
-      });
-      zeroedCount = zeroed.count;
-    } catch {
-      zeroedCount = 0;
+    zeroedCount = 0;
+    for (let offset = 0; offset < missingToZero.length; offset += 100) {
+      const batch = missingToZero.slice(offset, offset + 100);
+      try {
+        const updates = await db.$transaction(
+          batch.map((item) =>
+            db.product.updateMany({
+              where: {
+                id: item.id,
+                updatedAt: productById.get(item.id)?.updatedAt,
+                stockQuantity: item.quantity,
+              },
+              data: {
+                stockQuantity: 0,
+                inventoryStatus: getInventoryStatusForStock(0),
+              },
+            }),
+          ),
+        );
+        updates.forEach((update, index) => {
+          if (update.count === 1) zeroedItems.push(batch[index]);
+        });
+      } catch {
+        // Пакет не обнулился: товары остались как были.
+      }
     }
+    zeroedCount = zeroedItems.length;
+  }
+
+  // История для отмены и запоминание совпадений.
+  const changes: StockImportChange[] = plan.flatMap((entry) =>
+    entry.status === "updated" && entry.productId && entry.before
+      ? [
+          {
+            productId: entry.productId,
+            name: entry.name,
+            before: Object.fromEntries(
+              Object.keys(entry.changes).map((key) => [
+                key,
+                entry.before![key as keyof typeof entry.before],
+              ]),
+            ),
+            after: entry.changes,
+          },
+        ]
+      : [],
+  );
+  for (const item of zeroedItems)
+    changes.push({
+      productId: item.id,
+      name: item.name,
+      before: {
+        stockQuantity: item.quantity,
+        inventoryStatus: productById.get(item.id)?.inventoryStatus,
+      },
+      after: {
+        stockQuantity: 0,
+        inventoryStatus: getInventoryStatusForStock(0),
+      },
+    });
+  let logId: string | null = null;
+  let linksSaved = 0;
+  if (changes.length)
+    try {
+      logId = (
+        await recordStockImport(db, {
+          fileName,
+          userId: session.userId ?? null,
+          mode,
+          changes,
+        })
+      ).id;
+    } catch {
+      logId = null;
+    }
+  try {
+    const rowsByLinkKey = new Map(
+      parsed.rows
+        .filter((row) => row.name.trim())
+        .map((row) => [stockLinkKey(row), row]),
+    );
+    const saved: SavedStockLink[] = [
+      ...(await saveStockLinks(db, stockLinksToRemember(parsed.rows, plan), {
+        manual: false,
+        importLogId: logId,
+      })),
+      ...(await saveStockLinks(
+        db,
+        [...manualLinks].flatMap(([matchKey, productId]) => {
+          const row = rowsByLinkKey.get(matchKey);
+          return row
+            ? [
+                {
+                  matchKey,
+                  productId,
+                  sku: row.sku.trim() || null,
+                  name: row.name.trim(),
+                },
+              ]
+            : [];
+        }),
+        { manual: true, importLogId: logId },
+      )),
+    ];
+    if (logId) await attachStockImportLinks(db, logId, saved);
+    linksSaved = saved.length;
+  } catch {
+    // Совпадения не запомнились: остатки уже записаны, в следующий раз
+    // строки снова найдутся по названию.
   }
 
   try {
@@ -389,23 +515,8 @@ export async function processStockImportAction(
     pendingSaved = pendingItems.length ? 0 : null;
   }
 
-  if (plan.some((entry) => entry.status === "updated") || zeroedCount) {
-    for (const path of [
-      "/admin",
-      "/admin/products",
-      "/admin/brands",
-      "/admin/categories",
-      "/",
-      "/catalog",
-      "/brands",
-      "/cart",
-      "/calculator",
-    ])
-      revalidatePath(path);
-    revalidatePath("/product/[slug]", "page");
-    revalidatePath("/catalog/[slug]", "page");
-    revalidatePath("/brands/[slug]", "page");
-  }
+  if (plan.some((entry) => entry.status === "updated") || zeroedCount)
+    revalidateCatalog();
   const counts = summarizeStockImport(plan);
   return result(
     "done",
@@ -415,7 +526,9 @@ export async function processStockImportAction(
         ? "Цены и остатки обновлены."
         : pendingSaved
           ? "Остатки не менялись. Позиции, которых нет на сайте, сохранены в список."
-          : "Обновление не потребовалось. Проверьте результаты строк.",
+          : linksSaved
+            ? "Остатки не менялись. Совпадения запомнены для следующих загрузок."
+            : "Обновление не потребовалось. Проверьте результаты строк.",
   );
 }
 
@@ -452,14 +565,85 @@ export async function linkStockPendingItemAction(formData: FormData) {
   if (typeof productId !== "string" || !productId) return;
   const db = getDb();
   await ensureStockPendingItemsTable(db);
-  const product = await db.product.findUnique({
-    where: { id: productId },
-    select: { id: true },
-  });
-  if (!product) return;
+  const [product, item] = await Promise.all([
+    db.product.findUnique({ where: { id: productId }, select: { id: true } }),
+    db.stockPendingItem.findUnique({
+      where: { id },
+      select: { sku: true, name: true },
+    }),
+  ]);
+  if (!product || !item) return;
+  await saveStockLinks(
+    db,
+    [{ matchKey: stockLinkKey(item), productId, ...item }],
+    { manual: true },
+  );
   await db.stockPendingItem.updateMany({
     where: { id },
     data: { linkedProductId: productId, dismissedAt: null },
   });
   revalidatePath("/admin/products");
+}
+
+// Поиск товара сайта для «Это он»: по названию или артикулу.
+export async function searchStockProductsAction(
+  query: string,
+): Promise<StockProductOption[]> {
+  const session = await requireAdminSession(
+    "/login?next=/admin/products",
+    "/admin/products",
+  );
+  if (!canAccessGeneralAdmin(session.roleCode) || !hasDatabaseUrl()) return [];
+  const words = String(query ?? "")
+    .trim()
+    .split(/\s+/)
+    .filter((word) => word.length >= 2)
+    .slice(0, 5);
+  if (!words.length) return [];
+  return getDb().product.findMany({
+    where: {
+      AND: words.map((word) => ({
+        OR: [
+          { name: { contains: word, mode: "insensitive" as const } },
+          { sku: { contains: word, mode: "insensitive" as const } },
+        ],
+      })),
+    },
+    select: { id: true, sku: true, name: true },
+    orderBy: { name: "asc" },
+    take: 20,
+  });
+}
+
+// Отмена загрузки не того файла: остатки возвращаются как были.
+export async function undoStockImportAction(formData: FormData) {
+  const session = await requireAdminSession(
+    "/login?next=/admin/products",
+    "/admin/products",
+  );
+  if (!canAccessGeneralAdmin(session.roleCode) || !hasDatabaseUrl()) return;
+  const id = formData.get("id");
+  if (typeof id !== "string" || !id) return;
+  const result = await undoStockImport(getDb(), id);
+  if (result?.restored) revalidateCatalog();
+  else revalidatePath("/admin/products");
+}
+
+// Страницы, на которых видны цены и остатки.
+function revalidateCatalog() {
+  for (const path of [
+    "/admin",
+    "/admin/products",
+    "/admin/brands",
+    "/admin/categories",
+    "/",
+    "/catalog",
+    "/brands",
+    "/cart",
+    "/calculator",
+  ])
+    revalidatePath(path);
+  revalidatePath("/product/[slug]", "page");
+  revalidatePath("/catalog/[slug]", "page");
+  revalidatePath("/brands/[slug]", "page");
 }
