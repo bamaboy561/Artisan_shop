@@ -1168,3 +1168,19 @@ test("article written inside the file name matches the site SKU field", async ()
   );
   assert.match(plan[0].reason, /WQ63853M найден в названии/);
 });
+
+test("article in the name stays ambiguous when site SKUs differ only in punctuation", async () => {
+  const parsed = await parser.parseProductImportFile(
+    excel([
+      ["Название", "Остаток"],
+      ["AB_001234 Кромка синяя", 5],
+    ]),
+  );
+  const products = [
+    product({ id: "a", sku: "AB-01234", name: "Кромка белая" }),
+    product({ id: "b", sku: "AB01234", name: "Кромка красная" }),
+  ];
+  const plan = stock.buildStockImportPlan(parsed.rows, products, "stock");
+  assert.equal(plan[0].productId ?? null, null);
+  assert.equal(plan[0].ambiguous, true);
+});

@@ -462,10 +462,11 @@ export function createStockMatcher<
             (product) => nameKey(product.name) === nameKey(row.name),
           );
           hits = narrowed.length ? narrowed : similar(row.name, hits);
-          if (hits.length !== 1) hits = [...bySkuInName].filter(shareWord);
         }
         if (hits.length === 1)
           return { product: hits[0], matches: hits, via: "sku" };
+        // Несколько товаров с похожими артикулами: решает человек.
+        return { product: null, matches: [...bySkuInName], via: null };
       }
       const named = byName.get(nameKey(row.name)) ?? [];
       if (named.length === 1)
