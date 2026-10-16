@@ -30,6 +30,7 @@ import { CALCULATOR_PRESET_HANDOFF_KEY } from "@/features/bazis/project-view";
 import type { ImportedDetail } from "@/features/services/cut-list-import";
 import { CutDetailTable } from "@/features/services/cut-detail-table";
 import { CutListImportPanel } from "@/features/services/cut-list-import-panel";
+import { optimizeCutting } from "@/features/services/cut-optimizer";
 import type {
   CalculatorMaterialDto,
   CalculatorPresetDto,
@@ -1218,10 +1219,118 @@ function buildCutMap(
     } satisfies CutMapResult;
   };
 
-  const candidates =
-    settings.firstCutDirection === "auto"
+  // Раскрой полосами, как в GibLab: обычно на лист-два меньше прежнего
+  // пораздельного размещения. Прежний остаётся запасным вариантом.
+  const buildByStrips = (): CutMapResult => {
+    const byId = new Map(pieces.map((piece) => [piece.id, piece]));
+    const optimized = optimizeCutting(
+      pieces,
+      workingArea.width,
+      workingArea.height,
+      settings.kerf,
+      settings.firstCutDirection === "auto"
+        ? ["vertical", "horizontal"]
+        : [settings.firstCutDirection],
+    );
+    let cutLineIndex = 0;
+    const sheets: CutMapSheet[] = optimized.sheets.map((layout, index) => {
+      const sheetIndex = index + 1;
+      const offcuts = layout.offcuts
+        .filter((rect) => rect.width >= 1 && rect.height >= 1)
+        .map((rect, offcutIndex) => ({
+          id: `sheet-${sheetIndex}-offcut-${offcutIndex + 1}`,
+          width: rect.width,
+          height: rect.height,
+          area: rect.width * rect.height,
+        }))
+        .sort((left, right) => right.area - left.area);
+
+      return {
+        index: sheetIndex,
+        pieces: layout.placements.flatMap((placement) => {
+          const piece = byId.get(placement.id);
+          return piece
+            ? [
+                {
+                  ...piece,
+                  x: workingArea.x + placement.x,
+                  y: workingArea.y + placement.y,
+                  width: placement.width,
+                  height: placement.height,
+                  rotated: placement.rotated,
+                  sheetIndex,
+                  level: placement.level,
+                },
+              ]
+            : [];
+        }),
+        cuts: layout.cuts.map((cut) => {
+          cutLineIndex += 1;
+          return {
+            id: `cut-${cutLineIndex}`,
+            x: workingArea.x + cut.x,
+            y: workingArea.y + cut.y,
+            width: cut.width,
+            height: cut.height,
+            orientation: cut.orientation,
+            level: cut.level,
+          };
+        }),
+        offcuts,
+        offcutArea: offcuts.reduce((sum, item) => sum + item.area, 0),
+        largestOffcut: offcuts[0]
+          ? {
+              width: offcuts[0].width,
+              height: offcuts[0].height,
+              area: offcuts[0].area,
+            }
+          : null,
+        usedArea: layout.usedArea,
+        usableArea: workingArea.width * workingArea.height,
+        cutLength: layout.cuts.reduce((sum, cut) => sum + cut.length, 0),
+        cutCount: layout.cuts.length,
+        workingArea: { ...workingArea },
+      };
+    });
+    const unplacedIds = new Set(optimized.unplacedIds);
+    const usedArea = sheets.reduce((sum, item) => sum + item.usedArea, 0);
+    const usableArea = sheets.length * workingArea.width * workingArea.height;
+    const largestOffcut =
+      sheets
+        .map((item) => item.largestOffcut)
+        .filter(
+          (item): item is NonNullable<CutMapSheet["largestOffcut"]> =>
+            item !== null,
+        )
+        .sort((left, right) => right.area - left.area)[0] ?? null;
+
+    return {
+      sheets,
+      unplacedPieces: pieces.filter((piece) => unplacedIds.has(piece.id)),
+      totalPieces: pieces.length,
+      placedPieces: pieces.length - unplacedIds.size,
+      utilization: usableArea > 0 ? usedArea / usableArea : 0,
+      cutLength: sheets.reduce((sum, item) => sum + item.cutLength, 0),
+      cutCount: sheets.reduce((sum, item) => sum + item.cutCount, 0),
+      rotatedPieces: sheets.reduce(
+        (sum, item) =>
+          sum + item.pieces.filter((piece) => piece.rotated).length,
+        0,
+      ),
+      offcutArea: sheets.reduce((sum, item) => sum + item.offcutArea, 0),
+      largestOffcut,
+      firstCutDirection: optimized.sheets[0]?.direction ?? fallbackDirection,
+    };
+  };
+
+  const candidates = [
+    ...(workingArea.width > 0 && workingArea.height > 0
+      ? [buildByStrips()]
+      : []),
+    ...(settings.firstCutDirection === "auto"
       ? [buildByDirection("vertical"), buildByDirection("horizontal")]
-      : [buildByDirection(settings.firstCutDirection)];
+      : [buildByDirection(settings.firstCutDirection)]),
+  ];
 
   return candidates.reduce((bestResult, candidate) => {
     if (candidate.unplacedPieces.length !== bestResult.unplacedPieces.length) {
