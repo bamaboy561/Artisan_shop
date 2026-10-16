@@ -1,6 +1,6 @@
 "use client";
 
-import { Copy, Trash2 } from "lucide-react";
+import { Copy, Drill, Trash2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -29,6 +29,9 @@ type CutDetailTableProps = {
   onSetEdges: (id: string, sides: EdgeSide[]) => void;
   onDuplicate: (id: string) => void;
   onRemove: (id: string) => void;
+  // Присадка детали: подпись «12 отв.» и открытие чертежа.
+  drillingLabels?: Record<string, string>;
+  onDrilling?: (id: string) => void;
 };
 
 const ALL_SIDES: EdgeSide[] = ["top", "right", "bottom", "left"];
@@ -124,10 +127,12 @@ export function CutDetailTable({
   onSetEdges,
   onDuplicate,
   onRemove,
+  drillingLabels = {},
+  onDrilling,
 }: CutDetailTableProps) {
   return (
     <div className="mt-4 overflow-hidden rounded-2xl border border-[color:var(--line)] bg-white shadow-[0_1px_0_rgba(21,20,17,0.04)] sm:mt-5">
-      <div className="hidden grid-cols-[28px_minmax(0,1.4fr)_92px_92px_64px_128px_minmax(0,1fr)_96px_68px] gap-2 border-b border-[color:var(--line)] bg-[#faf7f2] px-3 py-2.5 text-xs font-semibold text-[var(--muted)] lg:grid">
+      <div className="hidden grid-cols-[28px_minmax(0,1.4fr)_92px_92px_64px_128px_minmax(0,1fr)_96px_auto] gap-2 border-b border-[color:var(--line)] bg-[#faf7f2] px-3 py-2.5 text-xs font-semibold text-[var(--muted)] lg:grid">
         <span>№</span>
         <span>Название</span>
         <span>Длина, мм</span>
@@ -143,7 +148,7 @@ export function CutDetailTable({
         {rows.map((row, index) => (
           <li
             key={row.id}
-            className="grid grid-cols-[28px_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-2.5 border-b border-[color:var(--line)] px-3 py-3 last:border-b-0 lg:grid-cols-[28px_minmax(0,1.4fr)_92px_92px_64px_128px_minmax(0,1fr)_96px_68px] lg:gap-y-0 lg:py-2"
+            className="grid grid-cols-[28px_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-2.5 border-b border-[color:var(--line)] px-3 py-3 last:border-b-0 lg:grid-cols-[28px_minmax(0,1.4fr)_92px_92px_64px_128px_minmax(0,1fr)_96px_auto] lg:gap-y-0 lg:py-2"
           >
             <span
               className="flex size-6 items-center justify-center rounded-full text-[11px] font-semibold text-white"
@@ -163,6 +168,26 @@ export function CutDetailTable({
             />
 
             <div className="flex items-center justify-end gap-1 lg:order-last">
+              {onDrilling ? (
+                <button
+                  type="button"
+                  onClick={() => onDrilling(row.id)}
+                  disabled={!(Number(row.width) > 0 && Number(row.height) > 0)}
+                  aria-label={`Присадка детали ${index + 1}`}
+                  title="Присадка: фурнитура на чертеже детали"
+                  className={cn(
+                    "flex h-9 items-center justify-center gap-1 rounded-lg px-2 text-[12px] transition hover:bg-[#f3ece1] hover:text-[var(--foreground)] disabled:opacity-30",
+                    drillingLabels[row.id]
+                      ? "font-semibold text-[var(--accent)]"
+                      : "text-[var(--muted)]",
+                  )}
+                >
+                  <Drill className="size-4" />
+                  {drillingLabels[row.id] || (
+                    <span className="hidden sm:inline">Присадка</span>
+                  )}
+                </button>
+              ) : null}
               <button
                 type="button"
                 onClick={() => onDuplicate(row.id)}

@@ -38,6 +38,18 @@ import type { ImportedDetail } from "@/features/services/cut-list-import";
 import { CutDetailTable } from "@/features/services/cut-detail-table";
 import { CutListImportPanel } from "@/features/services/cut-list-import-panel";
 import { optimizeCutting } from "@/features/services/cut-optimizer";
+import { DrillingEditor } from "@/features/services/drilling-editor";
+import {
+  HARDWARE,
+  SIDE_LABELS,
+  buildDrillingProgram,
+  hardwareHoles,
+  holesToDrillCounts,
+  mergeDrillCounts,
+  rotateHoles,
+  sanitizeHardware,
+  type HardwareItem,
+} from "@/features/services/drilling-hardware";
 import type {
   CalculatorMaterialDto,
   CalculatorPresetDto,
@@ -68,6 +80,8 @@ type DetailRow = {
   orientationMode: OrientationMode;
   // Присадка одной детали из проекта Базиса: диаметр → отверстий.
   drill?: DrillCounts;
+  // Фурнитура, поставленная на детали в калькуляторе.
+  hardware?: HardwareItem[];
 };
 
 type CalculatedDetailRow = Omit<DetailRow, "width" | "height" | "quantity"> & {
@@ -364,9 +378,31 @@ function buildGibLabProjectXml({
   const availableSheetCount = Math.max(sheetCount + 2, 10);
   const bandWidth = edgeWidthMm;
 
+  const thickness = material.thicknessMm ?? 16;
+  // Присадка с чертежа детали: программа станка (XNC) на каждую деталь.
+  const drillingOperations: string[] = [];
+
   const partEntries = validRows.map((row, index) => {
     const partId = index + 2;
     const geometry = getGibLabPartGeometry(row);
+    const holes = hardwareHoles(row.hardware, row.width, row.height, thickness);
+
+    if (holes.length > 0) {
+      const placed =
+        row.orientationMode === "rotated"
+          ? rotateHoles(holes, row.width)
+          : holes;
+      const program = buildDrillingProgram(
+        placed,
+        geometry.length,
+        geometry.width,
+        thickness,
+      );
+      const operationId = 100 + index;
+      drillingOperations.push(
+        `\t<operation id="${operationId}" typeId="XNC" side="1" bySizeDetail="true" code="${String(partId).padStart(4, "0")}x${String(operationId).padStart(3, "0")}x1" typeName="${escapeXml(geometry.name)}" program="${escapeXml(program)}">\n\t\t<part id="${partId}" />\n\t</operation>`,
+      );
+    }
     const hasEdging =
       material.edgeRatePerMeter > 0 && geometry.edgedSides.length > 0;
     const edgeAttributes = hasEdging
@@ -417,7 +453,7 @@ function buildGibLabProjectXml({
       ? `\n\t<good id="${edgeToolGoodId}" typeId="tool.edgeline" />\n\t<good id="${bandGoodId}" typeId="band" name="${escapeXml(`Кромка ${edgeThicknessMm} мм ${bandWidth}x${edgeThicknessMm}`)}" code="${escapeXml(`ARTISAN-EDGE-${String(edgeThicknessMm).replace(".", "_")}MM`)}" unit="м" cost="${material.edgeRatePerMeter.toFixed(2)}" t="${edgeThicknessMm}" w="${bandWidth}" />\n\t<operation id="${edgeOperationId}" typeId="EL" tool1="${edgeToolGoodId}">\n${edgeOperationParts}\n\t\t<material id="${bandGoodId}" />\n\t</operation>`
       : "";
 
-  return `<?xml version="1.0" encoding="UTF-8"?>\n<project currency="сом" version="1">\n${comments}\n\t<good id="${productGoodId}" typeId="product" count="1" name="${escapeXml(projectName)}">\n${partEntries.map((part) => part.xml).join("\n")}\n\t</good>\n\t<good id="${cutToolGoodId}" typeId="tool.cutting" />\n\t<good id="${sheetMaterialGoodId}" typeId="sheet" name="${escapeXml(material.label)}" code="${escapeXml(`${material.id}-${sheet.id}`)}" unit="м2" cost="${material.pricePerSqM.toFixed(2)}">\n\t\t<part id="${sheetPartId}" l="${sheet.width}" w="${sheet.height}" count="${availableSheetCount}" usedCount="${Math.max(sheetCount, 0)}" />\n\t</good>\n\t<operation id="${cutOperationId}" typeId="CS" tool1="${cutToolGoodId}" cSizeMode="0">\n${cutOperationParts}\n\t\t<material id="${sheetMaterialGoodId}" />\n\t</operation>${edgeBlock}\n</project>\n`;
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<project currency="сом" version="1">\n${comments}\n\t<good id="${productGoodId}" typeId="product" count="1" name="${escapeXml(projectName)}">\n${partEntries.map((part) => part.xml).join("\n")}\n\t</good>\n\t<good id="${cutToolGoodId}" typeId="tool.cutting" />\n\t<good id="${sheetMaterialGoodId}" typeId="sheet" name="${escapeXml(material.label)}" code="${escapeXml(`${material.id}-${sheet.id}`)}" unit="м2" cost="${material.pricePerSqM.toFixed(2)}">\n\t\t<part id="${sheetPartId}" l="${sheet.width}" w="${sheet.height}" count="${availableSheetCount}" usedCount="${Math.max(sheetCount, 0)}" />\n\t</good>\n\t<operation id="${cutOperationId}" typeId="CS" tool1="${cutToolGoodId}" cSizeMode="0">\n${cutOperationParts}\n\t\t<material id="${sheetMaterialGoodId}" />\n\t</operation>${edgeBlock}${drillingOperations.length > 0 ? `\n${drillingOperations.join("\n")}` : ""}\n</project>\n`;
 }
 
 function createDetailId(seed: number | string) {
@@ -501,7 +537,12 @@ function readCalculatorDraft(): CalculatorDraft | null {
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<CalculatorDraft>;
     const details = Array.isArray(parsed.details)
-      ? parsed.details.filter(isDetailRow)
+      ? parsed.details.filter(isDetailRow).map((row) => {
+          const hardware = sanitizeHardware(row.hardware);
+          return hardware
+            ? { ...row, hardware }
+            : { ...row, hardware: undefined };
+        })
       : [];
 
     if (details.length === 0) return null;
@@ -1499,6 +1540,7 @@ function buildCuttingRequestMessage({
   estimate,
   workshopRows,
   comment,
+  drillingNotes = [],
 }: {
   productContext: CalculatorProductContext | null;
   activePreset: CalculatorPreset | null;
@@ -1524,6 +1566,7 @@ function buildCuttingRequestMessage({
   };
   workshopRows: WorkshopRow[];
   comment: string;
+  drillingNotes?: string[];
 }) {
   const lines = [
     `Материал: ${getCuttingRequestMaterialLabel({
@@ -1560,6 +1603,14 @@ function buildCuttingRequestMessage({
         `${row.sequence}. ${row.title} — ${row.sizeLabel} · ${row.quantity} шт. · ${row.edgeLabel} · ${row.orientationLabel} · ${row.sheetsLabel}`,
     ),
   ];
+
+  if (drillingNotes.length > 0) {
+    lines.push(
+      "",
+      "Присадка с чертежа (программа в файле GibLab):",
+      ...drillingNotes,
+    );
+  }
 
   if (comment.trim()) {
     lines.push("", "Комментарий клиента:", comment.trim());
@@ -1808,9 +1859,22 @@ export function CutCalculator({
       const materialCost = areaSqM * material.pricePerSqM;
       // По ценам сайта распил считается за лист и в строку детали не входит.
       const edgeCost = edgeMeters * sitePrices.edge;
+      const hardwareDrill = detail.hardware?.length
+        ? holesToDrillCounts(
+            hardwareHoles(
+              detail.hardware,
+              width,
+              height,
+              material.thicknessMm ?? 16,
+            ),
+          )
+        : undefined;
 
       return {
         ...detail,
+        ...(hardwareDrill
+          ? { drill: mergeDrillCounts(detail.drill, hardwareDrill) }
+          : {}),
         width,
         height,
         quantity,
@@ -1979,6 +2043,7 @@ export function CutCalculator({
           quantity: row.quantity,
           edgedSides: row.edgedSides,
           orientationMode: row.orientationMode,
+          hardware: row.hardware ?? [],
         })),
         edgeThicknessValue,
         edgeWidthValue,
@@ -2024,6 +2089,17 @@ export function CutCalculator({
         edgeThicknessLabel: edgeSizeLabel,
         workshopRows,
         comment: requestDraft.comment,
+        drillingNotes: calculation.rows
+          .filter((row) => row.hardware?.length)
+          .map(
+            (row) =>
+              `${row.title}: ${row
+                .hardware!.map(
+                  (item) =>
+                    `${HARDWARE[item.kind].label} ×${item.kind === "handle" ? 1 : item.count} (${SIDE_LABELS[item.side]}${item.mirror ? " и напротив" : ""})`,
+                )
+                .join("; ")}`,
+          ),
       }),
       contactName: requestDraft.contactName,
       contactPhone: requestDraft.contactPhone,
@@ -2162,6 +2238,24 @@ export function CutCalculator({
   const removeAttachment = (index: number) => {
     setAttachments((current) => current.filter((_, i) => i !== index));
   };
+
+  const [drillingRowId, setDrillingRowId] = useState<string | null>(null);
+  const drillingRow =
+    details.find(
+      (row) =>
+        row.id === drillingRowId &&
+        parsePositive(row.width) > 0 &&
+        parsePositive(row.height) > 0,
+    ) ?? null;
+  const drillingLabels = Object.fromEntries(
+    calculation.rows.map((row) => {
+      const holes = Object.values(row.drill ?? {}).reduce(
+        (sum, count) => sum + count,
+        0,
+      );
+      return [row.id, holes > 0 ? `${Math.round(holes)} отв.` : ""];
+    }),
+  );
 
   const duplicateRow = (id: string) => {
     setDetails((current) => {
@@ -2777,7 +2871,26 @@ export function CutCalculator({
             }
             onDuplicate={duplicateRow}
             onRemove={removeRow}
+            drillingLabels={drillingLabels}
+            onDrilling={setDrillingRowId}
           />
+
+          {drillingRow ? (
+            <DrillingEditor
+              title={drillingRow.title}
+              length={parsePositive(drillingRow.width)}
+              width={parsePositive(drillingRow.height)}
+              thickness={material.thicknessMm ?? 16}
+              quantity={parsePositive(drillingRow.quantity) || 1}
+              value={drillingRow.hardware ?? []}
+              onChange={(hardware) =>
+                updateRow(drillingRow.id, {
+                  hardware: hardware.length ? hardware : undefined,
+                })
+              }
+              onClose={() => setDrillingRowId(null)}
+            />
+          ) : null}
 
           <div className="mt-4 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3">
             <Button
