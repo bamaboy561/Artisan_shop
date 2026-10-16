@@ -1506,3 +1506,50 @@ test("zeroing records only products that were actually zeroed", async () => {
     1,
   );
 });
+
+test("«Это он» applies straight from the first check: no re-check, linked rows update themselves", async () => {
+  const { action, state, data } = actionFixture();
+  state.products.push(
+    product({ id: "p2", sku: "KR-1", name: "Кромка ПВХ", stockQuantity: 0 }),
+  );
+  const file = accountingReport();
+  const preview = await action(data("preview", undefined, "stock", file));
+  const edge = preview.reconciliation.find((entry) => entry.name === "Кромка");
+  const apply = data("apply", preview.fingerprint, "stock", file);
+  apply.set("manualLinks", JSON.stringify({ [edge.linkKey]: "p2" }));
+  apply.set("selectedRows", "[]");
+  const done = await action(apply);
+  assert.equal(done.phase, "done");
+  assert.equal(
+    state.products.find((item) => item.id === "p2").stockQuantity,
+    127,
+  );
+  assert.deepEqual(
+    state.savedLinks.map((link) => [link.productId, link.manual]),
+    [["p2", true]],
+  );
+});
+
+test("«Это он» with zeroing enabled still applies from the first check", async () => {
+  const { action, state, data } = actionFixture();
+  // Кромка ПВХ есть на сайте с остатком, в файле она под другим названием:
+  // без связи она попала бы в список на обнуление.
+  state.products.push(
+    product({ id: "p2", sku: "KR-1", name: "Кромка ПВХ", stockQuantity: 5 }),
+  );
+  const file = accountingReport();
+  const preview = data("preview", undefined, "stock", file);
+  preview.set("zeroMissing", "on");
+  const first = await action(preview);
+  const edge = first.reconciliation.find((entry) => entry.name === "Кромка");
+  const apply = data("apply", first.fingerprint, "stock", file);
+  apply.set("zeroMissing", "on");
+  apply.set("selectedRows", "[]");
+  apply.set("manualLinks", JSON.stringify({ [edge.linkKey]: "p2" }));
+  const done = await action(apply);
+  assert.equal(done.phase, "done", done.message);
+  assert.equal(
+    state.products.find((item) => item.id === "p2").stockQuantity,
+    127,
+  );
+});

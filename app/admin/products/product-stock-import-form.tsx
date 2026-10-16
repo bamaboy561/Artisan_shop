@@ -58,25 +58,24 @@ export function ProductStockImportForm({
     setManualLinks({});
   }
 
+  // «Это он»: связь запоминается сразу, без пересчёта; запишется при
+  // «Применить». Несколько выборов подряд не теряют друг друга.
   function link(linkKey: string, product: StockProductOption | null) {
-    const next = { ...manualLinks };
-    if (product) next[linkKey] = product;
-    else delete next[linkKey];
-    setManualLinks(next);
-    // Пересчитываем сверку сразу, файл заново выбирать не нужно.
-    submit("preview", next);
+    setManualLinks((current) => {
+      const next = { ...current };
+      if (product) next[linkKey] = product;
+      else delete next[linkKey];
+      return next;
+    });
   }
 
-  function submit(
-    nextIntent: "preview" | "apply",
-    links: Record<string, StockProductOption> = manualLinks,
-  ) {
+  function submit(nextIntent: "preview" | "apply") {
     if (!file || pending) return;
-    const linkCount = Object.keys(links).length;
+    const linkCount = Object.keys(manualLinks).length;
     if (
       nextIntent === "apply" &&
       !window.confirm(
-        `Обновить товаров: ${result?.reconciliation ? selected.size : (result?.counts?.ready ?? 0)}? Остальные строки останутся без изменений.${zeroMissing ? " Остаток товаров, которых нет в файле, будет обнулён." : ""}${result?.pendingCount ? ` Позиции, которых нет на сайте (${result.pendingCount}), сохранятся в список «Добавить на сайт».` : ""}${linkCount ? ` Выбранные совпадения (${linkCount}) запомнятся.` : ""}`,
+        `Обновить товаров: ${(result?.reconciliation ? selected.size : (result?.counts?.ready ?? 0)) + linkCount}? Остальные строки останутся без изменений.${zeroMissing ? " Остаток товаров, которых нет в файле, будет обнулён." : ""}${result?.pendingCount ? ` Позиции, которых нет на сайте (${result.pendingCount}), сохранятся в список «Добавить на сайт».` : ""}${linkCount ? ` Выбранные совпадения (${linkCount}) запомнятся.` : ""}`,
       )
     )
       return;
@@ -93,32 +92,18 @@ export function ProductStockImportForm({
       "manualLinks",
       JSON.stringify(
         Object.fromEntries(
-          Object.entries(links).map(([key, product]) => [key, product.id]),
+          Object.entries(manualLinks).map(([key, product]) => [
+            key,
+            product.id,
+          ]),
         ),
       ),
     );
-    const relink = nextIntent === "preview" && !!result?.reconciliation;
-    const kept = selected;
     startTransition(async () => {
       try {
         const next = await importAction(data);
         setResult(next);
-        // После «Это он» отметка у проверенных строк сохраняется, а
-        // связанная строка отмечается сама.
-        setSelected(
-          relink && next.reconciliation
-            ? new Set(
-                next.reconciliation
-                  .filter(
-                    (entry) =>
-                      entry.selectable &&
-                      (kept.has(entry.key) ||
-                        (!!entry.linkKey && entry.linkKey in links)),
-                  )
-                  .map((entry) => entry.key),
-              )
-            : new Set(),
-        );
+        setSelected(new Set());
         if (next.phase === "done") setManualLinks({});
         // Обновляем список «Нет на сайте» на странице.
         if (next.phase === "done") router.refresh();
@@ -418,12 +403,7 @@ export function ProductStockImportForm({
                         !zeroMissing &&
                         result.pendingCount
                       ? `Сохранить «Нет на сайте»: ${result.pendingCount}`
-                      : result.reconciliation &&
-                          !selected.size &&
-                          !zeroMissing &&
-                          Object.keys(manualLinks).length
-                        ? `Запомнить совпадения: ${Object.keys(manualLinks).length}`
-                        : `Применить: ${result.reconciliation ? selected.size : (result.counts?.ready ?? 0)}`}
+                      : `Применить: ${(result.reconciliation ? selected.size : (result.counts?.ready ?? 0)) + Object.keys(manualLinks).length}`}
                 </Button>
               )}
             {result.reportCsv && (
