@@ -424,6 +424,7 @@ export function ProductStockImportForm({
                 <Button
                   type="button"
                   variant="accent"
+                  autoFocus
                   onClick={() => submit("apply", true)}
                   className="h-auto min-h-10 py-2 tracking-normal normal-case"
                 >

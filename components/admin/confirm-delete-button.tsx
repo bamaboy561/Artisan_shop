@@ -32,9 +32,15 @@ export function ConfirmDeleteButton({
       </button>
     );
   return (
-    <span className="inline-flex max-w-md flex-wrap items-center gap-2">
+    <span
+      role="alertdialog"
+      aria-live="assertive"
+      className="inline-flex max-w-md flex-wrap items-center gap-2"
+    >
       <span className="text-xs leading-5 text-zinc-700">{confirmMessage}</span>
-      <button type="submit" className={className} {...props}>
+      {/* Фокус переходит на подтверждение: с клавиатуры и экранного диктора
+          видно, что нужен ещё один шаг. */}
+      <button type="submit" autoFocus className={className} {...props}>
         Да,{" "}
         {typeof children === "string" ? children.toLowerCase() : "выполнить"}
       </button>
