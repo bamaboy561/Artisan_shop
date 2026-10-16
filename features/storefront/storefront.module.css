@@ -3690,3 +3690,82 @@
     font-size: 15px;
   }
 }
+
+/* Телефон: поиск, фильтры и сортировка одной строкой, число товаров —
+   рядом с заголовком. Названия товаров целиком, до трёх строк. */
+.sortIcon,
+.headingCount {
+  display: none;
+}
+.mobileFilterText {
+  font-weight: inherit;
+}
+@media (max-width: 600px) {
+  .catalogBar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .catalogSearch {
+    flex: 1;
+    min-width: 0;
+  }
+  .catalogToolbar {
+    flex: none;
+    margin: 0;
+  }
+  .catalogToolbar > span[role="status"] {
+    display: none;
+  }
+  .mobileFilter {
+    position: relative;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+  }
+  .mobileFilterText {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+  .mobileFilter span {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+  }
+  .sort {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border: 1px solid #e3ddd2;
+    border-radius: 999px;
+    background: #fff;
+  }
+  .sortIcon {
+    display: block;
+  }
+  .sort select {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    max-width: none;
+    height: 100%;
+    opacity: 0;
+  }
+  .headingCount {
+    display: inline;
+    margin-left: 8px;
+    color: #8a857d;
+    font-size: 15px;
+    font-weight: 500;
+  }
+  .productInfo h3 a {
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+  }
+}

@@ -66,7 +66,10 @@ export function StorefrontCatalog({
       </nav>
       <div className={s.catalogHeading}>
         <div>
-          <h1>{title}</h1>
+          <h1>
+            {title}
+            <span className={s.headingCount}>{pagination.totalItems}</span>
+          </h1>
           <p className={s.catalogLead}>
             {category?.summary ||
               "ЛДСП, МДФ, панели и фурнитура со склада в Бишкеке"}

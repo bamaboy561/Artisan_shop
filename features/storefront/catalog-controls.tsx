@@ -1,7 +1,14 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { Grid2X2, List, Search, SlidersHorizontal, X } from "lucide-react";
+import {
+  ArrowUpDown,
+  Grid2X2,
+  List,
+  Search,
+  SlidersHorizontal,
+  X,
+} from "lucide-react";
 import { useState, useTransition, type ReactNode, type FormEvent } from "react";
 import {
   catalogSortOptions,
@@ -179,11 +186,12 @@ export function CatalogControls({
               onClick={() => setOpen(true)}
             >
               <SlidersHorizontal size={16} />
-              Фильтры
+              <b className={s.mobileFilterText}>Фильтры</b>
               {activeCount > 0 && <span>{activeCount}</span>}
             </button>
             <label className={s.sort}>
               <span className={s.srOnly}>Сортировка</span>
+              <ArrowUpDown size={17} className={s.sortIcon} aria-hidden />
               <select
                 value={state.sort}
                 disabled={pending}

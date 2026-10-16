@@ -29,6 +29,9 @@ function fixture() {
         Search: "Search",
       },
       "@/components/ui/input": { Input: "Input" },
+      "@/app/admin/products/stock-product-picker": {
+        StockProductPicker: "StockProductPicker",
+      },
       "@/features/admin/stock-import": {
         stockImportStatusLabels: {
           ready: "Будет обновлён",

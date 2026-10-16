@@ -139,7 +139,11 @@ export function StorefrontCard({
           className={`${s.availability} ${product.inStock ? "" : s.unavailable}`}
         >
           <span />
-          {product.inStock ? "В наличии" : "По запросу"}
+          {product.inStock
+            ? "В наличии"
+            : typeof product.price === "number"
+              ? "Под заказ"
+              : "По запросу"}
         </span>
       </div>
     </article>
