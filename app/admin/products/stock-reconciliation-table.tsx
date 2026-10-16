@@ -45,6 +45,20 @@ export function StockReconciliationTable({
 }) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("issues");
+  // Товары сайта, к которым ведёт больше одной строки файла: при «Применить»
+  // их остатки сложатся, а не запишутся по отдельности.
+  const sharedProducts = useMemo(() => {
+    const hits = new Map<string, number>();
+    const count = (id: string | null | undefined) => {
+      if (id) hits.set(id, (hits.get(id) ?? 0) + 1);
+    };
+    for (const entry of entries)
+      count(entry.linkKey ? manualLinks[entry.linkKey]?.id : undefined);
+    for (const entry of entries)
+      if (!(entry.linkKey && manualLinks[entry.linkKey]))
+        count(entry.productId);
+    return new Set([...hits].filter(([, n]) => n > 1).map(([id]) => id));
+  }, [entries, manualLinks]);
   const [page, setPage] = useState(0);
   const filtered = useMemo(() => {
     const search = query.trim().toLocaleLowerCase("ru-RU").replaceAll("ё", "е");
@@ -246,8 +260,10 @@ export function StockReconciliationTable({
                       <span className="font-mono text-zinc-500">
                         {manualLinks[entry.linkKey].sku}
                       </span>
-                      . Остаток {quantity(entry.fileQuantity)} запишется при
-                      «Применить».
+                      .{" "}
+                      {sharedProducts.has(manualLinks[entry.linkKey].id)
+                        ? "К этому товару ведёт несколько строк: остатки сложатся при «Применить»."
+                        : `Остаток ${quantity(entry.fileQuantity)} запишется при «Применить».`}
                       {onLink ? (
                         <button
                           type="button"

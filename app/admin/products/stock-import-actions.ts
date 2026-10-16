@@ -171,18 +171,26 @@ export async function processStockImportAction(
   const missingToZeroIds = new Set(missingToZero.map((item) => item.id));
   const productById = new Map(products.map((product) => [product.id, product]));
   let zeroedCount: number | null = null;
+  // Выбранные вручную связи в отпечаток не входят: «Это он» не требует
+  // повторной проверки файла. Поэтому и план, и список обнуляемых товаров
+  // считаются для отпечатка без ручных связей.
+  const basePlan = manualLinks.size
+    ? buildStockImportPlan(parsed.rows, products, mode, storedLinks)
+    : plan;
+  const baseMissingIds = !zeroMissing
+    ? false
+    : manualLinks.size
+      ? buildStockReconciliation(parsed.rows, products, basePlan).flatMap(
+          (entry) =>
+            entry.kind === "missing" && (entry.siteQuantity ?? 0) > 0
+              ? [entry.key.slice("missing:".length)]
+              : [],
+        )
+      : [...missingToZeroIds];
   const fingerprint = createHash("sha256")
     .update(new Uint8Array(await file.arrayBuffer()))
     .update(
-      JSON.stringify({
-        mode,
-        // Выбранные вручную связи в отпечаток не входят: «Это он» не
-        // требует повторной проверки файла.
-        plan: manualLinks.size
-          ? buildStockImportPlan(parsed.rows, products, mode, storedLinks)
-          : plan,
-        zeroMissing: zeroMissing ? [...missingToZeroIds] : false,
-      }),
+      JSON.stringify({ mode, plan: basePlan, zeroMissing: baseMissingIds }),
     )
     .digest("hex");
 

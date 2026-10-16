@@ -77,6 +77,8 @@ export type StockReconciliationEntry = {
   // Ключ, по которому запоминается связь строки 1С с товаром сайта.
   linkKey?: string;
   suggestions?: StockProductOption[];
+  // Товар сайта, к которому строка уже сопоставлена.
+  productId?: string | null;
 };
 
 export function stockRowKey(entry: { sheet: string; row: number }) {
@@ -139,6 +141,7 @@ export function buildStockReconciliation(
       selectable: entry.status === "ready",
       linkKey: row.name.trim() ? stockLinkKey(row) : undefined,
       suggestions: entry.suggestions,
+      productId: entry.productId,
     };
   });
   for (const product of products) {
