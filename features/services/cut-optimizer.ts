@@ -481,6 +481,249 @@ function packAll(
   return { sheets, unplacedIds } satisfies OptimizerResult;
 }
 
+// Второй способ — «сложные полосы» GibLab: свободные куски листа делятся
+// гильотинными резами на любую глубину. Деталь ставится в кусок, где она
+// подходит лучше всего, остаток режется на два новых куска.
+type FreeRect = { x: number; y: number; w: number; h: number; level: number };
+type Choice = (rect: FreeRect, w: number, h: number) => number;
+type Split = (rect: FreeRect, w: number, h: number) => boolean;
+
+const CHOICES: Choice[] = [
+  // Меньше всего остаётся площади.
+  (rect, w, h) => rect.w * rect.h - w * h,
+  // Короткая сторона остатка меньше.
+  (rect, w, h) => Math.min(rect.w - w, rect.h - h),
+  // Длинная сторона остатка меньше.
+  (rect, w, h) => Math.max(rect.w - w, rect.h - h),
+];
+
+// true — сначала поперечный рез во всю ширину куска.
+const SPLITS: Split[] = [
+  (rect, w, h) => rect.w - w <= rect.h - h,
+  (rect, w, h) => rect.w - w > rect.h - h,
+  (rect, w, h) => w * (rect.h - h) > (rect.w - w) * h,
+  (rect, w, h) => w * (rect.h - h) <= (rect.w - w) * h,
+];
+
+type GuillotineConfig = { order: number[]; choice: Choice; split: Split };
+
+type GuillotineSheet = {
+  direction: CutDirection;
+  placed: Array<{
+    type: number;
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+    rotated: boolean;
+    level: number;
+  }>;
+  cuts: OptimizerCut[];
+  free: FreeRect[];
+  used: number;
+};
+
+// Раскладывает детали сразу по count листам: каждая деталь идёт в лучший
+// свободный кусок любого из них. left — что не поместилось.
+function fillGuillotineSheets(
+  types: PieceType[],
+  remaining: Int32Array,
+  config: GuillotineConfig,
+  count: number,
+  width: number,
+  height: number,
+  kerf: number,
+) {
+  const left = remaining.slice();
+  const sheets: GuillotineSheet[] = Array.from({ length: count }, () => ({
+    direction: "vertical" as CutDirection,
+    placed: [],
+    cuts: [],
+    free: [{ x: 0, y: 0, w: width, h: height, level: 0 }],
+    used: 0,
+  }));
+  let unplacedArea = 0;
+
+  for (const type of config.order) {
+    if (left[type] <= 0) continue;
+    {
+      let bestSheet = -1;
+      let bestRect = -1;
+      let bestOption: Option | null = null;
+      let bestScore = Infinity;
+
+      for (let sheetIndex = 0; sheetIndex < count; sheetIndex += 1) {
+        const free = sheets[sheetIndex].free;
+        for (let index = 0; index < free.length; index += 1) {
+          const rect = free[index];
+          for (const option of types[type].options.vertical) {
+            if (option.w > rect.w || option.h > rect.h) continue;
+            const score = config.choice(rect, option.w, option.h);
+            if (score < bestScore) {
+              bestScore = score;
+              bestSheet = sheetIndex;
+              bestRect = index;
+              bestOption = option;
+            }
+          }
+        }
+      }
+
+      if (!bestOption) {
+        unplacedArea += types[type].area;
+        continue;
+      }
+
+      const sheet = sheets[bestSheet];
+      const free = sheet.free;
+      const cut = (
+        x: number,
+        y: number,
+        length: number,
+        orientation: CutDirection,
+        level: number,
+      ) => {
+        if (sheet.cuts.length === 0) sheet.direction = orientation;
+        sheet.cuts.push({
+          x,
+          y,
+          width: orientation === "vertical" ? kerf : length,
+          height: orientation === "vertical" ? length : kerf,
+          orientation,
+          level,
+          length,
+        });
+      };
+      const rect = free.splice(bestRect, 1)[0];
+      const { w, h } = bestOption;
+      const restW = rect.w - w - kerf;
+      const restH = rect.h - h - kerf;
+
+      if (config.split(rect, w, h)) {
+        if (restH > 0) {
+          cut(rect.x, rect.y + h, rect.w, "horizontal", rect.level);
+          free.push({
+            x: rect.x,
+            y: rect.y + h + kerf,
+            w: rect.w,
+            h: restH,
+            level: rect.level + 1,
+          });
+        }
+        if (restW > 0) {
+          cut(rect.x + w, rect.y, h, "vertical", rect.level + 1);
+          free.push({
+            x: rect.x + w + kerf,
+            y: rect.y,
+            w: restW,
+            h,
+            level: rect.level + 2,
+          });
+        }
+      } else {
+        if (restW > 0) {
+          cut(rect.x + w, rect.y, rect.h, "vertical", rect.level);
+          free.push({
+            x: rect.x + w + kerf,
+            y: rect.y,
+            w: restW,
+            h: rect.h,
+            level: rect.level + 1,
+          });
+        }
+        if (restH > 0) {
+          cut(rect.x, rect.y + h, w, "horizontal", rect.level + 1);
+          free.push({
+            x: rect.x,
+            y: rect.y + h + kerf,
+            w,
+            h: restH,
+            level: rect.level + 2,
+          });
+        }
+      }
+
+      left[type] -= 1;
+      sheet.used += w * h;
+      sheet.placed.push({
+        type,
+        x: rect.x,
+        y: rect.y,
+        w,
+        h,
+        rotated: bestOption.rotated,
+        level: Math.min(rect.level + 1, 3),
+      });
+    }
+  }
+
+  return { sheets, left, unplacedArea };
+}
+
+// Раскрой лист за листом: для каждого листа берётся самый плотный
+// из вариантов.
+function packGuillotine(
+  types: PieceType[],
+  configs: GuillotineConfig[],
+  width: number,
+  height: number,
+  kerf: number,
+): OptimizerResult {
+  let remaining = new Int32Array(types.map((type) => type.ids.length));
+  const nextId = new Int32Array(types.length);
+  const sheets: OptimizerSheet[] = [];
+  const take = (sheet: GuillotineSheet) => {
+    sheets.push({
+      direction: sheet.direction,
+      placements: sheet.placed.map((item) => {
+        const id = types[item.type].ids[nextId[item.type]];
+        nextId[item.type] += 1;
+        return {
+          id,
+          x: item.x,
+          y: item.y,
+          width: item.w,
+          height: item.h,
+          rotated: item.rotated,
+          level: item.level,
+        };
+      }),
+      cuts: sheet.cuts,
+      offcuts: sheet.free.map(({ x, y, w, h }) => ({
+        x,
+        y,
+        width: w,
+        height: h,
+      })),
+      usedArea: sheet.used,
+    });
+  };
+
+  while (remaining.some((count) => count > 0)) {
+    let best: ReturnType<typeof fillGuillotineSheets> | null = null;
+    for (const config of configs) {
+      const filled = fillGuillotineSheets(
+        types,
+        remaining,
+        config,
+        1,
+        width,
+        height,
+        kerf,
+      );
+      if (!best || filled.sheets[0].used > best.sheets[0].used) best = filled;
+    }
+    if (!best || best.sheets[0].placed.length === 0) break;
+    take(best.sheets[0]);
+    remaining = best.left;
+  }
+
+  return {
+    sheets,
+    unplacedIds: types.flatMap((type, index) => type.ids.slice(nextId[index])),
+  };
+}
+
 function isBetter(candidate: OptimizerResult, best: OptimizerResult) {
   if (candidate.unplacedIds.length !== best.unplacedIds.length)
     return candidate.unplacedIds.length < best.unplacedIds.length;
@@ -494,13 +737,7 @@ function isBetter(candidate: OptimizerResult, best: OptimizerResult) {
   );
 }
 
-export function optimizeCutting(
-  pieces: OptimizerPiece[],
-  width: number,
-  height: number,
-  kerf: number,
-  directions: CutDirection[] = ["vertical", "horizontal"],
-): OptimizerResult {
+function buildTypes(pieces: OptimizerPiece[]) {
   const byKey = new Map<string, PieceType>();
 
   for (const piece of pieces) {
@@ -533,17 +770,55 @@ export function optimizeCutting(
     });
   }
 
-  const types = [...byKey.values()];
-  const orders = ORDERS.map((compare) =>
+  return [...byKey.values()];
+}
+
+function typeOrders(types: PieceType[]) {
+  return ORDERS.map((compare) =>
     types
       .map((_, index) => index)
       .sort((left, right) => compare(types[left], types[right])),
   );
+}
+
+// Очередь по деталям: одинаковые детали могут уйти на разные листы.
+function guillotineConfigs(types: PieceType[]) {
+  return typeOrders(types).flatMap((typeOrder) => {
+    const order = typeOrder.flatMap((type) => types[type].ids.map(() => type));
+    return CHOICES.flatMap((choice) =>
+      SPLITS.map((split) => ({ order, choice, split })),
+    );
+  });
+}
+
+export function optimizeCutting(
+  pieces: OptimizerPiece[],
+  width: number,
+  height: number,
+  kerf: number,
+  directions: CutDirection[] = ["vertical", "horizontal"],
+): OptimizerResult {
+  const types = buildTypes(pieces);
   let best: OptimizerResult | null = null;
 
-  for (const order of orders) {
+  for (const order of typeOrders(types)) {
     const result = packAll(types, [order], directions, width, height, kerf);
     if (!best || isBetter(result, best)) best = result;
+  }
+
+  // Сложные полосы — только если первый рез не задан жёстко.
+  if (directions.length > 1 && types.length > 0) {
+    const configs = guillotineConfigs(types);
+    for (const config of configs) {
+      const result = packGuillotine(types, [config], width, height, kerf);
+      if (!best || isBetter(result, best)) best = result;
+    }
+    // Самый плотный лист из всех вариантов сразу — дорого на больших
+    // проектах, поэтому только до 150 деталей.
+    if (pieces.length <= 150) {
+      const mixed = packGuillotine(types, configs, width, height, kerf);
+      if (!best || isBetter(mixed, best)) best = mixed;
+    }
   }
 
   return best ?? { sheets: [], unplacedIds: pieces.map((piece) => piece.id) };

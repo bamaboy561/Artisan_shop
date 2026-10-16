@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import {
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 
 import {
   Calculator,
@@ -213,9 +220,11 @@ const orientationModeMeta: Record<
   },
 };
 
+// Как на станке цеха (настройки раскроя в GibLab): пила 4,4 мм,
+// торцовка листа 5 мм с каждой стороны.
 const defaultBasisSettings: BasisMapSettings = {
-  kerf: 4.2,
-  edgeTrim: 10,
+  kerf: 4.4,
+  edgeTrim: 5,
   minStrip: 60,
   firstCutDirection: "auto",
 };
@@ -1822,9 +1831,12 @@ export function CutCalculator({
     };
   }, [details, material, sheet]);
 
+  // Раскрой большого проекта считается заметное время: поля ввода
+  // обновляются сразу, карта листов — следом.
+  const deferredRows = useDeferredValue(calculation.rows);
   const cutMap = useMemo(() => {
-    return buildCutMap(calculation.rows, sheet, basisSettings);
-  }, [basisSettings, calculation.rows, sheet]);
+    return buildCutMap(deferredRows, sheet, basisSettings);
+  }, [basisSettings, deferredRows, sheet]);
 
   const estimate = useMemo(() => {
     const sheetCount = cutMap.sheets.length;
