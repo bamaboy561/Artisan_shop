@@ -1562,10 +1562,12 @@ test("«Это он» with zeroing enabled still applies from the first check", 
   );
 });
 
-test("«Очистить список» removes pending items but keeps the dismissed ones", async () => {
+test("«Очистить список» removes pending items but keeps dismissed and linked ones", async () => {
   const { state, actions } = actionFixture();
   await actions.clearStockPendingItemsAction();
-  assert.deepEqual(state.deletes, [{ where: { dismissedAt: null } }]);
+  assert.deepEqual(state.deletes, [
+    { where: { dismissedAt: null, linkedProductId: null } },
+  ]);
   assert.deepEqual(state.invalidations, [["/admin/products"]]);
 });
 
