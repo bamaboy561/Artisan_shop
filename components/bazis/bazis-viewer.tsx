@@ -17,6 +17,9 @@ export type BazisPartInfo = {
   edges?: string;
   edgeMaterial?: string;
   block?: string;
+  // Номер экземпляра блока: по нему, а не по названию, детали собираются
+  // в блок (у скопированных ящиков названия одинаковые).
+  blockId?: string;
   textured?: boolean;
   complexContour?: boolean;
   holes?: number;
@@ -208,11 +211,14 @@ function buildScene(boxes: BazisViewerBox[], joints: number[][] | undefined) {
   // а внутри блока — ещё и друг от друга. Иначе стенки ящика остаются
   // кучкой посреди разобранного шкафа.
   const blockSums = new Map<string, number[]>();
+  const blockLabels = new Map<string, string>();
 
   for (const [index, box] of boxes.entries()) {
-    const block = box.info?.block;
+    const block = blockKey(box);
 
     if (!block) continue;
+
+    blockLabels.set(block, box.info?.block ?? "");
 
     const sum = blockSums.get(block) ?? [0, 0, 0, 0];
 
@@ -221,11 +227,23 @@ function buildScene(boxes: BazisViewerBox[], joints: number[][] | undefined) {
     blockSums.set(block, sum);
   }
 
-  // Блок на всё изделие (так Базис часто называет модель целиком)
-  // отдельно не разбираем.
+  // Блок, в который входит всё изделие (так Базис часто называет модель
+  // целиком), отдельно не разбираем.
+  const insideBlock = (box: BazisViewerBox, block: string) => {
+    const own = blockKey(box);
+
+    return (
+      own === block ||
+      own.startsWith(`${block}/`) ||
+      own.startsWith(`${block} / `)
+    );
+  };
   const innerBlocks = new Set(
     [...blockSums.entries()]
-      .filter(([, sum]) => sum[3] > 1 && sum[3] < boxes.length / 2)
+      .filter(
+        ([name, sum]) =>
+          sum[3] > 1 && !boxes.every((box) => insideBlock(box, name)),
+      )
       .map(([name]) => name),
   );
   // Куда деталь уходит при разборке всего изделия (explodeOffsets) и при
@@ -235,7 +253,7 @@ function buildScene(boxes: BazisViewerBox[], joints: number[][] | undefined) {
   const blockOffsets: number[][] = [];
   const explodeOffsets = boxes.map((box, index) => {
     const own = boxCenters[index];
-    const block = box.info?.block;
+    const block = blockKey(box);
     const sum = block && innerBlocks.has(block) ? blockSums.get(block) : null;
     const blockCenter = sum
       ? [0, 1, 2].map((axis) => sum[axis] / sum[3])
@@ -268,7 +286,7 @@ function buildScene(boxes: BazisViewerBox[], joints: number[][] | undefined) {
   // остаются одной пластиной.
   for (const block of innerBlocks) {
     const members = boxes
-      .map((box, index) => (box.info?.block === block ? index : -1))
+      .map((box, index) => (blockKey(box) === block ? index : -1))
       .filter((index) => index >= 0);
     const sum = blockSums.get(block)!;
     const blockCenter = [0, 1, 2].map((axis) => sum[axis] / sum[3]);
@@ -333,7 +351,7 @@ function buildScene(boxes: BazisViewerBox[], joints: number[][] | undefined) {
 
   for (const block of innerBlocks) {
     const corners = boxCorners.flatMap((list, index) =>
-      boxes[index].info?.block === block
+      blockKey(boxes[index]) === block
         ? list.map((corner) =>
             corner.map((value, axis) => value + blockOffsets[index][axis]),
           )
@@ -381,6 +399,7 @@ function buildScene(boxes: BazisViewerBox[], joints: number[][] | undefined) {
     explodeOffsets,
     blockOffsets,
     innerBlocks,
+    blockLabels,
     blockViews,
     neighbors,
     buildOrder: buildOrder(boxes, boxCorners, neighbors),
@@ -389,6 +408,25 @@ function buildScene(boxes: BazisViewerBox[], joints: number[][] | undefined) {
 
 // Порядок сборки: сначала корпус снизу вверх (крупные детали раньше),
 // потом задняя стенка, ящики и в конце фасады.
+// Приметы детали: место и размер. По ним видно, что под тем же номером
+// та же деталь (название меняют в списке, оно не в счёт).
+function partSignature(box: BazisViewerBox) {
+  return [
+    box.x,
+    box.y,
+    box.sizeX,
+    box.sizeY,
+    box.thickness,
+    ...box.matrix,
+  ].join("|");
+}
+
+// Блок, в который входит деталь: номер экземпляра, а в проектах, где его
+// нет, название.
+function blockKey(box: BazisViewerBox) {
+  return box.info?.blockId || box.info?.block || "";
+}
+
 // «1 деталь», «2 детали», «5 деталей».
 function pluralParts(count: number) {
   const last = count % 10;
@@ -595,10 +633,33 @@ export function BazisViewer({
     };
   }, [scene]);
   // Деталь, на которую нажали, и деталь под мышью.
-  const [selected, setSelected] = useState<number | null>(defaultSelected);
+  // Деталь запоминаем вместе с её приметами: если список деталей
+  // поменялся (строку удалили), под тем же номером уже другая деталь,
+  // и карточка закрывается.
+  const [selected, setSelectedPart] = useState<{
+    index: number;
+    signature: string;
+  } | null>(() =>
+    defaultSelected !== null && boxes[defaultSelected]
+      ? {
+          index: defaultSelected,
+          signature: partSignature(boxes[defaultSelected]),
+        }
+      : null,
+  );
   const [hovered, setHovered] = useState<number | null>(null);
   const selectedBox =
-    selected !== null && selected < boxes.length ? selected : null;
+    selected !== null &&
+    boxes[selected.index] &&
+    partSignature(boxes[selected.index]) === selected.signature
+      ? selected.index
+      : null;
+  const setSelected = (index: number | null) =>
+    setSelectedPart(
+      index !== null && boxes[index]
+        ? { index, signature: partSignature(boxes[index]) }
+        : null,
+    );
   // Грани, нарисованные в последний раз, в экранных точках: по ним ищем
   // деталь под пальцем. Последние в списке лежат сверху.
   const hitFaces = useRef<Array<{ box: number; points: number[][] }>>([]);
@@ -1146,7 +1207,7 @@ export function BazisViewer({
       }
 
       const inBlock =
-        explodedBlock !== null && boxes[box].info?.block === explodedBlock
+        explodedBlock !== null && blockKey(boxes[box]) === explodedBlock
           ? blockAmount
           : 0;
 
@@ -1234,7 +1295,7 @@ export function BazisViewer({
       const inOpenBlock =
         explodedBlock !== null &&
         blockAmount > 0 &&
-        boxes[face.box].info?.block === explodedBlock;
+        blockKey(boxes[face.box]) === explodedBlock;
       const isMarked = face.marked && !isSelected;
       const selecting = markedBoxes !== null || highlightTone !== null;
       const muted = isSelected
@@ -1595,11 +1656,15 @@ export function BazisViewer({
       ]
     : [];
   const selectedBlock =
-    info?.block && scene.innerBlocks.has(info.block) ? info.block : null;
+    selectedBox !== null && scene.innerBlocks.has(blockKey(boxes[selectedBox]))
+      ? blockKey(boxes[selectedBox])
+      : null;
+  const selectedBlockLabel =
+    selectedBlock !== null ? scene.blockLabels.get(selectedBlock) : null;
   const stepTotal = scene.buildOrder.length;
   const openBlockCount =
     explodedBlock !== null
-      ? boxes.filter((box) => box.info?.block === explodedBlock).length
+      ? boxes.filter((box) => blockKey(box) === explodedBlock).length
       : 0;
   const buttonClassName =
     "border border-[#cbc7bf] bg-white px-3 py-1.5 text-xs font-medium text-[#171714] transition hover:border-[#171714] disabled:cursor-default disabled:opacity-40 disabled:hover:border-[#cbc7bf]";
@@ -1730,7 +1795,9 @@ export function BazisViewer({
       {explodedBlock !== null && step === null ? (
         <div className="flex flex-wrap items-center gap-2 border border-[#171714] bg-white px-3 py-2 text-sm text-[#171714]">
           <p className="min-w-0 flex-1">
-            <span className="font-semibold">Блок «{explodedBlock}»</span>
+            <span className="font-semibold">
+              Блок «{scene.blockLabels.get(explodedBlock)}»
+            </span>
             <span className="text-[#55524c]">
               {" "}
               · {openBlockCount} {pluralParts(openBlockCount)} · нажмите на
@@ -1845,7 +1912,7 @@ export function BazisViewer({
                   goToStep(scene.buildOrder.indexOf(box) + 1);
                 }
               } else {
-                setSelected((current) => (box === current ? null : box));
+                setSelected(box === selectedBox ? null : box);
               }
 
               tapStart.current = null;
@@ -1917,8 +1984,8 @@ export function BazisViewer({
                 className={`${buttonClassName} justify-self-start`}
               >
                 {explodedBlock === selectedBlock && blockAmount > 0.5
-                  ? `Собрать «${selectedBlock}»`
-                  : `Разобрать «${selectedBlock}»`}
+                  ? `Собрать «${selectedBlockLabel}»`
+                  : `Разобрать «${selectedBlockLabel}»`}
               </button>
             ) : null}
           </aside>

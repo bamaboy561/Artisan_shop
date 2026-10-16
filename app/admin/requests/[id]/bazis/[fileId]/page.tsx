@@ -207,6 +207,7 @@ export default async function BazisProjectPage({
                   ),
                 ].join(", "),
                 block: panel.block,
+                blockId: panel.blockId,
                 textured: panel.textured,
                 complexContour: panel.complexContour,
                 holes: panel.holes,

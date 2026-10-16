@@ -346,9 +346,10 @@ test("counts drilling from furniture holes like the GibLab export", () => {
       ["edge", 5],
     ],
   );
-  // Евровинт в торец: начало на 10 мм снаружи, в детали остаётся 20 мм.
+  // Евровинт в торец: начало на 10 мм снаружи, в детали остаётся 20 мм,
+  // и рисуется отверстие от торца.
   assert.deepEqual(parsed.panels[0].drillHoles[2], {
-    x: -10,
+    x: 0,
     y: 150,
     z: 8,
     dx: 1,
@@ -402,6 +403,33 @@ test("panels drilled by one fastener are recorded as a joint", () => {
     depth: 13,
     kind: "face",
   });
+});
+
+test("copied blocks with one name keep separate block ids", () => {
+  const drawer = () =>
+    object("Obj", [
+      int("Type", 1005),
+      text("Name", "Ящик"),
+      object("Objs", [panel("Дно", 400, 300, []), panel("Бок", 400, 120, [])]),
+    ]);
+  const cabinet = object("Obj", [
+    int("Type", 1005),
+    text("Name", "Шкаф"),
+    object("Objs", [panel("Крыша", 800, 500, []), drawer(), drawer()]),
+  ]);
+
+  const parsed = parseBazisProject(project([cabinet]));
+
+  assert.deepEqual(
+    parsed.panels.map((item) => [item.block, item.blockId]),
+    [
+      ["Шкаф", "1"],
+      ["Шкаф / Ящик", "1/2"],
+      ["Шкаф / Ящик", "1/2"],
+      ["Шкаф / Ящик", "1/3"],
+      ["Шкаф / Ящик", "1/3"],
+    ],
+  );
 });
 
 test("GibLab export writes parts, sheet with code, edges and drilling", () => {

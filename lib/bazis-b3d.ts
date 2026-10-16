@@ -43,6 +43,10 @@ export type BazisPanel = {
   // Блок проекта, в который входит деталь («Тумба», «Шкаф правый»).
   // Пусто, если деталь лежит в модели сама по себе.
   block: string;
+  // Тот же блок, но номером экземпляра: «3/7» — седьмой блок внутри
+  // третьего. Два скопированных ящика с одним названием так не сливаются.
+  // В проектах, сохранённых до появления поля, его нет.
+  blockId?: string;
   // Текстура задана в Базисе: длина идёт вдоль текстуры, поворачивать
   // деталь при раскрое нельзя (в GibLab это txt="true").
   textured: boolean;
@@ -516,6 +520,8 @@ type Collected = {
   fasteners: Fastener[];
   // Отверстия фурнитуры по FastID (раздел FurnList проекта).
   furniture: Map<number, Hole[]>;
+  // Сколько блоков уже встретилось: из счётчика берётся номер блока.
+  blockCount: number;
 };
 
 // Блоки фурнитуры из библиотеки (с DatumMode) не пропускаем: тем же
@@ -527,6 +533,7 @@ function collectPanels(
   parentMatrix: Matrix = IDENTITY,
   depth = 0,
   parentBlock = "",
+  parentBlockId = "",
 ) {
   if (depth > MAX_DEPTH) {
     return;
@@ -543,11 +550,20 @@ function collectPanels(
   const block = ownBlock
     ? [parentBlock, ownBlock].filter(Boolean).join(" / ").slice(0, 120)
     : parentBlock;
+  const blockId = ownBlock
+    ? [parentBlockId, String((collected.blockCount += 1))]
+        .filter(Boolean)
+        .join("/")
+    : parentBlockId;
 
   if (type === PANEL_TYPE) {
     const panel = readPanel(node, matrix, block);
 
     if (panel) {
+      if (blockId) {
+        panel.blockId = blockId;
+      }
+
       collected.panels.push(panel);
       collected.panelMatrices.push(matrix);
       collected.panelNodes.push(node);
@@ -568,7 +584,7 @@ function collectPanels(
 
   for (const item of node.children) {
     if (item.name === "Objs" || item.name === "Obj" || item.name === "Model") {
-      collectPanels(item, collected, matrix, depth + 1, block);
+      collectPanels(item, collected, matrix, depth + 1, block, blockId);
     }
   }
 }
@@ -644,13 +660,13 @@ function toLocal(matrix: Matrix, vector: number[], isPoint: boolean) {
   );
 }
 
-// Сколько миллиметров отрезка start→end лежит внутри коробки детали.
-function lengthInside(
+// Какая часть отрезка start→end (от 0 до 1) лежит внутри коробки детали.
+function partInside(
   start: number[],
   end: number[],
   low: number[],
   high: number[],
-) {
+): [number, number] {
   let from = 0;
   let to = 1;
 
@@ -659,7 +675,7 @@ function lengthInside(
 
     if (Math.abs(delta) < 1e-9) {
       if (start[axis] < low[axis] - 0.01 || start[axis] > high[axis] + 0.01) {
-        return 0;
+        return [0, 0];
       }
     } else {
       let enter = (low[axis] - 0.01 - start[axis]) / delta;
@@ -673,15 +689,12 @@ function lengthInside(
       to = Math.min(to, leave);
 
       if (from >= to) {
-        return 0;
+        return [0, 0];
       }
     }
   }
 
-  return (
-    (to - from) *
-    Math.hypot(end[0] - start[0], end[1] - start[1], end[2] - start[2])
-  );
+  return [from, to];
 }
 
 // Присадка по правилам выгрузки Базиса в GibLab: отверстие фурнитуры
@@ -726,7 +739,11 @@ function collectDrilling(collected: Collected): {
         const end = start.map(
           (value, axis) => value + direction[axis] * hole.depth,
         );
-        const inside = lengthInside(start, end, low, high);
+        const [enter, leave] = partInside(start, end, low, high);
+        // Сколько миллиметров отверстия лежит внутри детали.
+        const inside =
+          (leave - enter) *
+          Math.hypot(end[0] - start[0], end[1] - start[1], end[2] - start[2]);
 
         // Отверстие соседней детали, которое лишь касается этой, не в счёт.
         if (inside < MIN_HOLE_DEPTH) {
@@ -764,10 +781,19 @@ function collectDrilling(collected: Collected): {
         row[kind] += 1;
         rows.set(diameter, row);
         panel.holes += 1;
+        // Отверстие в торец может начинаться снаружи детали (в соседней):
+        // рисуем его от точки входа в деталь.
+        const entry = start.map((value, axis) =>
+          Math.min(
+            high[axis],
+            Math.max(low[axis], value + (end[axis] - value) * enter),
+          ),
+        );
+
         panel.drillHoles.push({
-          x: round(start[0]),
-          y: round(start[1]),
-          z: round(start[2]),
+          x: round(entry[0]),
+          y: round(entry[1]),
+          z: round(entry[2]),
           dx: round(direction[0]),
           dy: round(direction[1]),
           dz: round(direction[2]),
@@ -928,6 +954,7 @@ function readProject(file: Buffer) {
     hardware: new Map(),
     fasteners: [],
     furniture: new Map(),
+    blockCount: 0,
   };
 
   for (const node of roots) {

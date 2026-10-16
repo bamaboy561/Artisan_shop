@@ -18,6 +18,7 @@ export type BazisViewPanel = {
   complexContour: boolean;
   textured: boolean;
   block: string;
+  blockId?: string;
   // Отверстия присадки на детали. В проектах, сохранённых в браузере
   // раньше, поля нет.
   drillHoles?: BazisHole[];
@@ -72,6 +73,7 @@ export function toBazisViewProject(project: BazisProject): BazisViewProject {
       complexContour: panel.complexContour,
       textured: panel.textured,
       block: panel.block,
+      blockId: panel.blockId,
       drillHoles: panel.drillHoles,
       box: panel.box,
     })),
@@ -93,6 +95,7 @@ export function toBazisPartInfo(
     edges: describeEdgedSides(panel.edgedLengthSides, panel.edgedWidthSides),
     edgeMaterial: panel.edgeMaterial,
     block: panel.block,
+    blockId: panel.blockId,
     textured: panel.textured,
     complexContour: panel.complexContour,
     holes: panel.drillHoles?.length,
