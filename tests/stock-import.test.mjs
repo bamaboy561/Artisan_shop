@@ -1576,3 +1576,44 @@ test("«Очистить список» does nothing for a cutting manager", asy
   await actions.clearStockPendingItemsAction();
   assert.deepEqual(state.deletes, []);
 });
+
+test("pending items are saved in bulk upserts, not row by row", async () => {
+  const calls = [];
+  const { saveStockPendingItems } = loadAction(
+    "../lib/server/stock-pending.ts",
+    {
+      "node:crypto": { randomUUID: () => "id" },
+      "@/generated/prisma": {
+        Prisma: {
+          sql: (strings, ...values) => ({ strings, values }),
+          join: (parts) => ({ joined: parts }),
+        },
+      },
+      "@/features/admin/stock-import": stock,
+      "@/lib/server/stock-pending-schema": {
+        ensureStockPendingItemsTable: async () => {},
+      },
+    },
+  );
+  const items = Array.from({ length: 1001 }, (_, index) => ({
+    matchKey: `sku:${index}`,
+    sku: `S-${index}`,
+    name: `Позиция ${index}`,
+    unit: "шт",
+    quantity: index,
+    note: null,
+  }));
+  // Повтор ключа в одном файле не ломает запрос «ON CONFLICT».
+  items.push({ ...items[0] });
+  await saveStockPendingItems(
+    { $executeRaw: async (strings, ...values) => calls.push(values) },
+    items,
+    "stock.xlsx",
+  );
+  assert.deepEqual(
+    calls.map((values) => values[0].joined.length),
+    [400, 400, 201],
+  );
+  assert.equal(calls[0][0].joined[0].values[1], "sku:0");
+  assert.equal(calls[0][0].joined[0].values[7], "stock.xlsx");
+});

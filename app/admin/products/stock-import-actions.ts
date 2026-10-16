@@ -151,6 +151,7 @@ export async function processStockImportAction(
       )
     : [];
   let pendingSaved: number | null = null;
+  let pendingError: string | null = null;
 
   // «Обнулить то, чего нет в файле»: товар распродан и пропал из отчёта 1С,
   // но на сайте всё ещё числится в наличии. Только для сверки остатков.
@@ -260,7 +261,7 @@ export async function processStockImportAction(
               `Сохранено в список «Добавить на сайт»: ${pendingSaved}. Список ниже, в разделе «Нет на сайте».`,
             ]
           : [
-              "Не удалось сохранить список «Нет на сайте». Остатки обновлены; скачайте отчёт CSV.",
+              `Не удалось сохранить список «Нет на сайте»${pendingError ? ` (${pendingError})` : ""}. Остатки обновлены; скачайте отчёт CSV.`,
             ];
 
     return {
@@ -532,8 +533,10 @@ export async function processStockImportAction(
       stockMatchedPendingKeys(parsed.rows, plan),
     );
     pendingSaved = pendingItems.length;
-  } catch {
+  } catch (error) {
     pendingSaved = pendingItems.length ? 0 : null;
+    pendingError =
+      error instanceof Error ? error.message.slice(0, 200) : String(error);
   }
 
   if (plan.some((entry) => entry.status === "updated") || zeroedCount)

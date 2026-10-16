@@ -1,4 +1,5 @@
-import type { PrismaClient } from "@/generated/prisma";
+import { randomUUID } from "node:crypto";
+import { Prisma, type PrismaClient } from "@/generated/prisma";
 import {
   createStockMatcher,
   stockLinkKey,
@@ -122,6 +123,9 @@ export async function saveStockLinks(
 
 // Сохраняет позиции отчёта, которых нет на сайте. Повторная загрузка
 // обновляет количество и дату, а скрытые позиции остаются скрытыми.
+// Одним запросом на несколько сотен строк: списки бывают больше тысячи
+// позиций, и построчная запись не укладывалась во время ответа сервера.
+const PENDING_BATCH = 400;
 export async function saveStockPendingItems(
   db: PrismaClient,
   items: StockPendingCandidate[],
@@ -129,24 +133,31 @@ export async function saveStockPendingItems(
 ) {
   await ensureStockPendingItemsTable(db);
   const now = new Date();
-  for (let offset = 0; offset < items.length; offset += 100) {
-    await db.$transaction(
-      items.slice(offset, offset + 100).map((item) =>
-        db.stockPendingItem.upsert({
-          where: { matchKey: item.matchKey },
-          create: { ...item, sourceFile, firstSeenAt: now, lastSeenAt: now },
-          update: {
-            sku: item.sku,
-            name: item.name,
-            unit: item.unit,
-            quantity: item.quantity,
-            note: item.note,
-            sourceFile,
-            lastSeenAt: now,
-          },
-        }),
-      ),
-    );
+  const unique = [...new Map(items.map((item) => [item.matchKey, item]))].map(
+    ([, item]) => item,
+  );
+  for (let offset = 0; offset < unique.length; offset += PENDING_BATCH) {
+    const rows = unique
+      .slice(offset, offset + PENDING_BATCH)
+      .map(
+        (item) =>
+          Prisma.sql`(${randomUUID()}, ${item.matchKey}, ${item.sku}, ${item.name}, ${item.unit}, ${item.quantity}, ${item.note}, ${sourceFile}, ${now}, ${now}, ${now}, ${now})`,
+      );
+    await db.$executeRaw`
+      INSERT INTO "StockPendingItem"
+        ("id", "matchKey", "sku", "name", "unit", "quantity", "note",
+         "sourceFile", "firstSeenAt", "lastSeenAt", "createdAt", "updatedAt")
+      VALUES ${Prisma.join(rows)}
+      ON CONFLICT ("matchKey") DO UPDATE SET
+        "sku" = EXCLUDED."sku",
+        "name" = EXCLUDED."name",
+        "unit" = EXCLUDED."unit",
+        "quantity" = EXCLUDED."quantity",
+        "note" = EXCLUDED."note",
+        "sourceFile" = EXCLUDED."sourceFile",
+        "lastSeenAt" = EXCLUDED."lastSeenAt",
+        "updatedAt" = EXCLUDED."updatedAt"
+    `;
   }
 }
 
