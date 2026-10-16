@@ -67,6 +67,11 @@ const FOCUS_MAX_ZOOM = 2.6;
 // Разборка: насколько далеко детали расходятся от середины изделия и как
 // долго идёт переход между собранным и разобранным видом.
 const EXPLODE_SPREAD = 0.85;
+// Насколько детали блока расходятся друг от друга, когда блок показан
+// отдельно.
+const BLOCK_SPREAD = 0.6;
+// Сколько места справа занимает карточка детали.
+const CARD_WIDTH = 340;
 const EXPLODE_PUSH = 0.14;
 const EXPLODE_MS = 900;
 // Анимация сборки: каждая деталь подлетает на своё место за PART_FLY_MS,
@@ -246,7 +251,7 @@ function buildScene(boxes: BazisViewerBox[], joints: number[][] | undefined) {
 
     blockOffsets.push(
       own.map((value, axis) =>
-        sum ? (value - blockCenter[axis]) * 0.75 + push(axis) / 2 : 0,
+        sum ? (value - blockCenter[axis]) * BLOCK_SPREAD + push(axis) : 0,
       ),
     );
 
@@ -257,6 +262,56 @@ function buildScene(boxes: BazisViewerBox[], joints: number[][] | undefined) {
         push(axis),
     );
   });
+
+  // Параллельные детали блока, стоящие вплотную (передняя стенка ящика
+  // и его фасад), при разборке блока расходятся друг за другом, а не
+  // остаются одной пластиной.
+  for (const block of innerBlocks) {
+    const members = boxes
+      .map((box, index) => (box.info?.block === block ? index : -1))
+      .filter((index) => index >= 0);
+    const sum = blockSums.get(block)!;
+    const blockCenter = [0, 1, 2].map((axis) => sum[axis] / sum[3]);
+    const extent = Math.max(
+      ...[0, 1, 2].map(
+        (axis) =>
+          Math.max(
+            ...members.flatMap((index) =>
+              boxCorners[index].map((corner) => corner[axis]),
+            ),
+          ) -
+          Math.min(
+            ...members.flatMap((index) =>
+              boxCorners[index].map((corner) => corner[axis]),
+            ),
+          ),
+      ),
+    );
+    const stacks = new Map<string, Array<{ index: number; along: number }>>();
+
+    for (const index of members) {
+      const matrix = boxes[index].matrix;
+      const normal = [matrix[2], matrix[6], matrix[10]].map(Math.abs);
+      const axis = normal.indexOf(Math.max(...normal));
+      const along = boxCenters[index][axis] - blockCenter[axis];
+      const key = `${axis}${along < 0 ? "-" : "+"}`;
+      const stack = stacks.get(key) ?? [];
+
+      stack.push({ index, along });
+      stacks.set(key, stack);
+    }
+
+    for (const [key, stack] of stacks) {
+      const axis = Number(key[0]);
+      const sign = key[1] === "-" ? -1 : 1;
+
+      stack
+        .sort((left, right) => Math.abs(left.along) - Math.abs(right.along))
+        .forEach(({ index }, order) => {
+          blockOffsets[index][axis] += sign * order * extent * 0.3;
+        });
+    }
+  }
 
   // Сколько места занимает полностью разобранное изделие: под него
   // подбираем масштаб, чтобы детали не уходили за край окна.
@@ -272,6 +327,39 @@ function buildScene(boxes: BazisViewerBox[], joints: number[][] | undefined) {
       ),
     ),
   );
+  // Где стоит и сколько места занимает каждый разобранный блок: на него
+  // наводится камера, когда блок показывают отдельно от изделия.
+  const blockViews = new Map<string, { center: number[]; radius: number }>();
+
+  for (const block of innerBlocks) {
+    const corners = boxCorners.flatMap((list, index) =>
+      boxes[index].info?.block === block
+        ? list.map((corner) =>
+            corner.map((value, axis) => value + blockOffsets[index][axis]),
+          )
+        : [],
+    );
+    const low = [0, 1, 2].map((axis) =>
+      Math.min(...corners.map((corner) => corner[axis])),
+    );
+    const high = [0, 1, 2].map((axis) =>
+      Math.max(...corners.map((corner) => corner[axis])),
+    );
+    const blockCenter = low.map((value, axis) => (value + high[axis]) / 2);
+
+    blockViews.set(block, {
+      center: blockCenter,
+      radius:
+        Math.max(
+          ...corners.map((corner) =>
+            Math.hypot(
+              ...corner.map((value, axis) => value - blockCenter[axis]),
+            ),
+          ),
+        ) || radius,
+    });
+  }
+
   // С кем деталь скреплена фурнитурой.
   const neighbors = boxes.map(() => new Set<number>());
 
@@ -293,6 +381,7 @@ function buildScene(boxes: BazisViewerBox[], joints: number[][] | undefined) {
     explodeOffsets,
     blockOffsets,
     innerBlocks,
+    blockViews,
     neighbors,
     buildOrder: buildOrder(boxes, boxCorners, neighbors),
   };
@@ -300,6 +389,17 @@ function buildScene(boxes: BazisViewerBox[], joints: number[][] | undefined) {
 
 // Порядок сборки: сначала корпус снизу вверх (крупные детали раньше),
 // потом задняя стенка, ящики и в конце фасады.
+// «1 деталь», «2 детали», «5 деталей».
+function pluralParts(count: number) {
+  const last = count % 10;
+  const lastTwo = count % 100;
+
+  if (last === 1 && lastTwo !== 11) return "деталь";
+  if (last >= 2 && last <= 4 && (lastTwo < 12 || lastTwo > 14)) return "детали";
+
+  return "деталей";
+}
+
 function buildStage(box: BazisViewerBox) {
   const name = box.info?.name.toLowerCase() ?? "";
 
@@ -931,11 +1031,21 @@ export function BazisViewer({
               Math.min(1, Math.max(0, (elapsed - INTRO_MS) / PULSE_MS)),
             )
         : 0;
-    const center = focusTarget
+    // Разобранный блок показываем отдельно: камера переезжает к нему,
+    // остальное изделие растворяется.
+    const blockView =
+      explodedBlock !== null ? scene.blockViews.get(explodedBlock) : undefined;
+    const isolate = blockView ? blockAmount : 0;
+    const baseCenter = focusTarget
       ? scene.center.map((value, axis) =>
           mix(value, focusTarget.center[axis], focus),
         )
       : scene.center;
+    const center = blockView
+      ? baseCenter.map((value, axis) =>
+          mix(value, blockView.center[axis], isolate),
+        )
+      : baseCenter;
     const shown = {
       yaw: mix(view.yaw - 1.2, view.yaw, intro),
       pitch: mix(0.75, view.pitch, intro),
@@ -972,13 +1082,23 @@ export function BazisViewer({
         point[1] * sinPitch + z * cosPitch,
       ];
     };
-    // Разобранное изделие занимает больше места: отдаляем камеру.
+    // Открытый блок не прячем под карточку детали: на широком экране она
+    // лежит поверх правого края окна.
+    const cardWidth =
+      selectedBox !== null && size.width >= 600 ? CARD_WIDTH * isolate : 0;
+    const width = size.width - cardWidth;
+    // Разобранное изделие занимает больше места: отдаляем камеру, а блок,
+    // показанный отдельно, наоборот, приближаем.
     const scale =
-      (Math.min(size.width, size.height) /
-        (mix(scene.radius, scene.explodedRadius, explode) * 2.05)) *
+      (Math.min(width, size.height) /
+        mix(
+          mix(scene.radius, scene.explodedRadius, explode) * 2.05,
+          (blockView?.radius ?? scene.radius) * 1.8,
+          isolate,
+        )) *
       shown.zoom;
     const toScreen = (point: number[]) => [
-      size.width / 2 + point[0] * scale,
+      width / 2 + point[0] * scale,
       size.height / 2 - point[1] * scale,
     ];
     const light = [0.35, 0.55, 0.76];
@@ -1030,10 +1150,13 @@ export function BazisViewer({
           ? blockAmount
           : 0;
 
+      // Детали открытого блока собираются у своего блока, даже если всё
+      // изделие было разнесено.
       return {
         offset: exploded.map(
           (value, axis) =>
-            value * explode + scene.blockOffsets[box][axis] * inBlock,
+            value * explode * (1 - inBlock) +
+            scene.blockOffsets[box][axis] * inBlock,
         ),
         appear: 1,
       };
@@ -1136,9 +1259,13 @@ export function BazisViewer({
           ? base.map((value) => mix(value, 255, 0.25))
           : base;
 
+      // Чужие для открытого блока детали почти исчезают.
+      const outside = isolate > 0 && !inOpenBlock && !isSelected;
+
       context.globalAlpha =
         (muted ? (markedBoxes ? 0.22 : dimOthers ? 0.35 : 0.45) : 1) *
-        Math.min(1, face.appear * 2.5);
+        Math.min(1, face.appear * 2.5) *
+        (outside ? 1 - isolate * 0.94 : 1);
       // У выделенной детали контур темнее и толще.
       context.lineWidth = face.marked ? 1.4 : 0.6;
       context.strokeStyle = isSelected
@@ -1149,7 +1276,10 @@ export function BazisViewer({
 
       const screen = face.points.map(toScreen);
 
-      hits.push({ box: face.box, points: screen });
+      // По растворившимся деталям не попадаем.
+      if (!(outside && isolate > 0.5)) {
+        hits.push({ box: face.box, points: screen });
+      }
       context.beginPath();
       screen.forEach(([x, y], index) => {
         if (index === 0) {
@@ -1467,6 +1597,10 @@ export function BazisViewer({
   const selectedBlock =
     info?.block && scene.innerBlocks.has(info.block) ? info.block : null;
   const stepTotal = scene.buildOrder.length;
+  const openBlockCount =
+    explodedBlock !== null
+      ? boxes.filter((box) => box.info?.block === explodedBlock).length
+      : 0;
   const buttonClassName =
     "border border-[#cbc7bf] bg-white px-3 py-1.5 text-xs font-medium text-[#171714] transition hover:border-[#171714] disabled:cursor-default disabled:opacity-40 disabled:hover:border-[#cbc7bf]";
 
@@ -1591,6 +1725,25 @@ export function BazisViewer({
           <span className="hidden text-xs text-[#77736c] sm:inline">
             Стрелки ← → на клавиатуре листают шаги
           </span>
+        </div>
+      ) : null}
+      {explodedBlock !== null && step === null ? (
+        <div className="flex flex-wrap items-center gap-2 border border-[#171714] bg-white px-3 py-2 text-sm text-[#171714]">
+          <p className="min-w-0 flex-1">
+            <span className="font-semibold">Блок «{explodedBlock}»</span>
+            <span className="text-[#55524c]">
+              {" "}
+              · {openBlockCount} {pluralParts(openBlockCount)} · нажмите на
+              деталь, чтобы увидеть её размеры
+            </span>
+          </p>
+          <button
+            type="button"
+            onClick={() => animateBlock(null)}
+            className={buttonClassName}
+          >
+            Вернуться к изделию
+          </button>
         </div>
       ) : null}
       <div className="relative grid gap-2">
