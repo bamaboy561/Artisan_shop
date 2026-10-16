@@ -168,6 +168,23 @@ export function CartView() {
           >
             Перейти в каталог
           </Link>
+          <div className="mt-6 flex flex-wrap justify-center gap-2">
+            {[
+              { href: "/catalog/ldsp", label: "ЛДСП" },
+              { href: "/catalog/kromka", label: "Кромка" },
+              { href: "/catalog/furnitura", label: "Фурнитура" },
+              { href: "/catalog/ruchki", label: "Ручки" },
+              { href: "/calculator", label: "Рассчитать распил" },
+            ].map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="inline-flex h-9 items-center rounded-full border border-[color:var(--line-strong)] px-4 text-sm font-medium transition hover:border-[color:var(--foreground)]"
+              >
+                {item.label}
+              </Link>
+            ))}
+          </div>
         </section>
       ) : (
         <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
