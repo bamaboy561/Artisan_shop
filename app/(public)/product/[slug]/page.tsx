@@ -1,4 +1,6 @@
-﻿import Link from "next/link";
+﻿import { findMatchingEdges } from "@/features/storefront/matching-edges";
+import { isSheetFormat } from "@/features/storefront/plate-gallery";
+import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
@@ -152,11 +154,16 @@ export default async function ProductPage({ params }: ProductPageProps) {
     notFound();
   }
 
-  const [category, sameCategoryProducts, favoriteSlugs] = await Promise.all([
-    getPublicCategoryBySlug(product.categorySlug),
-    getPublicProductsByCategory(product.categorySlug),
-    getCurrentFavoriteProductSlugs(),
-  ]);
+  const plate =
+    isSheetFormat(product.format) && product.categorySlug !== "kromka";
+  const [category, sameCategoryProducts, favoriteSlugs, edgeProducts] =
+    await Promise.all([
+      getPublicCategoryBySlug(product.categorySlug),
+      getPublicProductsByCategory(product.categorySlug),
+      getCurrentFavoriteProductSlugs(),
+      plate ? getPublicProductsByCategory("kromka") : Promise.resolve([]),
+    ]);
+  const matchingEdges = findMatchingEdges(product.name, edgeProducts);
   const categoryHref = category ? `/catalog/${category.slug}` : "/catalog";
   const relatedProducts = sameCategoryProducts
     .filter((item) => item.slug !== product.slug)
@@ -195,6 +202,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
       <StorefrontProduct
         product={product}
         related={relatedProducts}
+        matchingEdges={matchingEdges}
         favorites={favoriteSlugs}
         categoryHref={categoryHref}
         specifications={specificationRows}

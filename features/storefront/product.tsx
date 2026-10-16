@@ -21,12 +21,14 @@ import s from "./storefront.module.css";
 export function StorefrontProduct({
   product,
   related,
+  matchingEdges = [],
   favorites,
   categoryHref,
   specifications,
 }: {
   product: FeaturedProduct;
   related: FeaturedProduct[];
+  matchingEdges?: FeaturedProduct[];
   favorites: Set<string>;
   categoryHref: string;
   specifications: { key: string; value: string }[];
@@ -214,6 +216,26 @@ export function StorefrontProduct({
           </div>
         }
       />
+      {matchingEdges.length > 0 && (
+        <section className={s.section}>
+          <div className={s.sectionHeading}>
+            <h2>Кромка в тон</h2>
+            <Link href="/catalog/kromka" className={s.textLink}>
+              Вся кромка <ArrowUpRight size={18} />
+            </Link>
+          </div>
+          <div className={s.homeProducts}>
+            {matchingEdges.map((item) => (
+              <StorefrontCard
+                key={item.slug}
+                product={item}
+                isFavorite={favorites.has(item.slug)}
+                next={href}
+              />
+            ))}
+          </div>
+        </section>
+      )}
       {related.length > 0 && (
         <section className={s.section}>
           <div className={s.sectionHeading}>
