@@ -51,12 +51,24 @@ export function ProductStockImportForm({
   const [manualLinks, setManualLinks] = useState<
     Record<string, StockProductOption>
   >({});
+  // Подтверждение «Применить» показывается на странице, а не окном
+  // браузера: окно браузер может заблокировать, и нажатие молча пропадёт.
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   function reset() {
     setResult(null);
     setSelected(new Set());
     setManualLinks({});
+    setConfirmOpen(false);
   }
+
+  const linkCount = Object.keys(manualLinks).length;
+  const applyCount =
+    (result?.reconciliation ? selected.size : (result?.counts?.ready ?? 0)) +
+    linkCount;
+  const confirmText = result
+    ? `Обновить товаров: ${applyCount}? Остальные строки останутся без изменений.${zeroMissing ? " Остаток товаров, которых нет в файле, будет обнулён." : ""}${result.pendingCount ? ` Позиции, которых нет на сайте (${result.pendingCount}), сохранятся в список «Добавить на сайт».` : ""}${linkCount ? ` Выбранные совпадения (${linkCount}) запомнятся.` : ""}`
+    : "";
 
   // «Это он»: связь запоминается сразу, без пересчёта; запишется при
   // «Применить». Несколько выборов подряд не теряют друг друга.
@@ -69,16 +81,13 @@ export function ProductStockImportForm({
     });
   }
 
-  function submit(nextIntent: "preview" | "apply") {
+  function submit(nextIntent: "preview" | "apply", confirmed = false) {
     if (!file || pending) return;
-    const linkCount = Object.keys(manualLinks).length;
-    if (
-      nextIntent === "apply" &&
-      !window.confirm(
-        `Обновить товаров: ${(result?.reconciliation ? selected.size : (result?.counts?.ready ?? 0)) + linkCount}? Остальные строки останутся без изменений.${zeroMissing ? " Остаток товаров, которых нет в файле, будет обнулён." : ""}${result?.pendingCount ? ` Позиции, которых нет на сайте (${result.pendingCount}), сохранятся в список «Добавить на сайт».` : ""}${linkCount ? ` Выбранные совпадения (${linkCount}) запомнятся.` : ""}`,
-      )
-    )
+    if (nextIntent === "apply" && !confirmed) {
+      setConfirmOpen(true);
       return;
+    }
+    setConfirmOpen(false);
     setIntent(nextIntent);
     const data = new FormData();
     data.set("stockFile", file);
@@ -403,9 +412,34 @@ export function ProductStockImportForm({
                         !zeroMissing &&
                         result.pendingCount
                       ? `Сохранить «Нет на сайте»: ${result.pendingCount}`
-                      : `Применить: ${(result.reconciliation ? selected.size : (result.counts?.ready ?? 0)) + Object.keys(manualLinks).length}`}
+                      : `Применить: ${applyCount}`}
                 </Button>
               )}
+            {confirmOpen && result.phase === "preview" && !pending ? (
+              <div
+                role="alertdialog"
+                className="flex w-full flex-wrap items-center gap-2 rounded-xl border border-emerald-700 bg-emerald-50 p-3 text-sm text-emerald-900"
+              >
+                <span className="min-w-0 flex-1">{confirmText}</span>
+                <Button
+                  type="button"
+                  variant="accent"
+                  autoFocus
+                  onClick={() => submit("apply", true)}
+                  className="h-auto min-h-10 py-2 tracking-normal normal-case"
+                >
+                  <Check className="size-4" />
+                  Да, применить
+                </Button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmOpen(false)}
+                  className="text-sm text-zinc-600 underline underline-offset-2"
+                >
+                  Отмена
+                </button>
+              </div>
+            ) : null}
             {result.reportCsv && (
               <Button
                 type="button"
