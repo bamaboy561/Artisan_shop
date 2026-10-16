@@ -44,18 +44,20 @@ export default async function PublicLayout({
   }
 
   return (
-    <CartProvider>
-      <div className="bg-background min-h-screen overflow-x-clip">
-        <SiteHeader />
-        <PromotionExperience promotions={promotions} />
-        <main
-          id="main-content"
-          className="min-h-[70svh] min-w-0 overflow-x-clip pb-[calc(6.25rem+env(safe-area-inset-bottom))] lg:pb-0"
-        >
-          {children}
-        </main>
-        <SiteFooter />
-      </div>
-    </CartProvider>
+    <SiteCuttingPricesProvider prices={sitePrices}>
+      <CartProvider>
+        <div className="bg-background min-h-screen overflow-x-clip">
+          <SiteHeader />
+          <PromotionExperience promotions={promotions} />
+          <main
+            id="main-content"
+            className="min-h-[70svh] min-w-0 overflow-x-clip pb-[calc(6.25rem+env(safe-area-inset-bottom))] lg:pb-0"
+          >
+            {children}
+          </main>
+          <SiteFooter />
+        </div>
+      </CartProvider>
+    </SiteCuttingPricesProvider>
   );
 }

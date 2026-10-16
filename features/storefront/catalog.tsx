@@ -80,7 +80,7 @@ export async function StorefrontCatalog({
         <Link href="/calculator" className={s.cutPill}>
           <Scissors size={17} />
           {cutOffer
-            ? `Распил ${cutOffer.now} ${cutOffer.unit}`
+            ? `${cutOffer.label} ${cutOffer.now} ${cutOffer.unit}`
             : "Рассчитать распил"}
           <ArrowUpRight size={17} />
         </Link>

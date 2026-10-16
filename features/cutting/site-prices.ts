@@ -117,19 +117,28 @@ export function buildCuttingSiteIncentive(
     title: `Раскрой через сайт дешевле: ${sheetCheaper ? sheetLine : edgeLine}`,
     text: `${sheetCheaper && edgeCheaper ? `${edgeLine[0].toUpperCase()}${edgeLine.slice(1)}. ` : ""}Соберите раскрой здесь сами, и мы посчитаем работу по сниженной цене. Материал по обычной цене, точную сумму подтвердит менеджер.`,
     managerNote: `Заявка с сайта: распил ${f(prices.sheet)} сом/лист${versus(prices.sheet, prices.sheetRegular)}, кромление ${f(prices.edge)} сом/м${versus(prices.edge, prices.edgeRegular)}.`,
+    // Только услуги, которые через сайт действительно дешевле.
     offers: [
-      {
-        label: "Распил",
-        was: f(prices.sheetRegular),
-        now: f(prices.sheet),
-        unit: "сом/лист",
-      },
-      {
-        label: "Кромление",
-        was: f(prices.edgeRegular),
-        now: f(prices.edge),
-        unit: "сом/м",
-      },
+      ...(sheetCheaper
+        ? [
+            {
+              label: "Распил",
+              was: f(prices.sheetRegular),
+              now: f(prices.sheet),
+              unit: "сом/лист",
+            },
+          ]
+        : []),
+      ...(edgeCheaper
+        ? [
+            {
+              label: "Кромление",
+              was: f(prices.edgeRegular),
+              now: f(prices.edge),
+              unit: "сом/м",
+            },
+          ]
+        : []),
     ],
   };
 }

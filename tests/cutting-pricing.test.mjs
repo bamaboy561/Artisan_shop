@@ -242,6 +242,12 @@ test("site prices: admin edits reach the calculator, broken values keep defaults
   assert.equal(incentive.badge, "−30 сом");
   assert.match(incentive.title, /распил 320 сом за лист вместо 350/);
   assert.equal(incentive.offers[0].now, "320");
+  // Кромление 28 дороже обычных 25: в зачёркнутых ценах его нет.
+  const sheetOnly = buildCuttingSiteIncentive({ ...parsed, edgeRegular: 25 });
+  assert.deepEqual(
+    sheetOnly.offers.map((offer) => offer.label),
+    ["Распил"],
+  );
   assert.equal(
     buildCuttingSiteIncentive({ ...parsed, sheet: 350, edge: 35 }),
     null,
