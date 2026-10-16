@@ -7,13 +7,14 @@ import type {
   FeaturedProduct,
 } from "@/features/catalog/types";
 import { collectionJsonLd } from "@/lib/seo";
-import { cuttingSiteIncentive } from "@/lib/site-config";
+import { buildCuttingSiteIncentive } from "@/features/cutting/site-prices";
+import { getSiteCuttingPrices } from "@/lib/server/cutting-pricing";
 import { CatalogControls } from "./catalog-controls";
 import { buildStorefrontHref, getStorefrontCatalog } from "./catalog-state";
 import { StorefrontCard } from "./card";
 import s from "./storefront.module.css";
 
-export function StorefrontCatalog({
+export async function StorefrontCatalog({
   products,
   categories,
   favorites,
@@ -33,7 +34,8 @@ export function StorefrontCatalog({
   const basePath = category ? `/catalog/${category.slug}` : "/catalog";
   const currentHref = buildStorefrontHref(basePath, state);
   const title = category?.name ?? "Каталог";
-  const cutOffer = cuttingSiteIncentive?.offers[0];
+  const cutOffer = buildCuttingSiteIncentive(await getSiteCuttingPrices())
+    ?.offers[0];
   const categoryCounts = new Map<string, number>();
   for (const product of products)
     categoryCounts.set(

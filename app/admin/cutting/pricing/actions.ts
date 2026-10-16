@@ -8,8 +8,14 @@ import { canAccessRequestType } from "@/lib/auth/roles";
 import { getDb, hasDatabaseUrl } from "@/lib/db";
 import { parseCuttingLaborPrice } from "@/features/cutting/labor-price";
 import {
+  drillingDiameters,
+  isValidSitePrice,
+  type SiteCuttingPrices,
+} from "@/features/cutting/site-prices";
+import {
   cuttingPriceKey,
   repriceCuttingRequest,
+  siteCuttingPricesKey,
 } from "@/lib/server/cutting-pricing";
 
 export async function saveCuttingPriceAction(form: FormData) {
@@ -42,6 +48,62 @@ export async function saveCuttingPriceAction(form: FormData) {
   });
   revalidatePath("/admin/cutting/pricing");
   redirect("/admin/cutting/pricing?saved=1");
+}
+
+function readRate(form: FormData, field: string) {
+  const raw = String(form.get(field) ?? "")
+    .trim()
+    .replace(/\s/g, "")
+    .replace(",", ".");
+  const rate = raw ? Number(raw) : NaN;
+  return isValidSitePrice(rate) ? rate : null;
+}
+
+// Цены сайта: калькулятор распила, плашка «Раскрой через сайт дешевле»
+// и присадка по диаметрам. Сразу видны на всех страницах сайта.
+export async function saveSiteCuttingPricesAction(form: FormData) {
+  const actor = await requireAdminSession("/login", "/admin/cutting/pricing");
+  if (
+    ![RoleCode.ADMIN, RoleCode.SUPER_ADMIN].some(
+      (role) => role === actor.roleCode,
+    )
+  )
+    throw new Error("Только администратор может менять прайс.");
+  const sheet = readRate(form, "siteSheet");
+  const sheetRegular = readRate(form, "siteSheetRegular");
+  const edge = readRate(form, "siteEdge");
+  const edgeRegular = readRate(form, "siteEdgeRegular");
+  const drilling: Record<number, number> = {};
+  let drillingValid = true;
+  for (const diameter of drillingDiameters) {
+    const price = readRate(form, `drill${diameter}`);
+    if (price === null) drillingValid = false;
+    else drilling[diameter] = price;
+  }
+  if (
+    sheet === null ||
+    sheetRegular === null ||
+    edge === null ||
+    edgeRegular === null ||
+    !drillingValid ||
+    !hasDatabaseUrl()
+  )
+    redirect("/admin/cutting/pricing?siteError=invalid");
+  const value: SiteCuttingPrices = {
+    sheet,
+    sheetRegular,
+    edge,
+    edgeRegular,
+    drilling,
+  };
+  await getDb().siteSetting.upsert({
+    where: { key: siteCuttingPricesKey },
+    create: { key: siteCuttingPricesKey, value },
+    update: { value },
+  });
+  // Цены показаны на главной, в каталоге, калькуляторе и проектах Базиса.
+  revalidatePath("/", "layout");
+  redirect("/admin/cutting/pricing?siteSaved=1");
 }
 
 export async function repriceCuttingRequestAction(form: FormData) {

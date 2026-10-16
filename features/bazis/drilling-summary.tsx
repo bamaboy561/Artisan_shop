@@ -1,5 +1,6 @@
 import type { BazisDrilling } from "@/lib/bazis-b3d";
 import { formatPrice } from "@/lib/commerce";
+import { useSiteCuttingPrices } from "@/features/cutting/site-prices-context";
 import { drillingHolePrice } from "@/lib/drilling-price";
 
 const diameterFormatter = new Intl.NumberFormat("ru-RU", {
@@ -26,13 +27,14 @@ export function DrillingSummary({
 }: {
   drilling: BazisDrilling | undefined;
 }) {
+  const prices = useSiteCuttingPrices();
   if (!drilling || drilling.holes === 0) {
     return null;
   }
 
   const priced = drilling.rows.map((row) => {
     const holes = row.face + row.edge;
-    const price = drillingHolePrice(row.diameter);
+    const price = drillingHolePrice(row.diameter, prices.drilling);
     return { ...row, holes, price, cost: (price ?? 0) * holes };
   });
   const total = priced.reduce((sum, row) => sum + row.cost, 0);

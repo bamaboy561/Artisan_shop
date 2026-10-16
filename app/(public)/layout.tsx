@@ -3,6 +3,8 @@ import type { ReactNode } from "react";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
 import { CartProvider } from "@/components/providers/cart-provider";
+import { SiteCuttingPricesProvider } from "@/features/cutting/site-prices-context";
+import { getSiteCuttingPrices } from "@/lib/server/cutting-pricing";
 import { PromotionExperience } from "@/components/promotions/promotion-experience";
 import { getPublicHighlightedPromotions } from "@/lib/server/promotions-public";
 import { getPublicCategories } from "@/lib/server/catalog-public";
@@ -16,23 +18,28 @@ export default async function PublicLayout({
 }: {
   children: ReactNode;
 }) {
-  const promotions = await getPublicHighlightedPromotions();
+  const [promotions, sitePrices] = await Promise.all([
+    getPublicHighlightedPromotions(),
+    getSiteCuttingPrices(),
+  ]);
 
   if (isPremiumStorefront()) {
     const categories = await getPublicCategories();
     return (
-      <CartProvider>
-        <div className={storefront.root} data-storefront="premium">
-          <StorefrontHeader
-            categories={categories.map(({ slug, name }) => ({ slug, name }))}
-          />
-          <PromotionExperience promotions={promotions} />
-          <main id="main-content" className={storefront.main}>
-            {children}
-          </main>
-          <StorefrontFooter />
-        </div>
-      </CartProvider>
+      <SiteCuttingPricesProvider prices={sitePrices}>
+        <CartProvider>
+          <div className={storefront.root} data-storefront="premium">
+            <StorefrontHeader
+              categories={categories.map(({ slug, name }) => ({ slug, name }))}
+            />
+            <PromotionExperience promotions={promotions} />
+            <main id="main-content" className={storefront.main}>
+              {children}
+            </main>
+            <StorefrontFooter />
+          </div>
+        </CartProvider>
+      </SiteCuttingPricesProvider>
     );
   }
 

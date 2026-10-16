@@ -1,5 +1,6 @@
 import "server-only";
 
+import { cache } from "react";
 import type { Prisma } from "@/generated/prisma";
 import { getDb, hasDatabaseUrl } from "@/lib/db";
 import {
@@ -7,6 +8,10 @@ import {
   calculateCuttingLaborTotal,
   type CuttingLaborPrice,
 } from "@/features/cutting/labor-price";
+import {
+  defaultSiteCuttingPrices,
+  parseSiteCuttingPrices,
+} from "@/features/cutting/site-prices";
 
 export const cuttingPriceKey = "cutting:labor-price:v1";
 const snapshotKey = (id: string) => `cutting:labor-price:request:${id}`;
@@ -22,6 +27,22 @@ export async function readCuttingPrice(db: PricingDb, requestId?: string) {
 export async function getCuttingPrice(requestId?: string) {
   return hasDatabaseUrl() ? readCuttingPrice(getDb(), requestId) : null;
 }
+
+// Цены сайта (калькулятор, присадка, плашка) из «Прайс работ».
+export const siteCuttingPricesKey = "cutting:site-prices:v1";
+
+export const getSiteCuttingPrices = cache(async () => {
+  if (!hasDatabaseUrl()) return defaultSiteCuttingPrices;
+  try {
+    const record = await getDb().siteSetting.findUnique({
+      where: { key: siteCuttingPricesKey },
+    });
+    return parseSiteCuttingPrices(record?.value);
+  } catch {
+    // Без базы витрина открывается с ценами по умолчанию.
+    return defaultSiteCuttingPrices;
+  }
+});
 
 export async function saveCuttingPriceSnapshot(
   db: PricingDb,

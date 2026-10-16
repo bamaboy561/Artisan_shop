@@ -7,6 +7,7 @@ const pure = loadAction("../features/cutting/labor-price.ts", {});
 const { calculateCuttingLaborTotal: calculate, parseCuttingLaborPrice: parse } =
   pure;
 const price = { sheetRate: 300, edgeRate: 25 };
+const sitePrices = loadAction("../features/cutting/site-prices.ts", {});
 
 test("labor only: sheet count and fractional edge meters", () => {
   assert.equal(calculate(price, 4, 12.5, "ABS"), 1513);
@@ -59,8 +60,10 @@ function fixture() {
   const db = { ...tx, $transaction: async (fn) => fn(tx) };
   const pricing = loadAction("../lib/server/cutting-pricing.ts", {
     "server-only": {},
+    react: { cache: (fn) => fn },
     "@/lib/db": { getDb: () => db, hasDatabaseUrl: () => true },
     "@/features/cutting/labor-price": pure,
+    "@/features/cutting/site-prices": sitePrices,
   });
   return { settings, request, events, pricing, db };
 }
@@ -193,8 +196,10 @@ test("server actions enforce admin-only price edits and deny unauthorized recalc
       }),
     },
     "@/features/cutting/labor-price": pure,
+    "@/features/cutting/site-prices": sitePrices,
     "@/lib/server/cutting-pricing": {
       cuttingPriceKey: "price",
+      siteCuttingPricesKey: "site",
       repriceCuttingRequest: async () => {
         writes++;
       },
@@ -215,6 +220,77 @@ test("server actions enforce admin-only price edits and deny unauthorized recalc
   actor = { roleCode: "ADMIN", userId: "a" };
   await assert.rejects(actions.saveCuttingPriceAction(form), /saved=1/);
   assert.equal(writes, 1);
+});
+
+test("site prices: admin edits reach the calculator, broken values keep defaults", async () => {
+  const { parseSiteCuttingPrices, defaultSiteCuttingPrices, buildCuttingSiteIncentive } =
+    sitePrices;
+  assert.deepEqual(parseSiteCuttingPrices(null), defaultSiteCuttingPrices);
+  const parsed = parseSiteCuttingPrices({
+    sheet: 320,
+    sheetRegular: "350",
+    edge: -1,
+    drilling: { 5: 7, 8: 12.5, 12: 99 },
+  });
+  assert.equal(parsed.sheet, 320);
+  assert.equal(parsed.sheetRegular, 350);
+  assert.equal(parsed.edge, 28);
+  assert.equal(parsed.drilling[5], 7);
+  assert.equal(parsed.drilling[8], 12.5);
+  assert.equal(parsed.drilling[12], undefined);
+  const incentive = buildCuttingSiteIncentive(parsed);
+  assert.equal(incentive.badge, "−30 сом");
+  assert.match(incentive.title, /распил 320 сом за лист вместо 350/);
+  assert.equal(incentive.offers[0].now, "320");
+  assert.equal(
+    buildCuttingSiteIncentive({ ...parsed, sheet: 350, edge: 35 }),
+    null,
+  );
+
+  let saved;
+  let actor = { roleCode: "CUTTING_MANAGER", userId: "m" };
+  const actions = loadAction("../app/admin/cutting/pricing/actions.ts", {
+    "next/navigation": {
+      redirect: (url) => {
+        throw new Error(`redirect:${url}`);
+      },
+    },
+    "next/cache": { revalidatePath: () => {} },
+    "@/generated/prisma": {
+      RoleCode: { ADMIN: "ADMIN", SUPER_ADMIN: "SUPER_ADMIN" },
+      RequestType: {},
+    },
+    "@/lib/auth/dal": { requireAdminSession: async () => actor },
+    "@/lib/auth/roles": {},
+    "@/lib/db": {
+      hasDatabaseUrl: () => true,
+      getDb: () => ({
+        siteSetting: { upsert: async ({ update }) => (saved = update.value) },
+      }),
+    },
+    "@/features/cutting/labor-price": pure,
+    "@/features/cutting/site-prices": sitePrices,
+    "@/lib/server/cutting-pricing": { siteCuttingPricesKey: "site" },
+  });
+  const form = new FormData();
+  form.set("siteSheet", "320");
+  form.set("siteSheetRegular", "350");
+  form.set("siteEdge", "25,5");
+  form.set("siteEdgeRegular", "35");
+  for (const diameter of sitePrices.drillingDiameters)
+    form.set(`drill${diameter}`, String(diameter));
+  await assert.rejects(actions.saveSiteCuttingPricesAction(form), /администратор/);
+  assert.equal(saved, undefined);
+  actor = { roleCode: "ADMIN", userId: "a" };
+  form.set("drill35", "");
+  await assert.rejects(actions.saveSiteCuttingPricesAction(form), /siteError/);
+  assert.equal(saved, undefined);
+  form.set("drill35", "40");
+  await assert.rejects(actions.saveSiteCuttingPricesAction(form), /siteSaved=1/);
+  assert.equal(saved.sheet, 320);
+  assert.equal(saved.edge, 25.5);
+  assert.equal(saved.drilling[35], 40);
+  assert.equal(saved.drilling[5], 5);
 });
 
 test("conversion carries the saved labor amount into the order, including zero", async () => {
