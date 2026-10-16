@@ -21,3 +21,14 @@ export function orderedGallery(product: {
 
   return [gallery[1], gallery[0], ...gallery.slice(2)];
 }
+
+// «Дуб Коми 2.75*1.83» → «Дуб Коми»: размер листа на карточке и так
+// показан отдельно, в названии он только мешает читать декор.
+export function displayProductName(product: { name: string; format: string }) {
+  if (!isSheetFormat(product.format)) return product.name;
+  const short = product.name
+    .replace(/\s*\d[.,]\d{1,2}\s*[×xх*]\s*\d[.,]\d{1,2}(?:\s*м)?/giu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return short.length >= 3 ? short : product.name;
+}

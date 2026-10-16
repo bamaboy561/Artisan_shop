@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ArrowUpRight, MapPin, MessageCircle } from "lucide-react";
 import { FavoriteToggle } from "@/components/catalog/favorite-toggle";
 import { ProductImage } from "@/components/catalog/product-image";
-import { orderedGallery } from "./plate-gallery";
+import { displayProductName, orderedGallery } from "./plate-gallery";
 import { AddBundleItemButton } from "@/components/ecommerce/add-bundle-item-button";
 import { PurchaseInfo } from "@/components/ecommerce/purchase-info";
 import { StructuredData } from "@/components/seo/structured-data";
@@ -73,7 +73,7 @@ export function StorefrontProduct({
               variant="inline"
             />
           </div>
-          <h1>{product.name}</h1>
+          <h1>{displayProductName(product)}</h1>
           <p className={s.sku}>Артикул: {product.sku}</p>
           <span
             className={`${s.availability} ${product.inStock ? "" : s.unavailable}`}

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
 import { ProductImage } from "@/components/catalog/product-image";
 import { FavoriteToggle } from "@/components/catalog/favorite-toggle";
-import { orderedGallery } from "./plate-gallery";
+import { displayProductName, orderedGallery } from "./plate-gallery";
 import { QuickAdd } from "./quick-add";
 import type { FeaturedProduct } from "@/features/catalog/types";
 import { formatPrice } from "@/lib/commerce";
@@ -84,7 +84,9 @@ export function StorefrontCard({
           <span>{product.categoryName}</span>
         </div>
         <h3>
-          <Link href={`/product/${product.slug}`}>{product.name}</Link>
+          <Link href={`/product/${product.slug}`}>
+            {displayProductName(product)}
+          </Link>
         </h3>
         <div className={s.specChips}>
           {chips.map((chip) => (

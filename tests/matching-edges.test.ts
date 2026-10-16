@@ -35,3 +35,23 @@ test("other decors are not suggested", () => {
   assert.deepEqual(names("Белый шагрень 2.75*1.83"), []);
   assert.deepEqual(names("Дуб Коми 2.75*1.83"), []);
 });
+
+test("sheet size is hidden in plate names", async () => {
+  const { displayProductName } =
+    await import("../features/storefront/plate-gallery");
+  assert.equal(
+    displayProductName({ name: "Дуб Коми 2.75*1.83", format: "2750×1830" }),
+    "Дуб Коми",
+  );
+  assert.equal(
+    displayProductName({
+      name: "Графит 2.75*1.83 (матовый)",
+      format: "2750 x 1830",
+    }),
+    "Графит (матовый)",
+  );
+  assert.equal(
+    displayProductName({ name: "Кромка 1*19 мм", format: "19 мм" }),
+    "Кромка 1*19 мм",
+  );
+});
