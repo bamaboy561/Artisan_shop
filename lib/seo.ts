@@ -368,9 +368,22 @@ function isKeywordList(value: string) {
   return (value.match(/,/g)?.length ?? 0) >= 3 && !/[.!?](\s|$)/u.test(value);
 }
 
+// Заголовок-набор слов для поисковика («ЛДСП Бишкек большой формат акция
+// дешево выгодно») отпугивает и людей, и Google: такой не используем.
+export function isSpammySeoTitle(value: string) {
+  const words = value.split(/\s+/).filter(Boolean);
+  return (
+    /(^|\s)(дешево|дёшево|выгодно|недорого)(\s|$)/iu.test(value) ||
+    (words.length >= 6 && !/[—–\-,.:|!?()]/u.test(value))
+  );
+}
+
 function usableSeoTitle(value?: string | null) {
   const trimmed = value?.trim();
-  return trimmed && trimmed.length <= 90 && !isKeywordList(trimmed)
+  return trimmed &&
+    trimmed.length <= 90 &&
+    !isKeywordList(trimmed) &&
+    !isSpammySeoTitle(trimmed)
     ? trimmed
     : "";
 }

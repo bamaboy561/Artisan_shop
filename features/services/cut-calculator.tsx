@@ -36,6 +36,7 @@ import type {
   CalculatorSheetFormatDto,
 } from "@/lib/server/calculator-config";
 import { formatPrice } from "@/lib/commerce";
+import { priceDrilling, type DrillCounts } from "@/lib/drilling-price";
 import { cuttingSiteIncentive, cuttingSitePrices } from "@/lib/site-config";
 import { cn } from "@/lib/utils";
 
@@ -53,6 +54,8 @@ type DetailRow = {
   quantity: string;
   edgedSides: EdgeSide[];
   orientationMode: OrientationMode;
+  // Присадка одной детали из проекта Базиса: диаметр → отверстий.
+  drill?: DrillCounts;
 };
 
 type CalculatedDetailRow = Omit<DetailRow, "width" | "height" | "quantity"> & {
@@ -419,23 +422,10 @@ function createRow(index: number): DetailRow {
   };
 }
 
+// Калькулятор открывается с одной пустой строкой: пример с готовыми
+// размерами новички принимали за свой расчёт.
 function createInitialRows(): DetailRow[] {
-  return [
-    {
-      ...createRow(1),
-      width: "720",
-      height: "560",
-      quantity: "2",
-      edgedSides: ["top", "bottom"],
-    },
-    {
-      ...createRow(2),
-      width: "560",
-      height: "420",
-      quantity: "3",
-      edgedSides: [...allEdgeSides],
-    },
-  ];
+  return [createRow(1)];
 }
 
 const DRAFT_STORAGE_KEY = "artisan:cut-calculator:draft:v1";
@@ -543,6 +533,7 @@ function importedDetailToRow(detail: ImportedDetail, index: number): DetailRow {
     quantity: String(detail.quantity),
     edgedSides: normalizeEdgeSides(detail.edgedSides),
     orientationMode: detail.fixedGrain ? "fixed" : "free",
+    ...(detail.drill ? { drill: detail.drill } : {}),
   };
 }
 
@@ -1407,6 +1398,7 @@ function buildCuttingRequestMessage({
   };
   estimate: {
     totalEstimate: number;
+    drilling: ReturnType<typeof priceDrilling>;
   };
   workshopRows: WorkshopRow[];
   comment: string;
@@ -1428,6 +1420,16 @@ function buildCuttingRequestMessage({
     `Листов по карте: ${cutMap.sheets.length}`,
     `Размещено: ${cutMap.placedPieces} из ${cutMap.totalPieces}`,
     `КИМ: ${(cutMap.utilization * 100).toFixed(0)}%`,
+    ...(estimate.drilling.holes > 0
+      ? [
+          `Присадка: ${estimate.drilling.holes} отв. — ${formatPrice(Math.round(estimate.drilling.cost))} (${estimate.drilling.rows
+            .map(
+              (row) =>
+                `Ø${row.diameter} × ${row.holes}${row.price === null ? ", без цены" : ""}`,
+            )
+            .join("; ")})`,
+        ]
+      : []),
     `Ориентир: ${formatPrice(Math.round(estimate.totalEstimate))}`,
     "",
     "Детали:",
@@ -1731,6 +1733,8 @@ export function CutCalculator({
       (siteRates ? cuttingSitePrices.edge : material.edgeRatePerMeter);
     const setupFee =
       !siteRates && calculation.totalPieces > 0 ? material.setupFee : 0;
+    // Присадка по прайсу: отверстия приходят из проекта Базиса.
+    const drilling = priceDrilling(calculation.rows);
 
     return {
       sheetCount,
@@ -1739,9 +1743,12 @@ export function CutCalculator({
       cuttingCost,
       edgeCost,
       setupFee,
-      totalEstimate: materialCost + cuttingCost + edgeCost + setupFee,
+      drilling,
+      totalEstimate:
+        materialCost + cuttingCost + edgeCost + setupFee + drilling.cost,
     };
   }, [
+    calculation.rows,
     calculation.sheetAreaSqM,
     calculation.totalEdgeMeters,
     calculation.totalPieces,
@@ -3363,6 +3370,22 @@ export function CutCalculator({
               <span>Кромка {edgeSizeLabel}</span>
               <span>{formatPrice(Math.round(estimate.edgeCost))}</span>
             </div>
+            {estimate.drilling.holes > 0 ? (
+              <div className="grid gap-1 text-sm text-[#5f554c]">
+                <div className="flex items-center justify-between gap-3">
+                  <span>Присадка, {estimate.drilling.holes} отв.</span>
+                  <span>{formatPrice(Math.round(estimate.drilling.cost))}</span>
+                </div>
+                <p className="text-xs leading-5 text-[#8a8175]">
+                  {estimate.drilling.rows
+                    .map(
+                      (row) =>
+                        `Ø${row.diameter} — ${row.holes} шт.${row.price === null ? " (цену назовёт менеджер)" : ` × ${row.price} сом`}`,
+                    )
+                    .join(" · ")}
+                </p>
+              </div>
+            ) : null}
             {estimate.setupFee > 0 ? (
               <div className="flex items-center justify-between gap-3 text-sm text-[#5f554c]">
                 <span>Подготовка</span>
@@ -3379,7 +3402,7 @@ export function CutCalculator({
 
       <div
         className={cn(
-          "fixed inset-x-3 bottom-[calc(4.4rem+env(safe-area-inset-bottom))] z-30 flex items-center gap-3 rounded-2xl bg-[#1f2b25] px-4 py-3 text-white shadow-[0_18px_40px_rgba(21,20,17,0.35)] transition duration-300 xl:hidden",
+          "fixed inset-x-3 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-30 flex items-center gap-3 rounded-2xl bg-[#1f2b25] px-4 py-3 text-white shadow-[0_18px_40px_rgba(21,20,17,0.35)] transition duration-300 xl:hidden",
           showStickySummary
             ? "translate-y-0 opacity-100"
             : "pointer-events-none translate-y-4 opacity-0",

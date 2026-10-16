@@ -387,6 +387,9 @@
   font-size: 12px;
   color: var(--pv-muted);
   margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .cover {
   object-fit: cover;

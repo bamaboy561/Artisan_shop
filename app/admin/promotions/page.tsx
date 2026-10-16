@@ -1,3 +1,4 @@
+import { formatPrice } from "@/lib/commerce";
 import { ConfirmDeleteButton } from "@/components/admin/confirm-delete-button";
 import Form from "next/form";
 import Link from "next/link";
@@ -78,11 +79,7 @@ function formatCurrency(value: number | null) {
     return "Без порога";
   }
 
-  return new Intl.NumberFormat("ru-RU", {
-    style: "currency",
-    currency: "KGS",
-    maximumFractionDigits: 0,
-  }).format(value);
+  return formatPrice(value);
 }
 
 function formatDateRange(startsAt: Date | null, endsAt: Date | null) {

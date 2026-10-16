@@ -16,6 +16,8 @@ export type BazisImportRow = {
   edgedWidthSides: number;
   complexContour: boolean;
   textured?: boolean;
+  // Отверстия присадки по диаметрам на все детали строки.
+  drill?: Record<string, number>;
 };
 
 export type BazisMaterialGroup = {
@@ -51,6 +53,17 @@ export function bazisRowToDetail(row: BazisImportRow): ImportedDetail {
     quantity: row.quantity,
     edgedSides: SIDE_ORDER.filter((side) => sides.has(side)),
     fixedGrain: row.textured === true,
+    // В калькулятор идёт присадка одной детали: количество там меняют.
+    ...(row.drill && Object.keys(row.drill).length > 0
+      ? {
+          drill: Object.fromEntries(
+            Object.entries(row.drill).map(([diameter, count]) => [
+              diameter,
+              count / row.quantity,
+            ]),
+          ),
+        }
+      : {}),
   };
 }
 

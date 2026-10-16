@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowUpRight, MapPin, MessageCircle } from "lucide-react";
 import { FavoriteToggle } from "@/components/catalog/favorite-toggle";
 import { ProductImage } from "@/components/catalog/product-image";
+import { displayProductName, orderedGallery } from "./plate-gallery";
 import { AddBundleItemButton } from "@/components/ecommerce/add-bundle-item-button";
 import { PurchaseInfo } from "@/components/ecommerce/purchase-info";
 import { StructuredData } from "@/components/seo/structured-data";
@@ -20,18 +21,20 @@ import s from "./storefront.module.css";
 export function StorefrontProduct({
   product,
   related,
+  matchingEdges = [],
   favorites,
   categoryHref,
   specifications,
 }: {
   product: FeaturedProduct;
   related: FeaturedProduct[];
+  matchingEdges?: FeaturedProduct[];
   favorites: Set<string>;
   categoryHref: string;
   specifications: { key: string; value: string }[];
 }) {
   const href = `/product/${product.slug}`;
-  const gallery = product.gallery.length ? product.gallery : [product.image];
+  const gallery = orderedGallery(product);
   return (
     <div className={`${s.container} ${s.productPage}`}>
       <StructuredData
@@ -70,7 +73,7 @@ export function StorefrontProduct({
               variant="inline"
             />
           </div>
-          <h1>{product.name}</h1>
+          <h1>{displayProductName(product)}</h1>
           <p className={s.sku}>Артикул: {product.sku}</p>
           <span
             className={`${s.availability} ${product.inStock ? "" : s.unavailable}`}
@@ -213,6 +216,26 @@ export function StorefrontProduct({
           </div>
         }
       />
+      {matchingEdges.length > 0 && (
+        <section className={s.section}>
+          <div className={s.sectionHeading}>
+            <h2>Кромка в тон</h2>
+            <Link href="/catalog/kromka" className={s.textLink}>
+              Вся кромка <ArrowUpRight size={18} />
+            </Link>
+          </div>
+          <div className={s.homeProducts}>
+            {matchingEdges.map((item) => (
+              <StorefrontCard
+                key={item.slug}
+                product={item}
+                isFavorite={favorites.has(item.slug)}
+                next={href}
+              />
+            ))}
+          </div>
+        </section>
+      )}
       {related.length > 0 && (
         <section className={s.section}>
           <div className={s.sectionHeading}>

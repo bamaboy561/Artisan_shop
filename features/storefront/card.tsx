@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
 import { ProductImage } from "@/components/catalog/product-image";
 import { FavoriteToggle } from "@/components/catalog/favorite-toggle";
+import { displayProductName, orderedGallery } from "./plate-gallery";
 import { QuickAdd } from "./quick-add";
 import type { FeaturedProduct } from "@/features/catalog/types";
 import { formatPrice } from "@/lib/commerce";
@@ -40,7 +41,8 @@ export function StorefrontCard({
   next?: string;
   eager?: boolean;
 }) {
-  const hoverImage = product.gallery.find((image) => image !== product.image);
+  const [mainImage, ...restImages] = orderedGallery(product);
+  const hoverImage = restImages.find((image) => image !== mainImage);
   const area = sheetArea(product.format);
   const chips = formatChips(product.format);
   return (
@@ -48,7 +50,7 @@ export function StorefrontCard({
       <div className={s.productVisual}>
         <Link href={`/product/${product.slug}`} aria-label={product.name}>
           <ProductImage
-            src={product.image}
+            src={mainImage ?? product.image}
             alt={product.name}
             fallbackLabel={product.name}
             fill
@@ -82,7 +84,9 @@ export function StorefrontCard({
           <span>{product.categoryName}</span>
         </div>
         <h3>
-          <Link href={`/product/${product.slug}`}>{product.name}</Link>
+          <Link href={`/product/${product.slug}`}>
+            {displayProductName(product)}
+          </Link>
         </h3>
         <div className={s.specChips}>
           {chips.map((chip) => (
@@ -117,7 +121,7 @@ export function StorefrontCard({
                 slug: product.slug,
                 name: product.name,
                 sku: product.sku,
-                image: product.image,
+                image: mainImage ?? product.image,
                 price: product.price,
                 oldPrice: product.oldPrice,
                 stockQuantity: product.stockQuantity,

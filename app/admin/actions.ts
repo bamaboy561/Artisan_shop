@@ -2553,11 +2553,7 @@ export async function importProductsFromExcelAction(formData: FormData) {
       });
 
       importNotes.unshift(
-        `Сумма склада обновлена: ${new Intl.NumberFormat("ru-RU", {
-          style: "currency",
-          currency: "KGS",
-          maximumFractionDigits: 2,
-        }).format(valuation.amount)}.`,
+        `Сумма склада обновлена: ${new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 2 }).format(valuation.amount)} сом.`,
       );
     } catch (error) {
       errors += 1;

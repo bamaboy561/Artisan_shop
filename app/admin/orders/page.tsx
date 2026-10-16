@@ -1,3 +1,4 @@
+import { formatPrice } from "@/lib/commerce";
 import Form from "next/form";
 import Link from "next/link";
 
@@ -60,11 +61,7 @@ const bulkActionOptions = [
 ] as const;
 
 function formatCurrency(value: number) {
-  return new Intl.NumberFormat("ru-RU", {
-    style: "currency",
-    currency: "KGS",
-    maximumFractionDigits: 0,
-  }).format(value);
+  return formatPrice(value);
 }
 
 function formatDate(date: Date) {
