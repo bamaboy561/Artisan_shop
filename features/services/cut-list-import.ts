@@ -12,6 +12,8 @@ export type ImportedDetail = {
   fixedGrain?: boolean;
   /** Материал из таблицы (например, выгрузка OpenCutList из SketchUp). */
   material?: string;
+  /** Присадка одной детали из проекта Базиса: диаметр → отверстий. */
+  drill?: Record<string, number>;
 };
 
 export type CutListImportResult = {

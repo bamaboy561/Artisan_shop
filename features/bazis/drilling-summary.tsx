@@ -1,4 +1,6 @@
 import type { BazisDrilling } from "@/lib/bazis-b3d";
+import { formatPrice } from "@/lib/commerce";
+import { drillingHolePrice } from "@/lib/drilling-price";
 
 const diameterFormatter = new Intl.NumberFormat("ru-RU", {
   maximumFractionDigits: 1,
@@ -28,6 +30,14 @@ export function DrillingSummary({
     return null;
   }
 
+  const priced = drilling.rows.map((row) => {
+    const holes = row.face + row.edge;
+    const price = drillingHolePrice(row.diameter);
+    return { ...row, holes, price, cost: (price ?? 0) * holes };
+  });
+  const total = priced.reduce((sum, row) => sum + row.cost, 0);
+  const unpriced = priced.some((row) => row.price === null);
+
   return (
     <section className="grid gap-3 bg-white p-4 sm:p-5">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -38,7 +48,7 @@ export function DrillingSummary({
         </p>
       </div>
       <ul className="grid gap-1 text-sm text-[#252b29] sm:grid-cols-2">
-        {drilling.rows.map((row) => (
+        {priced.map((row) => (
           <li
             key={row.diameter}
             className="flex justify-between gap-3 border-b border-[#e1e5e1] py-1.5"
@@ -47,12 +57,23 @@ export function DrillingSummary({
             <span className="text-right">
               {formatDrillingRow(row)}{" "}
               <span className="font-semibold whitespace-nowrap">
-                = {row.face + row.edge} шт.
+                = {row.holes} шт.
+              </span>
+              <span className="block text-xs text-[#69716d]">
+                {row.price === null
+                  ? "цену назовёт менеджер"
+                  : `× ${row.price} сом = ${formatPrice(row.cost)}`}
               </span>
             </span>
           </li>
         ))}
       </ul>
+      <p className="flex justify-between gap-3 text-sm text-[#252b29]">
+        <span>
+          Присадка по прайсу{unpriced ? " (без отверстий без цены)" : ""}
+        </span>
+        <span className="font-semibold">{formatPrice(total)}</span>
+      </p>
       <p className="text-xs text-[#69716d]">
         Посчитано по фурнитуре в файле проекта так же, как отверстия уходят на
         станок. Окончательно присадку подтвердит менеджер.

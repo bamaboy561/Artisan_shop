@@ -33,6 +33,9 @@ export type BazisPanel = {
   textured: boolean;
   // Отверстия присадки на детали (см. collectDrilling).
   holes: number;
+  // Те же отверстия по диаметрам: «5» → 12. В проектах, сохранённых до
+  // появления поля, его нет.
+  drill?: Record<string, number>;
   // Положение детали в модели для объёмного просмотра: прямоугольник
   // контура в плоскости детали (x, y, sizeX, sizeY), толщина идёт по оси Z
   // детали, matrix переводит точки детали в координаты модели
@@ -81,6 +84,8 @@ export type BazisPartRow = {
   textured: boolean;
   // Отверстия во всех деталях строки (уже с учётом количества).
   holes: number;
+  // Те же отверстия по диаметрам, тоже на все детали строки.
+  drill: Record<string, number>;
 };
 
 export type BazisProject = {
@@ -739,6 +744,8 @@ function collectDrilling(collected: Collected): BazisDrilling {
         row[kind] += 1;
         rows.set(diameter, row);
         panel.holes += 1;
+        panel.drill ??= {};
+        panel.drill[diameter] = (panel.drill[diameter] ?? 0) + 1;
         total += 1;
       }
     }
@@ -782,6 +789,9 @@ export function groupBazisPanels(panels: BazisPanel[]): BazisPartRow[] {
     if (existing) {
       existing.quantity += 1;
       existing.holes += panel.holes;
+      for (const [diameter, count] of Object.entries(panel.drill ?? {})) {
+        existing.drill[diameter] = (existing.drill[diameter] ?? 0) + count;
+      }
     } else {
       rows.set(key, {
         name: panel.name,
@@ -797,6 +807,7 @@ export function groupBazisPanels(panels: BazisPanel[]): BazisPartRow[] {
         complexContour: panel.complexContour,
         textured: panel.textured,
         holes: panel.holes,
+        drill: { ...panel.drill },
       });
     }
   }
