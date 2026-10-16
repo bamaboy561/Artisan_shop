@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowUpRight, MapPin, MessageCircle } from "lucide-react";
 import { FavoriteToggle } from "@/components/catalog/favorite-toggle";
 import { ProductImage } from "@/components/catalog/product-image";
+import { orderedGallery } from "./plate-gallery";
 import { AddBundleItemButton } from "@/components/ecommerce/add-bundle-item-button";
 import { PurchaseInfo } from "@/components/ecommerce/purchase-info";
 import { StructuredData } from "@/components/seo/structured-data";
@@ -31,7 +32,7 @@ export function StorefrontProduct({
   specifications: { key: string; value: string }[];
 }) {
   const href = `/product/${product.slug}`;
-  const gallery = product.gallery.length ? product.gallery : [product.image];
+  const gallery = orderedGallery(product);
   return (
     <div className={`${s.container} ${s.productPage}`}>
       <StructuredData

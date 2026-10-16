@@ -419,23 +419,10 @@ function createRow(index: number): DetailRow {
   };
 }
 
+// Калькулятор открывается с одной пустой строкой: пример с готовыми
+// размерами новички принимали за свой расчёт.
 function createInitialRows(): DetailRow[] {
-  return [
-    {
-      ...createRow(1),
-      width: "720",
-      height: "560",
-      quantity: "2",
-      edgedSides: ["top", "bottom"],
-    },
-    {
-      ...createRow(2),
-      width: "560",
-      height: "420",
-      quantity: "3",
-      edgedSides: [...allEdgeSides],
-    },
-  ];
+  return [createRow(1)];
 }
 
 const DRAFT_STORAGE_KEY = "artisan:cut-calculator:draft:v1";
@@ -3379,7 +3366,7 @@ export function CutCalculator({
 
       <div
         className={cn(
-          "fixed inset-x-3 bottom-[calc(4.4rem+env(safe-area-inset-bottom))] z-30 flex items-center gap-3 rounded-2xl bg-[#1f2b25] px-4 py-3 text-white shadow-[0_18px_40px_rgba(21,20,17,0.35)] transition duration-300 xl:hidden",
+          "fixed inset-x-3 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-30 flex items-center gap-3 rounded-2xl bg-[#1f2b25] px-4 py-3 text-white shadow-[0_18px_40px_rgba(21,20,17,0.35)] transition duration-300 xl:hidden",
           showStickySummary
             ? "translate-y-0 opacity-100"
             : "pointer-events-none translate-y-4 opacity-0",

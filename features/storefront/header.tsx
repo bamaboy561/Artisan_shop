@@ -134,7 +134,9 @@ export function StorefrontHeader({
           </div>
         </nav>
       </header>
-      {pathname !== "/checkout" && (
+      {/* В оформлении заказа и в калькуляторе внизу своя панель с итогом:
+          две панели одна над другой закрывали форму. */}
+      {pathname !== "/checkout" && pathname !== "/calculator" && (
         <nav
           className={`${s.mobileDock} ${s.liveDock}`}
           aria-label="Мобильная навигация"
