@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { CalculatorHero } from "@/features/services/calculator-hero";
 import { CutCalculator } from "@/features/services/cut-calculator";
 import { getCalculatorBundle } from "@/lib/server/calculator-config";
+import { getSiteCuttingPrices } from "@/lib/server/cutting-pricing";
 import { getCalculatorContextBySlug } from "@/lib/server/catalog-public";
 import { createSeoMetadata } from "@/lib/seo";
 
@@ -26,16 +27,17 @@ export default async function CalculatorPage({
 }: CalculatorPageProps) {
   const resolvedSearchParams = await searchParams;
   const productSlug = getSearchParamValue(resolvedSearchParams.product);
-  const [productContext, bundle] = await Promise.all([
+  const [productContext, bundle, sitePrices] = await Promise.all([
     productSlug
       ? getCalculatorContextBySlug(productSlug)
       : Promise.resolve(null),
     getCalculatorBundle(),
+    getSiteCuttingPrices(),
   ]);
 
   return (
     <div className="bg-[#f4f1eb]">
-      <CalculatorHero />
+      <CalculatorHero prices={sitePrices} />
       <section className="px-4 pb-5 sm:px-8 sm:pb-10 lg:px-10 lg:pb-12">
         <div className="mx-auto max-w-[1600px]">
           <CutCalculator

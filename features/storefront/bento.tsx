@@ -2,7 +2,9 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, ArrowUpRight } from "lucide-react";
 import type { PublicPromotion } from "@/lib/server/promotions-public";
-import { companyContacts, cuttingSiteIncentive } from "@/lib/site-config";
+import { buildCuttingSiteIncentive } from "@/features/cutting/site-prices";
+import { getSiteCuttingPrices } from "@/lib/server/cutting-pricing";
+import { companyContacts } from "@/lib/site-config";
 import s from "./storefront.module.css";
 
 // Пока у товаров нет поля «оттенок», образцы ведут на поиск по слову.
@@ -43,12 +45,13 @@ function promotionValue(promotion: PublicPromotion) {
   return `−${promotion.discountValue} с`;
 }
 
-export function StorefrontBento({
+export async function StorefrontBento({
   promotion,
 }: {
   promotion?: PublicPromotion;
 }) {
-  const offers = cuttingSiteIncentive?.offers ?? [];
+  const offers =
+    buildCuttingSiteIncentive(await getSiteCuttingPrices())?.offers ?? [];
   return (
     <section
       className={`${s.container} ${s.bento}`}

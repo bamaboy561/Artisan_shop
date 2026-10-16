@@ -6,7 +6,7 @@ import {
   Send,
 } from "lucide-react";
 
-import { cuttingSitePrices } from "@/lib/site-config";
+import type { SiteCuttingPrices } from "@/features/cutting/site-prices";
 
 import s from "./calculator-hero.module.css";
 
@@ -75,7 +75,7 @@ function PriceTag({
   );
 }
 
-export function CalculatorHero() {
+export function CalculatorHero({ prices }: { prices: SiteCuttingPrices }) {
   return (
     <>
       <section className={s.hero}>
@@ -100,14 +100,14 @@ export function CalculatorHero() {
             <div className="mt-6 grid max-w-[30rem] grid-cols-2 gap-3">
               <PriceTag
                 label="Распил"
-                price={cuttingSitePrices.sheet}
-                regular={cuttingSitePrices.sheetRegular}
+                price={prices.sheet}
+                regular={prices.sheetRegular}
                 unit="сом / лист"
               />
               <PriceTag
                 label="Кромка"
-                price={cuttingSitePrices.edge}
-                regular={cuttingSitePrices.edgeRegular}
+                price={prices.edge}
+                regular={prices.edgeRegular}
                 unit="сом / метр"
               />
             </div>

@@ -45,7 +45,11 @@ import type {
 } from "@/lib/server/calculator-config";
 import { formatPrice } from "@/lib/commerce";
 import { priceDrilling, type DrillCounts } from "@/lib/drilling-price";
-import { cuttingSiteIncentive, cuttingSitePrices } from "@/lib/site-config";
+import {
+  buildCuttingSiteIncentive,
+  formatSitePrice,
+} from "@/features/cutting/site-prices";
+import { useSiteCuttingPrices } from "@/features/cutting/site-prices-context";
 import { cn } from "@/lib/utils";
 
 type EdgeSide = "top" | "right" | "bottom" | "left";
@@ -1578,6 +1582,12 @@ export function CutCalculator({
   presets,
 }: CutCalculatorProps) {
   const { items: cartItems } = useCart();
+  // Цены сайта из «Прайс работ» в админке.
+  const sitePrices = useSiteCuttingPrices();
+  const cuttingSiteIncentive = useMemo(
+    () => buildCuttingSiteIncentive(sitePrices),
+    [sitePrices],
+  );
   const fallbackMaterial = materials[0];
   const fallbackSheet = sheets[0];
   const defaultPresetId = presets[0]?.id ?? null;
@@ -1797,14 +1807,7 @@ export function CutCalculator({
       );
       const materialCost = areaSqM * material.pricePerSqM;
       // По ценам сайта распил считается за лист и в строку детали не входит.
-      const contourCutCost = cuttingSiteIncentive
-        ? 0
-        : perimeterMeters * material.cutRatePerMeter;
-      const edgeCost =
-        edgeMeters *
-        (cuttingSiteIncentive
-          ? cuttingSitePrices.edge
-          : material.edgeRatePerMeter);
+      const edgeCost = edgeMeters * sitePrices.edge;
 
       return {
         ...detail,
@@ -1814,7 +1817,7 @@ export function CutCalculator({
         areaSqM,
         perimeterMeters,
         edgeMeters,
-        lineTotal: materialCost + contourCutCost + edgeCost,
+        lineTotal: materialCost + edgeCost,
       };
     });
 
@@ -1829,7 +1832,7 @@ export function CutCalculator({
       totalEdgeMeters: rows.reduce((sum, row) => sum + row.edgeMeters, 0),
       sheetAreaSqM: (sheet.width * sheet.height) / 1_000_000,
     };
-  }, [details, material, sheet]);
+  }, [details, material, sheet, sitePrices]);
 
   // Раскрой большого проекта считается заметное время: поля ввода
   // обновляются сразу, карта листов — следом.
@@ -1843,19 +1846,13 @@ export function CutCalculator({
     const cutMeters = cutMap.cutLength / 1000;
     const materialCost =
       sheetCount * calculation.sheetAreaSqM * material.pricePerSqM;
-    // Раскрой, собранный на сайте, считается по сниженной цене:
-    // распил за лист и кромка за метр, как обещано в плашке.
-    const siteRates = cuttingSiteIncentive !== null;
-    const cuttingCost = siteRates
-      ? sheetCount * cuttingSitePrices.sheet
-      : cutMeters * material.cutRatePerMeter;
-    const edgeCost =
-      calculation.totalEdgeMeters *
-      (siteRates ? cuttingSitePrices.edge : material.edgeRatePerMeter);
-    const setupFee =
-      !siteRates && calculation.totalPieces > 0 ? material.setupFee : 0;
+    // Раскрой, собранный на сайте, считается по ценам сайта из
+    // «Прайс работ»: распил за лист и кромка за метр.
+    const cuttingCost = sheetCount * sitePrices.sheet;
+    const edgeCost = calculation.totalEdgeMeters * sitePrices.edge;
+    const setupFee = 0;
     // Присадка по прайсу: отверстия приходят из проекта Базиса.
-    const drilling = priceDrilling(calculation.rows);
+    const drilling = priceDrilling(calculation.rows, sitePrices.drilling);
 
     return {
       sheetCount,
@@ -1872,13 +1869,10 @@ export function CutCalculator({
     calculation.rows,
     calculation.sheetAreaSqM,
     calculation.totalEdgeMeters,
-    calculation.totalPieces,
     cutMap.cutLength,
     cutMap.sheets.length,
-    material.cutRatePerMeter,
-    material.edgeRatePerMeter,
     material.pricePerSqM,
-    material.setupFee,
+    sitePrices,
   ]);
 
   const workshopRows = useMemo<WorkshopRow[]>(() => {
@@ -3481,9 +3475,7 @@ export function CutCalculator({
             </div>
             <div className="flex items-center justify-between gap-3 text-sm text-[#5f554c]">
               <span>
-                {cuttingSiteIncentive
-                  ? `Распил, ${estimate.sheetCount} × ${cuttingSitePrices.sheet} сом`
-                  : "Распил по карте"}
+                {`Распил, ${estimate.sheetCount} × ${formatSitePrice(sitePrices.sheet)} сом`}
               </span>
               <span>{formatPrice(Math.round(estimate.cuttingCost))}</span>
             </div>
