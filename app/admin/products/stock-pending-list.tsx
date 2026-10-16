@@ -1,6 +1,9 @@
 import { Download, ListPlus } from "lucide-react";
 import Link from "next/link";
-import { dismissStockPendingItemAction } from "@/app/admin/products/stock-import-actions";
+import {
+  clearStockPendingItemsAction,
+  dismissStockPendingItemAction,
+} from "@/app/admin/products/stock-import-actions";
 import { StockPendingLink } from "@/app/admin/products/stock-pending-link";
 import { ConfirmDeleteButton } from "@/components/admin/confirm-delete-button";
 import type { StockPendingListItem } from "@/lib/server/stock-pending";
@@ -68,6 +71,14 @@ export function StockPendingList({
                 <Download className="size-4" />
                 Или скачать всё в Excel
               </a>
+              <form action={clearStockPendingItemsAction}>
+                <ConfirmDeleteButton
+                  confirmMessage={`Очистить список «Нет на сайте» (${items.length})? Позиции уберутся, а при следующей загрузке отчёта список соберётся заново. Запомненные совпадения «Это он» сохранятся.`}
+                  className="rounded-full border border-zinc-300 px-2.5 py-1 font-medium whitespace-nowrap text-zinc-700 hover:border-zinc-500"
+                >
+                  Очистить список
+                </ConfirmDeleteButton>
+              </form>
               <span>
                 Проще всего нажать «Добавить» у позиции: название, артикул и
                 остаток подставятся сами. Если товар уже есть на сайте под

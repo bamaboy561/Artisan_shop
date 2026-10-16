@@ -586,8 +586,9 @@ function actionFixture({
     parses: 0,
     batches: 0,
     pending: [],
+    deletes: [],
   };
-  const action = loadAction("../app/admin/products/stock-import-actions.ts", {
+  const actions = loadAction("../app/admin/products/stock-import-actions.ts", {
     "node:crypto": crypto,
     "next/cache": {
       revalidatePath: (...args) => state.invalidations.push(args),
@@ -647,6 +648,12 @@ function actionFixture({
           },
           updateMany: (query) => ({ query }),
         },
+        stockPendingItem: {
+          deleteMany: async (args) => {
+            state.deletes.push(args);
+            return { count: 0 };
+          },
+        },
         $transaction: async (updates) => {
           state.batches++;
           if (fail || state.batches === failBatch)
@@ -671,7 +678,8 @@ function actionFixture({
         },
       }),
     },
-  }).processStockImportAction;
+  });
+  const action = actions.processStockImportAction;
   function data(
     intent = "preview",
     fingerprint,
@@ -688,7 +696,7 @@ function actionFixture({
     if (fingerprint) form.set("fingerprint", fingerprint);
     return form;
   }
-  return { action, state, data };
+  return { action, state, data, actions };
 }
 test("daily action previews and applies accounting report without changing catalog prices", async () => {
   const { action, state, data } = actionFixture();
@@ -1552,4 +1560,17 @@ test("«Это он» with zeroing enabled still applies from the first check", 
     state.products.find((item) => item.id === "p2").stockQuantity,
     127,
   );
+});
+
+test("«Очистить список» removes pending items but keeps the dismissed ones", async () => {
+  const { state, actions } = actionFixture();
+  await actions.clearStockPendingItemsAction();
+  assert.deepEqual(state.deletes, [{ where: { dismissedAt: null } }]);
+  assert.deepEqual(state.invalidations, [["/admin/products"]]);
+});
+
+test("«Очистить список» does nothing for a cutting manager", async () => {
+  const { state, actions } = actionFixture({ role: "CUTTING_MANAGER" });
+  await actions.clearStockPendingItemsAction();
+  assert.deepEqual(state.deletes, []);
 });

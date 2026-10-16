@@ -571,6 +571,19 @@ export async function dismissStockPendingItemAction(formData: FormData) {
   revalidatePath("/admin/products");
 }
 
+// «Очистить список»: убирает всё из «Нет на сайте», чтобы начать заново
+// со свежего отчёта. Скрытые «Не добавлять» и запомненные совпадения остаются.
+export async function clearStockPendingItemsAction() {
+  const session = await requireAdminSession(
+    "/login?next=/admin/products",
+    "/admin/products",
+  );
+  if (!canAccessGeneralAdmin(session.roleCode) || !hasDatabaseUrl()) return;
+  await ensureStockPendingItemsTable(getDb());
+  await getDb().stockPendingItem.deleteMany({ where: { dismissedAt: null } });
+  revalidatePath("/admin/products");
+}
+
 // «Это он»: позиция 1С есть на сайте под другим названием или артикулом.
 // Связь запоминается; остаток записывается при следующей проверке файла,
 // где он сложится со всеми позициями 1С этого товара.
