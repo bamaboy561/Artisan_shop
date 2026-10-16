@@ -1,3 +1,4 @@
+import { formatPrice } from "@/lib/commerce";
 import Form from "next/form";
 import Link from "next/link";
 
@@ -66,11 +67,7 @@ function formatBudget(value: number | null) {
     return "Не указан";
   }
 
-  return new Intl.NumberFormat("ru-RU", {
-    style: "currency",
-    currency: "KGS",
-    maximumFractionDigits: 0,
-  }).format(value);
+  return formatPrice(value);
 }
 
 function getStatusTone(status: RequestStatus) {

@@ -1,3 +1,4 @@
+import { formatPrice } from "@/lib/commerce";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Printer } from "lucide-react";
@@ -63,11 +64,7 @@ function formatBudget(value: number | null) {
     return "Не указан";
   }
 
-  return new Intl.NumberFormat("ru-RU", {
-    style: "currency",
-    currency: "KGS",
-    maximumFractionDigits: 0,
-  }).format(value);
+  return formatPrice(value);
 }
 
 function formatDate(value: Date | string) {
@@ -605,7 +602,7 @@ export default async function AdminRequestDetailPage({
             >
               <input type="hidden" name="requestId" value={request.id} />
               <label className="grid gap-2 text-sm font-medium text-[var(--foreground)]">
-                Итог, KGS
+                Итог, сом
                 <Input
                   name="quotedTotal"
                   type="number"

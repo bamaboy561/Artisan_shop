@@ -1,3 +1,4 @@
+import { formatPrice } from "@/lib/commerce";
 import Link from "next/link";
 import Form from "next/form";
 import type { ReactNode } from "react";
@@ -95,11 +96,7 @@ function getFirstSearchValue(searchParams: SearchParams, key: string) {
 }
 
 function formatCurrency(value: number) {
-  return new Intl.NumberFormat("ru-RU", {
-    style: "currency",
-    currency: "KGS",
-    maximumFractionDigits: 0,
-  }).format(value);
+  return formatPrice(value);
 }
 
 function formatNumber(value: number) {
