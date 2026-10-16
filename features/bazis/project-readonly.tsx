@@ -9,7 +9,10 @@ import {
   describeEdgedSides,
   getPartGroupKey,
 } from "@/features/bazis/part-groups";
-import type { BazisViewProject } from "@/features/bazis/project-view";
+import {
+  type BazisViewProject,
+  toBazisPartInfo,
+} from "@/features/bazis/project-view";
 
 const numberFormatter = new Intl.NumberFormat("ru-RU", {
   maximumFractionDigits: 1,
@@ -29,6 +32,7 @@ export function BazisProjectReadonly({
         ...panel.box,
         thickness: panel.thickness,
         tone: panel.material,
+        info: toBazisPartInfo(panel, project.materials),
       })),
     [project],
   );
@@ -68,6 +72,7 @@ export function BazisProjectReadonly({
       <section className="grid gap-2 bg-white p-4 sm:p-5">
         <BazisViewer
           boxes={boxes}
+          joints={project.joints}
           toneColors={toneColors}
           highlightBoxes={highlightBoxes}
         />

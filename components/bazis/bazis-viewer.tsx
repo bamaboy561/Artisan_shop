@@ -2,9 +2,34 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import type { BazisHole } from "@/lib/bazis-b3d";
+
+// Что показать о детали, когда на неё нажали на макете.
+export type BazisPartInfo = {
+  name: string;
+  // Номер позиции в проекте Базиса.
+  position?: string;
+  material?: string;
+  length: number;
+  width: number;
+  thickness: number;
+  // Кромка словами: «по длине 2, по ширине 1».
+  edges?: string;
+  edgeMaterial?: string;
+  block?: string;
+  // Номер экземпляра блока: по нему, а не по названию, детали собираются
+  // в блок (у скопированных ящиков названия одинаковые).
+  blockId?: string;
+  textured?: boolean;
+  complexContour?: boolean;
+  holes?: number;
+  // Отверстия присадки в координатах детали: рисуются на выбранной детали.
+  drillHoles?: BazisHole[];
+};
+
 // Деталь для объёмного просмотра: прямоугольник контура (x, y, sizeX, sizeY)
 // в плоскости детали, толщина по оси Z, матрица 3×4 в координаты модели и
-// номер материала для цвета.
+// номер материала для цвета. info — подпись детали для карточки по нажатию.
 export type BazisViewerBox = {
   x: number;
   y: number;
@@ -13,6 +38,7 @@ export type BazisViewerBox = {
   thickness: number;
   matrix: number[];
   tone: number;
+  info?: BazisPartInfo;
 };
 
 type Face = {
@@ -41,6 +67,37 @@ const BEACON_MS = 2200;
 const BEACON_WAVES = 6;
 const FOCUS_MAX_ZOOM = 2.6;
 
+// Разборка: насколько далеко детали расходятся от середины изделия и как
+// долго идёт переход между собранным и разобранным видом.
+const EXPLODE_SPREAD = 0.85;
+// Насколько детали блока расходятся друг от друга, когда блок показан
+// отдельно.
+const BLOCK_SPREAD = 0.6;
+// Сколько места справа занимает карточка детали.
+const CARD_WIDTH = 340;
+const EXPLODE_PUSH = 0.14;
+const EXPLODE_MS = 900;
+// Анимация сборки: каждая деталь подлетает на своё место за PART_FLY_MS,
+// следующая стартует через PART_STEP_MS (на больших проектах чаще, чтобы
+// сборка укладывалась в BUILD_MAX_MS).
+const PART_FLY_MS = 650;
+const PART_STEP_MS = 160;
+const BUILD_MAX_MS = 9000;
+const SELECT_COLOR = [64, 128, 176];
+const HOLE_COLOR = "rgba(38, 28, 20, 0.85)";
+// Нажатие, а не поворот: палец сдвинулся меньше чем на столько пикселей.
+const TAP_SLOP = 6;
+// Инерция поворота: за кадр скорость падает на столько, остановка ниже порога.
+const SPIN_DECAY = 0.93;
+const SPIN_STOP = 0.0004;
+const DEFAULT_VIEW = { yaw: -0.5, pitch: 0.3, zoom: 1 };
+
+const numberFormatter = new Intl.NumberFormat("ru-RU", {
+  maximumFractionDigits: 1,
+});
+
+const easeInOutCubic = (value: number) =>
+  value < 0.5 ? 4 * value ** 3 : 1 - (-2 * value + 2) ** 3 / 2;
 const easeOutCubic = (value: number) => 1 - (1 - value) ** 3;
 const mix = (from: number, to: number, amount: number) =>
   from + (to - from) * amount;
@@ -77,7 +134,16 @@ function toWorld(matrix: number[], x: number, y: number, z: number) {
   ];
 }
 
-function buildScene(boxes: BazisViewerBox[]) {
+// Направление из координат детали в координаты модели (без сдвига).
+function toWorldDirection(matrix: number[], x: number, y: number, z: number) {
+  return [
+    matrix[0] * x + matrix[1] * y + matrix[2] * z,
+    matrix[4] * x + matrix[5] * y + matrix[6] * z,
+    matrix[8] * x + matrix[9] * y + matrix[10] * z,
+  ];
+}
+
+function buildScene(boxes: BazisViewerBox[], joints: number[][] | undefined) {
   const faces: Face[] = [];
   const min = [Infinity, Infinity, Infinity];
   const max = [-Infinity, -Infinity, -Infinity];
@@ -135,19 +201,367 @@ function buildScene(boxes: BazisViewerBox[]) {
   const center = min.map((value, axis) => (value + max[axis]) / 2);
   const radius =
     Math.hypot(max[0] - min[0], max[1] - min[1], max[2] - min[2]) / 2 || 1;
+  const boxCenters = boxCorners.map((corners) =>
+    [0, 1, 2].map(
+      (axis) =>
+        corners.reduce((sum, corner) => sum + corner[axis], 0) / corners.length,
+    ),
+  );
+  // Детали одного блока (ящик, тумба) сначала расходятся вместе с блоком,
+  // а внутри блока — ещё и друг от друга. Иначе стенки ящика остаются
+  // кучкой посреди разобранного шкафа.
+  const blockSums = new Map<string, number[]>();
+  const blockLabels = new Map<string, string>();
 
-  return { faces, center, radius, boxCorners };
+  for (const [index, box] of boxes.entries()) {
+    const block = blockKey(box);
+
+    if (!block) continue;
+
+    blockLabels.set(block, box.info?.block ?? "");
+
+    const sum = blockSums.get(block) ?? [0, 0, 0, 0];
+
+    boxCenters[index].forEach((value, axis) => (sum[axis] += value));
+    sum[3] += 1;
+    blockSums.set(block, sum);
+  }
+
+  // Блок, в который входит всё изделие (так Базис часто называет модель
+  // целиком), отдельно не разбираем.
+  const insideBlock = (box: BazisViewerBox, block: string) => {
+    const own = blockKey(box);
+
+    return (
+      own === block ||
+      own.startsWith(`${block}/`) ||
+      own.startsWith(`${block} / `)
+    );
+  };
+  const innerBlocks = new Set(
+    [...blockSums.entries()]
+      .filter(
+        ([name, sum]) =>
+          sum[3] > 1 && !boxes.every((box) => insideBlock(box, name)),
+      )
+      .map(([name]) => name),
+  );
+  // Куда деталь уходит при разборке всего изделия (explodeOffsets) и при
+  // разборке только своего блока (blockOffsets): от середины блока и
+  // изделия и ещё немного поперёк своей пласти, чтобы стенки, полки
+  // и фасады не слипались.
+  const blockOffsets: number[][] = [];
+  const explodeOffsets = boxes.map((box, index) => {
+    const own = boxCenters[index];
+    const block = blockKey(box);
+    const sum = block && innerBlocks.has(block) ? blockSums.get(block) : null;
+    const blockCenter = sum
+      ? [0, 1, 2].map((axis) => sum[axis] / sum[3])
+      : center;
+    const away = own.map((value, axis) => value - center[axis]);
+    const normal = [box.matrix[2], box.matrix[6], box.matrix[10]];
+    const normalLength = Math.hypot(normal[0], normal[1], normal[2]) || 1;
+    const side = Math.sign(
+      away[0] * normal[0] + away[1] * normal[1] + away[2] * normal[2],
+    );
+    const push = (axis: number) =>
+      (normal[axis] / normalLength) * side * radius * EXPLODE_PUSH;
+
+    blockOffsets.push(
+      own.map((value, axis) =>
+        sum ? (value - blockCenter[axis]) * BLOCK_SPREAD + push(axis) : 0,
+      ),
+    );
+
+    return own.map(
+      (value, axis) =>
+        (blockCenter[axis] - center[axis]) * EXPLODE_SPREAD +
+        (value - blockCenter[axis]) * EXPLODE_SPREAD * (sum ? 1.6 : 1) +
+        push(axis),
+    );
+  });
+
+  // Параллельные детали блока, стоящие вплотную (передняя стенка ящика
+  // и его фасад), при разборке блока расходятся друг за другом, а не
+  // остаются одной пластиной.
+  for (const block of innerBlocks) {
+    const members = boxes
+      .map((box, index) => (blockKey(box) === block ? index : -1))
+      .filter((index) => index >= 0);
+    const sum = blockSums.get(block)!;
+    const blockCenter = [0, 1, 2].map((axis) => sum[axis] / sum[3]);
+    const extent = Math.max(
+      ...[0, 1, 2].map(
+        (axis) =>
+          Math.max(
+            ...members.flatMap((index) =>
+              boxCorners[index].map((corner) => corner[axis]),
+            ),
+          ) -
+          Math.min(
+            ...members.flatMap((index) =>
+              boxCorners[index].map((corner) => corner[axis]),
+            ),
+          ),
+      ),
+    );
+    const stacks = new Map<string, Array<{ index: number; along: number }>>();
+
+    for (const index of members) {
+      const matrix = boxes[index].matrix;
+      const normal = [matrix[2], matrix[6], matrix[10]].map(Math.abs);
+      const axis = normal.indexOf(Math.max(...normal));
+      const along = boxCenters[index][axis] - blockCenter[axis];
+      const key = `${axis}${along < 0 ? "-" : "+"}`;
+      const stack = stacks.get(key) ?? [];
+
+      stack.push({ index, along });
+      stacks.set(key, stack);
+    }
+
+    for (const [key, stack] of stacks) {
+      const axis = Number(key[0]);
+      const sign = key[1] === "-" ? -1 : 1;
+
+      stack
+        .sort((left, right) => Math.abs(left.along) - Math.abs(right.along))
+        .forEach(({ index }, order) => {
+          blockOffsets[index][axis] += sign * order * extent * 0.3;
+        });
+    }
+  }
+
+  // Сколько места занимает полностью разобранное изделие: под него
+  // подбираем масштаб, чтобы детали не уходили за край окна.
+  const explodedRadius = Math.max(
+    radius,
+    ...boxCorners.flatMap((corners, index) =>
+      corners.map((corner) =>
+        Math.hypot(
+          ...corner.map(
+            (value, axis) => value + explodeOffsets[index][axis] - center[axis],
+          ),
+        ),
+      ),
+    ),
+  );
+  // Где стоит и сколько места занимает каждый разобранный блок: на него
+  // наводится камера, когда блок показывают отдельно от изделия.
+  const blockViews = new Map<string, { center: number[]; radius: number }>();
+
+  for (const block of innerBlocks) {
+    const corners = boxCorners.flatMap((list, index) =>
+      blockKey(boxes[index]) === block
+        ? list.map((corner) =>
+            corner.map((value, axis) => value + blockOffsets[index][axis]),
+          )
+        : [],
+    );
+    const low = [0, 1, 2].map((axis) =>
+      Math.min(...corners.map((corner) => corner[axis])),
+    );
+    const high = [0, 1, 2].map((axis) =>
+      Math.max(...corners.map((corner) => corner[axis])),
+    );
+    const blockCenter = low.map((value, axis) => (value + high[axis]) / 2);
+
+    blockViews.set(block, {
+      center: blockCenter,
+      radius:
+        Math.max(
+          ...corners.map((corner) =>
+            Math.hypot(
+              ...corner.map((value, axis) => value - blockCenter[axis]),
+            ),
+          ),
+        ) || radius,
+    });
+  }
+
+  // С кем деталь скреплена фурнитурой.
+  const neighbors = boxes.map(() => new Set<number>());
+
+  for (const [a, b] of joints ?? []) {
+    if (neighbors[a] && neighbors[b]) {
+      neighbors[a].add(b);
+      neighbors[b].add(a);
+    }
+  }
+
+  return {
+    faces,
+    center,
+    min,
+    radius,
+    explodedRadius,
+    boxCorners,
+    boxCenters,
+    explodeOffsets,
+    blockOffsets,
+    innerBlocks,
+    blockLabels,
+    blockViews,
+    neighbors,
+    buildOrder: buildOrder(boxes, boxCorners, neighbors),
+  };
+}
+
+// Порядок сборки: сначала корпус снизу вверх (крупные детали раньше),
+// потом задняя стенка, ящики и в конце фасады.
+// Приметы детали: место и размер. По ним видно, что под тем же номером
+// та же деталь (название меняют в списке, оно не в счёт).
+function partSignature(box: BazisViewerBox) {
+  return [
+    box.x,
+    box.y,
+    box.sizeX,
+    box.sizeY,
+    box.thickness,
+    ...box.matrix,
+  ].join("|");
+}
+
+// Блок, в который входит деталь: номер экземпляра, а в проектах, где его
+// нет, название.
+function blockKey(box: BazisViewerBox) {
+  return box.info?.blockId || box.info?.block || "";
+}
+
+// «1 деталь», «2 детали», «5 деталей».
+function pluralParts(count: number) {
+  const last = count % 10;
+  const lastTwo = count % 100;
+
+  if (last === 1 && lastTwo !== 11) return "деталь";
+  if (last >= 2 && last <= 4 && (lastTwo < 12 || lastTwo > 14)) return "детали";
+
+  return "деталей";
+}
+
+function buildStage(box: BazisViewerBox) {
+  const name = box.info?.name.toLowerCase() ?? "";
+
+  if (/фасад|двер/.test(name)) return 3;
+  if (/ящ/.test(name)) return 2;
+  if (/хдф|двп|зад/.test(name) || box.thickness <= 6) return 1;
+  return 0;
+}
+
+// Если в проекте есть присадка, следующей ставится деталь, которая
+// крепится к уже поставленным: так сборка идёт по связям, а не по именам.
+// Детали без крепежа (задняя стенка на гвоздях) идут по общему порядку.
+function buildOrder(
+  boxes: BazisViewerBox[],
+  boxCorners: number[][][],
+  neighbors: Set<number>[],
+) {
+  const bottoms = boxCorners.map((corners) =>
+    Math.min(...corners.map((corner) => corner[1])),
+  );
+  const ranked = boxes
+    .map((box, index) => ({
+      index,
+      stage: buildStage(box),
+      bottom: bottoms[index],
+      area: box.sizeX * box.sizeY,
+    }))
+    .sort(
+      (left, right) =>
+        left.stage - right.stage ||
+        // Детали на одной высоте (в пределах 2 см) ставим крупные первыми.
+        Math.round(left.bottom / 20) - Math.round(right.bottom / 20) ||
+        right.area - left.area,
+    )
+    .map((item) => item.index);
+
+  if (neighbors.every((set) => set.size === 0)) {
+    return ranked;
+  }
+
+  const placed = new Set<number>();
+  const order: number[] = [];
+  let remaining = ranked;
+
+  while (remaining.length > 0) {
+    // Внутри одной стадии ставим деталь, которая крепится к уже стоящим;
+    // нет такой, берём следующую по общему порядку. Стадии не смешиваем:
+    // фасады не вырываются вперёд корпуса, хотя к ним ничего не крепится.
+    const head = remaining[0];
+    const stage = buildStage(boxes[head]);
+    const next =
+      remaining.find(
+        (index) =>
+          buildStage(boxes[index]) === stage &&
+          [...neighbors[index]].some((other) => placed.has(other)),
+      ) ?? head;
+
+    placed.add(next);
+    order.push(next);
+    remaining = remaining.filter((index) => index !== next);
+  }
+
+  return order;
+}
+
+// Расстояние от точки до ближайшей стороны многоугольника на экране.
+function distanceToPolygon(x: number, y: number, polygon: number[][]) {
+  let best = Infinity;
+
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i, i += 1) {
+    const [ax, ay] = polygon[j];
+    const [bx, by] = polygon[i];
+    const lengthSquared = (bx - ax) ** 2 + (by - ay) ** 2;
+    const t =
+      lengthSquared > 0
+        ? Math.min(
+            1,
+            Math.max(
+              0,
+              ((x - ax) * (bx - ax) + (y - ay) * (by - ay)) / lengthSquared,
+            ),
+          )
+        : 0;
+
+    best = Math.min(
+      best,
+      Math.hypot(x - (ax + (bx - ax) * t), y - (ay + (by - ay) * t)),
+    );
+  }
+
+  return best;
+}
+
+// Точка внутри многоугольника на экране (чёт-нечет).
+function insidePolygon(x: number, y: number, polygon: number[][]) {
+  let inside = false;
+
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i, i += 1) {
+    const [xi, yi] = polygon[i];
+    const [xj, yj] = polygon[j];
+
+    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) {
+      inside = !inside;
+    }
+  }
+
+  return inside;
 }
 
 export function BazisViewer({
   boxes,
+  joints,
   highlightTone = null,
   toneColors,
   heightClassName = "h-[60vh] min-h-72",
   highlightBoxes,
   animationKey,
+  defaultSelected = null,
+  defaultExploded = false,
 }: {
   boxes: BazisViewerBox[];
+  // Пары деталей, скреплённых одной фурнитурой: по ним строится порядок
+  // сборки и подпись «крепится к».
+  joints?: number[][];
   // Если задан, выделенные детали показываются с анимацией. Новое значение
   // запускает показ заново.
   animationKey?: number;
@@ -161,12 +575,16 @@ export function BazisViewer({
   toneColors?: Array<number[] | null>;
   // Номер материала, который нужно выделить: остальные детали бледнеют.
   highlightTone?: number | null;
+  // Деталь, карточка которой открыта сразу (страница детали из QR-кода).
+  defaultSelected?: number | null;
+  // Открыть макет сразу разобранным.
+  defaultExploded?: boolean;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [view, setView] = useState({ yaw: -0.5, pitch: 0.3, zoom: 1 });
+  const [view, setView] = useState(DEFAULT_VIEW);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const pointers = useRef(new Map<number, { x: number; y: number }>());
-  const scene = useMemo(() => buildScene(boxes), [boxes]);
+  const scene = useMemo(() => buildScene(boxes, joints), [boxes, joints]);
   const markedBoxes = useMemo(
     () => (highlightBoxes ? new Set(highlightBoxes) : null),
     [highlightBoxes],
@@ -179,6 +597,73 @@ export function BazisViewer({
   // Сколько миллисекунд идёт «маяк» после показа; null — кольца нет.
   const [beacon, setBeacon] = useState<number | null>(null);
   const showing = animationKey !== undefined && (markedBoxes?.size ?? 0) > 0;
+  // Насколько изделие разобрано: 0 — собрано, 1 — детали разнесены.
+  const [explode, setExplode] = useState(defaultExploded ? 1 : 0);
+  const explodeFrame = useRef(0);
+  // Разобранный отдельно блок (ящик) и насколько он разобран.
+  const [explodedBlock, setExplodedBlock] = useState<string | null>(null);
+  const [blockAmount, setBlockAmount] = useState(0);
+  const blockFrame = useRef(0);
+  // Сколько миллисекунд идёт анимация сборки; null — не идёт.
+  const [building, setBuilding] = useState<number | null>(null);
+  const buildFrame = useRef(0);
+  // Пошаговая сборка: сколько деталей уже поставлено (null — режим выключен)
+  // и сколько миллисекунд летит на место последняя из них.
+  const [step, setStep] = useState<number | null>(null);
+  const [stepFlight, setStepFlight] = useState(PART_FLY_MS);
+  const stepFrame = useRef(0);
+  // Инерция поворота после отпускания.
+  const spin = useRef({ yaw: 0, pitch: 0, at: 0 });
+  const spinFrame = useRef(0);
+  const buildTiming = useMemo(() => {
+    const stepMs =
+      scene.buildOrder.length > 1
+        ? Math.min(
+            PART_STEP_MS,
+            (BUILD_MAX_MS - PART_FLY_MS) / (scene.buildOrder.length - 1),
+          )
+        : 0;
+    const startAt = new Map<number, number>();
+
+    scene.buildOrder.forEach((box, order) => startAt.set(box, order * stepMs));
+
+    return {
+      startAt,
+      total: stepMs * Math.max(0, scene.buildOrder.length - 1) + PART_FLY_MS,
+    };
+  }, [scene]);
+  // Деталь, на которую нажали, и деталь под мышью.
+  // Деталь запоминаем вместе с её приметами: если список деталей
+  // поменялся (строку удалили), под тем же номером уже другая деталь,
+  // и карточка закрывается.
+  const [selected, setSelectedPart] = useState<{
+    index: number;
+    signature: string;
+  } | null>(() =>
+    defaultSelected !== null && boxes[defaultSelected]
+      ? {
+          index: defaultSelected,
+          signature: partSignature(boxes[defaultSelected]),
+        }
+      : null,
+  );
+  const [hovered, setHovered] = useState<number | null>(null);
+  const selectedBox =
+    selected !== null &&
+    boxes[selected.index] &&
+    partSignature(boxes[selected.index]) === selected.signature
+      ? selected.index
+      : null;
+  const setSelected = (index: number | null) =>
+    setSelectedPart(
+      index !== null && boxes[index]
+        ? { index, signature: partSignature(boxes[index]) }
+        : null,
+    );
+  // Грани, нарисованные в последний раз, в экранных точках: по ним ищем
+  // деталь под пальцем. Последние в списке лежат сверху.
+  const hitFaces = useRef<Array<{ box: number; points: number[][] }>>([]);
+  const tapStart = useRef<{ x: number; y: number } | null>(null);
   // Куда и насколько приблизить камеру, чтобы выделенные детали были крупно,
   // но вокруг оставалась часть изделия и было понятно, где они стоят.
   const focusTarget = useMemo(() => {
@@ -192,8 +677,11 @@ export function BazisViewer({
     for (const box of highlightBoxes) {
       for (const corner of scene.boxCorners[box] ?? []) {
         for (let axis = 0; axis < 3; axis += 1) {
-          min[axis] = Math.min(min[axis], corner[axis]);
-          max[axis] = Math.max(max[axis], corner[axis]);
+          const value =
+            corner[axis] + scene.explodeOffsets[box][axis] * explode;
+
+          min[axis] = Math.min(min[axis], value);
+          max[axis] = Math.max(max[axis], value);
         }
       }
     }
@@ -212,11 +700,287 @@ export function BazisViewer({
         Math.max(1, (scene.radius * 0.4) / radius),
       ),
     };
-  }, [highlightBoxes, scene, showing]);
+  }, [explode, highlightBoxes, scene, showing]);
 
   function stopAnimation() {
     cancelAnimationFrame(frameRef.current);
     setElapsed(null);
+  }
+
+  function stopBuilding() {
+    cancelAnimationFrame(buildFrame.current);
+    setBuilding(null);
+  }
+
+  function stopSpin() {
+    cancelAnimationFrame(spinFrame.current);
+    spin.current = { yaw: 0, pitch: 0, at: 0 };
+  }
+
+  // Плавно разбирает или собирает изделие.
+  function animateExplode(target: number) {
+    stopBuilding();
+    cancelAnimationFrame(explodeFrame.current);
+    setStep(null);
+
+    if (target > 0 && explodedBlock !== null) {
+      animateBlock(null);
+    }
+
+    const from = explode;
+    const duration = EXPLODE_MS * Math.abs(target - from);
+    let start: number | null = null;
+    const tick = (now: number) => {
+      start ??= now;
+      const progress = duration > 0 ? Math.min(1, (now - start) / duration) : 1;
+
+      setExplode(mix(from, target, easeInOutCubic(progress)));
+
+      if (progress < 1) {
+        explodeFrame.current = requestAnimationFrame(tick);
+      }
+    };
+
+    explodeFrame.current = requestAnimationFrame(tick);
+  }
+
+  // Разбирает один блок (ящик): его детали расходятся, остальное изделие
+  // стоит собранным. null — собрать блок обратно.
+  function animateBlock(block: string | null) {
+    cancelAnimationFrame(blockFrame.current);
+    stopBuilding();
+    setStep(null);
+
+    const from = blockAmount;
+    const target = block === null ? 0 : 1;
+
+    if (block !== null) {
+      setExplodedBlock(block);
+    }
+
+    const duration = EXPLODE_MS * Math.abs(target - from);
+    let start: number | null = null;
+    const tick = (now: number) => {
+      start ??= now;
+      const progress = duration > 0 ? Math.min(1, (now - start) / duration) : 1;
+
+      setBlockAmount(mix(from, target, easeInOutCubic(progress)));
+
+      if (progress < 1) {
+        blockFrame.current = requestAnimationFrame(tick);
+      } else if (block === null) {
+        setExplodedBlock(null);
+      }
+    };
+
+    blockFrame.current = requestAnimationFrame(tick);
+  }
+
+  // Детали по одной прилетают на свои места в порядке сборки.
+  function playBuild() {
+    stopAnimation();
+    cancelAnimationFrame(explodeFrame.current);
+    cancelAnimationFrame(buildFrame.current);
+    cancelAnimationFrame(blockFrame.current);
+    setExplode(0);
+    setBlockAmount(0);
+    setExplodedBlock(null);
+    setStep(null);
+    setFocused(false);
+    setSelected(null);
+
+    let start: number | null = null;
+    const tick = (now: number) => {
+      start ??= now;
+      const passed = now - start;
+
+      if (passed >= buildTiming.total) {
+        setBuilding(null);
+        return;
+      }
+
+      setBuilding(passed);
+      buildFrame.current = requestAnimationFrame(tick);
+    };
+
+    setBuilding(0);
+    buildFrame.current = requestAnimationFrame(tick);
+  }
+
+  // Пошаговая сборка: показать первые count деталей, последняя прилетает
+  // на место и остаётся выделенной с карточкой.
+  function goToStep(count: number) {
+    const total = scene.buildOrder.length;
+    const next = Math.min(total, Math.max(1, count));
+
+    stopAnimation();
+    stopBuilding();
+    cancelAnimationFrame(explodeFrame.current);
+    cancelAnimationFrame(blockFrame.current);
+    cancelAnimationFrame(stepFrame.current);
+    setExplode(0);
+    setBlockAmount(0);
+    setExplodedBlock(null);
+    setFocused(false);
+    setStep(next);
+    setSelected(scene.buildOrder[next - 1] ?? null);
+
+    let start: number | null = null;
+    const tick = (now: number) => {
+      start ??= now;
+      const passed = now - start;
+
+      setStepFlight(Math.min(PART_FLY_MS, passed));
+
+      if (passed < PART_FLY_MS) {
+        stepFrame.current = requestAnimationFrame(tick);
+      }
+    };
+
+    setStepFlight(0);
+    stepFrame.current = requestAnimationFrame(tick);
+  }
+
+  function leaveSteps() {
+    cancelAnimationFrame(stepFrame.current);
+    setStep(null);
+    setSelected(null);
+  }
+
+  // Всё как при открытии: собрано, общий вид, ничего не выбрано.
+  function resetView() {
+    stopAnimation();
+    stopBuilding();
+    stopSpin();
+    cancelAnimationFrame(explodeFrame.current);
+    cancelAnimationFrame(blockFrame.current);
+    cancelAnimationFrame(stepFrame.current);
+    setExplode(0);
+    setBlockAmount(0);
+    setExplodedBlock(null);
+    setStep(null);
+    setSelected(null);
+    setFocused(false);
+    setView(DEFAULT_VIEW);
+  }
+
+  // Поворот докручивается по инерции после отпускания.
+  function startSpin() {
+    const { yaw, pitch, at } = spin.current;
+
+    // Палец остановился перед отпусканием: инерции нет.
+    if (performance.now() - at > 80) {
+      return;
+    }
+
+    let velocity = { yaw, pitch };
+    const tick = () => {
+      velocity = {
+        yaw: velocity.yaw * SPIN_DECAY,
+        pitch: velocity.pitch * SPIN_DECAY,
+      };
+
+      if (Math.hypot(velocity.yaw, velocity.pitch) < SPIN_STOP) {
+        return;
+      }
+
+      setView((current) => ({
+        ...current,
+        yaw: current.yaw + velocity.yaw,
+        pitch: Math.min(
+          Math.PI / 2,
+          Math.max(-Math.PI / 2, current.pitch + velocity.pitch),
+        ),
+      }));
+      spinFrame.current = requestAnimationFrame(tick);
+    };
+
+    spinFrame.current = requestAnimationFrame(tick);
+  }
+
+  useEffect(
+    () => () => {
+      cancelAnimationFrame(explodeFrame.current);
+      cancelAnimationFrame(buildFrame.current);
+      cancelAnimationFrame(blockFrame.current);
+      cancelAnimationFrame(stepFrame.current);
+      cancelAnimationFrame(spinFrame.current);
+    },
+    [],
+  );
+
+  // Стрелки на клавиатуре листают шаги сборки.
+  const stepRef = useRef(step);
+  const goToStepRef = useRef(goToStep);
+
+  useEffect(() => {
+    stepRef.current = step;
+    goToStepRef.current = goToStep;
+  });
+
+  useEffect(() => {
+    if (step === null) {
+      return;
+    }
+
+    const onKey = (event: KeyboardEvent) => {
+      const current = stepRef.current;
+
+      if (current === null || event.altKey || event.metaKey || event.ctrlKey) {
+        return;
+      }
+
+      const target = event.target as HTMLElement | null;
+
+      if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) {
+        return;
+      }
+
+      if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+        event.preventDefault();
+        goToStepRef.current(current + 1);
+      } else if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+        event.preventDefault();
+        goToStepRef.current(current - 1);
+      }
+    };
+
+    window.addEventListener("keydown", onKey);
+
+    return () => window.removeEventListener("keydown", onKey);
+  }, [step]);
+
+  function boxAt(clientX: number, clientY: number) {
+    const rect = canvasRef.current?.getBoundingClientRect();
+
+    if (!rect) {
+      return null;
+    }
+
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+
+    for (let index = hitFaces.current.length - 1; index >= 0; index -= 1) {
+      const face = hitFaces.current[index];
+
+      if (insidePolygon(x, y, face.points)) {
+        return face.box;
+      }
+    }
+
+    // Тонкие детали с торца на экране не шире линии: ищем грань, край
+    // которой проходит рядом с точкой нажатия.
+    let nearest: { box: number; distance: number } | null = null;
+
+    for (const face of hitFaces.current) {
+      const distance = distanceToPolygon(x, y, face.points);
+
+      if (distance <= TAP_SLOP && (!nearest || distance < nearest.distance)) {
+        nearest = { box: face.box, distance };
+      }
+    }
+
+    return nearest?.box ?? null;
   }
 
   useEffect(() => {
@@ -229,8 +993,9 @@ export function BazisViewer({
       return;
     }
 
-    const start = performance.now();
+    let start: number | null = null;
     const tick = (now: number) => {
+      start ??= now;
       const passed = now - start;
 
       if (passed >= ANIMATION_MS) {
@@ -244,7 +1009,7 @@ export function BazisViewer({
 
     frameRef.current = requestAnimationFrame((now) => {
       // Показ заканчивается в обычном общем виде.
-      setView({ yaw: -0.5, pitch: 0.3, zoom: 1 });
+      setView(DEFAULT_VIEW);
       setFocused(true);
       tick(now);
     });
@@ -327,11 +1092,21 @@ export function BazisViewer({
               Math.min(1, Math.max(0, (elapsed - INTRO_MS) / PULSE_MS)),
             )
         : 0;
-    const center = focusTarget
+    // Разобранный блок показываем отдельно: камера переезжает к нему,
+    // остальное изделие растворяется.
+    const blockView =
+      explodedBlock !== null ? scene.blockViews.get(explodedBlock) : undefined;
+    const isolate = blockView ? blockAmount : 0;
+    const baseCenter = focusTarget
       ? scene.center.map((value, axis) =>
           mix(value, focusTarget.center[axis], focus),
         )
       : scene.center;
+    const center = blockView
+      ? baseCenter.map((value, axis) =>
+          mix(value, blockView.center[axis], isolate),
+        )
+      : baseCenter;
     const shown = {
       yaw: mix(view.yaw - 1.2, view.yaw, intro),
       pitch: mix(0.75, view.pitch, intro),
@@ -368,26 +1143,105 @@ export function BazisViewer({
         point[1] * sinPitch + z * cosPitch,
       ];
     };
+    // Открытый блок не прячем под карточку детали: на широком экране она
+    // лежит поверх правого края окна.
+    const cardWidth =
+      selectedBox !== null && size.width >= 600 ? CARD_WIDTH * isolate : 0;
+    const width = size.width - cardWidth;
+    // Разобранное изделие занимает больше места: отдаляем камеру, а блок,
+    // показанный отдельно, наоборот, приближаем.
     const scale =
-      (Math.min(size.width, size.height) / (scene.radius * 2.05)) * shown.zoom;
+      (Math.min(width, size.height) /
+        mix(
+          mix(scene.radius, scene.explodedRadius, explode) * 2.05,
+          (blockView?.radius ?? scene.radius) * 1.8,
+          isolate,
+        )) *
+      shown.zoom;
+    const toScreen = (point: number[]) => [
+      width / 2 + point[0] * scale,
+      size.height / 2 - point[1] * scale,
+    ];
     const light = [0.35, 0.55, 0.76];
+    const stepOrder = new Map<number, number>();
+
+    if (step !== null) {
+      scene.buildOrder.forEach((box, order) => stepOrder.set(box, order));
+    }
+
+    // Сдвиг каждой детали: разборка, разборка блока или полёт на место при
+    // сборке. appear — насколько деталь уже видна (0 — ещё не вылетела).
+    const placement = scene.boxCenters.map((_, box) => {
+      const exploded = scene.explodeOffsets[box];
+      const flyIn = (progress: number) => {
+        const flight = 1 - easeOutCubic(progress);
+
+        return {
+          offset: exploded.map(
+            (value, axis) =>
+              (value * 1.2 + (axis === 1 ? scene.radius * 0.35 : 0)) * flight,
+          ),
+          appear: progress,
+        };
+      };
+
+      if (building !== null) {
+        return flyIn(
+          Math.min(
+            1,
+            Math.max(
+              0,
+              (building - (buildTiming.startAt.get(box) ?? 0)) / PART_FLY_MS,
+            ),
+          ),
+        );
+      }
+
+      if (step !== null) {
+        const order = stepOrder.get(box) ?? 0;
+
+        if (order >= step) return { offset: [0, 0, 0], appear: 0 };
+        if (order === step - 1) return flyIn(stepFlight / PART_FLY_MS);
+
+        return { offset: [0, 0, 0], appear: 1 };
+      }
+
+      const inBlock =
+        explodedBlock !== null && blockKey(boxes[box]) === explodedBlock
+          ? blockAmount
+          : 0;
+
+      // Детали открытого блока собираются у своего блока, даже если всё
+      // изделие было разнесено.
+      return {
+        offset: exploded.map(
+          (value, axis) =>
+            value * explode * (1 - inBlock) +
+            scene.blockOffsets[box][axis] * inBlock,
+        ),
+        appear: 1,
+      };
+    });
     const drawn = scene.faces
       .map((face) => {
         const normal = rotate(face.normal);
+        const { offset, appear } = placement[face.box];
 
-        // Грань смотрит от зрителя: не рисуем.
-        if (normal[2] <= 0.001) {
+        // Грань смотрит от зрителя или деталь ещё не вылетела: не рисуем.
+        if (normal[2] <= 0.001 || appear <= 0) {
           return null;
         }
 
-        const marked = markedBoxes?.has(face.box) ?? false;
-        const factor = marked ? grow : 1;
+        const marked =
+          (markedBoxes?.has(face.box) ?? false) || face.box === selectedBox;
+        const factor = markedBoxes?.has(face.box) ? grow : 1;
         const points = face.points.map((point) =>
           rotate(
             point.map(
               (value, axis) =>
                 face.pivot[axis] +
-                (value - face.pivot[axis]) * factor -
+                (value - face.pivot[axis]) * factor +
+                offset[axis] -
                 center[axis],
             ),
           ),
@@ -411,6 +1265,7 @@ export function BazisViewer({
           tone: face.tone,
           box: face.box,
           marked,
+          appear,
         };
       })
       .filter((face) => face !== null)
@@ -426,34 +1281,68 @@ export function BazisViewer({
     context.lineWidth = 0.6;
     context.strokeStyle = "rgba(60, 48, 38, 0.55)";
 
-    // Границы выделенных деталей на экране: вокруг них рисуем кольцо.
+    // Границы выделенных деталей на экране: вокруг них рисуем кольцо,
+    // а под выбранной подписываем размеры.
     const markedBounds = new Map<number, number[]>();
+    const hits: Array<{ box: number; points: number[][] }> = [];
+    // В пошаговой сборке остальные детали не бледнеют: нужно видеть, куда
+    // встаёт новая.
+    const dimOthers = step === null && selectedBox !== null;
 
     for (const face of drawn) {
+      const isSelected = face.box === selectedBox;
+      // Разобранный блок виден целиком, остальное изделие бледнеет.
+      const inOpenBlock =
+        explodedBlock !== null &&
+        blockAmount > 0 &&
+        blockKey(boxes[face.box]) === explodedBlock;
+      const isMarked = face.marked && !isSelected;
       const selecting = markedBoxes !== null || highlightTone !== null;
-      const muted = markedBoxes
-        ? !face.marked
-        : highlightTone !== null && face.tone !== highlightTone;
-      const color = muted
-        ? [226, 224, 220]
-        : face.marked
-          ? markColor
-          : selecting
-            ? MARK_COLOR
-            : (toneColors?.[face.tone] ?? palette[face.tone % palette.length]);
+      const muted = isSelected
+        ? false
+        : markedBoxes
+          ? !isMarked
+          : (dimOthers && !inOpenBlock) ||
+            (highlightTone !== null && face.tone !== highlightTone);
+      const base = isSelected
+        ? SELECT_COLOR
+        : muted
+          ? [226, 224, 220]
+          : isMarked
+            ? markColor
+            : selecting
+              ? MARK_COLOR
+              : (toneColors?.[face.tone] ??
+                palette[face.tone % palette.length]);
+      // Деталь под мышью чуть светлее.
+      const color =
+        face.box === hovered && !isSelected
+          ? base.map((value) => mix(value, 255, 0.25))
+          : base;
 
-      context.globalAlpha = muted ? (markedBoxes ? 0.22 : 0.45) : 1;
+      // Чужие для открытого блока детали почти исчезают.
+      const outside = isolate > 0 && !inOpenBlock && !isSelected;
+
+      context.globalAlpha =
+        (muted ? (markedBoxes ? 0.22 : dimOthers ? 0.35 : 0.45) : 1) *
+        Math.min(1, face.appear * 2.5) *
+        (outside ? 1 - isolate * 0.94 : 1);
       // У выделенной детали контур темнее и толще.
       context.lineWidth = face.marked ? 1.4 : 0.6;
-      context.strokeStyle = face.marked
-        ? "rgba(110, 38, 18, 0.9)"
-        : "rgba(60, 48, 38, 0.55)";
+      context.strokeStyle = isSelected
+        ? "rgba(20, 52, 82, 0.95)"
+        : face.marked
+          ? "rgba(110, 38, 18, 0.9)"
+          : "rgba(60, 48, 38, 0.55)";
 
+      const screen = face.points.map(toScreen);
+
+      // По растворившимся деталям не попадаем.
+      if (!(outside && isolate > 0.5)) {
+        hits.push({ box: face.box, points: screen });
+      }
       context.beginPath();
-      face.points.forEach((point, index) => {
-        const x = size.width / 2 + point[0] * scale;
-        const y = size.height / 2 - point[1] * scale;
-
+      screen.forEach(([x, y], index) => {
         if (index === 0) {
           context.moveTo(x, y);
         } else {
@@ -475,10 +1364,7 @@ export function BazisViewer({
           -Infinity,
         ];
 
-        for (const point of face.points) {
-          const x = size.width / 2 + point[0] * scale;
-          const y = size.height / 2 - point[1] * scale;
-
+        for (const [x, y] of screen) {
           bounds[0] = Math.min(bounds[0], x);
           bounds[1] = Math.min(bounds[1], y);
           bounds[2] = Math.max(bounds[2], x);
@@ -489,17 +1375,107 @@ export function BazisViewer({
       }
     }
     context.globalAlpha = 1;
+    hitFaces.current = hits;
+
+    // Отверстия присадки на выбранной детали: кружок в месте сверления
+    // и штрих вглубь по направлению отверстия.
+    const selectedInfo = selectedBox !== null ? boxes[selectedBox] : null;
+
+    if (
+      selectedInfo?.info?.drillHoles &&
+      selectedBox !== null &&
+      placement[selectedBox].appear > 0
+    ) {
+      const { offset } = placement[selectedBox];
+      const project = (local: number[]) =>
+        toScreen(
+          rotate(
+            toWorld(selectedInfo.matrix, local[0], local[1], local[2]).map(
+              (value, axis) => value + offset[axis] - center[axis],
+            ),
+          ),
+        );
+
+      context.fillStyle = HOLE_COLOR;
+      context.strokeStyle = HOLE_COLOR;
+      context.lineWidth = 1.5;
+
+      for (const hole of selectedInfo.info.drillHoles) {
+        const start = project([hole.x, hole.y, hole.z]);
+        const end = project([
+          hole.x + hole.dx * hole.depth,
+          hole.y + hole.dy * hole.depth,
+          hole.z + hole.dz * hole.depth,
+        ]);
+        const direction = toWorldDirection(
+          selectedInfo.matrix,
+          hole.dx,
+          hole.dy,
+          hole.dz,
+        );
+        // Отверстие смотрит от зрителя: оно на обратной стороне детали.
+        const towardViewer = rotate(direction)[2] < 0;
+
+        context.globalAlpha = towardViewer ? 0.95 : 0.3;
+        context.beginPath();
+        context.moveTo(start[0], start[1]);
+        context.lineTo(end[0], end[1]);
+        context.stroke();
+        context.beginPath();
+        context.arc(
+          start[0],
+          start[1],
+          Math.max(2.2, (hole.diameter / 2) * scale),
+          0,
+          Math.PI * 2,
+        );
+        context.fill();
+      }
+
+      context.globalAlpha = 1;
+    }
+
+    // Размеры выбранной детали под ней на макете.
+    const selectedBounds =
+      selectedBox !== null ? markedBounds.get(selectedBox) : undefined;
+
+    if (selectedBounds && selectedInfo) {
+      const info = selectedInfo.info;
+      const label = info
+        ? `${numberFormatter.format(info.length)} × ${numberFormatter.format(info.width)} × ${numberFormatter.format(info.thickness)} мм`
+        : `${numberFormatter.format(selectedInfo.sizeX)} × ${numberFormatter.format(selectedInfo.sizeY)} × ${numberFormatter.format(selectedInfo.thickness)} мм`;
+
+      context.font =
+        "600 12px ui-sans-serif, system-ui, -apple-system, sans-serif";
+      context.textBaseline = "middle";
+      context.textAlign = "center";
+
+      const width = context.measureText(label).width + 14;
+      const x = Math.min(
+        size.width - width / 2 - 4,
+        Math.max(width / 2 + 4, (selectedBounds[0] + selectedBounds[2]) / 2),
+      );
+      const y = Math.min(size.height - 14, selectedBounds[3] + 14);
+
+      context.fillStyle = "rgba(255, 255, 255, 0.92)";
+      context.fillRect(x - width / 2, y - 10, width, 20);
+      context.strokeStyle = "rgba(20, 52, 82, 0.6)";
+      context.lineWidth = 1;
+      context.strokeRect(x - width / 2, y - 10, width, 20);
+      context.fillStyle = "rgb(20, 52, 82)";
+      context.fillText(label, x, y);
+    }
 
     if (beacon !== null && elapsed === null) {
       const wave = (beacon % BEACON_MS) / BEACON_MS;
       // Соседние детали обводим одним кольцом, чтобы кольца не путались.
-      const circles = [...markedBounds.values()].map(
-        ([minX, minY, maxX, maxY]) => ({
+      const circles = [...markedBounds.entries()]
+        .filter(([box]) => box !== selectedBox || markedBoxes?.has(box))
+        .map(([, [minX, minY, maxX, maxY]]) => ({
           x: (minX + maxX) / 2,
           y: (minY + maxY) / 2,
           r: Math.max(14, Math.hypot(maxX - minX, maxY - minY) / 2 + 8),
-        }),
-      );
+        }));
 
       for (let merged = true; merged; ) {
         merged = false;
@@ -537,30 +1513,176 @@ export function BazisViewer({
     }
   }, [
     beacon,
+    blockAmount,
+    boxes,
+    building,
+    buildTiming,
     elapsed,
+    explode,
+    explodedBlock,
     focusTarget,
     focused,
     highlightTone,
+    hovered,
     markedBoxes,
     scene,
+    selectedBox,
     size,
+    step,
+    stepFlight,
     toneColors,
     view,
   ]);
 
+  const info = selectedBox !== null ? boxes[selectedBox]?.info : undefined;
+  const sameCount = useMemo(() => {
+    if (!info) return 0;
+
+    const key = (part: BazisPartInfo) =>
+      [part.name, part.material, part.length, part.width, part.thickness].join(
+        "|",
+      );
+    const own = key(info);
+
+    return boxes.filter((box) => box.info && key(box.info) === own).length;
+  }, [boxes, info]);
+  // Где деталь стоит в изделии: ближний к началу координат угол,
+  // считая от угла всего изделия.
+  const placeAt =
+    selectedBox !== null
+      ? [0, 1, 2].map((axis) =>
+          Math.round(
+            Math.min(
+              ...(scene.boxCorners[selectedBox] ?? []).map(
+                (corner) => corner[axis],
+              ),
+            ) - scene.min[axis],
+          ),
+        )
+      : null;
+  // К каким деталям крепится выбранная (по общему крепежу).
+  const attachedTo =
+    selectedBox !== null
+      ? [...scene.neighbors[selectedBox]]
+          .filter(
+            (other) =>
+              step === null ||
+              scene.buildOrder.indexOf(other) <
+                scene.buildOrder.indexOf(selectedBox),
+          )
+          .map((other) => boxes[other]?.info?.name || `деталь ${other + 1}`)
+      : [];
+  const attachedLabel =
+    attachedTo.length > 0
+      ? [...new Set(attachedTo)]
+          .map((name) => {
+            const count = attachedTo.filter((item) => item === name).length;
+
+            return count > 1 ? `${name} ×${count}` : name;
+          })
+          .join(", ")
+      : "";
+  const holesLabel = info?.drillHoles?.length
+    ? (() => {
+        const face = info.drillHoles.filter((hole) => hole.kind === "face");
+        const edge = info.drillHoles.filter((hole) => hole.kind === "edge");
+
+        return [
+          face.length > 0 ? `в пласть ${face.length}` : "",
+          edge.length > 0 ? `в торец ${edge.length}` : "",
+        ]
+          .filter(Boolean)
+          .join(", ");
+      })()
+    : info?.holes
+      ? `${info.holes} отв.`
+      : "";
+  const facts: Array<[string, string]> = info
+    ? [
+        [
+          "Размер",
+          `${numberFormatter.format(info.length)} × ${numberFormatter.format(info.width)} × ${numberFormatter.format(info.thickness)} мм`,
+        ],
+        ["Материал", info.material || "не указан"],
+        ...(info.edges !== undefined
+          ? ([
+              [
+                "Кромка, сторон",
+                info.edgeMaterial && info.edges !== "нет"
+                  ? `${info.edges} (${info.edgeMaterial})`
+                  : info.edges,
+              ],
+            ] as Array<[string, string]>)
+          : []),
+        ...(info.position
+          ? ([["Позиция в проекте", `№ ${info.position}`]] as Array<
+              [string, string]
+            >)
+          : []),
+        ...(info.block
+          ? ([["Входит в", info.block]] as Array<[string, string]>)
+          : []),
+        ...(placeAt
+          ? ([
+              [
+                "Положение в изделии",
+                `X ${placeAt[0]} · Y ${placeAt[1]} · Z ${placeAt[2]} мм`,
+              ],
+            ] as Array<[string, string]>)
+          : []),
+        ...(attachedLabel
+          ? ([
+              [step !== null ? "Крепится к" : "Скреплена с", attachedLabel],
+            ] as Array<[string, string]>)
+          : []),
+        ...(holesLabel
+          ? ([["Присадка", holesLabel]] as Array<[string, string]>)
+          : []),
+        ...(info.textured
+          ? ([["Текстура", "по длине, не поворачивать"]] as Array<
+              [string, string]
+            >)
+          : []),
+        ...(info.complexContour
+          ? ([["Контур", "фигурный (вырезы или скругления)"]] as Array<
+              [string, string]
+            >)
+          : []),
+        ...(sameCount > 1
+          ? ([["Таких в проекте", `${sameCount} шт.`]] as Array<
+              [string, string]
+            >)
+          : []),
+      ]
+    : [];
+  const selectedBlock =
+    selectedBox !== null && scene.innerBlocks.has(blockKey(boxes[selectedBox]))
+      ? blockKey(boxes[selectedBox])
+      : null;
+  const selectedBlockLabel =
+    selectedBlock !== null ? scene.blockLabels.get(selectedBlock) : null;
+  const stepTotal = scene.buildOrder.length;
+  const openBlockCount =
+    explodedBlock !== null
+      ? boxes.filter((box) => blockKey(box) === explodedBlock).length
+      : 0;
+  const buttonClassName =
+    "border border-[#cbc7bf] bg-white px-3 py-1.5 text-xs font-medium text-[#171714] transition hover:border-[#171714] disabled:cursor-default disabled:opacity-40 disabled:hover:border-[#cbc7bf]";
+
   return (
     <div className="grid gap-2">
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {views.map((item) => (
           <button
             key={item.label}
             type="button"
             onClick={() => {
               stopAnimation();
+              stopSpin();
               setFocused(false);
               setView({ yaw: item.yaw, pitch: item.pitch, zoom: 1 });
             }}
-            className="border border-[#cbc7bf] bg-white px-3 py-1.5 text-xs font-medium text-[#171714] transition hover:border-[#171714]"
+            className={buttonClassName}
           >
             {item.label}
           </button>
@@ -571,7 +1693,7 @@ export function BazisViewer({
             setView((current) => ({ ...current, zoom: current.zoom * 1.3 }))
           }
           aria-label="Приблизить"
-          className="border border-[#cbc7bf] bg-white px-3 py-1.5 text-xs font-medium text-[#171714] transition hover:border-[#171714]"
+          className={buttonClassName}
         >
           +
         </button>
@@ -584,87 +1706,296 @@ export function BazisViewer({
             }))
           }
           aria-label="Отдалить"
-          className="border border-[#cbc7bf] bg-white px-3 py-1.5 text-xs font-medium text-[#171714] transition hover:border-[#171714]"
+          className={buttonClassName}
         >
           −
         </button>
+        <button type="button" onClick={resetView} className={buttonClassName}>
+          Сбросить вид
+        </button>
+        <button
+          type="button"
+          onClick={() => animateExplode(explode > 0.5 ? 0 : 1)}
+          className={buttonClassName}
+        >
+          {explode > 0.5 ? "Собрать" : "Разобрать"}
+        </button>
+        <button
+          type="button"
+          onClick={() => (building !== null ? stopBuilding() : playBuild())}
+          className={buttonClassName}
+        >
+          {building !== null ? "Остановить сборку" : "▶ Анимация сборки"}
+        </button>
+        <button
+          type="button"
+          onClick={() => (step === null ? goToStep(1) : leaveSteps())}
+          aria-pressed={step !== null}
+          className={`${buttonClassName} ${step !== null ? "border-[#171714] bg-[#171714] text-white hover:bg-[#2b2b27]" : ""}`}
+        >
+          {step === null ? "Сборка по шагам" : "Выйти из сборки по шагам"}
+        </button>
+        <label className="flex min-w-48 flex-1 items-center gap-2 text-xs text-[#55524c] sm:max-w-72">
+          <span className="whitespace-nowrap">Разнести детали</span>
+          <input
+            type="range"
+            min={0}
+            max={100}
+            value={Math.round(explode * 100)}
+            onChange={(event) => {
+              stopBuilding();
+              cancelAnimationFrame(explodeFrame.current);
+              setStep(null);
+              setExplode(Number(event.target.value) / 100);
+            }}
+            className="w-full accent-[#a94730]"
+          />
+        </label>
       </div>
-      <canvas
-        ref={canvasRef}
-        role="img"
-        aria-label="Объёмный вид проекта. Поворачивайте мышью или пальцем."
-        className={`${heightClassName} w-full cursor-grab touch-none border border-[#d7d4ce] bg-[#f6f4f0] active:cursor-grabbing`}
-        onPointerDown={(event) => {
-          stopAnimation();
-          event.currentTarget.setPointerCapture(event.pointerId);
-          pointers.current.set(event.pointerId, {
-            x: event.clientX,
-            y: event.clientY,
-          });
-        }}
-        onPointerMove={(event) => {
-          const previous = pointers.current.get(event.pointerId);
+      {step !== null ? (
+        <div className="flex flex-wrap items-center gap-2 border border-[#171714] bg-white px-3 py-2 text-sm text-[#171714]">
+          <button
+            type="button"
+            onClick={() => goToStep(step - 1)}
+            disabled={step <= 1}
+            aria-label="Предыдущий шаг"
+            className={buttonClassName}
+          >
+            ◀
+          </button>
+          <button
+            type="button"
+            onClick={() => goToStep(step + 1)}
+            disabled={step >= stepTotal}
+            aria-label="Следующий шаг"
+            className={buttonClassName}
+          >
+            ▶
+          </button>
+          <p className="min-w-0 flex-1">
+            <span className="font-semibold">
+              Шаг {step} из {stepTotal}:
+            </span>{" "}
+            {info?.name || `деталь ${(scene.buildOrder[step - 1] ?? 0) + 1}`}
+            {attachedLabel ? (
+              <span className="text-[#55524c]">
+                {" "}
+                · крепится к: {attachedLabel}
+              </span>
+            ) : null}
+            {step >= stepTotal ? (
+              <span className="text-[#55524c]"> · изделие собрано</span>
+            ) : null}
+          </p>
+          <span className="hidden text-xs text-[#77736c] sm:inline">
+            Стрелки ← → на клавиатуре листают шаги
+          </span>
+        </div>
+      ) : null}
+      {explodedBlock !== null && step === null ? (
+        <div className="flex flex-wrap items-center gap-2 border border-[#171714] bg-white px-3 py-2 text-sm text-[#171714]">
+          <p className="min-w-0 flex-1">
+            <span className="font-semibold">
+              Блок «{scene.blockLabels.get(explodedBlock)}»
+            </span>
+            <span className="text-[#55524c]">
+              {" "}
+              · {openBlockCount} {pluralParts(openBlockCount)} · нажмите на
+              деталь, чтобы увидеть её размеры
+            </span>
+          </p>
+          <button
+            type="button"
+            onClick={() => animateBlock(null)}
+            className={buttonClassName}
+          >
+            Вернуться к изделию
+          </button>
+        </div>
+      ) : null}
+      <div className="relative grid gap-2">
+        <canvas
+          ref={canvasRef}
+          role="img"
+          aria-label="Объёмный вид проекта. Поворачивайте мышью или пальцем."
+          className={`${heightClassName} w-full cursor-grab touch-none border border-[#d7d4ce] bg-[#f6f4f0] active:cursor-grabbing`}
+          onPointerDown={(event) => {
+            stopAnimation();
+            stopSpin();
+            tapStart.current =
+              pointers.current.size === 0
+                ? { x: event.clientX, y: event.clientY }
+                : null;
+            event.currentTarget.setPointerCapture(event.pointerId);
+            pointers.current.set(event.pointerId, {
+              x: event.clientX,
+              y: event.clientY,
+            });
+          }}
+          onPointerMove={(event) => {
+            const previous = pointers.current.get(event.pointerId);
 
-          if (!previous) {
-            return;
-          }
+            if (!previous) {
+              // Мышь без нажатия: подсвечиваем деталь под ней.
+              if (event.pointerType === "mouse") {
+                const box = boxAt(event.clientX, event.clientY);
 
-          const next = { x: event.clientX, y: event.clientY };
-
-          if (pointers.current.size === 2) {
-            // Два пальца: меняем масштаб по изменению расстояния.
-            const other = [...pointers.current.entries()].find(
-              ([id]) => id !== event.pointerId,
-            )?.[1];
-
-            if (other) {
-              const before = Math.hypot(
-                previous.x - other.x,
-                previous.y - other.y,
-              );
-              const after = Math.hypot(next.x - other.x, next.y - other.y);
-
-              if (before > 0) {
-                setView((current) => ({
-                  ...current,
-                  zoom: Math.min(
-                    40,
-                    Math.max(0.3, current.zoom * (after / before)),
-                  ),
-                }));
+                if (box !== hovered) setHovered(box);
               }
+
+              return;
             }
-          } else {
+
+            const next = { x: event.clientX, y: event.clientY };
+
+            if (
+              tapStart.current &&
+              Math.hypot(
+                next.x - tapStart.current.x,
+                next.y - tapStart.current.y,
+              ) > TAP_SLOP
+            ) {
+              tapStart.current = null;
+            }
+
+            if (pointers.current.size === 2) {
+              // Два пальца: меняем масштаб по изменению расстояния.
+              const other = [...pointers.current.entries()].find(
+                ([id]) => id !== event.pointerId,
+              )?.[1];
+
+              if (other) {
+                const before = Math.hypot(
+                  previous.x - other.x,
+                  previous.y - other.y,
+                );
+                const after = Math.hypot(next.x - other.x, next.y - other.y);
+
+                if (before > 0) {
+                  setView((current) => ({
+                    ...current,
+                    zoom: Math.min(
+                      40,
+                      Math.max(0.3, current.zoom * (after / before)),
+                    ),
+                  }));
+                }
+              }
+            } else {
+              const yaw = (next.x - previous.x) * 0.008;
+              const pitch = (next.y - previous.y) * 0.008;
+
+              spin.current = { yaw, pitch, at: performance.now() };
+              setView((current) => ({
+                ...current,
+                yaw: current.yaw + yaw,
+                pitch: Math.min(
+                  Math.PI / 2,
+                  Math.max(-Math.PI / 2, current.pitch + pitch),
+                ),
+              }));
+            }
+
+            pointers.current.set(event.pointerId, next);
+          }}
+          onPointerUp={(event) => {
+            pointers.current.delete(event.pointerId);
+
+            // Нажатие без поворота выбирает деталь, нажатие мимо — снимает выбор.
+            if (tapStart.current) {
+              const box = boxAt(event.clientX, event.clientY);
+
+              if (step !== null) {
+                // В пошаговой сборке нажатие на поставленную деталь
+                // переходит к её шагу.
+                if (box !== null) {
+                  goToStep(scene.buildOrder.indexOf(box) + 1);
+                }
+              } else {
+                setSelected(box === selectedBox ? null : box);
+              }
+
+              tapStart.current = null;
+            } else if (pointers.current.size === 0) {
+              startSpin();
+            }
+          }}
+          onPointerCancel={(event) => {
+            pointers.current.delete(event.pointerId);
+            tapStart.current = null;
+          }}
+          onPointerLeave={() => setHovered(null)}
+          onWheel={(event) => {
+            stopAnimation();
+            const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
+
             setView((current) => ({
               ...current,
-              yaw: current.yaw + (next.x - previous.x) * 0.008,
-              pitch: Math.min(
-                Math.PI / 2,
-                Math.max(
-                  -Math.PI / 2,
-                  current.pitch + (next.y - previous.y) * 0.008,
-                ),
-              ),
+              zoom: Math.min(40, Math.max(0.3, current.zoom * factor)),
             }));
-          }
-
-          pointers.current.set(event.pointerId, next);
-        }}
-        onPointerUp={(event) => pointers.current.delete(event.pointerId)}
-        onPointerCancel={(event) => pointers.current.delete(event.pointerId)}
-        onWheel={(event) => {
-          stopAnimation();
-          const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
-
-          setView((current) => ({
-            ...current,
-            zoom: Math.min(40, Math.max(0.3, current.zoom * factor)),
-          }));
-        }}
-      />
+          }}
+          style={{ cursor: hovered !== null ? "pointer" : undefined }}
+        />
+        {selectedBox !== null ? (
+          <aside
+            aria-live="polite"
+            className="grid gap-2 border border-[#d7d4ce] bg-white/95 p-3 text-sm shadow-sm sm:absolute sm:top-3 sm:right-3 sm:w-80"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <p className="font-semibold break-words text-[#171714]">
+                {step !== null ? `Шаг ${step}. ` : ""}
+                {info?.name || `Деталь ${selectedBox + 1}`}
+              </p>
+              <button
+                type="button"
+                onClick={() =>
+                  step !== null ? leaveSteps() : setSelected(null)
+                }
+                aria-label="Закрыть"
+                className="-mt-1 -mr-1 px-2 text-lg leading-none text-[#77736c] hover:text-[#171714]"
+              >
+                ×
+              </button>
+            </div>
+            {facts.length > 0 ? (
+              <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-xs">
+                {facts.map(([label, value]) => (
+                  <div key={label} className="contents">
+                    <dt className="text-[#77736c]">{label}</dt>
+                    <dd className="break-words text-[#171714]">{value}</dd>
+                  </div>
+                ))}
+              </dl>
+            ) : (
+              <p className="text-xs text-[#77736c]">
+                {`${numberFormatter.format(boxes[selectedBox].sizeX)} × ${numberFormatter.format(boxes[selectedBox].sizeY)} × ${numberFormatter.format(boxes[selectedBox].thickness)} мм`}
+              </p>
+            )}
+            {selectedBlock && step === null ? (
+              <button
+                type="button"
+                onClick={() =>
+                  animateBlock(
+                    explodedBlock === selectedBlock && blockAmount > 0.5
+                      ? null
+                      : selectedBlock,
+                  )
+                }
+                className={`${buttonClassName} justify-self-start`}
+              >
+                {explodedBlock === selectedBlock && blockAmount > 0.5
+                  ? `Собрать «${selectedBlockLabel}»`
+                  : `Разобрать «${selectedBlockLabel}»`}
+              </button>
+            ) : null}
+          </aside>
+        ) : null}
+      </div>
       <p className="text-xs text-[#77736c]">
         Поворачивайте мышью или пальцем, приближайте колесом или двумя пальцами.
-        Показаны детали из плитных материалов; фурнитура и профили не рисуются.
+        Нажмите на деталь, чтобы увидеть её размер, материал, присадку и место в
+        изделии. Показаны детали из плитных материалов; фурнитура и профили не
+        рисуются.
       </p>
     </div>
   );

@@ -11,9 +11,11 @@ import {
   BAZIS_WORKSPACE_KEY,
   CALCULATOR_DRAFT_KEY,
   CALCULATOR_PRESET_HANDOFF_KEY,
+  toBazisPartInfo,
   type BazisViewProject,
   type BazisViewResponse,
 } from "@/features/bazis/project-view";
+import { describeEdgedSides } from "@/features/bazis/part-groups";
 
 // Строка списка деталей. panelIndexes связывает её с деталями макета:
 // удалили строку, детали пропали с макета.
@@ -239,9 +241,40 @@ export function BazisWorkspace({
           sizeY: lengthAlongX ? width : length,
           thickness: panel.thickness,
           tone: row.material,
+          // В карточке детали — данные строки с правками клиента.
+          info: {
+            ...toBazisPartInfo(panel, materials),
+            name: row.name || panel.name,
+            material: materials[row.material],
+            length,
+            width,
+            edges: describeEdgedSides(
+              row.edgedLengthSides,
+              row.edgedWidthSides,
+            ),
+          },
         };
       }),
     );
+  }, [materials, project, rows]);
+
+  // Скреплённые пары деталей в номерах деталей макета: удалённые из списка
+  // детали на макете пропали, их пары тоже.
+  const joints = useMemo(() => {
+    if (!project?.joints) return undefined;
+
+    const boxIndex = new Map<number, number>();
+
+    rows
+      .flatMap((row) => row.panelIndexes)
+      .forEach((panelIndex, index) => boxIndex.set(panelIndex, index));
+
+    return project.joints.flatMap(([a, b]) => {
+      const left = boxIndex.get(a);
+      const right = boxIndex.get(b);
+
+      return left !== undefined && right !== undefined ? [[left, right]] : [];
+    });
   }, [project, rows]);
 
   const materialStats = materials.map((name, index) => {
@@ -419,6 +452,7 @@ export function BazisWorkspace({
             ) : null}
             <BazisViewer
               boxes={boxes}
+              joints={joints}
               highlightTone={highlight}
               toneColors={toneColors}
             />

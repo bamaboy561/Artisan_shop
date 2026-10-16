@@ -4,9 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 
 import { BazisViewer } from "@/components/bazis/bazis-viewer";
 import { guessDecorColor } from "@/features/bazis/decor-color";
-import type {
-  BazisViewProject,
-  BazisViewResponse,
+import {
+  toBazisPartInfo,
+  type BazisViewProject,
+  type BazisViewResponse,
 } from "@/features/bazis/project-view";
 
 // Объёмный вид проекта Базиса сразу после выбора файла: в калькуляторе
@@ -62,6 +63,7 @@ export function BazisFilePreview({ file }: { file: File | null }) {
         ...panel.box,
         thickness: panel.thickness,
         tone: panel.material,
+        info: toBazisPartInfo(panel, project?.materials ?? []),
       })),
     [project],
   );
@@ -96,6 +98,7 @@ export function BazisFilePreview({ file }: { file: File | null }) {
           </p>
           <BazisViewer
             boxes={boxes}
+            joints={project.joints}
             toneColors={toneColors}
             heightClassName="h-[42vh] min-h-64"
           />
