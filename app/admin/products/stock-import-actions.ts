@@ -136,6 +136,7 @@ export async function processStockImportAction(
   } catch {
     // Повреждённый список ручных связей просто не применяем.
   }
+  const storedLinks = new Map(links);
   for (const [key, productId] of manualLinks) links.set(key, productId);
   const plan = buildStockImportPlan(parsed.rows, products, mode, links);
   const reconcile =
@@ -175,8 +176,11 @@ export async function processStockImportAction(
     .update(
       JSON.stringify({
         mode,
-        plan,
-        manualLinks: [...manualLinks],
+        // Выбранные вручную связи в отпечаток не входят: «Это он» не
+        // требует повторной проверки файла.
+        plan: manualLinks.size
+          ? buildStockImportPlan(parsed.rows, products, mode, storedLinks)
+          : plan,
         zeroMissing: zeroMissing ? [...missingToZeroIds] : false,
       }),
     )
@@ -308,6 +312,15 @@ export async function processStockImportAction(
           "Выберите проверенные строки для обновления. Ничего не записано.",
         );
       selected = new Set(keys);
+      // Строки, связанные через «Это он», обновляются без отдельной галочки.
+      plan.forEach((entry, index) => {
+        if (
+          entry.status === "ready" &&
+          entry.match === "linked" &&
+          manualLinks.has(stockLinkKey(parsed.rows[index]))
+        )
+          selected!.add(stockRowKey(entry));
+      });
     } catch {
       return result(
         "preview",

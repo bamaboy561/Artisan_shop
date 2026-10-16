@@ -236,13 +236,19 @@ export function StockReconciliationTable({
                   )}
                   {entry.match === "linked" && (
                     <p className="mt-1 text-emerald-800">
-                      {entry.linkKey && manualLinks[entry.linkKey]
-                        ? "Выбрано вами, запомнится после «Применить»"
-                        : "Запомненное совпадение"}
-                      {preview &&
-                      entry.linkKey &&
-                      manualLinks[entry.linkKey] &&
-                      onLink ? (
+                      Запомненное совпадение
+                    </p>
+                  )}
+                  {preview && entry.linkKey && manualLinks[entry.linkKey] && (
+                    <p className="mt-1 text-emerald-800">
+                      На сайте:{" "}
+                      <strong>{manualLinks[entry.linkKey].name}</strong>{" "}
+                      <span className="font-mono text-zinc-500">
+                        {manualLinks[entry.linkKey].sku}
+                      </span>
+                      . Остаток {quantity(entry.fileQuantity)} запишется при
+                      «Применить».
+                      {onLink ? (
                         <button
                           type="button"
                           disabled={disabled}
@@ -262,6 +268,7 @@ export function StockReconciliationTable({
                   {preview &&
                   onLink &&
                   entry.linkKey &&
+                  !manualLinks[entry.linkKey] &&
                   entry.match === null &&
                   (entry.kind === "notFound" || entry.kind === "review") ? (
                     <StockProductPicker

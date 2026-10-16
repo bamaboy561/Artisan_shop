@@ -1506,3 +1506,26 @@ test("zeroing records only products that were actually zeroed", async () => {
     1,
   );
 });
+
+test("«Это он» applies straight from the first check: no re-check, linked rows update themselves", async () => {
+  const { action, state, data } = actionFixture();
+  state.products.push(
+    product({ id: "p2", sku: "KR-1", name: "Кромка ПВХ", stockQuantity: 0 }),
+  );
+  const file = accountingReport();
+  const preview = await action(data("preview", undefined, "stock", file));
+  const edge = preview.reconciliation.find((entry) => entry.name === "Кромка");
+  const apply = data("apply", preview.fingerprint, "stock", file);
+  apply.set("manualLinks", JSON.stringify({ [edge.linkKey]: "p2" }));
+  apply.set("selectedRows", "[]");
+  const done = await action(apply);
+  assert.equal(done.phase, "done");
+  assert.equal(
+    state.products.find((item) => item.id === "p2").stockQuantity,
+    127,
+  );
+  assert.deepEqual(
+    state.savedLinks.map((link) => [link.productId, link.manual]),
+    [["p2", true]],
+  );
+});
