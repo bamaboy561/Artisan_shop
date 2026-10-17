@@ -8,6 +8,7 @@ import { canAccessRequestType } from "@/lib/auth/roles";
 import { getDb, hasDatabaseUrl } from "@/lib/db";
 import { parseCuttingLaborPrice } from "@/features/cutting/labor-price";
 import {
+  defaultSiteCuttingPrices,
   drillingDiameters,
   isValidSitePrice,
   type SiteCuttingPrices,
@@ -73,6 +74,11 @@ export async function saveSiteCuttingPricesAction(form: FormData) {
   const sheetRegular = readRate(form, "siteSheetRegular");
   const edge = readRate(form, "siteEdge");
   const edgeRegular = readRate(form, "siteEdgeRegular");
+  // Поля фрезеровки появились позже: старая форма без них цену не сбрасывает.
+  const optionalRate = (field: string, fallback: number) =>
+    form.get(field) === null ? fallback : readRate(form, field);
+  const milling = optionalRate("siteMilling", defaultSiteCuttingPrices.milling);
+  const bevel = optionalRate("siteBevel", defaultSiteCuttingPrices.bevel);
   const drilling: Record<number, number> = {};
   let drillingValid = true;
   for (const diameter of drillingDiameters) {
@@ -85,6 +91,8 @@ export async function saveSiteCuttingPricesAction(form: FormData) {
     sheetRegular === null ||
     edge === null ||
     edgeRegular === null ||
+    milling === null ||
+    bevel === null ||
     !drillingValid ||
     !hasDatabaseUrl()
   )
@@ -95,6 +103,8 @@ export async function saveSiteCuttingPricesAction(form: FormData) {
     edge,
     edgeRegular,
     drilling,
+    milling,
+    bevel,
   };
   await getDb().siteSetting.upsert({
     where: { key: siteCuttingPricesKey },

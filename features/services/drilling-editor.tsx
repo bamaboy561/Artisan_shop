@@ -27,8 +27,10 @@ import {
   cornerRadius,
   emptyMilling,
   hasMilling,
+  millingMeters,
   type PartMilling,
 } from "./part-milling";
+import { formatSitePrice } from "@/features/cutting/site-prices";
 
 const SIDES: PartSide[] = ["top", "right", "bottom", "left"];
 
@@ -318,6 +320,12 @@ export function DrillingEditor({
     () => new Set(selected ? (byItem.get(selected) ?? []) : []),
     [byItem, selected],
   );
+  const millingCost = useMemo(() => {
+    const meters = millingMeters(length, width, milling);
+    return (
+      (meters.curve * prices.milling + meters.bevel * prices.bevel) * quantity
+    );
+  }, [length, milling, prices.bevel, prices.milling, quantity, width]);
   const price = useMemo(
     () =>
       priceDrilling(
@@ -479,8 +487,10 @@ export function DrillingEditor({
                 </div>
                 <p className="text-[12px] leading-5 text-[var(--muted)]">
                   Скругление уходит в файл GibLab фрезеровкой контура, скос — в
-                  заявку и в название детали. Стоимость фрезеровки назовёт
-                  менеджер.
+                  заявку и в название детали.{" "}
+                  {millingCost > 0
+                    ? `На ${quantity} шт.: ${formatPrice(Math.round(millingCost))} по прайсу за метр (скругления ${formatSitePrice(prices.milling)} сом/м, скосы ${formatSitePrice(prices.bevel)} сом/м).`
+                    : `Цена за метр: скругления ${formatSitePrice(prices.milling)} сом, скосы ${formatSitePrice(prices.bevel)} сом.`}
                 </p>
               </div>
             </details>

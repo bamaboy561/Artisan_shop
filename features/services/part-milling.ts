@@ -223,6 +223,29 @@ export function mergePrograms(first: string | null, second: string | null) {
   return `${head}${[...tools.values()].join("")}${[...vars.values()].join("")}${body}</program>`;
 }
 
+// Сколько метров фрезеровать на одной детали: дуги скруглённых углов
+// и длина торцов со скосом. Прайс — за погонный метр.
+export function millingMeters(
+  length: number,
+  width: number,
+  milling: PartMilling | undefined,
+) {
+  if (!milling || !(length > 0 && width > 0)) return { curve: 0, bevel: 0 };
+  const curve = CORNERS.reduce(
+    (sum, corner) =>
+      sum + (Math.PI * cornerRadius(milling, corner, length, width)) / 2,
+    0,
+  );
+  const bevel = (Object.keys(milling.bevels) as PartSide[]).reduce(
+    (sum, side) =>
+      milling.bevels[side] > 0
+        ? sum + (side === "top" || side === "bottom" ? length : width)
+        : sum,
+    0,
+  );
+  return { curve: curve / 1000, bevel: bevel / 1000 };
+}
+
 export function describeMilling(milling: PartMilling | undefined) {
   if (!milling) return "";
   const corners = CORNERS.filter((corner) => milling.corners[corner] > 0).map(

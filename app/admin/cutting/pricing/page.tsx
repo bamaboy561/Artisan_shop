@@ -204,6 +204,20 @@ function SitePricesForm({
           ))}
         </div>
       </fieldset>
+      <div className="grid gap-5 sm:grid-cols-2">
+        <PriceField
+          label="Фрезеровка криволинейки (скругления), сом за метр"
+          name="siteMilling"
+          value={prices.milling}
+          disabled={!canEdit}
+        />
+        <PriceField
+          label="Пропил под углом (скосы торцов), сом за метр"
+          name="siteBevel"
+          value={prices.bevel}
+          disabled={!canEdit}
+        />
+      </div>
       {canEdit ? (
         <AdminSubmitButton
           type="submit"

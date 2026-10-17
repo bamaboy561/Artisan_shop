@@ -64,3 +64,14 @@ test("rotation, description and draft checks", () => {
   );
   assert.equal(sanitizeMilling({ bevels: { top: 22.5 } })?.bevels.top, 22.5);
 });
+
+test("milling is measured in metres for the price list", async () => {
+  const { millingMeters } = await import("../features/services/part-milling");
+  const milling = emptyMilling();
+  milling.corners.topLeft = 100;
+  milling.corners.topRight = 100;
+  milling.bevels.bottom = 45;
+  const meters = millingMeters(700, 400, milling);
+  assert.equal(Math.round(meters.curve * 1000), Math.round(Math.PI * 100));
+  assert.equal(meters.bevel, 0.7);
+});

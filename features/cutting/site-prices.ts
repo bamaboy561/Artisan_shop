@@ -11,6 +11,10 @@ export type SiteCuttingPrices = {
   edgeRegular: number;
   // Присадка: цена одного отверстия по диаметру, сом.
   drilling: Record<number, number>;
+  // Фрезеровка криволинейки (скругления углов) и пропил под углом
+  // (скосы торцов), сом за погонный метр.
+  milling: number;
+  bevel: number;
 };
 
 // Ø5 — как отверстие под полкодержатель, Ø8 — как отверстие D8.
@@ -34,6 +38,8 @@ export const defaultSiteCuttingPrices: SiteCuttingPrices = {
     25: 21,
     35: 32,
   },
+  milling: 200,
+  bevel: 250,
 };
 
 export function isValidSitePrice(value: unknown): value is number {
@@ -53,7 +59,15 @@ export function parseSiteCuttingPrices(value: unknown): SiteCuttingPrices {
     value && typeof value === "object" && !Array.isArray(value)
       ? (value as Partial<Record<keyof SiteCuttingPrices, unknown>>)
       : {};
-  const pick = (key: "sheet" | "edge" | "sheetRegular" | "edgeRegular") => {
+  const pick = (
+    key:
+      | "sheet"
+      | "edge"
+      | "sheetRegular"
+      | "edgeRegular"
+      | "milling"
+      | "bevel",
+  ) => {
     const price = saved[key];
     return isValidSitePrice(price) ? price : defaultSiteCuttingPrices[key];
   };
@@ -76,6 +90,8 @@ export function parseSiteCuttingPrices(value: unknown): SiteCuttingPrices {
     sheetRegular: pick("sheetRegular"),
     edgeRegular: pick("edgeRegular"),
     drilling,
+    milling: pick("milling"),
+    bevel: pick("bevel"),
   };
 }
 

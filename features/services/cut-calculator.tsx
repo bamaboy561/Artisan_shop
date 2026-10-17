@@ -55,6 +55,7 @@ import {
   describeMilling,
   hasMilling,
   mergePrograms,
+  millingMeters,
   rotateMilling,
   sanitizeMilling,
   type PartMilling,
@@ -1585,6 +1586,8 @@ function buildCuttingRequestMessage({
   estimate: {
     totalEstimate: number;
     drilling: ReturnType<typeof priceDrilling>;
+    milling: { curve: number; bevel: number };
+    millingCost: number;
   };
   workshopRows: WorkshopRow[];
   comment: string;
@@ -1615,6 +1618,20 @@ function buildCuttingRequestMessage({
                 `Ø${row.diameter} × ${row.holes}${row.price === null ? ", без цены" : ""}`,
             )
             .join("; ")})`,
+        ]
+      : []),
+    ...(estimate.millingCost > 0
+      ? [
+          `Фрезеровка: ${[
+            estimate.milling.curve > 0
+              ? `скругления ${estimate.milling.curve.toFixed(2)} м`
+              : "",
+            estimate.milling.bevel > 0
+              ? `скосы ${estimate.milling.bevel.toFixed(2)} м`
+              : "",
+          ]
+            .filter(Boolean)
+            .join(", ")} — ${formatPrice(Math.round(estimate.millingCost))}`,
         ]
       : []),
     `Ориентир: ${formatPrice(Math.round(estimate.totalEstimate))}`,
@@ -1939,6 +1956,19 @@ export function CutCalculator({
     const setupFee = 0;
     // Присадка по прайсу: отверстия приходят из проекта Базиса.
     const drilling = priceDrilling(calculation.rows, sitePrices.drilling);
+    // Скругления и скосы с чертежа детали, за погонный метр.
+    const milling = calculation.rows.reduce(
+      (sum, row) => {
+        const meters = millingMeters(row.width, row.height, row.milling);
+        return {
+          curve: sum.curve + meters.curve * row.quantity,
+          bevel: sum.bevel + meters.bevel * row.quantity,
+        };
+      },
+      { curve: 0, bevel: 0 },
+    );
+    const millingCost =
+      milling.curve * sitePrices.milling + milling.bevel * sitePrices.bevel;
 
     return {
       sheetCount,
@@ -1948,8 +1978,15 @@ export function CutCalculator({
       edgeCost,
       setupFee,
       drilling,
+      milling,
+      millingCost,
       totalEstimate:
-        materialCost + cuttingCost + edgeCost + setupFee + drilling.cost,
+        materialCost +
+        cuttingCost +
+        edgeCost +
+        setupFee +
+        drilling.cost +
+        millingCost,
     };
   }, [
     calculation.rows,
@@ -3632,6 +3669,18 @@ export function CutCalculator({
               <span>Кромка {edgeSizeLabel}</span>
               <span>{formatPrice(Math.round(estimate.edgeCost))}</span>
             </div>
+            {estimate.millingCost > 0 ? (
+              <div className="flex items-center justify-between gap-3 text-sm text-[#5f554c]">
+                <span>
+                  Фрезеровка,{" "}
+                  {(estimate.milling.curve + estimate.milling.bevel)
+                    .toFixed(2)
+                    .replace(".", ",")}{" "}
+                  м
+                </span>
+                <span>{formatPrice(Math.round(estimate.millingCost))}</span>
+              </div>
+            ) : null}
             {estimate.drilling.holes > 0 ? (
               <div className="grid gap-1 text-sm text-[#5f554c]">
                 <div className="flex items-center justify-between gap-3">
