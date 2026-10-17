@@ -2305,6 +2305,22 @@ export function CutCalculator({
 
   const [drillingRowId, setDrillingRowId] = useState<string | null>(null);
   const [cabinetOpen, setCabinetOpen] = useState(false);
+
+  // Кнопка «Собрать шкаф по размерам» вверху страницы ведёт на #cabinet.
+  useEffect(() => {
+    const openFromHash = () => {
+      if (window.location.hash !== "#cabinet") return;
+      setCabinetOpen(true);
+      window.history.replaceState(
+        null,
+        "",
+        window.location.pathname + window.location.search,
+      );
+    };
+    openFromHash();
+    window.addEventListener("hashchange", openFromHash);
+    return () => window.removeEventListener("hashchange", openFromHash);
+  }, []);
   const drillingRow =
     details.find(
       (row) =>

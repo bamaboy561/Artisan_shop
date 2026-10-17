@@ -124,6 +124,12 @@ export function CalculatorHero({ prices }: { prices: SiteCuttingPrices }) {
                 Начать раскрой <ArrowDown className="size-4" />
               </a>
               <a
+                href="#cabinet"
+                className="inline-flex items-center justify-center gap-2.5 rounded-full border border-white/60 bg-white/10 px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-white/20"
+              >
+                <LayoutGrid className="size-4" /> Собрать шкаф по размерам
+              </a>
+              <a
                 href="#cut-request-form"
                 className="inline-flex items-center justify-center gap-2.5 rounded-full border border-white/25 px-6 py-3.5 text-sm font-semibold text-white transition hover:border-white/60"
               >
