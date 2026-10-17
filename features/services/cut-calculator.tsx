@@ -15,6 +15,7 @@ import {
   Copy,
   FileDown,
   Layers3,
+  LayoutPanelTop,
   Paperclip,
   Plus,
   Search,
@@ -38,6 +39,7 @@ import type { ImportedDetail } from "@/features/services/cut-list-import";
 import { CutDetailTable } from "@/features/services/cut-detail-table";
 import { CutListImportPanel } from "@/features/services/cut-list-import-panel";
 import { optimizeCutting } from "@/features/services/cut-optimizer";
+import { CabinetBuilderDialog } from "@/features/services/cabinet-builder-dialog";
 import { DrillingEditor } from "@/features/services/drilling-editor";
 import {
   HARDWARE,
@@ -612,6 +614,7 @@ function importedDetailToRow(detail: ImportedDetail, index: number): DetailRow {
     edgedSides: normalizeEdgeSides(detail.edgedSides),
     orientationMode: detail.fixedGrain ? "fixed" : "free",
     ...(detail.drill ? { drill: detail.drill } : {}),
+    ...(detail.hardware?.length ? { hardware: detail.hardware } : {}),
   };
 }
 
@@ -2301,6 +2304,7 @@ export function CutCalculator({
   };
 
   const [drillingRowId, setDrillingRowId] = useState<string | null>(null);
+  const [cabinetOpen, setCabinetOpen] = useState(false);
   const drillingRow =
     details.find(
       (row) =>
@@ -2974,6 +2978,35 @@ export function CutCalculator({
               <Plus className="size-4" />
               Добавить деталь
             </Button>
+            <Button
+              variant="secondary"
+              onClick={() => setCabinetOpen(true)}
+              className="col-span-2 w-full sm:w-auto"
+            >
+              <LayoutPanelTop className="size-4" />
+              Конструктор шкафа
+            </Button>
+            {cabinetOpen ? (
+              <CabinetBuilderDialog
+                thickness={material.thicknessMm ?? 16}
+                materialLabel={material.label}
+                onClose={() => setCabinetOpen(false)}
+                onAdd={(parts, note) => {
+                  importDetails(parts, "append");
+                  if (note) {
+                    setRequestDraft((current) => ({
+                      ...current,
+                      comment: current.comment.includes(note)
+                        ? current.comment
+                        : [current.comment.trim(), note]
+                            .filter(Boolean)
+                            .join("\n"),
+                    }));
+                  }
+                  setCabinetOpen(false);
+                }}
+              />
+            ) : null}
             <Button
               variant="secondary"
               onClick={exportToGibLab}

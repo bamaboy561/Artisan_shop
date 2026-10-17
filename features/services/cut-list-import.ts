@@ -1,3 +1,5 @@
+import type { HardwareItem } from "./drilling-hardware";
+
 export type ImportedEdgeSide = "top" | "right" | "bottom" | "left";
 
 export type ImportedDetail = {
@@ -14,6 +16,8 @@ export type ImportedDetail = {
   material?: string;
   /** Присадка одной детали из проекта Базиса: диаметр → отверстий. */
   drill?: Record<string, number>;
+  /** Фурнитура с чертежа (конструктор шкафа). */
+  hardware?: HardwareItem[];
 };
 
 export type CutListImportResult = {
