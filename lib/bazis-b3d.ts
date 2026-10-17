@@ -1038,7 +1038,20 @@ export type GibLabButt = {
   clip: boolean;
 };
 
+// Паз или выборка детали: профиль (поперечное сечение инструмента) и
+// траектория, по которой он идёт; у выборки траектории нет, форма — в
+// профиле, глубина — в Thickness.
+export type GibLabCut = {
+  name: string;
+  sign: string;
+  thickness: number;
+  front: boolean | null;
+  profile: GibLabContourElement[];
+  trajectory: GibLabContourElement[] | null;
+};
+
 export type GibLabSourcePanel = {
+  cuts: GibLabCut[];
   name: string;
   artPos: string;
   material: string;
@@ -1116,7 +1129,26 @@ export function readBazisGibLabSource(file: Buffer): GibLabSource {
   const panels = collected.panelNodes.map((node, index) => {
     const contour = child(node, "Contour")?.value;
 
+    const blobElements = (owner: Node | undefined, key: string) => {
+      const value = child(owner, key)?.value;
+      return Buffer.isBuffer(value) ? readContourElements(value) : null;
+    };
+
     return {
+      cuts: (child(node, "Cuts")?.children ?? [])
+        .filter((item) => item.name === "Cut")
+        .map((cut) => {
+          const front = child(cut, "Front")?.value;
+
+          return {
+            name: text(cut, "Name"),
+            sign: text(cut, "Sign"),
+            thickness: numeric(cut, "Thickness") ?? 0,
+            front: typeof front === "boolean" ? front : null,
+            profile: blobElements(cut, "Contour") ?? [],
+            trajectory: blobElements(cut, "Trajectory"),
+          };
+        }),
       name: text(node, "Name"),
       artPos: text(node, "ArtPos"),
       material: text(node, "Mat"),

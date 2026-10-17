@@ -1,7 +1,7 @@
 import { requireAdminSession } from "@/lib/auth/dal";
 import { canAccessRequestType } from "@/lib/auth/roles";
 import { BazisParseError } from "@/lib/bazis-b3d";
-import { exportBazisToGibLab } from "@/lib/bazis-giblab";
+import { exportBazisToGibLab } from "@/lib/server/bazis-giblab-export";
 import { readRequestFileBytes } from "@/lib/server/request-file-content";
 import { getRequestDetailById } from "@/lib/server/request-inbox";
 

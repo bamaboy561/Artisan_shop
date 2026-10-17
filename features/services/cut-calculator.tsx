@@ -50,6 +50,15 @@ import {
   sanitizeHardware,
   type HardwareItem,
 } from "@/features/services/drilling-hardware";
+import {
+  contourMillingProgram,
+  describeMilling,
+  hasMilling,
+  mergePrograms,
+  rotateMilling,
+  sanitizeMilling,
+  type PartMilling,
+} from "@/features/services/part-milling";
 import type {
   CalculatorMaterialDto,
   CalculatorPresetDto,
@@ -82,6 +91,8 @@ type DetailRow = {
   drill?: DrillCounts;
   // Фурнитура, поставленная на детали в калькуляторе.
   hardware?: HardwareItem[];
+  // Скругления углов и скосы торцов.
+  milling?: PartMilling;
 };
 
 type CalculatedDetailRow = Omit<DetailRow, "width" | "height" | "quantity"> & {
@@ -386,18 +397,30 @@ function buildGibLabProjectXml({
     const partId = index + 2;
     const geometry = getGibLabPartGeometry(row);
     const holes = hardwareHoles(row.hardware, row.width, row.height, thickness);
-
-    if (holes.length > 0) {
-      const placed =
-        row.orientationMode === "rotated"
-          ? rotateHoles(holes, row.width)
-          : holes;
-      const program = buildDrillingProgram(
-        placed,
+    const rotated = row.orientationMode === "rotated";
+    const milling =
+      row.milling && rotated ? rotateMilling(row.milling) : row.milling;
+    const program = mergePrograms(
+      holes.length > 0
+        ? buildDrillingProgram(
+            rotated ? rotateHoles(holes, row.width) : holes,
+            geometry.length,
+            geometry.width,
+            thickness,
+          )
+        : null,
+      contourMillingProgram(
         geometry.length,
         geometry.width,
         thickness,
-      );
+        milling,
+      ),
+    );
+    // Скос торца станок не делает: он виден в названии детали.
+    const millingNote = describeMilling(milling);
+    if (millingNote) geometry.name = `${geometry.name} (${millingNote})`;
+
+    if (program) {
       const operationId = 100 + index;
       drillingOperations.push(
         `\t<operation id="${operationId}" typeId="XNC" side="1" bySizeDetail="true" code="${String(partId).padStart(4, "0")}x${String(operationId).padStart(3, "0")}x1" typeName="${escapeXml(geometry.name)}" program="${escapeXml(program)}">\n\t\t<part id="${partId}" />\n\t</operation>`,
@@ -539,9 +562,8 @@ function readCalculatorDraft(): CalculatorDraft | null {
     const details = Array.isArray(parsed.details)
       ? parsed.details.filter(isDetailRow).map((row) => {
           const hardware = sanitizeHardware(row.hardware);
-          return hardware
-            ? { ...row, hardware }
-            : { ...row, hardware: undefined };
+          const milling = sanitizeMilling(row.milling);
+          return { ...row, hardware, milling };
         })
       : [];
 
@@ -1607,7 +1629,7 @@ function buildCuttingRequestMessage({
   if (drillingNotes.length > 0) {
     lines.push(
       "",
-      "Присадка с чертежа (программа в файле GibLab):",
+      "Присадка и фрезеровка с чертежа (программа в файле GibLab):",
       ...drillingNotes,
     );
   }
@@ -2044,6 +2066,7 @@ export function CutCalculator({
           edgedSides: row.edgedSides,
           orientationMode: row.orientationMode,
           hardware: row.hardware ?? [],
+          milling: row.milling ?? null,
         })),
         edgeThicknessValue,
         edgeWidthValue,
@@ -2090,14 +2113,15 @@ export function CutCalculator({
         workshopRows,
         comment: requestDraft.comment,
         drillingNotes: calculation.rows
-          .filter((row) => row.hardware?.length)
+          .filter((row) => row.hardware?.length || hasMilling(row.milling))
           .map(
             (row) =>
-              `${row.title}: ${row
-                .hardware!.map(
+              `${row.title}: ${[...(row.hardware ?? [])]
+                .map(
                   (item) =>
                     `${HARDWARE[item.kind].label} ×${item.kind === "handle" ? 1 : item.count} (${SIDE_LABELS[item.side]}${item.mirror ? " и напротив" : ""})`,
                 )
+                .concat(describeMilling(row.milling) || [])
                 .join("; ")}`,
           ),
       }),
@@ -2253,7 +2277,15 @@ export function CutCalculator({
         (sum, count) => sum + count,
         0,
       );
-      return [row.id, holes > 0 ? `${Math.round(holes)} отв.` : ""];
+      return [
+        row.id,
+        [
+          holes > 0 ? `${Math.round(holes)} отв.` : "",
+          hasMilling(row.milling) ? "фрез." : "",
+        ]
+          .filter(Boolean)
+          .join(" + "),
+      ];
     }),
   );
 
@@ -2887,6 +2919,10 @@ export function CutCalculator({
                 updateRow(drillingRow.id, {
                   hardware: hardware.length ? hardware : undefined,
                 })
+              }
+              milling={drillingRow.milling}
+              onMillingChange={(milling) =>
+                updateRow(drillingRow.id, { milling })
               }
               onClose={() => setDrillingRowId(null)}
             />

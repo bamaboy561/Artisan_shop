@@ -1,10 +1,11 @@
-import {
-  readBazisGibLabSource,
-  type GibLabButt,
-  type GibLabContourElement,
-  type GibLabSource,
-  type GibLabSourceHole,
-  type GibLabSourcePanel,
+// Только типы: модуль работает и в браузере (калькулятор распила пишет
+// им фрезеровку контура), чтение .b3d — в lib/server/bazis-giblab-export.
+import type {
+  GibLabButt,
+  GibLabContourElement,
+  GibLabSource,
+  GibLabSourceHole,
+  GibLabSourcePanel,
 } from "@/lib/bazis-b3d";
 
 // Выгрузка проекта Базиса в GibLab (.project) — перенос скрипта Базиса
@@ -1784,8 +1785,4 @@ export function encodeWindows1251(text: string) {
   }
 
   return Buffer.from(bytes);
-}
-
-export function exportBazisToGibLab(file: Buffer) {
-  return encodeWindows1251(buildGibLabProject(readBazisGibLabSource(file)));
 }

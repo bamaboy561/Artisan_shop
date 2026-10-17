@@ -20,6 +20,15 @@ import {
   type PartHole,
   type PartSide,
 } from "./drilling-hardware";
+import {
+  BEVEL_ANGLES,
+  CORNERS,
+  CORNER_LABELS,
+  cornerRadius,
+  emptyMilling,
+  hasMilling,
+  type PartMilling,
+} from "./part-milling";
 
 const SIDES: PartSide[] = ["top", "right", "bottom", "left"];
 
@@ -64,6 +73,30 @@ function NumberField({
   );
 }
 
+// Контур детали в координатах SVG (y вниз) со скруглёнными углами.
+function outlinePath(length: number, width: number, milling?: PartMilling) {
+  const r = (corner: (typeof CORNERS)[number]) =>
+    cornerRadius(milling, corner, length, width);
+  const tl = r("topLeft");
+  const tr = r("topRight");
+  const br = r("bottomRight");
+  const bl = r("bottomLeft");
+  return [
+    `M ${tl} 0`,
+    `H ${length - tr}`,
+    tr ? `A ${tr} ${tr} 0 0 1 ${length} ${tr}` : "",
+    `V ${width - br}`,
+    br ? `A ${br} ${br} 0 0 1 ${length - br} ${width}` : "",
+    `H ${bl}`,
+    bl ? `A ${bl} ${bl} 0 0 1 0 ${width - bl}` : "",
+    `V ${tl}`,
+    tl ? `A ${tl} ${tl} 0 0 1 ${tl} 0` : "",
+    "Z",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
 // Чертёж детали: вид на лицевую пласть. Щелчок по краю выбирает сторону,
 // к которой добавится фурнитура.
 function PartDrawing({
@@ -73,6 +106,7 @@ function PartDrawing({
   highlighted,
   side,
   onSide,
+  milling,
 }: {
   length: number;
   width: number;
@@ -80,6 +114,7 @@ function PartDrawing({
   highlighted: Set<PartHole>;
   side: PartSide;
   onSide: (side: PartSide) => void;
+  milling?: PartMilling;
 }) {
   const pad = Math.max(length, width) * 0.08;
   const view = `${-pad} ${-pad} ${length + pad * 2} ${width + pad * 2}`;
@@ -101,15 +136,40 @@ function PartDrawing({
       role="img"
       aria-label={`Деталь ${length} × ${width} мм`}
     >
-      <rect
-        x={0}
-        y={0}
-        width={length}
-        height={width}
+      <path
+        d={outlinePath(length, width, milling)}
         fill="#f3ece1"
         stroke="#b9a991"
         strokeWidth={stroke}
       />
+      {SIDES.filter((item) => (milling?.bevels[item] ?? 0) > 0).map((item) => {
+        const band = Math.max(length, width) / 60;
+        const [x1, y1, x2, y2] = edgeLine[item];
+        const horizontal = item === "top" || item === "bottom";
+        const inward = item === "top" || item === "left" ? band : -band;
+        return (
+          <g key={`bevel-${item}`}>
+            <polygon
+              points={
+                horizontal
+                  ? `${x1},${y1} ${x2},${y2} ${x2},${y2 + inward} ${x1},${y1 + inward}`
+                  : `${x1},${y1} ${x2},${y2} ${x2 + inward},${y2} ${x1 + inward},${y1}`
+              }
+              fill="rgba(37,43,41,0.18)"
+            />
+            <text
+              x={horizontal ? (x1 + x2) / 2 : x1 + inward * 2.6}
+              y={horizontal ? y1 + inward * 2.6 : (y1 + y2) / 2}
+              textAnchor="middle"
+              dominantBaseline="middle"
+              fontSize={band * 1.6}
+              fill="#252b29"
+            >
+              {`скос ${String(milling?.bevels[item]).replace(".", ",")}°`}
+            </text>
+          </g>
+        );
+      })}
       {SIDES.map((item) => {
         const [x1, y1, x2, y2] = edgeLine[item];
         const active = item === side;
@@ -216,6 +276,8 @@ export function DrillingEditor({
   quantity,
   value,
   onChange,
+  milling,
+  onMillingChange,
   onClose,
 }: {
   title: string;
@@ -225,6 +287,8 @@ export function DrillingEditor({
   quantity: number;
   value: HardwareItem[];
   onChange: (items: HardwareItem[]) => void;
+  milling?: PartMilling;
+  onMillingChange: (milling: PartMilling | undefined) => void;
   onClose: () => void;
 }) {
   const prices = useSiteCuttingPrices();
@@ -314,6 +378,7 @@ export function DrillingEditor({
               highlighted={highlighted}
               side={side}
               onSide={setSide}
+              milling={milling}
             />
             <div className="flex flex-wrap items-center gap-2 text-sm">
               <span className="text-[var(--muted)]">Сторона:</span>
@@ -350,6 +415,75 @@ export function DrillingEditor({
           </div>
 
           <div className="grid min-w-0 content-start gap-3">
+            <details
+              open={hasMilling(milling)}
+              className="rounded-xl border border-[color:var(--line)] p-3"
+            >
+              <summary className="cursor-pointer text-sm font-semibold">
+                Фрезеровка: скругления углов и скосы торцов
+              </summary>
+              <div className="mt-3 grid gap-3">
+                <div className="grid grid-cols-2 gap-2">
+                  {CORNERS.map((corner) => (
+                    <NumberField
+                      key={corner}
+                      label={`${CORNER_LABELS[corner]} угол, радиус мм`}
+                      value={milling?.corners[corner] ?? 0}
+                      onChange={(next) => {
+                        const base = milling ?? emptyMilling();
+                        const updated = {
+                          ...base,
+                          corners: { ...base.corners, [corner]: next },
+                        };
+                        onMillingChange(
+                          hasMilling(updated) ? updated : undefined,
+                        );
+                      }}
+                    />
+                  ))}
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {SIDES.map((item) => (
+                    <label
+                      key={item}
+                      className="grid gap-1 text-[11px] text-[var(--muted)]"
+                    >
+                      Скос: {SIDE_LABELS[item]}
+                      <select
+                        className={inputClass}
+                        value={milling?.bevels[item] ?? 0}
+                        onChange={(event) => {
+                          const base = milling ?? emptyMilling();
+                          const updated = {
+                            ...base,
+                            bevels: {
+                              ...base.bevels,
+                              [item]: Number(event.target.value),
+                            },
+                          };
+                          onMillingChange(
+                            hasMilling(updated) ? updated : undefined,
+                          );
+                        }}
+                      >
+                        {BEVEL_ANGLES.map((angle) => (
+                          <option key={angle} value={angle}>
+                            {angle === 0
+                              ? "без скоса"
+                              : `${String(angle).replace(".", ",")}°`}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ))}
+                </div>
+                <p className="text-[12px] leading-5 text-[var(--muted)]">
+                  Скругление уходит в файл GibLab фрезеровкой контура, скос — в
+                  заявку и в название детали. Стоимость фрезеровки назовёт
+                  менеджер.
+                </p>
+              </div>
+            </details>
             {value.length === 0 ? (
               <p className="rounded-xl bg-[#faf7f2] p-4 text-sm leading-6 text-[var(--muted)]">
                 Выберите сторону детали и добавьте фурнитуру кнопками слева.
