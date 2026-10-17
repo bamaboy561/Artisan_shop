@@ -39,6 +39,7 @@ import type { ImportedDetail } from "@/features/services/cut-list-import";
 import { CutDetailTable } from "@/features/services/cut-detail-table";
 import { CutListImportPanel } from "@/features/services/cut-list-import-panel";
 import { optimizeCutting } from "@/features/services/cut-optimizer";
+import type { DetailGroup } from "@/features/services/cut-list-import";
 import { CabinetBuilderDialog } from "@/features/services/cabinet-builder-dialog";
 import { DrillingEditor } from "@/features/services/drilling-editor";
 import {
@@ -96,6 +97,8 @@ type DetailRow = {
   hardware?: HardwareItem[];
   // Скругления углов и скосы торцов.
   milling?: PartMilling;
+  // Мебель из конструктора: деталировку видит только менеджер.
+  group?: DetailGroup;
 };
 
 type CalculatedDetailRow = Omit<DetailRow, "width" | "height" | "quantity"> & {
@@ -615,6 +618,7 @@ function importedDetailToRow(detail: ImportedDetail, index: number): DetailRow {
     orientationMode: detail.fixedGrain ? "fixed" : "free",
     ...(detail.drill ? { drill: detail.drill } : {}),
     ...(detail.hardware?.length ? { hardware: detail.hardware } : {}),
+    ...(detail.group ? { group: detail.group } : {}),
   };
 }
 
@@ -2152,18 +2156,30 @@ export function CutCalculator({
         edgeThicknessLabel: edgeSizeLabel,
         workshopRows,
         comment: requestDraft.comment,
-        drillingNotes: calculation.rows
-          .filter((row) => row.hardware?.length || hasMilling(row.milling))
-          .map(
-            (row) =>
-              `${row.title}: ${[...(row.hardware ?? [])]
-                .map(
-                  (item) =>
-                    `${HARDWARE[item.kind].label} ×${item.kind === "handle" ? 1 : item.count} (${SIDE_LABELS[item.side]}${item.mirror ? " и напротив" : ""})`,
-                )
-                .concat(describeMilling(row.milling) || [])
-                .join("; ")}`,
-          ),
+        drillingNotes: [
+          // Мебель из конструктора: клиент видел только габариты.
+          ...new Map(
+            calculation.rows
+              .filter((row) => row.group)
+              .map((row) => [
+                row.group!.id,
+                `Из конструктора: ${row.group!.label}${row.group!.note ? `. ${row.group!.note}` : ""}`,
+              ]),
+          ).values(),
+        ].concat(
+          calculation.rows
+            .filter((row) => row.hardware?.length || hasMilling(row.milling))
+            .map(
+              (row) =>
+                `${row.title}: ${[...(row.hardware ?? [])]
+                  .map(
+                    (item) =>
+                      `${HARDWARE[item.kind].label} ×${item.kind === "handle" ? 1 : item.count} (${SIDE_LABELS[item.side]}${item.mirror ? " и напротив" : ""})`,
+                  )
+                  .concat(describeMilling(row.milling) || [])
+                  .join("; ")}`,
+            ),
+        ),
       }),
       contactName: requestDraft.contactName,
       contactPhone: requestDraft.contactPhone,
@@ -2305,6 +2321,36 @@ export function CutCalculator({
 
   const [drillingRowId, setDrillingRowId] = useState<string | null>(null);
   const [cabinetOpen, setCabinetOpen] = useState(false);
+  // Мебель из конструктора: строки скрыты, в карте — без размеров.
+  const lockedRowIds = new Set(
+    details.filter((row) => row.group).map((row) => row.id),
+  );
+  const ownDetails = details.filter((row) => !row.group);
+  const detailGroups = [
+    ...new Map(
+      details
+        .filter((row) => row.group)
+        .map((row) => [row.group!.id, row.group!]),
+    ).values(),
+  ].map((group) => {
+    const rows = calculation.rows.filter((row) => row.group?.id === group.id);
+    return {
+      ...group,
+      pieces: rows.reduce((sum, row) => sum + row.quantity, 0),
+      holes: Math.round(
+        rows.reduce(
+          (sum, row) =>
+            sum +
+            Object.values(row.drill ?? {}).reduce((a, b) => a + b, 0) *
+              row.quantity,
+          0,
+        ),
+      ),
+    };
+  });
+  const visibleWorkshopRows = workshopRows.filter(
+    (row) => !lockedRowIds.has(row.id),
+  );
 
   // Кнопка «Собрать шкаф по размерам» вверху страницы ведёт на #cabinet.
   useEffect(() => {
@@ -2946,8 +2992,40 @@ export function CutCalculator({
             </div>
           ) : null}
 
+          {detailGroups.map((group) => (
+            <div
+              key={group.id}
+              className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[color:var(--line)] bg-[#faf7f2] px-4 py-3"
+            >
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-[var(--foreground)]">
+                  {group.label}
+                </p>
+                <p className="text-xs text-[var(--muted)]">
+                  Из конструктора: {group.pieces} дет.
+                  {group.holes > 0 ? `, ${group.holes} отв.` : ""}. Деталировку
+                  получит менеджер вместе с заявкой.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() =>
+                  setDetails((current) => {
+                    const rest = current.filter(
+                      (row) => row.group?.id !== group.id,
+                    );
+                    return rest.length > 0 ? rest : createInitialRows();
+                  })
+                }
+                className="text-sm text-[var(--muted)] underline underline-offset-2 hover:text-[#b4492a]"
+              >
+                Удалить
+              </button>
+            </div>
+          ))}
+
           <CutDetailTable
-            rows={details}
+            rows={ownDetails}
             colors={detailColors}
             lineTotals={detailLineTotals}
             edgeLabels={detailEdgeLabels}
@@ -3007,9 +3085,10 @@ export function CutCalculator({
                 thickness={material.thicknessMm ?? 16}
                 materialLabel={material.label}
                 onClose={() => setCabinetOpen(false)}
-                onAdd={(parts, note) => {
+                onAdd={(parts, label) => {
                   importDetails(parts, "append");
-                  if (note) {
+                  const note = `${label}: задняя стенка ХДФ — посчитать менеджеру.`;
+                  if (label) {
                     setRequestDraft((current) => ({
                       ...current,
                       comment: current.comment.includes(note)
@@ -3026,7 +3105,12 @@ export function CutCalculator({
             <Button
               variant="secondary"
               onClick={exportToGibLab}
-              disabled={exportableRows.length === 0}
+              disabled={exportableRows.length === 0 || lockedRowIds.size > 0}
+              title={
+                lockedRowIds.size > 0
+                  ? "Файл с мебелью из конструктора получит менеджер вместе с заявкой"
+                  : undefined
+              }
               className="w-full sm:w-auto"
             >
               <FileDown className="size-4" />
@@ -3385,10 +3469,14 @@ export function CutCalculator({
                                 (piece.height / sheet.height) * 100;
                               const showMeta =
                                 widthPercent > 16 && heightPercent > 12;
-                              const color =
-                                detailColors[
-                                  piece.id.slice(0, piece.id.lastIndexOf("-"))
-                                ] ?? getCutMapColor(pieceIndex);
+                              const locked = lockedRowIds.has(
+                                piece.id.slice(0, piece.id.lastIndexOf("-")),
+                              );
+                              const color = locked
+                                ? "#9a8f80"
+                                : (detailColors[
+                                    piece.id.slice(0, piece.id.lastIndexOf("-"))
+                                  ] ?? getCutMapColor(pieceIndex));
 
                               return (
                                 <div
@@ -3404,9 +3492,9 @@ export function CutCalculator({
                                 >
                                   <div className="flex h-full flex-col justify-between p-1.5 text-white">
                                     <p className="text-[9px] leading-3 font-semibold sm:text-[10px]">
-                                      {piece.title}
+                                      {locked ? "" : piece.title}
                                     </p>
-                                    {showMeta ? (
+                                    {showMeta && !locked ? (
                                       <div className="space-y-0.5">
                                         <p className="font-mono text-[8px] tracking-[0.1em] uppercase opacity-85 sm:text-[9px]">
                                           {piece.width} × {piece.height} мм
@@ -3502,7 +3590,9 @@ export function CutCalculator({
                           key={piece.id}
                           className="inline-flex items-center border border-[color:var(--line)] bg-[var(--surface-strong)] px-3 py-2 text-xs text-[var(--foreground)]"
                         >
-                          {piece.title} · {piece.width}×{piece.height} мм
+                          {lockedRowIds.has(getSourceRowId(piece.id))
+                            ? "Деталь из конструктора"
+                            : `${piece.title} · ${piece.width}×${piece.height} мм`}
                         </span>
                       ))}
                     </div>
@@ -3531,7 +3621,7 @@ export function CutCalculator({
               <div className="grid w-full min-w-0 grid-cols-1 gap-2 min-[380px]:grid-cols-2 sm:w-auto sm:min-w-[220px] sm:grid-cols-2">
                 <MetricTile
                   label="Позиций"
-                  value={`${workshopRows.length} шт.`}
+                  value={`${visibleWorkshopRows.length} шт.`}
                   muted
                 />
                 <MetricTile
@@ -3543,7 +3633,7 @@ export function CutCalculator({
             </div>
 
             <div className="mt-4 grid gap-2.5 md:hidden">
-              {workshopRows.map((row) => (
+              {visibleWorkshopRows.map((row) => (
                 <article
                   key={row.id}
                   className="border border-[color:var(--line)] bg-white p-3"
@@ -3616,7 +3706,7 @@ export function CutCalculator({
                   </tr>
                 </thead>
                 <tbody>
-                  {workshopRows.map((row) => (
+                  {visibleWorkshopRows.map((row) => (
                     <tr
                       key={row.id}
                       className="border-b border-[color:var(--line)] align-top last:border-b-0"

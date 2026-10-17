@@ -80,6 +80,13 @@ const BACK_OVERLAP_GAP = 2; // ХДФ меньше корпуса с каждо�
 
 export type CabinetPart = ImportedDetail & { hardware?: HardwareItem[] };
 
+// Один шкаф — одна группа: в калькуляторе клиент видит его габариты,
+// а детали — только менеджер.
+export function cabinetGroupLabel(spec: CabinetSpec) {
+  const name = spec.name.trim() || CABINET_KINDS[spec.kind].label;
+  return `${name} ${spec.width}×${spec.height}×${spec.depth} мм`;
+}
+
 export type CabinetResult = {
   parts: CabinetPart[];
   back: { length: number; width: number } | null;

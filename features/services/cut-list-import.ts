@@ -1,5 +1,12 @@
 import type { HardwareItem } from "./drilling-hardware";
 
+export type DetailGroup = {
+  id: string;
+  label: string;
+  // Для менеджера: задняя стенка и прочее, что не входит в раскрой.
+  note?: string;
+};
+
 export type ImportedEdgeSide = "top" | "right" | "bottom" | "left";
 
 export type ImportedDetail = {
@@ -18,6 +25,8 @@ export type ImportedDetail = {
   drill?: Record<string, number>;
   /** Фурнитура с чертежа (конструктор шкафа). */
   hardware?: HardwareItem[];
+  /** Мебель из конструктора: клиент видит только габариты, не детали. */
+  group?: DetailGroup;
 };
 
 export type CutListImportResult = {

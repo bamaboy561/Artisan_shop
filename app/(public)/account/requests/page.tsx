@@ -73,8 +73,12 @@ export default async function AccountRequestsPage() {
   const requests = await getAccountRequests(user.id);
 
   const rows = requests.map((request) => {
+    // Файл GibLab, который калькулятор сам прикладывает к заявке, — для
+    // цеха: в нём деталировка и присадка, клиенту его не показываем.
     const clientFiles = request.files.filter(
-      (file) => file.kind === RequestFileKind.CLIENT_UPLOAD,
+      (file) =>
+        file.kind === RequestFileKind.CLIENT_UPLOAD &&
+        !/(^artisan-giblab-.*|-giblab)\.project$/i.test(file.fileName),
     );
     const resultFiles = request.files.filter(
       (file) => file.kind === RequestFileKind.MANAGER_RESULT,

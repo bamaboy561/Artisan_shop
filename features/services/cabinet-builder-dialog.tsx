@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import {
   CABINET_KINDS,
   buildCabinet,
+  cabinetGroupLabel,
   type CabinetKind,
   type CabinetPart,
   type CabinetSpec,
@@ -335,47 +336,44 @@ export function CabinetBuilderDialog({
                 {result.problems.join(" ")}
               </p>
             ) : null}
-            <div className="overflow-hidden rounded-xl border border-[color:var(--line)]">
-              <table className="w-full text-left text-[13px]">
-                <thead className="bg-[#faf7f2] text-[11px] text-[var(--muted)]">
-                  <tr>
-                    <th className="px-3 py-2 font-medium">Деталь</th>
-                    <th className="px-2 py-2 font-medium">Размер, мм</th>
-                    <th className="px-2 py-2 text-right font-medium">Шт.</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {result.parts.map((part) => (
-                    <tr
-                      key={part.title}
-                      className="border-t border-[color:var(--line)]"
-                    >
-                      <td className="px-3 py-1.5">
-                        {part.title.replace(`${spec.name}: `, "")}
-                      </td>
-                      <td className="px-2 py-1.5 whitespace-nowrap">
-                        {sizeFormatter.format(part.length)} ×{" "}
-                        {sizeFormatter.format(part.width)}
-                      </td>
-                      <td className="px-2 py-1.5 text-right">
-                        {part.quantity}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="grid grid-cols-3 gap-2 text-center">
+              {[
+                {
+                  label: "Габариты",
+                  value: `${spec.width}×${spec.height}×${spec.depth}`,
+                },
+                {
+                  label: "Деталей",
+                  value: String(
+                    result.parts.reduce((sum, part) => sum + part.quantity, 0),
+                  ),
+                },
+                { label: "Отверстий", value: String(holes) },
+              ].map((item) => (
+                <div
+                  key={item.label}
+                  className="rounded-xl border border-[color:var(--line)] p-3"
+                >
+                  <p className="text-[11px] text-[var(--muted)]">
+                    {item.label}
+                  </p>
+                  <p className="mt-1 text-sm font-semibold">{item.value}</p>
+                </div>
+              ))}
             </div>
+            <p className="text-[13px] leading-5 text-[var(--muted)]">
+              Деталировку с размерами деталей, кромкой и присадкой получит
+              менеджер вместе с заявкой. В раскрое шкаф будет одной строкой,
+              карта и цена посчитаются сразу.
+            </p>
             <p className="text-[13px] leading-5 text-[var(--muted)]">
               Присадка: {holes} отв. — минификсы крыша и дно к боковинам,
               полкодержатели под каждую полку, петли на дверях. Кромка по
               переднему торцу корпуса и полок, двери по кругу.
             </p>
-            {backNote ? (
-              <p className="rounded-xl bg-[#faf7f2] p-3 text-[13px] leading-5">
-                {backNote} Она не входит в этот раскрой — добавьте в комментарий
-                к заявке или посчитайте отдельно.
-              </p>
-            ) : null}
+            <p className="rounded-xl bg-[#faf7f2] p-3 text-[13px] leading-5">
+              Задняя стенка из ХДФ — другой материал, её посчитает менеджер.
+            </p>
           </div>
         </div>
 
@@ -390,7 +388,17 @@ export function CabinetBuilderDialog({
           <button
             type="button"
             disabled={result.problems.length > 0}
-            onClick={() => onAdd(result.parts, backNote)}
+            onClick={() => {
+              const group = {
+                id: `cabinet-${Math.random().toString(36).slice(2, 9)}`,
+                label: cabinetGroupLabel(spec),
+                note: backNote,
+              };
+              onAdd(
+                result.parts.map((part) => ({ ...part, group })),
+                group.label,
+              );
+            }}
             className="inline-flex h-10 items-center rounded-full bg-[var(--accent)] px-5 text-sm font-semibold text-white disabled:opacity-40"
           >
             Добавить в раскрой
