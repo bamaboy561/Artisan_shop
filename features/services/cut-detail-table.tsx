@@ -132,7 +132,7 @@ export function CutDetailTable({
 }: CutDetailTableProps) {
   return (
     <div className="mt-4 overflow-hidden rounded-2xl border border-[color:var(--line)] bg-[var(--surface-strong)] shadow-[0_1px_0_rgba(21,20,17,0.04)] sm:mt-5">
-      <div className="hidden grid-cols-[28px_minmax(0,1.4fr)_92px_92px_64px_128px_minmax(0,1fr)_96px_auto] gap-2 border-b border-[color:var(--line)] bg-[var(--surface)] px-3 py-2.5 text-xs font-semibold text-[var(--muted)] lg:grid">
+      <div className="hidden grid-cols-[28px_minmax(0,1.4fr)_92px_92px_64px_128px_minmax(0,1fr)_96px_112px] gap-2 border-b border-[color:var(--line)] bg-[var(--surface)] px-3 py-2.5 text-xs font-semibold text-[var(--muted)] 2xl:grid">
         <span>№</span>
         <span>Название</span>
         <span>Длина, мм</span>
@@ -148,7 +148,7 @@ export function CutDetailTable({
         {rows.map((row, index) => (
           <li
             key={row.id}
-            className="grid grid-cols-[28px_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-2.5 border-b border-[color:var(--line)] px-3 py-3 last:border-b-0 lg:grid-cols-[28px_minmax(0,1.4fr)_92px_92px_64px_128px_minmax(0,1fr)_96px_auto] lg:gap-y-0 lg:py-2"
+            className="grid grid-cols-[28px_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-2.5 border-b border-[color:var(--line)] px-3 py-3 last:border-b-0 2xl:grid-cols-[28px_minmax(0,1.4fr)_92px_92px_64px_128px_minmax(0,1fr)_96px_112px] 2xl:gap-y-0 2xl:py-2"
           >
             <span
               className="flex size-6 items-center justify-center rounded-full text-[11px] font-semibold text-white"
@@ -167,14 +167,18 @@ export function CutDetailTable({
               placeholder="Деталь"
             />
 
-            <div className="flex items-center justify-end gap-1 lg:order-last">
+            <div className="flex items-center justify-end gap-1 2xl:order-last">
               {onDrilling ? (
                 <button
                   type="button"
                   onClick={() => onDrilling(row.id)}
                   disabled={!(Number(row.width) > 0 && Number(row.height) > 0)}
                   aria-label={`Присадка детали ${index + 1}`}
-                  title="Присадка: фурнитура на чертеже детали"
+                  title={
+                    drillingLabels[row.id]
+                      ? `Присадка: ${drillingLabels[row.id]}`
+                      : "Присадка: фурнитура на чертеже детали"
+                  }
                   className={cn(
                     "flex h-9 items-center justify-center gap-1 rounded-lg px-2 text-[12px] transition hover:bg-[var(--surface)] hover:text-[var(--foreground)] disabled:opacity-30",
                     drillingLabels[row.id]
@@ -183,9 +187,10 @@ export function CutDetailTable({
                   )}
                 >
                   <Drill className="size-4" />
-                  {drillingLabels[row.id] || (
-                    <span className="hidden sm:inline">Присадка</span>
-                  )}
+                  {/* В широкой таблице подпись не помещается: только значок. */}
+                  <span className="2xl:sr-only">
+                    {drillingLabels[row.id] || "Присадка"}
+                  </span>
                 </button>
               ) : null}
               <button
@@ -209,9 +214,9 @@ export function CutDetailTable({
               </button>
             </div>
 
-            <div className="col-span-3 grid grid-cols-3 gap-2 lg:contents">
-              <label className="grid gap-1 text-[10px] tracking-[0.08em] text-[var(--muted)] uppercase lg:block">
-                <span className="lg:hidden">Длина</span>
+            <div className="col-span-3 grid grid-cols-3 gap-2 2xl:contents">
+              <label className="grid gap-1 text-[10px] tracking-[0.08em] text-[var(--muted)] uppercase 2xl:block">
+                <span className="2xl:hidden">Длина</span>
                 <input
                   aria-label={`Длина детали ${index + 1}, мм`}
                   className={fieldClass}
@@ -225,8 +230,8 @@ export function CutDetailTable({
                   placeholder="720"
                 />
               </label>
-              <label className="grid gap-1 text-[10px] tracking-[0.08em] text-[var(--muted)] uppercase lg:block">
-                <span className="lg:hidden">Ширина</span>
+              <label className="grid gap-1 text-[10px] tracking-[0.08em] text-[var(--muted)] uppercase 2xl:block">
+                <span className="2xl:hidden">Ширина</span>
                 <input
                   aria-label={`Ширина детали ${index + 1}, мм`}
                   className={fieldClass}
@@ -240,8 +245,8 @@ export function CutDetailTable({
                   placeholder="560"
                 />
               </label>
-              <label className="grid gap-1 text-[10px] tracking-[0.08em] text-[var(--muted)] uppercase lg:block">
-                <span className="lg:hidden">Шт.</span>
+              <label className="grid gap-1 text-[10px] tracking-[0.08em] text-[var(--muted)] uppercase 2xl:block">
+                <span className="2xl:hidden">Шт.</span>
                 <input
                   aria-label={`Количество деталей ${index + 1}`}
                   className={fieldClass}
@@ -257,7 +262,7 @@ export function CutDetailTable({
               </label>
             </div>
 
-            <div className="col-span-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 lg:contents">
+            <div className="col-span-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 2xl:contents">
               <div title={edgeLabels[row.id]}>
                 <EdgePicker
                   row={row}
@@ -268,7 +273,7 @@ export function CutDetailTable({
               </div>
               <select
                 aria-label={`Текстура детали ${index + 1}`}
-                className={cn(fieldClass, "w-auto min-w-[9rem] lg:w-full")}
+                className={cn(fieldClass, "w-auto min-w-[9rem] 2xl:w-full")}
                 value={row.orientationMode}
                 onChange={(event) =>
                   onChange(row.id, {
@@ -282,7 +287,7 @@ export function CutDetailTable({
                   </option>
                 ))}
               </select>
-              <span className="ml-auto text-right text-[14px] font-semibold whitespace-nowrap text-[var(--foreground)] lg:ml-0">
+              <span className="ml-auto text-right text-[14px] font-semibold whitespace-nowrap text-[var(--foreground)] 2xl:ml-0">
                 {lineTotals[row.id]}
               </span>
             </div>

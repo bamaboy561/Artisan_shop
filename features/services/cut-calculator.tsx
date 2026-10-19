@@ -507,6 +507,13 @@ function createInitialRows(): DetailRow[] {
   return [createRow(1)];
 }
 
+const calculatorSteps: Array<{ step: 1 | 2 | 3 | 4; label: string }> = [
+  { step: 1, label: "Материал" },
+  { step: 2, label: "Детали" },
+  { step: 3, label: "Раскрой" },
+  { step: 4, label: "Заявка" },
+];
+
 const DRAFT_STORAGE_KEY = "artisan:cut-calculator:draft:v1";
 const MAX_REQUEST_ATTACHMENTS = 5;
 // Vercel принимает запрос до 4,5 МБ, оставляем запас на данные заявки.
@@ -2321,6 +2328,37 @@ export function CutCalculator({
 
   const [drillingRowId, setDrillingRowId] = useState<string | null>(null);
   const [cabinetOpen, setCabinetOpen] = useState(false);
+  // Калькулятор по шагам: на экране один шаг, а не всё сразу.
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(2);
+  const goToStep = (next: 1 | 2 | 3 | 4) => {
+    setStep(next);
+    window.requestAnimationFrame(() =>
+      calculatorSectionRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      }),
+    );
+  };
+  useEffect(() => {
+    const stepByHash: Record<string, 1 | 2 | 3 | 4> = {
+      "#cut-request-form": 4,
+      "#cut-import": 2,
+      "#cut-calculator": 2,
+    };
+    const fromHash = () => {
+      const target = stepByHash[window.location.hash];
+      if (!target) return;
+      setStep(target);
+      window.requestAnimationFrame(() =>
+        document
+          .getElementById(window.location.hash.slice(1))
+          ?.scrollIntoView({ behavior: "smooth", block: "start" }),
+      );
+    };
+    fromHash();
+    window.addEventListener("hashchange", fromHash);
+    return () => window.removeEventListener("hashchange", fromHash);
+  }, []);
   // Мебель из конструктора: строки скрыты, в карте — без размеров.
   const lockedRowIds = new Set(
     details.filter((row) => row.group).map((row) => row.id),
@@ -2696,228 +2734,267 @@ export function CutCalculator({
     >
       <div className="grid gap-0 xl:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="p-3 sm:p-6 lg:p-7 xl:p-8">
-          <div className="grid gap-1.5 sm:gap-3">
-            <div className="max-w-3xl">
-              <p className="text-[13px] font-semibold text-[var(--accent)]">
-                Параметры расчета
-              </p>
-            </div>
-          </div>
+          <nav
+            aria-label="Шаги расчёта"
+            className="sticky top-0 z-20 -mx-3 bg-[var(--surface-strong)]/95 px-3 py-2 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-7 lg:px-7 xl:-mx-8 xl:px-8"
+          >
+            <ol className="grid grid-cols-4 gap-1.5 rounded-2xl bg-[var(--surface)] p-1.5">
+              {calculatorSteps.map((item) => (
+                <li key={item.step}>
+                  <button
+                    type="button"
+                    onClick={() => goToStep(item.step)}
+                    aria-current={step === item.step ? "step" : undefined}
+                    className={cn(
+                      "flex min-h-11 w-full items-center justify-center gap-1.5 rounded-xl px-2 text-[13px] transition sm:justify-start sm:px-3.5 sm:text-sm",
+                      step === item.step
+                        ? "bg-[var(--line)] font-semibold text-[var(--foreground)]"
+                        : "text-[var(--muted)] hover:text-[var(--foreground)]",
+                    )}
+                  >
+                    <span className="font-[family-name:var(--font-ibm-plex-mono)] text-[12px]">
+                      {item.step}
+                    </span>
+                    <span className="hidden min-[420px]:inline">
+                      {item.label}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ol>
+          </nav>
 
-          <div className="mt-3 border-y border-[color:var(--line-strong)]/10 py-2.5 sm:mt-5 sm:py-4">
-            {isProductMode && productContext ? (
-              <div className="grid grid-cols-1 gap-2 sm:gap-3 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,0.9fr)_minmax(0,0.8fr)]">
-                <ContextField
-                  label="Товар"
-                  value={productContext.name}
-                  detail={productContext.brand}
-                />
-                <ContextField label="Материал" value={material.label} />
-                <ContextField label="Формат листа" value={sheet.label} />
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 gap-2 sm:gap-3 lg:grid-cols-[minmax(0,1.15fr)_minmax(220px,0.85fr)]">
-                <div className="min-w-0 space-y-2.5">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <label
-                      htmlFor="calculator-material-search"
-                      className="min-w-0 text-[12px] font-medium text-[var(--foreground)] sm:text-sm"
-                    >
-                      Материал из каталога
-                    </label>
+          <div className={step === 1 ? "mt-4" : "hidden"}>
+            <div className="mt-3 border-y border-[color:var(--line-strong)]/10 py-2.5 sm:mt-5 sm:py-4">
+              {isProductMode && productContext ? (
+                <div className="grid grid-cols-1 gap-2 sm:gap-3 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,0.9fr)_minmax(0,0.8fr)]">
+                  <ContextField
+                    label="Товар"
+                    value={productContext.name}
+                    detail={productContext.brand}
+                  />
+                  <ContextField label="Материал" value={material.label} />
+                  <ContextField label="Формат листа" value={sheet.label} />
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-2 sm:gap-3 lg:grid-cols-[minmax(0,1.15fr)_minmax(220px,0.85fr)]">
+                  <div className="min-w-0 space-y-2.5">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <label
+                        htmlFor="calculator-material-search"
+                        className="min-w-0 text-[12px] font-medium text-[var(--foreground)] sm:text-sm"
+                      >
+                        Материал из каталога
+                      </label>
 
-                    <div
-                      className="grid h-8 grid-cols-2 border border-[color:var(--line)] bg-[var(--surface-strong)]"
-                      role="group"
-                      aria-label="Источник материалов"
-                    >
-                      <button
-                        type="button"
-                        className={cn(
-                          "inline-flex min-w-0 items-center justify-center gap-1.5 px-2.5 text-[10px] font-semibold text-[var(--muted)] transition sm:px-3 sm:text-xs",
-                          materialPresetScope === "all" &&
-                            "bg-[var(--foreground)] text-[var(--background)]",
-                        )}
-                        aria-pressed={materialPresetScope === "all"}
-                        onClick={() => handleMaterialScopeChange("all")}
+                      <div
+                        className="grid h-8 grid-cols-2 border border-[color:var(--line)] bg-[var(--surface-strong)]"
+                        role="group"
+                        aria-label="Источник материалов"
                       >
-                        <Layers3 aria-hidden="true" className="size-3.5" />
-                        Все плиты
-                      </button>
-                      <button
-                        type="button"
-                        className={cn(
-                          "inline-flex min-w-0 items-center justify-center gap-1.5 border-l border-[color:var(--line)] px-2.5 text-[10px] font-semibold text-[var(--muted)] transition sm:px-3 sm:text-xs",
-                          materialPresetScope === "cart" &&
-                            "border-l-transparent bg-[var(--foreground)] text-[var(--background)]",
-                        )}
-                        aria-pressed={materialPresetScope === "cart"}
-                        onClick={() => handleMaterialScopeChange("cart")}
-                      >
-                        <ShoppingCart aria-hidden="true" className="size-3.5" />
-                        В корзине {cartPresets.length}
-                      </button>
+                        <button
+                          type="button"
+                          className={cn(
+                            "inline-flex min-w-0 items-center justify-center gap-1.5 px-2.5 text-[10px] font-semibold text-[var(--muted)] transition sm:px-3 sm:text-xs",
+                            materialPresetScope === "all" &&
+                              "bg-[var(--foreground)] text-[var(--background)]",
+                          )}
+                          aria-pressed={materialPresetScope === "all"}
+                          onClick={() => handleMaterialScopeChange("all")}
+                        >
+                          <Layers3 aria-hidden="true" className="size-3.5" />
+                          Все плиты
+                        </button>
+                        <button
+                          type="button"
+                          className={cn(
+                            "inline-flex min-w-0 items-center justify-center gap-1.5 border-l border-[color:var(--line)] px-2.5 text-[10px] font-semibold text-[var(--muted)] transition sm:px-3 sm:text-xs",
+                            materialPresetScope === "cart" &&
+                              "border-l-transparent bg-[var(--foreground)] text-[var(--background)]",
+                          )}
+                          aria-pressed={materialPresetScope === "cart"}
+                          onClick={() => handleMaterialScopeChange("cart")}
+                        >
+                          <ShoppingCart
+                            aria-hidden="true"
+                            className="size-3.5"
+                          />
+                          В корзине {cartPresets.length}
+                        </button>
+                      </div>
                     </div>
+
+                    <div className="relative">
+                      <Search
+                        aria-hidden="true"
+                        className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-[var(--muted)]"
+                      />
+                      <Input
+                        id="calculator-material-search"
+                        type="search"
+                        className="h-9 min-w-0 pl-10 text-[13px] sm:h-10 sm:text-sm"
+                        placeholder="Название, артикул, бренд, толщина или формат"
+                        value={materialSearch}
+                        onChange={(event) =>
+                          handleMaterialSearchChange(event.target.value)
+                        }
+                      />
+                    </div>
+
+                    <Select
+                      className="h-9 min-w-0 text-[13px] sm:h-11 sm:text-sm"
+                      value={
+                        visiblePresets.some(
+                          (preset) => preset.id === manualPresetId,
+                        )
+                          ? (manualPresetId ?? "")
+                          : ""
+                      }
+                      disabled={visiblePresets.length === 0}
+                      onChange={(event) =>
+                        handlePresetChange(event.target.value)
+                      }
+                    >
+                      {visiblePresets.length === 0 ? (
+                        <option value="">
+                          {materialPresetScope === "cart"
+                            ? cartPresets.length === 0
+                              ? "В корзине нет плитных материалов"
+                              : "По запросу ничего не найдено"
+                            : presets.length === 0
+                              ? "Подбор появится после публикации товаров"
+                              : "По запросу ничего не найдено"}
+                        </option>
+                      ) : (
+                        <>
+                          {!visiblePresets.some(
+                            (preset) => preset.id === manualPresetId,
+                          ) ? (
+                            <option value="" disabled>
+                              Выберите найденный материал
+                            </option>
+                          ) : null}
+                          {visiblePresets.map((preset) => (
+                            <option key={preset.id} value={preset.id}>
+                              {preset.sku
+                                ? `${preset.label} · арт. ${preset.sku}`
+                                : preset.label}
+                            </option>
+                          ))}
+                        </>
+                      )}
+                    </Select>
+
+                    <p className="text-[10px] leading-4 text-[var(--muted)] sm:text-xs">
+                      {materialPresetScope === "cart"
+                        ? cartPresets.length > 0
+                          ? `Доступно плит из корзины: ${cartPresets.length}.`
+                          : "Добавьте плитный материал в корзину, и он появится здесь."
+                        : materialSearch
+                          ? `Найдено: ${visiblePresets.length}.`
+                          : `Доступно материалов: ${presets.length}.`}
+                    </p>
                   </div>
 
-                  <div className="relative">
-                    <Search
-                      aria-hidden="true"
-                      className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-[var(--muted)]"
-                    />
+                  <ContextField label="Формат листа" value={sheet.label} />
+                </div>
+              )}
+
+              {manualSizingAvailable ? (
+                <div className="mt-3 grid grid-cols-1 gap-2 border-t border-[color:var(--line-strong)]/10 pt-3 sm:grid-cols-3 sm:gap-3">
+                  <label className="grid min-w-0 gap-1.5 text-[12px] font-medium text-[var(--foreground)] sm:text-sm">
+                    Толщина материала, мм
                     <Input
-                      id="calculator-material-search"
-                      type="search"
-                      className="h-9 min-w-0 pl-10 text-[13px] sm:h-10 sm:text-sm"
-                      placeholder="Название, артикул, бренд, толщина или формат"
-                      value={materialSearch}
+                      className="h-9 text-[13px] sm:h-10 sm:text-sm"
+                      inputMode="decimal"
+                      placeholder={
+                        baseMaterial.thicknessMm
+                          ? formatManualSize(baseMaterial.thicknessMm)
+                          : "18"
+                      }
+                      value={manualThicknessMm}
                       onChange={(event) =>
-                        handleMaterialSearchChange(event.target.value)
+                        setManualThicknessMm(event.target.value)
                       }
                     />
-                  </div>
+                  </label>
 
-                  <Select
-                    className="h-9 min-w-0 text-[13px] sm:h-11 sm:text-sm"
-                    value={
-                      visiblePresets.some(
-                        (preset) => preset.id === manualPresetId,
-                      )
-                        ? (manualPresetId ?? "")
-                        : ""
-                    }
-                    disabled={visiblePresets.length === 0}
-                    onChange={(event) => handlePresetChange(event.target.value)}
-                  >
-                    {visiblePresets.length === 0 ? (
-                      <option value="">
-                        {materialPresetScope === "cart"
-                          ? cartPresets.length === 0
-                            ? "В корзине нет плитных материалов"
-                            : "По запросу ничего не найдено"
-                          : presets.length === 0
-                            ? "Подбор появится после публикации товаров"
-                            : "По запросу ничего не найдено"}
-                      </option>
-                    ) : (
-                      <>
-                        {!visiblePresets.some(
-                          (preset) => preset.id === manualPresetId,
-                        ) ? (
-                          <option value="" disabled>
-                            Выберите найденный материал
-                          </option>
-                        ) : null}
-                        {visiblePresets.map((preset) => (
-                          <option key={preset.id} value={preset.id}>
-                            {preset.sku
-                              ? `${preset.label} · арт. ${preset.sku}`
-                              : preset.label}
-                          </option>
-                        ))}
-                      </>
-                    )}
-                  </Select>
+                  <label className="grid min-w-0 gap-1.5 text-[12px] font-medium text-[var(--foreground)] sm:text-sm">
+                    Длина листа, мм
+                    <Input
+                      className="h-9 text-[13px] sm:h-10 sm:text-sm"
+                      inputMode="numeric"
+                      placeholder={formatManualSize(baseSheet.width)}
+                      value={manualSheetWidthMm}
+                      onChange={(event) =>
+                        setManualSheetWidthMm(event.target.value)
+                      }
+                    />
+                  </label>
 
-                  <p className="text-[10px] leading-4 text-[var(--muted)] sm:text-xs">
-                    {materialPresetScope === "cart"
-                      ? cartPresets.length > 0
-                        ? `Доступно плит из корзины: ${cartPresets.length}.`
-                        : "Добавьте плитный материал в корзину, и он появится здесь."
-                      : materialSearch
-                        ? `Найдено: ${visiblePresets.length}.`
-                        : `Доступно материалов: ${presets.length}.`}
-                  </p>
+                  <label className="grid min-w-0 gap-1.5 text-[12px] font-medium text-[var(--foreground)] sm:text-sm">
+                    Ширина листа, мм
+                    <Input
+                      className="h-9 text-[13px] sm:h-10 sm:text-sm"
+                      inputMode="numeric"
+                      placeholder={formatManualSize(baseSheet.height)}
+                      value={manualSheetHeightMm}
+                      onChange={(event) =>
+                        setManualSheetHeightMm(event.target.value)
+                      }
+                    />
+                  </label>
                 </div>
+              ) : null}
 
-                <ContextField label="Формат листа" value={sheet.label} />
-              </div>
-            )}
-
-            {manualSizingAvailable ? (
-              <div className="mt-3 grid grid-cols-1 gap-2 border-t border-[color:var(--line-strong)]/10 pt-3 sm:grid-cols-3 sm:gap-3">
+              <div className="mt-3 grid grid-cols-1 gap-2 border-t border-[color:var(--line-strong)]/10 pt-3 sm:grid-cols-[minmax(0,150px)_minmax(0,150px)_minmax(0,1fr)] sm:gap-3">
                 <label className="grid min-w-0 gap-1.5 text-[12px] font-medium text-[var(--foreground)] sm:text-sm">
-                  Толщина материала, мм
+                  Толщина кромки, мм
                   <Input
                     className="h-9 text-[13px] sm:h-10 sm:text-sm"
                     inputMode="decimal"
-                    placeholder={
-                      baseMaterial.thicknessMm
-                        ? formatManualSize(baseMaterial.thicknessMm)
-                        : "18"
-                    }
-                    value={manualThicknessMm}
-                    onChange={(event) =>
-                      setManualThicknessMm(event.target.value)
-                    }
+                    placeholder="0.8"
+                    value={edgeThicknessMm}
+                    disabled={!edgingAvailable}
+                    onChange={(event) => setEdgeThicknessMm(event.target.value)}
                   />
                 </label>
-
                 <label className="grid min-w-0 gap-1.5 text-[12px] font-medium text-[var(--foreground)] sm:text-sm">
-                  Длина листа, мм
+                  Ширина кромки, мм
                   <Input
                     className="h-9 text-[13px] sm:h-10 sm:text-sm"
-                    inputMode="numeric"
-                    placeholder={formatManualSize(baseSheet.width)}
-                    value={manualSheetWidthMm}
-                    onChange={(event) =>
-                      setManualSheetWidthMm(event.target.value)
-                    }
+                    inputMode="decimal"
+                    placeholder={formatManualSize(
+                      getBandWidthForGibLab(material),
+                    )}
+                    value={edgeWidthMm}
+                    disabled={!edgingAvailable}
+                    onChange={(event) => setEdgeWidthMm(event.target.value)}
                   />
                 </label>
-
-                <label className="grid min-w-0 gap-1.5 text-[12px] font-medium text-[var(--foreground)] sm:text-sm">
-                  Ширина листа, мм
-                  <Input
-                    className="h-9 text-[13px] sm:h-10 sm:text-sm"
-                    inputMode="numeric"
-                    placeholder={formatManualSize(baseSheet.height)}
-                    value={manualSheetHeightMm}
-                    onChange={(event) =>
-                      setManualSheetHeightMm(event.target.value)
-                    }
-                  />
-                </label>
+                <div className="min-w-0 border border-[color:var(--line)] bg-[var(--surface-strong)] px-3 py-2 text-[11px] leading-4 text-[var(--muted)]">
+                  {edgingAvailable
+                    ? `В заявке и расчете будет указана кромка ${edgeSizeLabel}.`
+                    : "Для выбранного материала кромка отмечается только как разметка."}
+                </div>
               </div>
-            ) : null}
-
-            <div className="mt-3 grid grid-cols-1 gap-2 border-t border-[color:var(--line-strong)]/10 pt-3 sm:grid-cols-[minmax(0,150px)_minmax(0,150px)_minmax(0,1fr)] sm:gap-3">
-              <label className="grid min-w-0 gap-1.5 text-[12px] font-medium text-[var(--foreground)] sm:text-sm">
-                Толщина кромки, мм
-                <Input
-                  className="h-9 text-[13px] sm:h-10 sm:text-sm"
-                  inputMode="decimal"
-                  placeholder="0.8"
-                  value={edgeThicknessMm}
-                  disabled={!edgingAvailable}
-                  onChange={(event) => setEdgeThicknessMm(event.target.value)}
-                />
-              </label>
-              <label className="grid min-w-0 gap-1.5 text-[12px] font-medium text-[var(--foreground)] sm:text-sm">
-                Ширина кромки, мм
-                <Input
-                  className="h-9 text-[13px] sm:h-10 sm:text-sm"
-                  inputMode="decimal"
-                  placeholder={formatManualSize(
-                    getBandWidthForGibLab(material),
-                  )}
-                  value={edgeWidthMm}
-                  disabled={!edgingAvailable}
-                  onChange={(event) => setEdgeWidthMm(event.target.value)}
-                />
-              </label>
-              <div className="min-w-0 border border-[color:var(--line)] bg-[var(--surface-strong)] px-3 py-2 text-[11px] leading-4 text-[var(--muted)]">
-                {edgingAvailable
-                  ? `В заявке и расчете будет указана кромка ${edgeSizeLabel}.`
-                  : "Для выбранного материала кромка отмечается только как разметка."}
-              </div>
+            </div>
+            <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-[color:var(--line)] pt-4">
+              <span />
+              <button
+                type="button"
+                onClick={() => goToStep(2)}
+                className="inline-flex min-h-11 items-center rounded-full bg-[var(--accent)] px-5 text-sm font-semibold text-[var(--accent-ink)] transition hover:bg-[var(--accent-strong)]"
+              >
+                Дальше: детали →
+              </button>
             </div>
           </div>
 
-          <div className="mt-4 rounded-2xl bg-[#1f2b25] p-4 text-white xl:hidden">
+          <div className="mt-4 rounded-2xl bg-[#f2ece4] p-4 text-[#15120f] xl:hidden">
             <div className="flex items-end justify-between gap-3">
               <div>
-                <p className="text-[13px] font-semibold text-white/60">
+                <p className="text-[13px] font-semibold text-[#15120f]/60">
                   Ориентир по раскрою
                 </p>
                 <p className="mt-1 font-[family-name:var(--font-onest)] text-[1.7rem] leading-none font-medium">
@@ -2925,27 +3002,27 @@ export function CutCalculator({
                 </p>
               </div>
               <div className="text-right">
-                <p className="font-[family-name:var(--font-onest)] text-[1.35rem] leading-none text-[var(--accent)]">
+                <p className="font-[family-name:var(--font-onest)] text-[1.35rem] leading-none text-[#8a5a0b]">
                   {estimate.sheetCount}
                 </p>
-                <p className="mt-1 text-[11px] text-white/55">
+                <p className="mt-1 text-[11px] text-[#15120f]/55">
                   {estimate.sheetCount === 1 ? "лист" : "листа"}
                 </p>
               </div>
             </div>
-            <div className="mt-3 grid grid-cols-3 gap-2 border-t border-white/10 pt-3 text-[12px]">
+            <div className="mt-3 grid grid-cols-3 gap-2 border-t border-[#15120f]/10 pt-3 text-[12px]">
               <div>
-                <p className="text-white/50">Деталей</p>
+                <p className="text-[#15120f]/55">Деталей</p>
                 <p className="mt-0.5 font-semibold">{cutMap.placedPieces}</p>
               </div>
               <div>
-                <p className="text-white/50">КИМ</p>
+                <p className="text-[#15120f]/55">КИМ</p>
                 <p className="mt-0.5 font-semibold">
                   {(cutMap.utilization * 100).toFixed(0)}%
                 </p>
               </div>
               <div>
-                <p className="text-white/50">Кромка</p>
+                <p className="text-[#15120f]/55">Кромка</p>
                 <p className="mt-0.5 font-semibold">
                   {calculation.totalEdgeMeters.toFixed(1)} м
                 </p>
@@ -2953,806 +3030,868 @@ export function CutCalculator({
             </div>
           </div>
 
-          {cuttingSiteIncentive ? (
-            <div className="mt-3.5 flex items-center gap-3 rounded-[20px] bg-[var(--accent)] px-4 py-3 text-[var(--accent-ink)] sm:mt-5 sm:px-4 sm:py-3">
-              <span className="shrink-0 font-[family-name:var(--font-onest)] text-lg font-medium sm:text-xl">
-                {cuttingSiteIncentive.badge}
-              </span>
-              <div className="min-w-0">
-                <p className="text-[13px] leading-5 font-semibold sm:text-sm">
-                  {cuttingSiteIncentive.title}
-                </p>
-                <p className="hidden text-[12px] leading-4.5 text-white/85 sm:block">
-                  {cuttingSiteIncentive.text}
-                </p>
-              </div>
-            </div>
-          ) : null}
-
-          <CutListImportPanel
-            onImport={importDetails}
-            onProjectFile={(file) => {
-              // Проект Базиса уходит менеджеру вместе с заявкой.
-              if (!attachments.some((item) => item.name === file.name)) {
-                void addAttachments([file]);
-              }
-            }}
-          />
-
-          {restoredDraftAt ? (
-            <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 border border-[color:var(--line)] bg-[var(--surface-strong)] px-3 py-2 text-[12px] leading-5 text-[var(--muted)]">
-              <span>Восстановили ваш прошлый раскрой на этом устройстве.</span>
-              <button
-                type="button"
-                onClick={resetCalculator}
-                className="text-[var(--foreground)] underline underline-offset-2"
-              >
-                Начать заново
-              </button>
-            </div>
-          ) : null}
-
-          {detailGroups.map((group) => (
-            <div
-              key={group.id}
-              className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] px-4 py-3"
-            >
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-[var(--foreground)]">
-                  {group.label}
-                </p>
-                <p className="text-xs text-[var(--muted)]">
-                  Из конструктора: {group.pieces} дет.
-                  {group.holes > 0 ? `, ${group.holes} отв.` : ""}. Деталировку
-                  получит менеджер вместе с заявкой.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() =>
-                  setDetails((current) => {
-                    const rest = current.filter(
-                      (row) => row.group?.id !== group.id,
-                    );
-                    return rest.length > 0 ? rest : createInitialRows();
-                  })
-                }
-                className="text-sm text-[var(--muted)] underline underline-offset-2 hover:text-[var(--accent)]"
-              >
-                Удалить
-              </button>
-            </div>
-          ))}
-
-          <CutDetailTable
-            rows={ownDetails}
-            colors={detailColors}
-            lineTotals={detailLineTotals}
-            edgeLabels={detailEdgeLabels}
-            orientationOptions={orientationOptions}
-            edgingAvailable={edgingAvailable}
-            onChange={updateRow}
-            onToggleEdge={toggleEdgeSide}
-            onSetEdges={(id, sides) =>
-              updateRow(id, { edgedSides: normalizeEdgeSides(sides) })
-            }
-            onDuplicate={duplicateRow}
-            onRemove={removeRow}
-            drillingLabels={drillingLabels}
-            onDrilling={setDrillingRowId}
-          />
-
-          {drillingRow ? (
-            <DrillingEditor
-              title={drillingRow.title}
-              length={parsePositive(drillingRow.width)}
-              width={parsePositive(drillingRow.height)}
-              thickness={material.thicknessMm ?? 16}
-              quantity={parsePositive(drillingRow.quantity) || 1}
-              value={drillingRow.hardware ?? []}
-              onChange={(hardware) =>
-                updateRow(drillingRow.id, {
-                  hardware: hardware.length ? hardware : undefined,
-                })
-              }
-              milling={drillingRow.milling}
-              onMillingChange={(milling) =>
-                updateRow(drillingRow.id, { milling })
-              }
-              onClose={() => setDrillingRowId(null)}
-            />
-          ) : null}
-
-          <div className="mt-4 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3">
-            <Button
-              variant="accent"
-              onClick={addRow}
-              className="col-span-2 w-full sm:w-auto"
-            >
-              <Plus className="size-4" />
-              Добавить деталь
-            </Button>
-            <Button
-              variant="secondary"
-              onClick={() => setCabinetOpen(true)}
-              className="col-span-2 w-full sm:w-auto"
-            >
-              <LayoutPanelTop className="size-4" />
-              Конструктор шкафа
-            </Button>
-            {cabinetOpen ? (
-              <CabinetBuilderDialog
-                thickness={material.thicknessMm ?? 16}
-                materialLabel={material.label}
-                onClose={() => setCabinetOpen(false)}
-                onAdd={(parts, label) => {
-                  importDetails(parts, "append");
-                  const note = `${label}: задняя стенка ХДФ — посчитать менеджеру.`;
-                  if (label) {
-                    setRequestDraft((current) => ({
-                      ...current,
-                      comment: current.comment.includes(note)
-                        ? current.comment
-                        : [current.comment.trim(), note]
-                            .filter(Boolean)
-                            .join("\n"),
-                    }));
-                  }
-                  setCabinetOpen(false);
-                }}
-              />
-            ) : null}
-            <Button
-              variant="secondary"
-              onClick={exportToGibLab}
-              disabled={exportableRows.length === 0 || lockedRowIds.size > 0}
-              title={
-                lockedRowIds.size > 0
-                  ? "Файл с мебелью из конструктора получит менеджер вместе с заявкой"
-                  : undefined
-              }
-              className="w-full sm:w-auto"
-            >
-              <FileDown className="size-4" />
-              Экспорт GibLab
-            </Button>
-            <Button
-              variant="secondary"
-              onClick={resetCalculator}
-              className="w-full sm:w-auto"
-            >
-              Сбросить расчет
-            </Button>
-          </div>
-
           <div
-            id="cut-request-form"
-            className="mt-4 rounded-[20px] border border-[color:var(--line)] bg-[var(--surface)] p-3 sm:p-4"
+            id="cut-import"
+            className={step === 2 ? "scroll-mt-24" : "hidden"}
           >
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <p className="text-[13px] font-semibold text-[var(--accent)]">
-                  Заявка на распил
-                </p>
-                <p className="mt-1 text-sm font-medium text-[var(--foreground)]">
-                  Отправьте текущий расчет менеджеру.
-                </p>
-              </div>
-              <div className="text-[11px] leading-4.5 text-[var(--muted)] sm:max-w-[14rem] sm:text-right">
-                <p>{requestPayload.material}</p>
-                <p className="mt-1">
-                  {exportableRows.length} поз. ·{" "}
-                  {formatPrice(Math.round(estimate.totalEstimate))}
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-3 grid gap-2.5 md:grid-cols-2 xl:grid-cols-4">
-              <label className="grid gap-1.5 text-[11px] text-[var(--foreground)] sm:text-sm">
-                Имя
-                <Input
-                  className="h-9 text-[13px] sm:h-11 sm:text-sm"
-                  value={requestDraft.contactName}
-                  onChange={(event) =>
-                    updateRequestDraft("contactName", event.target.value)
-                  }
-                  placeholder="Как к вам обращаться"
-                />
-              </label>
-              <label className="grid gap-1.5 text-[11px] text-[var(--foreground)] sm:text-sm">
-                Телефон
-                <Input
-                  className="h-9 text-[13px] sm:h-11 sm:text-sm"
-                  value={requestDraft.contactPhone}
-                  onChange={(event) =>
-                    updateRequestDraft("contactPhone", event.target.value)
-                  }
-                  placeholder="+996 700 000 000"
-                />
-              </label>
-              <label className="grid gap-1.5 text-[11px] text-[var(--foreground)] sm:text-sm">
-                Email
-                <Input
-                  className="h-9 text-[13px] sm:h-11 sm:text-sm"
-                  value={requestDraft.contactEmail}
-                  onChange={(event) =>
-                    updateRequestDraft("contactEmail", event.target.value)
-                  }
-                  placeholder="mail@example.com"
-                  type="email"
-                />
-              </label>
-              <label className="grid gap-1.5 text-[11px] text-[var(--foreground)] sm:text-sm">
-                Мессенджер
-                <Select
-                  className="h-9 text-[13px] sm:h-11 sm:text-sm"
-                  value={requestDraft.messengerType}
-                  onChange={(event) =>
-                    updateRequestDraft(
-                      "messengerType",
-                      event.target.value as RequestMessengerType,
-                    )
-                  }
-                >
-                  <option value="">Не выбран</option>
-                  <option value="WHATSAPP">WhatsApp</option>
-                  <option value="TELEGRAM">Telegram</option>
-                </Select>
-              </label>
-              <label className="grid gap-1.5 text-[11px] text-[var(--foreground)] sm:text-sm md:col-span-2 xl:col-span-1">
-                Контакт в мессенджере
-                <Input
-                  className="h-9 text-[13px] sm:h-11 sm:text-sm"
-                  value={requestDraft.messengerHandle}
-                  onChange={(event) =>
-                    updateRequestDraft("messengerHandle", event.target.value)
-                  }
-                  placeholder="@artisan или +996..."
-                />
-              </label>
-              <label className="grid gap-1.5 text-[11px] text-[var(--foreground)] sm:text-sm md:col-span-2 xl:col-span-3">
-                Комментарий
-                <Textarea
-                  className="min-h-[86px] text-[13px] sm:text-sm"
-                  value={requestDraft.comment}
-                  onChange={(event) =>
-                    updateRequestDraft("comment", event.target.value)
-                  }
-                  placeholder="Если нужно, оставьте комментарий для менеджера."
-                />
-              </label>
-            </div>
-
-            <div className="mt-3 border border-dashed border-[color:var(--line-strong)] bg-[var(--surface-strong)] p-3">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            {cuttingSiteIncentive ? (
+              <div className="mt-3.5 flex items-center gap-3 rounded-[20px] bg-[var(--accent)] px-4 py-3 text-[var(--accent-ink)] sm:mt-5 sm:px-4 sm:py-3">
+                <span className="shrink-0 font-[family-name:var(--font-onest)] text-lg font-medium sm:text-xl">
+                  {cuttingSiteIncentive.badge}
+                </span>
                 <div className="min-w-0">
-                  <p className="text-[13px] font-medium text-[var(--foreground)]">
-                    Проект Базиса, Excel или фото списка
+                  <p className="text-[13px] leading-5 font-semibold sm:text-sm">
+                    {cuttingSiteIncentive.title}
                   </p>
-                  <p className="mt-0.5 text-[11px] leading-4.5 text-[var(--muted)]">
-                    Не хотите вводить детали? Прикрепите файл, менеджер
-                    перенесёт его в раскрой. До {MAX_REQUEST_ATTACHMENTS}{" "}
-                    файлов, вместе до 4 МБ.
+                  <p className="hidden text-[12px] leading-4.5 text-white/85 sm:block">
+                    {cuttingSiteIncentive.text}
                   </p>
                 </div>
-                <Button
-                  variant="secondary"
-                  onClick={() => attachmentInputRef.current?.click()}
-                  disabled={
-                    isPreparingAttachments ||
-                    attachments.length >= MAX_REQUEST_ATTACHMENTS
-                  }
-                  className="w-full shrink-0 sm:w-auto"
-                >
-                  <Paperclip className="size-4" />
-                  {isPreparingAttachments ? "Готовим..." : "Прикрепить"}
-                </Button>
-                <input
-                  ref={attachmentInputRef}
-                  type="file"
-                  multiple
-                  accept={requestAttachmentAccept}
-                  className="hidden"
-                  onChange={(event) => void addAttachments(event.target.files)}
-                />
               </div>
-              {attachments.length > 0 ? (
-                <ul className="mt-2.5 grid gap-1.5">
-                  {attachments.map((file, index) => (
-                    <li
-                      key={`${file.name}-${index}`}
-                      className="flex items-center justify-between gap-2 border border-[color:var(--line)] bg-[var(--surface-strong)] px-2.5 py-1.5 text-[12px]"
-                    >
-                      <span className="min-w-0 truncate text-[var(--foreground)]">
-                        {file.name}
-                      </span>
-                      <span className="flex shrink-0 items-center gap-2 text-[var(--muted)]">
-                        {formatFileSize(file.size)}
-                        <button
-                          type="button"
-                          onClick={() => removeAttachment(index)}
-                          aria-label={`Убрать ${file.name}`}
-                          className="text-[var(--muted)] hover:text-[var(--foreground)]"
-                        >
-                          <X className="size-3.5" />
-                        </button>
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-            </div>
+            ) : null}
 
-            <div className="mt-3 flex flex-col gap-2.5 border-t border-[color:var(--line)] pt-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="text-[11px] leading-4.5 text-[var(--muted)]">
-                В заявку уйдут карта, файл для GibLab, кромка и ориентир по
-                стоимости. Точную сумму подтвердит менеджер.
+            <CutListImportPanel
+              onImport={importDetails}
+              onProjectFile={(file) => {
+                // Проект Базиса уходит менеджеру вместе с заявкой.
+                if (!attachments.some((item) => item.name === file.name)) {
+                  void addAttachments([file]);
+                }
+              }}
+            />
+
+            {restoredDraftAt ? (
+              <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 border border-[color:var(--line)] bg-[var(--surface-strong)] px-3 py-2 text-[12px] leading-5 text-[var(--muted)]">
+                <span>
+                  Восстановили ваш прошлый раскрой на этом устройстве.
+                </span>
+                <button
+                  type="button"
+                  onClick={resetCalculator}
+                  className="text-[var(--foreground)] underline underline-offset-2"
+                >
+                  Начать заново
+                </button>
               </div>
+            ) : null}
+
+            {detailGroups.map((group) => (
+              <div
+                key={group.id}
+                className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] px-4 py-3"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-[var(--foreground)]">
+                    {group.label}
+                  </p>
+                  <p className="text-xs text-[var(--muted)]">
+                    Из конструктора: {group.pieces} дет.
+                    {group.holes > 0 ? `, ${group.holes} отв.` : ""}.
+                    Деталировку получит менеджер вместе с заявкой.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setDetails((current) => {
+                      const rest = current.filter(
+                        (row) => row.group?.id !== group.id,
+                      );
+                      return rest.length > 0 ? rest : createInitialRows();
+                    })
+                  }
+                  className="text-sm text-[var(--muted)] underline underline-offset-2 hover:text-[var(--accent)]"
+                >
+                  Удалить
+                </button>
+              </div>
+            ))}
+
+            <CutDetailTable
+              rows={ownDetails}
+              colors={detailColors}
+              lineTotals={detailLineTotals}
+              edgeLabels={detailEdgeLabels}
+              orientationOptions={orientationOptions}
+              edgingAvailable={edgingAvailable}
+              onChange={updateRow}
+              onToggleEdge={toggleEdgeSide}
+              onSetEdges={(id, sides) =>
+                updateRow(id, { edgedSides: normalizeEdgeSides(sides) })
+              }
+              onDuplicate={duplicateRow}
+              onRemove={removeRow}
+              drillingLabels={drillingLabels}
+              onDrilling={setDrillingRowId}
+            />
+
+            {drillingRow ? (
+              <DrillingEditor
+                title={drillingRow.title}
+                length={parsePositive(drillingRow.width)}
+                width={parsePositive(drillingRow.height)}
+                thickness={material.thicknessMm ?? 16}
+                quantity={parsePositive(drillingRow.quantity) || 1}
+                value={drillingRow.hardware ?? []}
+                onChange={(hardware) =>
+                  updateRow(drillingRow.id, {
+                    hardware: hardware.length ? hardware : undefined,
+                  })
+                }
+                milling={drillingRow.milling}
+                onMillingChange={(milling) =>
+                  updateRow(drillingRow.id, { milling })
+                }
+                onClose={() => setDrillingRowId(null)}
+              />
+            ) : null}
+
+            <div className="mt-4 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3">
               <Button
                 variant="accent"
-                onClick={handleRequestSubmit}
-                disabled={
-                  isSubmittingRequest ||
-                  isPreparingAttachments ||
-                  (exportableRows.length === 0 && attachments.length === 0)
+                onClick={addRow}
+                className="col-span-2 w-full sm:w-auto"
+              >
+                <Plus className="size-4" />
+                Добавить деталь
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => setCabinetOpen(true)}
+                className="col-span-2 w-full sm:w-auto"
+              >
+                <LayoutPanelTop className="size-4" />
+                Конструктор шкафа
+              </Button>
+              {cabinetOpen ? (
+                <CabinetBuilderDialog
+                  thickness={material.thicknessMm ?? 16}
+                  materialLabel={material.label}
+                  onClose={() => setCabinetOpen(false)}
+                  onAdd={(parts, label) => {
+                    importDetails(parts, "append");
+                    const note = `${label}: задняя стенка ХДФ — посчитать менеджеру.`;
+                    if (label) {
+                      setRequestDraft((current) => ({
+                        ...current,
+                        comment: current.comment.includes(note)
+                          ? current.comment
+                          : [current.comment.trim(), note]
+                              .filter(Boolean)
+                              .join("\n"),
+                      }));
+                    }
+                    setCabinetOpen(false);
+                  }}
+                />
+              ) : null}
+              <Button
+                variant="secondary"
+                onClick={exportToGibLab}
+                disabled={exportableRows.length === 0 || lockedRowIds.size > 0}
+                title={
+                  lockedRowIds.size > 0
+                    ? "Файл с мебелью из конструктора получит менеджер вместе с заявкой"
+                    : undefined
                 }
                 className="w-full sm:w-auto"
               >
-                {isSubmittingRequest ? "Отправляем..." : "Отправить заявку"}
+                <FileDown className="size-4" />
+                Экспорт GibLab
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={resetCalculator}
+                className="w-full sm:w-auto"
+              >
+                Сбросить расчет
               </Button>
             </div>
-
-            {requestFeedback ? (
-              <div
-                className={cn(
-                  "mt-3 border px-3 py-2 text-[12px] leading-5 sm:text-[13px]",
-                  requestFeedback.tone === "success"
-                    ? "border-[rgba(55,131,82,0.2)] bg-[rgba(55,131,82,0.08)] text-[#7cc49a]"
-                    : "border-[rgba(185,88,45,0.18)] bg-[rgba(185,88,45,0.08)] text-[var(--accent)]",
-                )}
+            <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-[color:var(--line)] pt-4">
+              <button
+                type="button"
+                onClick={() => goToStep(1)}
+                className="text-sm text-[var(--muted)] underline-offset-2 hover:text-[var(--foreground)] hover:underline"
               >
-                {requestFeedback.message}
-              </div>
-            ) : null}
+                ← Материал
+              </button>
+              <button
+                type="button"
+                onClick={() => goToStep(3)}
+                className="inline-flex min-h-11 items-center rounded-full bg-[var(--accent)] px-5 text-sm font-semibold text-[var(--accent-ink)] transition hover:bg-[var(--accent-strong)]"
+              >
+                Дальше: раскрой →
+              </button>
+            </div>
           </div>
 
-          <p className="mt-3 text-[11px] leading-4.5 text-[var(--muted)] sm:text-[12px] sm:leading-5">
-            Экспорт собирает файл <span className="font-mono">.project</span>{" "}
-            для GibLab по текущим деталям, кромке 1 мм, формату листа и
-            параметрам раскроя.
-          </p>
-
-          <div className="mt-7 overflow-hidden border-t border-[color:var(--line)] pt-4 sm:mt-8 sm:pt-6">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div className="max-w-2xl">
-                <p className="text-[13px] font-semibold text-[var(--accent)]">
-                  Карта раскроя
-                </p>
-                <h3 className="mt-2 text-[1.35rem] leading-tight font-semibold text-[var(--foreground)] sm:text-2xl">
-                  Предварительная карта листа {sheet.label}
-                </h3>
-                <p className="mt-2 hidden text-[13px] leading-5 text-[var(--muted)] sm:block">
-                  Карта строится по полосному гильотинному алгоритму: сначала
-                  формируется полезное поле листа после торцовки, затем
-                  раскладываются полосы и поперечные резы с учетом ширины
-                  пропила.
-                </p>
+          <div className={step === 4 ? "" : "hidden"}>
+            <div
+              id="cut-request-form"
+              className="mt-4 rounded-[20px] border border-[color:var(--line)] bg-[var(--surface)] p-3 sm:p-4"
+            >
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="text-[13px] font-semibold text-[var(--accent)]">
+                    Заявка на распил
+                  </p>
+                  <p className="mt-1 text-sm font-medium text-[var(--foreground)]">
+                    Отправьте текущий расчет менеджеру.
+                  </p>
+                </div>
+                <div className="text-[11px] leading-4.5 text-[var(--muted)] sm:max-w-[14rem] sm:text-right">
+                  <p>{requestPayload.material}</p>
+                  <p className="mt-1">
+                    {exportableRows.length} поз. ·{" "}
+                    {formatPrice(Math.round(estimate.totalEstimate))}
+                  </p>
+                </div>
               </div>
 
-              <div className="grid w-full min-w-0 grid-cols-1 gap-2 min-[380px]:grid-cols-2 sm:w-auto sm:min-w-[250px] sm:grid-cols-2 xl:grid-cols-3">
-                <MetricTile label="Формат листа" value={sheet.label} muted />
-                <MetricTile
-                  label="Полезное поле"
-                  value={`${Math.max(sheet.width - basisSettings.edgeTrim * 2, 0).toFixed(0)} × ${Math.max(sheet.height - basisSettings.edgeTrim * 2, 0).toFixed(0)} мм`}
-                  muted
-                />
-                <MetricTile
-                  label="Размещено"
-                  value={`${cutMap.placedPieces} из ${cutMap.totalPieces} шт.`}
-                  muted
-                />
-                <MetricTile
-                  label="Листов на карте"
-                  value={`${cutMap.sheets.length} шт.`}
-                  muted
-                />
-                <div className="hidden sm:block">
-                  <MetricTile
-                    label="КИМ"
-                    value={`${(cutMap.utilization * 100).toFixed(0)}%`}
-                    muted
-                  />
-                </div>
-                <div className="hidden sm:block">
-                  <MetricTile
-                    label="Полезный остаток"
-                    value={`${(cutMap.offcutArea / 1_000_000).toFixed(2)} м²`}
-                    muted
-                  />
-                </div>
-                <div className="hidden sm:block">
-                  <MetricTile
-                    label="Крупный остаток"
-                    value={
-                      cutMap.largestOffcut
-                        ? `${Math.floor(cutMap.largestOffcut.width)} × ${Math.floor(cutMap.largestOffcut.height)} мм`
-                        : "Нет"
+              <div className="mt-3 grid gap-2.5 md:grid-cols-2 xl:grid-cols-4">
+                <label className="grid gap-1.5 text-[11px] text-[var(--foreground)] sm:text-sm">
+                  Имя
+                  <Input
+                    className="h-9 text-[13px] sm:h-11 sm:text-sm"
+                    value={requestDraft.contactName}
+                    onChange={(event) =>
+                      updateRequestDraft("contactName", event.target.value)
                     }
-                    muted
+                    placeholder="Как к вам обращаться"
+                  />
+                </label>
+                <label className="grid gap-1.5 text-[11px] text-[var(--foreground)] sm:text-sm">
+                  Телефон
+                  <Input
+                    className="h-9 text-[13px] sm:h-11 sm:text-sm"
+                    value={requestDraft.contactPhone}
+                    onChange={(event) =>
+                      updateRequestDraft("contactPhone", event.target.value)
+                    }
+                    placeholder="+996 700 000 000"
+                  />
+                </label>
+                <label className="grid gap-1.5 text-[11px] text-[var(--foreground)] sm:text-sm">
+                  Email
+                  <Input
+                    className="h-9 text-[13px] sm:h-11 sm:text-sm"
+                    value={requestDraft.contactEmail}
+                    onChange={(event) =>
+                      updateRequestDraft("contactEmail", event.target.value)
+                    }
+                    placeholder="mail@example.com"
+                    type="email"
+                  />
+                </label>
+                <label className="grid gap-1.5 text-[11px] text-[var(--foreground)] sm:text-sm">
+                  Мессенджер
+                  <Select
+                    className="h-9 text-[13px] sm:h-11 sm:text-sm"
+                    value={requestDraft.messengerType}
+                    onChange={(event) =>
+                      updateRequestDraft(
+                        "messengerType",
+                        event.target.value as RequestMessengerType,
+                      )
+                    }
+                  >
+                    <option value="">Не выбран</option>
+                    <option value="WHATSAPP">WhatsApp</option>
+                    <option value="TELEGRAM">Telegram</option>
+                  </Select>
+                </label>
+                <label className="grid gap-1.5 text-[11px] text-[var(--foreground)] sm:text-sm md:col-span-2 xl:col-span-1">
+                  Контакт в мессенджере
+                  <Input
+                    className="h-9 text-[13px] sm:h-11 sm:text-sm"
+                    value={requestDraft.messengerHandle}
+                    onChange={(event) =>
+                      updateRequestDraft("messengerHandle", event.target.value)
+                    }
+                    placeholder="@artisan или +996..."
+                  />
+                </label>
+                <label className="grid gap-1.5 text-[11px] text-[var(--foreground)] sm:text-sm md:col-span-2 xl:col-span-3">
+                  Комментарий
+                  <Textarea
+                    className="min-h-[86px] text-[13px] sm:text-sm"
+                    value={requestDraft.comment}
+                    onChange={(event) =>
+                      updateRequestDraft("comment", event.target.value)
+                    }
+                    placeholder="Если нужно, оставьте комментарий для менеджера."
+                  />
+                </label>
+              </div>
+
+              <div className="mt-3 border border-dashed border-[color:var(--line-strong)] bg-[var(--surface-strong)] p-3">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="text-[13px] font-medium text-[var(--foreground)]">
+                      Проект Базиса, Excel или фото списка
+                    </p>
+                    <p className="mt-0.5 text-[11px] leading-4.5 text-[var(--muted)]">
+                      Не хотите вводить детали? Прикрепите файл, менеджер
+                      перенесёт его в раскрой. До {MAX_REQUEST_ATTACHMENTS}{" "}
+                      файлов, вместе до 4 МБ.
+                    </p>
+                  </div>
+                  <Button
+                    variant="secondary"
+                    onClick={() => attachmentInputRef.current?.click()}
+                    disabled={
+                      isPreparingAttachments ||
+                      attachments.length >= MAX_REQUEST_ATTACHMENTS
+                    }
+                    className="w-full shrink-0 sm:w-auto"
+                  >
+                    <Paperclip className="size-4" />
+                    {isPreparingAttachments ? "Готовим..." : "Прикрепить"}
+                  </Button>
+                  <input
+                    ref={attachmentInputRef}
+                    type="file"
+                    multiple
+                    accept={requestAttachmentAccept}
+                    className="hidden"
+                    onChange={(event) =>
+                      void addAttachments(event.target.files)
+                    }
                   />
                 </div>
-              </div>
-            </div>
-
-            {cutMap.totalPieces === 0 ? (
-              <div className="mt-4 border border-dashed border-[color:var(--line)] bg-[var(--surface-strong)] px-4 py-6 text-sm text-[var(--muted)]">
-                Добавьте размеры деталей и количество, чтобы построить карту
-                раскроя по модели БАЗИС-Раскрой.
-              </div>
-            ) : (
-              <div className="mt-4 space-y-3.5 sm:space-y-4">
-                <div className="grid gap-3 sm:gap-4 xl:grid-cols-2">
-                  {cutMap.sheets.map((cutSheet) => {
-                    const fillRate =
-                      cutSheet.usableArea > 0
-                        ? (cutSheet.usedArea / cutSheet.usableArea) * 100
-                        : 0;
-                    const workingLeft =
-                      (cutSheet.workingArea.x / sheet.width) * 100;
-                    const workingTop =
-                      (cutSheet.workingArea.y / sheet.height) * 100;
-                    const workingWidth =
-                      (cutSheet.workingArea.width / sheet.width) * 100;
-                    const workingHeight =
-                      (cutSheet.workingArea.height / sheet.height) * 100;
-
-                    return (
-                      <div
-                        key={cutSheet.index}
-                        className="min-w-0 overflow-hidden rounded-[20px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-2.5 sm:p-3"
+                {attachments.length > 0 ? (
+                  <ul className="mt-2.5 grid gap-1.5">
+                    {attachments.map((file, index) => (
+                      <li
+                        key={`${file.name}-${index}`}
+                        className="flex items-center justify-between gap-2 border border-[color:var(--line)] bg-[var(--surface-strong)] px-2.5 py-1.5 text-[12px]"
                       >
-                        <div className="flex flex-wrap items-center justify-between gap-2.5">
-                          <div>
-                            <p className="text-sm font-semibold text-[var(--foreground)]">
-                              Лист {cutSheet.index}
-                            </p>
-                            <p className="text-xs text-[var(--muted)]">
-                              {sheet.width} × {sheet.height} мм
-                            </p>
-                          </div>
-                          <span className="inline-flex min-h-7 items-center rounded-full border border-[color:var(--line)] px-3 text-xs font-medium text-[var(--foreground)]">
-                            {cutSheet.pieces.length} деталей ·{" "}
-                            {fillRate.toFixed(0)}%
-                          </span>
-                        </div>
-
-                        <div className="mt-2.5 rounded-[14px] border border-[color:var(--line)] bg-[var(--surface)] p-1.5 sm:mt-3 sm:p-2">
-                          <div
-                            className="relative w-full overflow-hidden bg-[linear-gradient(180deg,rgba(255,255,255,0.72)_0%,rgba(244,238,228,0.96)_100%)]"
-                            style={{
-                              aspectRatio: `${sheet.width} / ${sheet.height}`,
-                            }}
-                          >
-                            <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,rgba(21,20,17,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(21,20,17,0.05)_1px,transparent_1px)] bg-[size:32px_32px]" />
-                            <div
-                              className="pointer-events-none absolute border border-dashed border-[rgba(21,20,17,0.22)]"
-                              style={{
-                                left: `${workingLeft}%`,
-                                top: `${workingTop}%`,
-                                width: `${workingWidth}%`,
-                                height: `${workingHeight}%`,
-                              }}
-                            />
-
-                            {cutSheet.cuts.map((cut) => (
-                              <div
-                                key={cut.id}
-                                className={cn(
-                                  "pointer-events-none absolute bg-[rgba(21,20,17,0.08)]",
-                                  cut.orientation === "vertical"
-                                    ? "border-x border-white/30"
-                                    : "border-y border-white/30",
-                                )}
-                                style={{
-                                  left: `${(cut.x / sheet.width) * 100}%`,
-                                  top: `${(cut.y / sheet.height) * 100}%`,
-                                  width: `${(cut.width / sheet.width) * 100}%`,
-                                  height: `${(cut.height / sheet.height) * 100}%`,
-                                }}
-                              />
-                            ))}
-
-                            {cutSheet.pieces.map((piece, pieceIndex) => {
-                              const widthPercent =
-                                (piece.width / sheet.width) * 100;
-                              const heightPercent =
-                                (piece.height / sheet.height) * 100;
-                              const showMeta =
-                                widthPercent > 16 && heightPercent > 12;
-                              const locked = lockedRowIds.has(
-                                piece.id.slice(0, piece.id.lastIndexOf("-")),
-                              );
-                              const color = locked
-                                ? "#9a8f80"
-                                : (detailColors[
-                                    piece.id.slice(0, piece.id.lastIndexOf("-"))
-                                  ] ?? getCutMapColor(pieceIndex));
-
-                              return (
-                                <div
-                                  key={piece.id}
-                                  className="absolute overflow-hidden border border-white/85 shadow-[0_10px_30px_rgba(21,20,17,0.14)]"
-                                  style={{
-                                    left: `${(piece.x / sheet.width) * 100}%`,
-                                    top: `${(piece.y / sheet.height) * 100}%`,
-                                    width: `${widthPercent}%`,
-                                    height: `${heightPercent}%`,
-                                    backgroundColor: color,
-                                  }}
-                                >
-                                  <div className="flex h-full flex-col justify-between p-1.5 text-white">
-                                    <p className="text-[9px] leading-3 font-semibold sm:text-[10px]">
-                                      {locked ? "" : piece.title}
-                                    </p>
-                                    {showMeta && !locked ? (
-                                      <div className="space-y-0.5">
-                                        <p className="font-mono text-[8px] tracking-[0.1em] uppercase opacity-85 sm:text-[9px]">
-                                          {piece.width} × {piece.height} мм
-                                        </p>
-                                        <p className="text-[8px] opacity-75 sm:text-[9px]">
-                                          {getOrientationModeLabel(
-                                            piece.orientationMode,
-                                          )}
-                                        </p>
-                                        {piece.rotated ? (
-                                          <p className="font-mono text-[8px] tracking-[0.1em] uppercase opacity-70 sm:text-[9px]">
-                                            Повернуто
-                                          </p>
-                                        ) : null}
-                                      </div>
-                                    ) : null}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-
-                        <div className="mt-2.5 grid grid-cols-1 gap-2 min-[380px]:grid-cols-2 xl:grid-cols-4">
-                          <MetricTile
-                            label="Резов"
-                            value={`${cutSheet.cutCount}`}
-                            muted
-                          />
-                          <MetricTile
-                            label="Длина реза"
-                            value={`${(cutSheet.cutLength / 1000).toFixed(1)} м`}
-                            muted
-                          />
-                          <MetricTile
-                            label="КИМ листа"
-                            value={`${fillRate.toFixed(0)}%`}
-                            muted
-                          />
-                          <MetricTile
-                            label="Крупный остаток"
-                            value={
-                              cutSheet.largestOffcut
-                                ? `${Math.floor(cutSheet.largestOffcut.width)} × ${Math.floor(cutSheet.largestOffcut.height)} мм`
-                                : "Нет"
-                            }
-                            muted
-                          />
-                        </div>
-
-                        {cutSheet.offcuts.length > 0 ? (
-                          <div className="mt-3 rounded-[14px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-3">
-                            <div className="flex flex-wrap items-center justify-between gap-2">
-                              <p className="text-xs font-semibold text-[var(--foreground)]">
-                                Полезные остатки листа
-                              </p>
-                              <span className="text-[11px] text-[var(--muted)]">
-                                {(cutSheet.offcutArea / 1_000_000).toFixed(2)}{" "}
-                                м² свободно
-                              </span>
-                            </div>
-                            <div className="mt-2 flex flex-wrap gap-1.5 sm:gap-2">
-                              {cutSheet.offcuts.slice(0, 4).map((offcut) => (
-                                <span
-                                  key={offcut.id}
-                                  className="inline-flex items-center border border-[color:var(--line)] bg-[var(--surface-strong)] px-2.5 py-1.5 text-[11px] text-[var(--foreground)]"
-                                >
-                                  {Math.floor(offcut.width)}×
-                                  {Math.floor(offcut.height)} мм
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        ) : null}
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {cutMap.unplacedPieces.length > 0 ? (
-                  <div className="border border-[color:var(--line)] bg-[var(--surface-strong)] p-3">
-                    <p className="text-sm font-semibold text-[var(--foreground)]">
-                      Не вошли в Basis-like карту
-                    </p>
-                    <p className="mt-1 text-[13px] leading-5 text-[var(--muted)]">
-                      Эти позиции не поместились в текущую карту с заданными
-                      параметрами полос, торцовки и ширины реза. Для них нужен
-                      другой формат листа или ручная корректировка менеджером.
-                    </p>
-                    <div className="mt-3 flex flex-wrap gap-1.5 sm:gap-2">
-                      {cutMap.unplacedPieces.map((piece) => (
-                        <span
-                          key={piece.id}
-                          className="inline-flex items-center border border-[color:var(--line)] bg-[var(--surface-strong)] px-3 py-2 text-xs text-[var(--foreground)]"
-                        >
-                          {lockedRowIds.has(getSourceRowId(piece.id))
-                            ? "Деталь из конструктора"
-                            : `${piece.title} · ${piece.width}×${piece.height} мм`}
+                        <span className="min-w-0 truncate text-[var(--foreground)]">
+                          {file.name}
                         </span>
-                      ))}
-                    </div>
-                  </div>
+                        <span className="flex shrink-0 items-center gap-2 text-[var(--muted)]">
+                          {formatFileSize(file.size)}
+                          <button
+                            type="button"
+                            onClick={() => removeAttachment(index)}
+                            aria-label={`Убрать ${file.name}`}
+                            className="text-[var(--muted)] hover:text-[var(--foreground)]"
+                          >
+                            <X className="size-3.5" />
+                          </button>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
                 ) : null}
               </div>
-            )}
+
+              <div className="mt-3 flex flex-col gap-2.5 border-t border-[color:var(--line)] pt-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="text-[11px] leading-4.5 text-[var(--muted)]">
+                  В заявку уйдут карта, файл для GibLab, кромка и ориентир по
+                  стоимости. Точную сумму подтвердит менеджер.
+                </div>
+                <Button
+                  variant="accent"
+                  onClick={handleRequestSubmit}
+                  disabled={
+                    isSubmittingRequest ||
+                    isPreparingAttachments ||
+                    (exportableRows.length === 0 && attachments.length === 0)
+                  }
+                  className="w-full sm:w-auto"
+                >
+                  {isSubmittingRequest ? "Отправляем..." : "Отправить заявку"}
+                </Button>
+              </div>
+
+              {requestFeedback ? (
+                <div
+                  className={cn(
+                    "mt-3 border px-3 py-2 text-[12px] leading-5 sm:text-[13px]",
+                    requestFeedback.tone === "success"
+                      ? "border-[rgba(55,131,82,0.2)] bg-[rgba(55,131,82,0.08)] text-[#7cc49a]"
+                      : "border-[rgba(185,88,45,0.18)] bg-[rgba(185,88,45,0.08)] text-[var(--accent)]",
+                  )}
+                >
+                  {requestFeedback.message}
+                </div>
+              ) : null}
+            </div>
+
+            <p className="mt-3 text-[11px] leading-4.5 text-[var(--muted)] sm:text-[12px] sm:leading-5">
+              Экспорт собирает файл <span className="font-mono">.project</span>{" "}
+              для GibLab по текущим деталям, кромке 1 мм, формату листа и
+              параметрам раскроя.
+            </p>
+            <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-[color:var(--line)] pt-4">
+              <button
+                type="button"
+                onClick={() => goToStep(3)}
+                className="text-sm text-[var(--muted)] underline-offset-2 hover:text-[var(--foreground)] hover:underline"
+              >
+                ← Раскрой
+              </button>
+            </div>
           </div>
 
-          <div className="mt-7 overflow-hidden border-t border-[color:var(--line)] pt-4 sm:mt-8 sm:pt-6">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div className="max-w-2xl">
-                <p className="text-[13px] font-semibold text-[var(--accent)]">
-                  Ведомость для цеха
-                </p>
-                <h3 className="mt-2 text-[1.35rem] leading-tight font-semibold text-[var(--foreground)] sm:text-2xl">
-                  Таблица деталей по фактической карте раскроя
-                </h3>
-                <p className="mt-2 hidden text-[13px] leading-5 text-[var(--muted)] sm:block">
-                  Здесь собраны размеры, кромка, ориентация и распределение по
-                  листам. Эту часть уже удобно сверять перед распилом и
-                  кромлением.
-                </p>
+          <div className={step === 3 ? "" : "hidden"}>
+            <div className="mt-7 overflow-hidden border-t border-[color:var(--line)] pt-4 sm:mt-8 sm:pt-6">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div className="max-w-2xl">
+                  <p className="text-[13px] font-semibold text-[var(--accent)]">
+                    Карта раскроя
+                  </p>
+                  <h3 className="mt-2 text-[1.35rem] leading-tight font-semibold text-[var(--foreground)] sm:text-2xl">
+                    Предварительная карта листа {sheet.label}
+                  </h3>
+                  <p className="mt-2 hidden text-[13px] leading-5 text-[var(--muted)] sm:block">
+                    Карта строится по полосному гильотинному алгоритму: сначала
+                    формируется полезное поле листа после торцовки, затем
+                    раскладываются полосы и поперечные резы с учетом ширины
+                    пропила.
+                  </p>
+                </div>
+
+                <div className="grid w-full min-w-0 grid-cols-1 gap-2 min-[380px]:grid-cols-2 sm:w-auto sm:min-w-[250px] sm:grid-cols-2 xl:grid-cols-3">
+                  <MetricTile label="Формат листа" value={sheet.label} muted />
+                  <MetricTile
+                    label="Полезное поле"
+                    value={`${Math.max(sheet.width - basisSettings.edgeTrim * 2, 0).toFixed(0)} × ${Math.max(sheet.height - basisSettings.edgeTrim * 2, 0).toFixed(0)} мм`}
+                    muted
+                  />
+                  <MetricTile
+                    label="Размещено"
+                    value={`${cutMap.placedPieces} из ${cutMap.totalPieces} шт.`}
+                    muted
+                  />
+                  <MetricTile
+                    label="Листов на карте"
+                    value={`${cutMap.sheets.length} шт.`}
+                    muted
+                  />
+                  <div className="hidden sm:block">
+                    <MetricTile
+                      label="КИМ"
+                      value={`${(cutMap.utilization * 100).toFixed(0)}%`}
+                      muted
+                    />
+                  </div>
+                  <div className="hidden sm:block">
+                    <MetricTile
+                      label="Полезный остаток"
+                      value={`${(cutMap.offcutArea / 1_000_000).toFixed(2)} м²`}
+                      muted
+                    />
+                  </div>
+                  <div className="hidden sm:block">
+                    <MetricTile
+                      label="Крупный остаток"
+                      value={
+                        cutMap.largestOffcut
+                          ? `${Math.floor(cutMap.largestOffcut.width)} × ${Math.floor(cutMap.largestOffcut.height)} мм`
+                          : "Нет"
+                      }
+                      muted
+                    />
+                  </div>
+                </div>
               </div>
 
-              <div className="grid w-full min-w-0 grid-cols-1 gap-2 min-[380px]:grid-cols-2 sm:w-auto sm:min-w-[220px] sm:grid-cols-2">
-                <MetricTile
-                  label="Позиций"
-                  value={`${visibleWorkshopRows.length} шт.`}
-                  muted
-                />
-                <MetricTile
-                  label="Деталей в карте"
-                  value={`${cutMap.placedPieces} шт.`}
-                  muted
-                />
-              </div>
-            </div>
+              {cutMap.totalPieces === 0 ? (
+                <div className="mt-4 border border-dashed border-[color:var(--line)] bg-[var(--surface-strong)] px-4 py-6 text-sm text-[var(--muted)]">
+                  Добавьте размеры деталей и количество, чтобы построить карту
+                  раскроя по модели БАЗИС-Раскрой.
+                </div>
+              ) : (
+                <div className="mt-4 space-y-3.5 sm:space-y-4">
+                  <div className="grid gap-3 sm:gap-4 xl:grid-cols-2">
+                    {cutMap.sheets.map((cutSheet) => {
+                      const fillRate =
+                        cutSheet.usableArea > 0
+                          ? (cutSheet.usedArea / cutSheet.usableArea) * 100
+                          : 0;
+                      const workingLeft =
+                        (cutSheet.workingArea.x / sheet.width) * 100;
+                      const workingTop =
+                        (cutSheet.workingArea.y / sheet.height) * 100;
+                      const workingWidth =
+                        (cutSheet.workingArea.width / sheet.width) * 100;
+                      const workingHeight =
+                        (cutSheet.workingArea.height / sheet.height) * 100;
 
-            <div className="mt-4 grid gap-2.5 md:hidden">
-              {visibleWorkshopRows.map((row) => (
-                <article
-                  key={row.id}
-                  className="border border-[color:var(--line)] bg-[var(--surface-strong)] p-3"
-                >
-                  <div className="space-y-2">
-                    <div>
+                      return (
+                        <div
+                          key={cutSheet.index}
+                          className="min-w-0 overflow-hidden rounded-[20px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-2.5 sm:p-3"
+                        >
+                          <div className="flex flex-wrap items-center justify-between gap-2.5">
+                            <div>
+                              <p className="text-sm font-semibold text-[var(--foreground)]">
+                                Лист {cutSheet.index}
+                              </p>
+                              <p className="text-xs text-[var(--muted)]">
+                                {sheet.width} × {sheet.height} мм
+                              </p>
+                            </div>
+                            <span className="inline-flex min-h-7 items-center rounded-full border border-[color:var(--line)] px-3 text-xs font-medium text-[var(--foreground)]">
+                              {cutSheet.pieces.length} деталей ·{" "}
+                              {fillRate.toFixed(0)}%
+                            </span>
+                          </div>
+
+                          <div className="mt-2.5 rounded-[14px] border border-[color:var(--line)] bg-[var(--surface)] p-1.5 sm:mt-3 sm:p-2">
+                            <div
+                              className="relative w-full overflow-hidden bg-[linear-gradient(180deg,rgba(255,255,255,0.72)_0%,rgba(244,238,228,0.96)_100%)]"
+                              style={{
+                                aspectRatio: `${sheet.width} / ${sheet.height}`,
+                              }}
+                            >
+                              <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,rgba(21,20,17,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(21,20,17,0.05)_1px,transparent_1px)] bg-[size:32px_32px]" />
+                              <div
+                                className="pointer-events-none absolute border border-dashed border-[rgba(21,20,17,0.22)]"
+                                style={{
+                                  left: `${workingLeft}%`,
+                                  top: `${workingTop}%`,
+                                  width: `${workingWidth}%`,
+                                  height: `${workingHeight}%`,
+                                }}
+                              />
+
+                              {cutSheet.cuts.map((cut) => (
+                                <div
+                                  key={cut.id}
+                                  className={cn(
+                                    "pointer-events-none absolute bg-[rgba(21,20,17,0.08)]",
+                                    cut.orientation === "vertical"
+                                      ? "border-x border-white/30"
+                                      : "border-y border-white/30",
+                                  )}
+                                  style={{
+                                    left: `${(cut.x / sheet.width) * 100}%`,
+                                    top: `${(cut.y / sheet.height) * 100}%`,
+                                    width: `${(cut.width / sheet.width) * 100}%`,
+                                    height: `${(cut.height / sheet.height) * 100}%`,
+                                  }}
+                                />
+                              ))}
+
+                              {cutSheet.pieces.map((piece, pieceIndex) => {
+                                const widthPercent =
+                                  (piece.width / sheet.width) * 100;
+                                const heightPercent =
+                                  (piece.height / sheet.height) * 100;
+                                const showMeta =
+                                  widthPercent > 16 && heightPercent > 12;
+                                const locked = lockedRowIds.has(
+                                  piece.id.slice(0, piece.id.lastIndexOf("-")),
+                                );
+                                const color = locked
+                                  ? "#9a8f80"
+                                  : (detailColors[
+                                      piece.id.slice(
+                                        0,
+                                        piece.id.lastIndexOf("-"),
+                                      )
+                                    ] ?? getCutMapColor(pieceIndex));
+
+                                return (
+                                  <div
+                                    key={piece.id}
+                                    className="absolute overflow-hidden border border-white/85 shadow-[0_10px_30px_rgba(21,20,17,0.14)]"
+                                    style={{
+                                      left: `${(piece.x / sheet.width) * 100}%`,
+                                      top: `${(piece.y / sheet.height) * 100}%`,
+                                      width: `${widthPercent}%`,
+                                      height: `${heightPercent}%`,
+                                      backgroundColor: color,
+                                    }}
+                                  >
+                                    <div className="flex h-full flex-col justify-between p-1.5 text-white">
+                                      <p className="text-[9px] leading-3 font-semibold sm:text-[10px]">
+                                        {locked ? "" : piece.title}
+                                      </p>
+                                      {showMeta && !locked ? (
+                                        <div className="space-y-0.5">
+                                          <p className="font-mono text-[8px] tracking-[0.1em] uppercase opacity-85 sm:text-[9px]">
+                                            {piece.width} × {piece.height} мм
+                                          </p>
+                                          <p className="text-[8px] opacity-75 sm:text-[9px]">
+                                            {getOrientationModeLabel(
+                                              piece.orientationMode,
+                                            )}
+                                          </p>
+                                          {piece.rotated ? (
+                                            <p className="font-mono text-[8px] tracking-[0.1em] uppercase opacity-70 sm:text-[9px]">
+                                              Повернуто
+                                            </p>
+                                          ) : null}
+                                        </div>
+                                      ) : null}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          <div className="mt-2.5 grid grid-cols-1 gap-2 min-[380px]:grid-cols-2 xl:grid-cols-4">
+                            <MetricTile
+                              label="Резов"
+                              value={`${cutSheet.cutCount}`}
+                              muted
+                            />
+                            <MetricTile
+                              label="Длина реза"
+                              value={`${(cutSheet.cutLength / 1000).toFixed(1)} м`}
+                              muted
+                            />
+                            <MetricTile
+                              label="КИМ листа"
+                              value={`${fillRate.toFixed(0)}%`}
+                              muted
+                            />
+                            <MetricTile
+                              label="Крупный остаток"
+                              value={
+                                cutSheet.largestOffcut
+                                  ? `${Math.floor(cutSheet.largestOffcut.width)} × ${Math.floor(cutSheet.largestOffcut.height)} мм`
+                                  : "Нет"
+                              }
+                              muted
+                            />
+                          </div>
+
+                          {cutSheet.offcuts.length > 0 ? (
+                            <div className="mt-3 rounded-[14px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-3">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <p className="text-xs font-semibold text-[var(--foreground)]">
+                                  Полезные остатки листа
+                                </p>
+                                <span className="text-[11px] text-[var(--muted)]">
+                                  {(cutSheet.offcutArea / 1_000_000).toFixed(2)}{" "}
+                                  м² свободно
+                                </span>
+                              </div>
+                              <div className="mt-2 flex flex-wrap gap-1.5 sm:gap-2">
+                                {cutSheet.offcuts.slice(0, 4).map((offcut) => (
+                                  <span
+                                    key={offcut.id}
+                                    className="inline-flex items-center border border-[color:var(--line)] bg-[var(--surface-strong)] px-2.5 py-1.5 text-[11px] text-[var(--foreground)]"
+                                  >
+                                    {Math.floor(offcut.width)}×
+                                    {Math.floor(offcut.height)} мм
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {cutMap.unplacedPieces.length > 0 ? (
+                    <div className="border border-[color:var(--line)] bg-[var(--surface-strong)] p-3">
                       <p className="text-sm font-semibold text-[var(--foreground)]">
-                        {row.sequence}. {row.title}
+                        Не вошли в Basis-like карту
                       </p>
-                      <p className="mt-1 text-[12px] text-[var(--muted)]">
-                        {row.sizeLabel} · {row.quantity} шт.
+                      <p className="mt-1 text-[13px] leading-5 text-[var(--muted)]">
+                        Эти позиции не поместились в текущую карту с заданными
+                        параметрами полос, торцовки и ширины реза. Для них нужен
+                        другой формат листа или ручная корректировка менеджером.
                       </p>
+                      <div className="mt-3 flex flex-wrap gap-1.5 sm:gap-2">
+                        {cutMap.unplacedPieces.map((piece) => (
+                          <span
+                            key={piece.id}
+                            className="inline-flex items-center border border-[color:var(--line)] bg-[var(--surface-strong)] px-3 py-2 text-xs text-[var(--foreground)]"
+                          >
+                            {lockedRowIds.has(getSourceRowId(piece.id))
+                              ? "Деталь из конструктора"
+                              : `${piece.title} · ${piece.width}×${piece.height} мм`}
+                          </span>
+                        ))}
+                      </div>
                     </div>
-                    <span className="inline-flex w-fit items-center border border-[color:var(--line)] bg-[var(--surface-strong)] px-2 py-1 text-[10px] text-[var(--muted)]">
-                      {row.statusLabel}
-                    </span>
-                  </div>
-                  <div className="mt-3 grid grid-cols-1 gap-2 text-[12px] leading-5 text-[var(--muted)] min-[380px]:grid-cols-2">
-                    <div>
-                      <p className="text-xs font-medium">Кромка</p>
-                      <p className="mt-0.5 text-[var(--foreground)]">
-                        {row.edgeLabel}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-medium">Ориентация</p>
-                      <p className="mt-0.5 text-[var(--foreground)]">
-                        {row.orientationLabel}
-                      </p>
-                    </div>
-                    <div className="min-[380px]:col-span-2">
-                      <p className="text-xs font-medium">Листы</p>
-                      <p className="mt-0.5 text-[var(--foreground)]">
-                        {row.sheetsLabel}
-                      </p>
-                    </div>
-                  </div>
-                </article>
-              ))}
+                  ) : null}
+                </div>
+              )}
             </div>
 
-            <div className="mt-4 hidden overflow-x-auto border border-[color:var(--line)] bg-[var(--surface-strong)] md:block">
-              <table className="min-w-full border-collapse text-left">
-                <thead>
-                  <tr className="border-b border-[color:var(--line)] bg-[var(--surface-strong)]">
-                    <th className="px-3 py-3 text-xs font-semibold text-[var(--muted)]">
-                      #
-                    </th>
-                    <th className="px-3 py-3 text-xs font-semibold text-[var(--muted)]">
-                      Деталь
-                    </th>
-                    <th className="px-3 py-3 text-xs font-semibold text-[var(--muted)]">
-                      Размер
-                    </th>
-                    <th className="px-3 py-3 text-xs font-semibold text-[var(--muted)]">
-                      Кол-во
-                    </th>
-                    <th className="px-3 py-3 text-xs font-semibold text-[var(--muted)]">
-                      Кромка
-                    </th>
-                    <th className="px-3 py-3 text-xs font-semibold text-[var(--muted)]">
-                      Ориентация
-                    </th>
-                    <th className="px-3 py-3 text-xs font-semibold text-[var(--muted)]">
-                      Листы
-                    </th>
-                    <th className="px-3 py-3 text-xs font-semibold text-[var(--muted)]">
-                      Статус
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
+            <details className="mt-6 rounded-2xl border border-[color:var(--line)] px-4 py-3">
+              <summary className="cursor-pointer text-sm font-semibold">
+                Таблица деталей по листам
+              </summary>
+              <div className="mt-7 overflow-hidden border-t border-[color:var(--line)] pt-4 sm:mt-8 sm:pt-6">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div className="max-w-2xl">
+                    <p className="text-[13px] font-semibold text-[var(--accent)]">
+                      Ведомость для цеха
+                    </p>
+                    <h3 className="mt-2 text-[1.35rem] leading-tight font-semibold text-[var(--foreground)] sm:text-2xl">
+                      Таблица деталей по фактической карте раскроя
+                    </h3>
+                    <p className="mt-2 hidden text-[13px] leading-5 text-[var(--muted)] sm:block">
+                      Здесь собраны размеры, кромка, ориентация и распределение
+                      по листам. Эту часть уже удобно сверять перед распилом и
+                      кромлением.
+                    </p>
+                  </div>
+
+                  <div className="grid w-full min-w-0 grid-cols-1 gap-2 min-[380px]:grid-cols-2 sm:w-auto sm:min-w-[220px] sm:grid-cols-2">
+                    <MetricTile
+                      label="Позиций"
+                      value={`${visibleWorkshopRows.length} шт.`}
+                      muted
+                    />
+                    <MetricTile
+                      label="Деталей в карте"
+                      value={`${cutMap.placedPieces} шт.`}
+                      muted
+                    />
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-2.5 md:hidden">
                   {visibleWorkshopRows.map((row) => (
-                    <tr
+                    <article
                       key={row.id}
-                      className="border-b border-[color:var(--line)] align-top last:border-b-0"
+                      className="border border-[color:var(--line)] bg-[var(--surface-strong)] p-3"
                     >
-                      <td className="px-3 py-3 text-sm text-[var(--muted)]">
-                        {row.sequence}
-                      </td>
-                      <td className="px-3 py-3 text-sm font-medium text-[var(--foreground)]">
-                        {row.title}
-                      </td>
-                      <td className="px-3 py-3 text-sm text-[var(--foreground)]">
-                        {row.sizeLabel}
-                      </td>
-                      <td className="px-3 py-3 text-sm text-[var(--foreground)]">
-                        {row.quantity}
-                      </td>
-                      <td className="px-3 py-3 text-sm text-[var(--foreground)]">
-                        {row.edgeLabel}
-                      </td>
-                      <td className="px-3 py-3 text-sm text-[var(--foreground)]">
-                        {row.orientationLabel}
-                      </td>
-                      <td className="px-3 py-3 text-sm text-[var(--foreground)]">
-                        {row.sheetsLabel}
-                      </td>
-                      <td className="px-3 py-3 text-sm text-[var(--muted)]">
-                        {row.statusLabel}
-                      </td>
-                    </tr>
+                      <div className="space-y-2">
+                        <div>
+                          <p className="text-sm font-semibold text-[var(--foreground)]">
+                            {row.sequence}. {row.title}
+                          </p>
+                          <p className="mt-1 text-[12px] text-[var(--muted)]">
+                            {row.sizeLabel} · {row.quantity} шт.
+                          </p>
+                        </div>
+                        <span className="inline-flex w-fit items-center border border-[color:var(--line)] bg-[var(--surface-strong)] px-2 py-1 text-[10px] text-[var(--muted)]">
+                          {row.statusLabel}
+                        </span>
+                      </div>
+                      <div className="mt-3 grid grid-cols-1 gap-2 text-[12px] leading-5 text-[var(--muted)] min-[380px]:grid-cols-2">
+                        <div>
+                          <p className="text-xs font-medium">Кромка</p>
+                          <p className="mt-0.5 text-[var(--foreground)]">
+                            {row.edgeLabel}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium">Ориентация</p>
+                          <p className="mt-0.5 text-[var(--foreground)]">
+                            {row.orientationLabel}
+                          </p>
+                        </div>
+                        <div className="min-[380px]:col-span-2">
+                          <p className="text-xs font-medium">Листы</p>
+                          <p className="mt-0.5 text-[var(--foreground)]">
+                            {row.sheetsLabel}
+                          </p>
+                        </div>
+                      </div>
+                    </article>
                   ))}
-                </tbody>
-              </table>
+                </div>
+
+                <div className="mt-4 hidden overflow-x-auto border border-[color:var(--line)] bg-[var(--surface-strong)] md:block">
+                  <table className="min-w-full border-collapse text-left">
+                    <thead>
+                      <tr className="border-b border-[color:var(--line)] bg-[var(--surface-strong)]">
+                        <th className="px-3 py-3 text-xs font-semibold text-[var(--muted)]">
+                          #
+                        </th>
+                        <th className="px-3 py-3 text-xs font-semibold text-[var(--muted)]">
+                          Деталь
+                        </th>
+                        <th className="px-3 py-3 text-xs font-semibold text-[var(--muted)]">
+                          Размер
+                        </th>
+                        <th className="px-3 py-3 text-xs font-semibold text-[var(--muted)]">
+                          Кол-во
+                        </th>
+                        <th className="px-3 py-3 text-xs font-semibold text-[var(--muted)]">
+                          Кромка
+                        </th>
+                        <th className="px-3 py-3 text-xs font-semibold text-[var(--muted)]">
+                          Ориентация
+                        </th>
+                        <th className="px-3 py-3 text-xs font-semibold text-[var(--muted)]">
+                          Листы
+                        </th>
+                        <th className="px-3 py-3 text-xs font-semibold text-[var(--muted)]">
+                          Статус
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {visibleWorkshopRows.map((row) => (
+                        <tr
+                          key={row.id}
+                          className="border-b border-[color:var(--line)] align-top last:border-b-0"
+                        >
+                          <td className="px-3 py-3 text-sm text-[var(--muted)]">
+                            {row.sequence}
+                          </td>
+                          <td className="px-3 py-3 text-sm font-medium text-[var(--foreground)]">
+                            {row.title}
+                          </td>
+                          <td className="px-3 py-3 text-sm text-[var(--foreground)]">
+                            {row.sizeLabel}
+                          </td>
+                          <td className="px-3 py-3 text-sm text-[var(--foreground)]">
+                            {row.quantity}
+                          </td>
+                          <td className="px-3 py-3 text-sm text-[var(--foreground)]">
+                            {row.edgeLabel}
+                          </td>
+                          <td className="px-3 py-3 text-sm text-[var(--foreground)]">
+                            {row.orientationLabel}
+                          </td>
+                          <td className="px-3 py-3 text-sm text-[var(--foreground)]">
+                            {row.sheetsLabel}
+                          </td>
+                          <td className="px-3 py-3 text-sm text-[var(--muted)]">
+                            {row.statusLabel}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </details>
+            <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-[color:var(--line)] pt-4">
+              <button
+                type="button"
+                onClick={() => goToStep(2)}
+                className="text-sm text-[var(--muted)] underline-offset-2 hover:text-[var(--foreground)] hover:underline"
+              >
+                ← Детали
+              </button>
+              <button
+                type="button"
+                onClick={() => goToStep(4)}
+                className="inline-flex min-h-11 items-center rounded-full bg-[var(--accent)] px-5 text-sm font-semibold text-[var(--accent-ink)] transition hover:bg-[var(--accent-strong)]"
+              >
+                Дальше: заявка →
+              </button>
             </div>
           </div>
         </div>
 
         <aside className="hidden border-t border-[color:var(--line-strong)]/10 bg-[var(--surface)] p-4 text-[var(--foreground)] sm:p-5 lg:p-6 xl:sticky xl:top-20 xl:block xl:self-start xl:border-t-0 xl:border-l xl:border-[color:var(--line-strong)]/10">
-          <div className="rounded-2xl bg-[#1f2b25] p-5 text-white shadow-[0_18px_40px_rgba(21,20,17,0.25)]">
-            <p className="text-[13px] font-semibold text-white/60">
+          <div className="rounded-2xl bg-[#f2ece4] p-5 text-[#15120f] shadow-[0_18px_40px_rgba(0,0,0,0.35)]">
+            <p className="text-[13px] font-semibold text-[#15120f]/60">
               Ориентир по раскрою
             </p>
             <p className="mt-2 font-[family-name:var(--font-onest)] text-[2rem] leading-none font-medium">
               {formatPrice(Math.round(estimate.totalEstimate))}
             </p>
-            <p className="mt-3 text-[13px] text-white/70">
-              <span className="font-semibold text-[var(--accent)]">
+            <p className="mt-3 text-[13px] text-[#15120f]/70">
+              <span className="font-semibold text-[#8a5a0b]">
                 {estimate.sheetCount} лист.
               </span>{" "}
               · {cutMap.placedPieces} дет. · КИМ{" "}
@@ -3760,11 +3899,15 @@ export function CutCalculator({
             </p>
             <a
               href="#cut-request-form"
-              className="mt-4 flex h-11 items-center justify-center rounded-full bg-[var(--accent)] text-sm font-semibold transition hover:bg-[var(--accent-strong)]"
+              onClick={(event) => {
+                event.preventDefault();
+                goToStep(4);
+              }}
+              className="mt-4 flex h-11 items-center justify-center rounded-full bg-[#15120f] text-sm font-semibold text-[#f2ece4] transition hover:bg-[#2c2620]"
             >
               Отправить заявку
             </a>
-            <p className="mt-2 text-center text-[11px] text-white/45">
+            <p className="mt-2 text-center text-[11px] text-[#15120f]/55">
               Точную сумму подтвердит менеджер
             </p>
           </div>
@@ -3871,7 +4014,11 @@ export function CutCalculator({
         </div>
         <a
           href="#cut-request-form"
-          className="inline-flex h-11 shrink-0 items-center rounded-full bg-[var(--accent)] px-5 text-sm font-semibold"
+          onClick={(event) => {
+            event.preventDefault();
+            goToStep(4);
+          }}
+          className="inline-flex h-11 shrink-0 items-center rounded-full bg-[var(--accent)] px-5 text-sm font-semibold text-[var(--accent-ink)]"
         >
           Отправить
         </a>
