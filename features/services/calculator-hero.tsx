@@ -82,7 +82,7 @@ export function CalculatorHero({ prices }: { prices: SiteCuttingPrices }) {
         <div className="mx-auto grid max-w-[1600px] gap-8 px-4 py-9 sm:px-8 sm:py-14 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)] lg:items-center lg:gap-14 lg:px-10 lg:py-16">
           <div>
             <p className="inline-flex items-center gap-2 rounded-full border border-white/20 px-3 py-1 text-[11px] tracking-[0.14em] text-white/80 uppercase">
-              <span className="size-1.5 rounded-full bg-[#f0a48f]" />
+              <span className="size-1.5 rounded-full bg-[var(--accent)]" />
               Раскрой онлайн
             </p>
             <h1
@@ -119,7 +119,7 @@ export function CalculatorHero({ prices }: { prices: SiteCuttingPrices }) {
             <div className="mt-7 grid gap-3 sm:flex sm:flex-wrap">
               <a
                 href="#cut-calculator"
-                className="inline-flex items-center justify-center gap-2.5 rounded-full bg-[#c4532b] px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-[#a8431f]"
+                className="inline-flex items-center justify-center gap-2.5 rounded-full bg-[var(--accent)] px-6 py-3.5 text-sm font-semibold text-[var(--accent-ink)] transition hover:bg-[var(--accent-strong)]"
               >
                 Начать раскрой <ArrowDown className="size-4" />
               </a>
@@ -218,9 +218,9 @@ export function CalculatorHero({ prices }: { prices: SiteCuttingPrices }) {
               ))}
             </svg>
             <div
-              className={`${s.result} absolute right-3 -bottom-4 rounded-xl bg-white px-4 py-3 text-[#252b29] shadow-[0_18px_40px_rgba(0,0,0,0.35)] sm:right-6`}
+              className={`${s.result} absolute right-3 -bottom-4 rounded-xl bg-[var(--surface-strong)] px-4 py-3 text-[var(--foreground)] shadow-[0_18px_40px_rgba(0,0,0,0.35)] sm:right-6`}
             >
-              <p className="text-[10px] tracking-[0.14em] text-[#69716d] uppercase">
+              <p className="text-[10px] tracking-[0.14em] text-[var(--muted)] uppercase">
                 Пример расчёта
               </p>
               <p className="mt-0.5 text-sm font-semibold">
@@ -238,17 +238,17 @@ export function CalculatorHero({ prices }: { prices: SiteCuttingPrices }) {
             className={`${s.step} flex items-center gap-3 rounded-[20px] p-3 sm:block sm:p-6`}
           >
             <div className="flex items-center justify-between">
-              <span className="grid size-11 place-items-center rounded-lg bg-[#f6ece8] text-[#a94730]">
+              <span className="grid size-11 place-items-center rounded-lg bg-[var(--surface)] text-[var(--accent)]">
                 <Icon className="size-5" />
               </span>
               <span className={`${s.stepNumber} hidden text-2xl sm:inline`}>
                 0{index + 1}
               </span>
             </div>
-            <h2 className="text-[15px] font-semibold text-[#252b29] sm:mt-4 sm:text-base">
+            <h2 className="text-[15px] font-semibold text-[var(--foreground)] sm:mt-4 sm:text-base">
               {title}
             </h2>
-            <p className="mt-1.5 hidden text-sm leading-6 text-[#69716d] sm:block">
+            <p className="mt-1.5 hidden text-sm leading-6 text-[var(--muted)] sm:block">
               {text}
             </p>
           </div>

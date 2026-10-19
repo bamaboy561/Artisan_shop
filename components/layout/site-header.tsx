@@ -111,7 +111,7 @@ function MobileBottomDock({ pathname }: { pathname: string }) {
               className={cn(
                 "relative flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-[1rem] px-1.5 py-2 transition",
                 active
-                  ? "bg-[var(--foreground)] text-white"
+                  ? "bg-[var(--foreground)] text-[var(--background)]"
                   : "text-[var(--muted)] hover:bg-[var(--surface)] hover:text-[var(--foreground)]",
               )}
             >
@@ -150,7 +150,7 @@ function HeaderSearchForm({ isHeroMode }: { isHeroMode: boolean }) {
         "flex h-10 min-w-0 items-center overflow-hidden rounded-[6px] border transition",
         isHeroMode
           ? "border-white/24 bg-white/10 text-white"
-          : "border-[color:var(--line)] bg-white/78 text-[var(--foreground)]",
+          : "border-[color:var(--line)] bg-[var(--surface-strong)]/78 text-[var(--foreground)]",
       )}
     >
       <input
@@ -260,8 +260,8 @@ export function SiteHeader() {
               className={cn(
                 "flex size-8 shrink-0 items-center justify-center rounded-full text-[12px] font-black tracking-[0.14em] xl:hidden",
                 isHeroMode
-                  ? "bg-white text-[#151411]"
-                  : "bg-[#151411] text-white",
+                  ? "bg-[var(--surface-strong)] text-[var(--foreground)]"
+                  : "bg-[var(--foreground)] text-[var(--background)]",
               )}
             >
               A
@@ -330,7 +330,7 @@ export function SiteHeader() {
                   )}
                 />
                 {itemCount > 0 ? (
-                  <span className="absolute -top-0.5 -right-0.5 flex size-[1.1rem] items-center justify-center rounded-full bg-[var(--accent)] text-[10px] font-semibold text-white">
+                  <span className="absolute -top-0.5 -right-0.5 flex size-[1.1rem] items-center justify-center rounded-full bg-[var(--accent)] text-[10px] font-semibold text-[var(--accent-ink)]">
                     {itemCount}
                   </span>
                 ) : null}
@@ -374,7 +374,7 @@ export function SiteHeader() {
                 )}
               />
               {itemCount > 0 ? (
-                <span className="absolute -top-0.5 -right-0.5 flex size-[1.1rem] items-center justify-center rounded-full bg-[var(--accent)] text-[10px] font-semibold text-white">
+                <span className="absolute -top-0.5 -right-0.5 flex size-[1.1rem] items-center justify-center rounded-full bg-[var(--accent)] text-[10px] font-semibold text-[var(--accent-ink)]">
                   {itemCount}
                 </span>
               ) : null}
@@ -447,8 +447,8 @@ export function SiteHeader() {
                   className={cn(
                     "flex items-center justify-between rounded-[1.25rem] border px-4 py-4 text-sm font-medium transition",
                     isActivePath(pathname, item.href)
-                      ? "border-[var(--foreground)] bg-[var(--foreground)] text-white"
-                      : "border-[color:var(--line)] bg-white/72 text-[var(--foreground)]",
+                      ? "border-[var(--foreground)] bg-[var(--foreground)] text-[var(--background)]"
+                      : "border-[color:var(--line)] bg-[var(--surface-strong)]/72 text-[var(--foreground)]",
                   )}
                 >
                   <span>{item.label}</span>
@@ -473,14 +473,14 @@ export function SiteHeader() {
               <Link
                 href="/account"
                 onClick={() => setIsMenuOpen(false)}
-                className="inline-flex h-12 items-center justify-center rounded-[1rem] border border-[color:var(--line)] bg-white/72 font-mono text-[10px] tracking-[0.14em] text-[var(--foreground)] uppercase"
+                className="inline-flex h-12 items-center justify-center rounded-[1rem] border border-[color:var(--line)] bg-[var(--surface-strong)]/72 font-mono text-[10px] tracking-[0.14em] text-[var(--foreground)] uppercase"
               >
                 Кабинет
               </Link>
               <Link
                 href="/contacts"
                 onClick={() => setIsMenuOpen(false)}
-                className="inline-flex h-12 items-center justify-center rounded-[1rem] border border-[color:var(--line)] bg-white/72 font-mono text-[10px] tracking-[0.14em] text-[var(--foreground)] uppercase"
+                className="inline-flex h-12 items-center justify-center rounded-[1rem] border border-[color:var(--line)] bg-[var(--surface-strong)]/72 font-mono text-[10px] tracking-[0.14em] text-[var(--foreground)] uppercase"
               >
                 Контакты
               </Link>

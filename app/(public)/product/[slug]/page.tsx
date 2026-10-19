@@ -40,7 +40,7 @@ type RelatedProductCandidate = NonNullable<
 
 function ProductCatalogUnavailable() {
   return (
-    <div className="bg-[#f1eee8] px-4 py-16 sm:px-8 lg:px-10">
+    <div className="bg-[var(--surface)] px-4 py-16 sm:px-8 lg:px-10">
       <div className="mx-auto grid min-h-[52vh] max-w-[980px] place-items-center">
         <div className="w-full border border-[color:var(--line)] bg-[var(--surface-strong)] p-6 text-center shadow-[0_24px_70px_rgba(21,20,17,0.06)] sm:p-10">
           <p className="font-mono text-[10px] tracking-[0.22em] text-[var(--accent)] uppercase">
@@ -210,7 +210,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
     );
 
   return (
-    <div className="bg-[#f1eee8] pb-20 lg:pb-0">
+    <div className="bg-[var(--surface)] pb-20 lg:pb-0">
       <StructuredData
         data={[
           breadcrumbJsonLd([
@@ -312,7 +312,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
               </dl>
 
               {product.isBundle ? (
-                <div className="mt-4 border border-[color:var(--line)] bg-[#f8f5ef] p-4">
+                <div className="mt-4 border border-[color:var(--line)] bg-[var(--surface)] p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="font-mono text-[10px] tracking-[0.18em] text-[var(--accent)] uppercase">
@@ -322,7 +322,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                         Добавляется в корзину одной позицией.
                       </p>
                     </div>
-                    <span className="shrink-0 rounded-full bg-[var(--foreground)] px-2.5 py-1 text-xs font-semibold text-white">
+                    <span className="shrink-0 rounded-full bg-[var(--foreground)] px-2.5 py-1 text-xs font-semibold text-[var(--background)]">
                       {product.bundleItems.length || 1}
                     </span>
                   </div>
@@ -523,7 +523,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
         </section>
       ) : null}
 
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[color:var(--line)] bg-[#f8f5ef]/96 px-4 py-3 shadow-[0_-18px_44px_rgba(21,20,17,0.12)] backdrop-blur lg:hidden">
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[color:var(--line)] bg-[var(--surface)]/96 px-4 py-3 shadow-[0_-18px_44px_rgba(21,20,17,0.12)] backdrop-blur lg:hidden">
         <div className="mx-auto flex max-w-[720px] items-center gap-3">
           <div className="min-w-0 flex-1">
             <p className="line-clamp-1 text-[13px] font-semibold text-[var(--foreground)]">

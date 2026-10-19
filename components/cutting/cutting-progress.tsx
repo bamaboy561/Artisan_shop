@@ -65,10 +65,10 @@ export function CuttingProgress({
                   "flex size-6 shrink-0 items-center justify-center rounded-full border text-[10px] font-bold",
                   isDone && "border-emerald-600 bg-emerald-600 text-white",
                   isCurrent &&
-                    "border-[var(--accent)] bg-[var(--accent)] text-white",
+                    "border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-ink)]",
                   !isDone &&
                     !isCurrent &&
-                    "border-[color:var(--line-strong)] bg-white text-[var(--muted)]",
+                    "border-[color:var(--line-strong)] bg-[var(--surface-strong)] text-[var(--muted)]",
                 )}
               >
                 {isDone ? (

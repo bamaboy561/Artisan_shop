@@ -29,7 +29,7 @@ export default async function AccountLayout({
       items={accountNavigation}
       variant="account"
       actions={
-        <div className="flex min-w-0 items-center justify-between gap-3 rounded-2xl bg-white p-3 lg:bg-[var(--background)]">
+        <div className="flex min-w-0 items-center justify-between gap-3 rounded-2xl bg-[var(--surface-strong)] p-3 lg:bg-[var(--background)]">
           <div className="min-w-0">
             <p className="truncate text-[15px] font-bold text-[var(--foreground)]">
               {accountName}

@@ -23,7 +23,7 @@ export function SiteFooter() {
             href="/"
             className="inline-flex items-center gap-2.5 text-lg font-semibold"
           >
-            <span className="flex size-10 items-center justify-center rounded-[1rem] bg-white text-[var(--hero)]">
+            <span className="flex size-10 items-center justify-center rounded-[1rem] bg-[var(--surface-strong)] text-[var(--hero)]">
               A
             </span>
             {companyName}

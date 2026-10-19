@@ -4,10 +4,11 @@ import { cn } from "@/lib/utils";
 
 const buttonVariants = {
   primary:
-    "bg-[var(--foreground)] text-white hover:bg-[color:color-mix(in_srgb,var(--foreground)_88%,white)]",
+    "bg-[var(--foreground)] text-[var(--background)] hover:bg-[color:color-mix(in_srgb,var(--foreground)_88%,white)]",
   secondary:
-    "border border-[color:var(--line-strong)] bg-transparent text-[var(--foreground)] hover:border-[color:var(--foreground)] hover:bg-[var(--foreground)] hover:text-white",
-  accent: "bg-[var(--accent)] text-white hover:bg-[var(--accent-strong)]",
+    "border border-[color:var(--line-strong)] bg-transparent text-[var(--foreground)] hover:border-[color:var(--foreground)] hover:bg-[var(--foreground)] hover:text-[var(--background)]",
+  accent:
+    "bg-[var(--accent)] text-[var(--accent-ink)] hover:bg-[var(--accent-strong)]",
   ghost: "text-[var(--foreground)] hover:bg-[var(--surface)]",
 } as const;
 

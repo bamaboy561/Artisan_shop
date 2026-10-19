@@ -26,7 +26,7 @@ export function Tabs({ tabs, defaultTabId, className }: TabsProps) {
 
   return (
     <div className={cn("space-y-4", className)}>
-      <div className="inline-flex w-full flex-wrap gap-2 rounded-2xl border border-[color:var(--line)] bg-white/74 p-2">
+      <div className="inline-flex w-full flex-wrap gap-2 rounded-2xl border border-[color:var(--line)] bg-[var(--surface-strong)]/74 p-2">
         {tabs.map((tab) => (
           <button
             key={tab.id}
@@ -35,7 +35,7 @@ export function Tabs({ tabs, defaultTabId, className }: TabsProps) {
             className={cn(
               "rounded-xl px-4 py-2 text-sm font-semibold transition focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none",
               tab.id === activeTab.id
-                ? "bg-[var(--foreground)] text-white"
+                ? "bg-[var(--foreground)] text-[var(--background)]"
                 : "text-[var(--foreground)]/80 hover:bg-[var(--surface)]",
             )}
           >
@@ -44,7 +44,7 @@ export function Tabs({ tabs, defaultTabId, className }: TabsProps) {
         ))}
       </div>
 
-      <div className="surface-glow rounded-2xl border border-[color:var(--line)] bg-white/74 p-5">
+      <div className="surface-glow rounded-2xl border border-[color:var(--line)] bg-[var(--surface-strong)]/74 p-5">
         {activeTab.content}
       </div>
     </div>

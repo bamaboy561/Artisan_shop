@@ -208,7 +208,7 @@ export function CatalogToolbar({
         <div className="grid min-w-0 gap-2 lg:grid-cols-[minmax(0,1fr)_220px]">
           <form
             key={state.q}
-            className="flex min-w-0 overflow-hidden rounded-md border border-[color:var(--line)] bg-white focus-within:border-[var(--accent)]"
+            className="flex min-w-0 overflow-hidden rounded-md border border-[color:var(--line)] bg-[var(--surface-strong)] focus-within:border-[var(--accent)]"
             onSubmit={(event) => {
               event.preventDefault();
               const data = new FormData(event.currentTarget);
@@ -232,7 +232,7 @@ export function CatalogToolbar({
               aria-label="Найти в каталоге"
               title="Найти в каталоге"
               disabled={isPending}
-              className="flex size-11 shrink-0 items-center justify-center bg-[var(--foreground)] text-white disabled:opacity-60"
+              className="flex size-11 shrink-0 items-center justify-center bg-[var(--foreground)] text-[var(--background)] disabled:opacity-60"
             >
               {isPending ? (
                 <LoaderCircle className="size-5 animate-spin" />
@@ -303,7 +303,7 @@ export function CatalogToolbar({
                 onClick={chip.remove}
                 disabled={isPending}
                 aria-label={`Убрать фильтр: ${chip.label}`}
-                className="inline-flex max-w-full items-center gap-2 rounded border border-[color:var(--line)] bg-white px-2.5 py-1.5 text-xs"
+                className="inline-flex max-w-full items-center gap-2 rounded border border-[color:var(--line)] bg-[var(--surface-strong)] px-2.5 py-1.5 text-xs"
               >
                 <span className="min-w-0 break-words">{chip.label}</span>
                 <X className="size-3.5 shrink-0" />

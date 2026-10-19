@@ -69,30 +69,30 @@ export function BazisProjectReadonly({
 
   return (
     <div className="grid gap-5">
-      <section className="grid gap-2 bg-white p-4 sm:p-5">
+      <section className="grid gap-2 bg-[var(--surface-strong)] p-4 sm:p-5">
         <BazisViewer
           boxes={boxes}
           joints={project.joints}
           toneColors={toneColors}
           highlightBoxes={highlightBoxes}
         />
-        <p className="text-xs text-[#69716d]">
+        <p className="text-xs text-[var(--muted)]">
           Цвет деталей примерный: он подобран по названию материала.
           {selected ? " Выбранные детали выделены." : ""}
         </p>
       </section>
 
-      <section className="grid gap-3 bg-white p-4 sm:p-5">
-        <h2 className="text-xl font-semibold text-[#252b29]">
+      <section className="grid gap-3 bg-[var(--surface-strong)] p-4 sm:p-5">
+        <h2 className="text-xl font-semibold text-[var(--foreground)]">
           Детали: {project.panels.length} шт.
         </h2>
-        <p className="text-sm text-[#69716d]">
+        <p className="text-sm text-[var(--muted)]">
           Нажмите на строку, чтобы увидеть деталь на макете.
         </p>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[640px] border-collapse text-sm">
             <thead>
-              <tr className="bg-[#f3f5f3] text-left text-xs text-[#69716d]">
+              <tr className="bg-[var(--surface)] text-left text-xs text-[var(--muted)]">
                 {["Деталь", "Размер, мм", "Кол-во", "Материал", "Кромка"].map(
                   (heading) => (
                     <th key={heading} className="px-3 py-2 font-medium">
@@ -111,9 +111,9 @@ export function BazisProjectReadonly({
                       current === row.key ? null : row.key,
                     )
                   }
-                  className={`cursor-pointer border-b border-[#e1e5e1] transition ${selected === row.key ? "bg-[#f6ece8]" : "hover:bg-[#f7f8f7]"}`}
+                  className={`cursor-pointer border-b border-[color:var(--line)] transition ${selected === row.key ? "bg-[var(--surface)]" : "hover:bg-[#f7f8f7]"}`}
                 >
-                  <td className="px-3 py-2 font-medium text-[#252b29]">
+                  <td className="px-3 py-2 font-medium text-[var(--foreground)]">
                     {row.panel.name}
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap">
@@ -141,15 +141,15 @@ export function BazisProjectReadonly({
       <DrillingSummary drilling={project.drilling} />
 
       {project.hardware.length > 0 ? (
-        <section className="grid gap-3 bg-white p-4 sm:p-5">
-          <h2 className="text-xl font-semibold text-[#252b29]">
+        <section className="grid gap-3 bg-[var(--surface-strong)] p-4 sm:p-5">
+          <h2 className="text-xl font-semibold text-[var(--foreground)]">
             Фурнитура в проекте
           </h2>
-          <ul className="grid gap-1 text-sm text-[#252b29] sm:grid-cols-2">
+          <ul className="grid gap-1 text-sm text-[var(--foreground)] sm:grid-cols-2">
             {project.hardware.map((item) => (
               <li
                 key={item.name}
-                className="flex justify-between gap-3 border-b border-[#e1e5e1] py-1.5"
+                className="flex justify-between gap-3 border-b border-[color:var(--line)] py-1.5"
               >
                 <span>{item.name}</span>
                 <span className="font-semibold whitespace-nowrap">

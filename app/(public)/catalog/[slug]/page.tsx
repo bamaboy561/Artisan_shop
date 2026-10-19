@@ -100,7 +100,7 @@ export default async function CategoryPage({
   const currentHref = buildCatalogHref(basePath, resolvedState);
 
   return (
-    <div className="bg-[#f1eee8]">
+    <div className="bg-[var(--surface)]">
       <StructuredData
         data={[
           breadcrumbJsonLd([
@@ -116,7 +116,7 @@ export default async function CategoryPage({
           }),
         ]}
       />
-      <section className="border-b border-[color:var(--line)] bg-white px-4 py-4 sm:px-8 lg:px-10">
+      <section className="border-b border-[color:var(--line)] bg-[var(--surface-strong)] px-4 py-4 sm:px-8 lg:px-10">
         <div className="mx-auto max-w-[1500px] space-y-2">
           <Breadcrumbs
             items={[
@@ -202,7 +202,7 @@ export default async function CategoryPage({
                 </p>
                 <Link
                   href={basePath}
-                  className="mt-6 inline-flex h-10 items-center border border-[var(--foreground)] px-6 font-mono text-[10px] tracking-[0.14em] text-[var(--foreground)] uppercase transition hover:bg-[var(--foreground)] hover:text-white sm:mt-7 sm:h-11 sm:px-8 sm:text-[11px]"
+                  className="mt-6 inline-flex h-10 items-center border border-[var(--foreground)] px-6 font-mono text-[10px] tracking-[0.14em] text-[var(--foreground)] uppercase transition hover:bg-[var(--foreground)] hover:text-[var(--background)] sm:mt-7 sm:h-11 sm:px-8 sm:text-[11px]"
                 >
                   Сбросить фильтры
                 </Link>
@@ -211,7 +211,7 @@ export default async function CategoryPage({
 
             <Link
               href="/catalog"
-              className="inline-flex h-10 items-center border border-[color:var(--line-strong)] px-6 font-mono text-[10px] tracking-[0.14em] text-[var(--foreground)] uppercase transition hover:border-[var(--foreground)] hover:bg-[var(--foreground)] hover:text-white sm:h-11 sm:px-8 sm:text-[11px]"
+              className="inline-flex h-10 items-center border border-[color:var(--line-strong)] px-6 font-mono text-[10px] tracking-[0.14em] text-[var(--foreground)] uppercase transition hover:border-[var(--foreground)] hover:bg-[var(--foreground)] hover:text-[var(--background)] sm:h-11 sm:px-8 sm:text-[11px]"
             >
               Назад ко всему каталогу
             </Link>

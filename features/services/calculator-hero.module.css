@@ -4,20 +4,20 @@
   background:
     radial-gradient(
       120% 90% at 100% 0%,
-      rgba(169, 71, 48, 0.34) 0%,
-      rgba(169, 71, 48, 0) 55%
+      rgba(232, 176, 75, 0.16) 0%,
+      rgba(232, 176, 75, 0) 55%
     ),
-    #1f2422;
+    #15120f;
   color: #fff;
 }
 .heroTitle {
-  font-family: var(--font-unbounded), Arial, sans-serif;
+  font-family: var(--font-onest), Arial, sans-serif;
   font-weight: 600;
   line-height: 1.08;
 }
 .heroTitle em {
   font-style: normal;
-  color: #f0a48f;
+  color: var(--accent);
 }
 .price {
   border: 1px solid rgba(255, 255, 255, 0.16);
@@ -25,7 +25,7 @@
   backdrop-filter: blur(6px);
 }
 .price strong {
-  font-family: var(--font-unbounded), Arial, sans-serif;
+  font-family: var(--font-onest), Arial, sans-serif;
   font-weight: 600;
 }
 .board {
@@ -91,8 +91,8 @@
   }
 }
 .step {
-  border: 1px solid #e1e5e1;
-  background: #fff;
+  border: 1px solid var(--line);
+  background: var(--surface);
   transition:
     transform 200ms ease,
     box-shadow 200ms ease,
@@ -100,12 +100,12 @@
 }
 .step:hover {
   transform: translateY(-3px);
-  border-color: #a94730;
-  box-shadow: 0 18px 40px rgba(37, 43, 41, 0.08);
+  border-color: var(--accent);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.3);
 }
 .stepNumber {
-  font-family: var(--font-unbounded), Arial, sans-serif;
-  color: #a94730;
+  font-family: var(--font-onest), Arial, sans-serif;
+  color: var(--accent);
 }
 @media (prefers-reduced-motion: reduce) {
   .part,

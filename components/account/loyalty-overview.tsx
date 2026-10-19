@@ -192,7 +192,7 @@ export function LoyaltyOverview({
             <div className="flex flex-wrap items-center gap-2">
               <StatusBadge
                 tone={getTierTone(user.loyaltyTier)}
-                className="border-white/10 bg-white text-[#111111]"
+                className="border-white/10 bg-[var(--surface-strong)] text-[var(--foreground)]"
               >
                 {getLoyaltyTierLabel(user.loyaltyTier, loyaltyConfig)}
               </StatusBadge>
@@ -336,7 +336,7 @@ export function LoyaltyOverview({
                     className="group flex min-w-0 items-center justify-between gap-3 rounded-[18px] border border-white/10 bg-white/[0.065] p-3 transition hover:border-white/25 hover:bg-white/[0.1]"
                   >
                     <span className="flex min-w-0 items-center gap-3">
-                      <span className="flex size-9 shrink-0 items-center justify-center rounded-2xl bg-white text-[#111111]">
+                      <span className="flex size-9 shrink-0 items-center justify-center rounded-2xl bg-[var(--surface-strong)] text-[var(--foreground)]">
                         <Icon className="size-4" strokeWidth={1.9} />
                       </span>
                       <span className="min-w-0">
@@ -357,7 +357,7 @@ export function LoyaltyOverview({
               })}
             </div>
 
-            <div className="rounded-[18px] border border-white/10 bg-white p-3 text-[#111111]">
+            <div className="rounded-[18px] border border-white/10 bg-[var(--surface-strong)] p-3 text-[var(--foreground)]">
               <div className="grid grid-cols-[82px_minmax(0,1fr)] items-center gap-3">
                 <Image
                   src={clientQrUrl}
@@ -365,13 +365,13 @@ export function LoyaltyOverview({
                   width={82}
                   height={82}
                   unoptimized
-                  className="rounded-xl border border-[#eee8de] bg-white"
+                  className="rounded-xl border border-[color:var(--line)] bg-[var(--surface-strong)]"
                 />
                 <div className="min-w-0">
-                  <p className="text-xs font-medium text-[#9a5638]">
+                  <p className="text-xs font-medium text-[var(--accent)]">
                     QR клиента
                   </p>
-                  <p className="mt-1 text-xs leading-5 text-[#5d574f]">
+                  <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
                     Покажите менеджеру в зале для быстрого выбора профиля и
                     начисления бонусов.
                   </p>
@@ -382,7 +382,7 @@ export function LoyaltyOverview({
         </div>
       </article>
 
-      <article className="grid gap-3 rounded-[24px] border border-[color:var(--line)] bg-white/92 p-4 shadow-[0_14px_34px_rgba(17,17,17,0.04)] sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+      <article className="grid gap-3 rounded-[24px] border border-[color:var(--line)] bg-[var(--surface-strong)]/92 p-4 shadow-[0_14px_34px_rgba(17,17,17,0.04)] sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
         <div className="min-w-0">
           <p className="text-xs font-medium text-[var(--muted)]">Telegram</p>
           <h3 className="mt-1 text-lg font-semibold tracking-[-0.03em] text-[var(--foreground)]">
@@ -400,7 +400,7 @@ export function LoyaltyOverview({
         <Link
           href={user.telegramStartLink}
           target="_blank"
-          className="inline-flex h-11 items-center justify-center rounded-full bg-[var(--foreground)] px-5 text-sm font-semibold text-white transition hover:bg-[var(--accent)]"
+          className="inline-flex h-11 items-center justify-center rounded-full bg-[var(--foreground)] px-5 text-sm font-semibold text-[var(--accent-ink)] transition hover:bg-[var(--accent)]"
         >
           {user.telegramLinked ? "Открыть бота" : "Подключить Telegram"}
         </Link>
@@ -414,7 +414,7 @@ export function LoyaltyOverview({
             <Link
               key={item.label}
               href={item.href}
-              className="group min-w-0 rounded-[20px] border border-[color:var(--line)] bg-white/92 p-3.5 shadow-[0_14px_34px_rgba(17,17,17,0.04)] transition hover:-translate-y-0.5 hover:border-[color:var(--accent)]/30"
+              className="group min-w-0 rounded-[20px] border border-[color:var(--line)] bg-[var(--surface-strong)]/92 p-3.5 shadow-[0_14px_34px_rgba(17,17,17,0.04)] transition hover:-translate-y-0.5 hover:border-[color:var(--accent)]/30"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -455,7 +455,7 @@ export function LoyaltyOverview({
                 "rounded-[22px] border p-4 transition-transform duration-300 hover:-translate-y-0.5",
                 isCurrent
                   ? "border-[color:var(--accent)]/35 bg-[linear-gradient(180deg,rgba(185,95,63,0.12),rgba(255,255,255,0.94))] shadow-[0_18px_42px_rgba(17,17,17,0.06)]"
-                  : "border-[color:var(--line)] bg-white/84",
+                  : "border-[color:var(--line)] bg-[var(--surface-strong)]/84",
               )}
             >
               <div className="flex items-center justify-between gap-3">

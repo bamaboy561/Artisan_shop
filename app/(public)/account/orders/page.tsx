@@ -105,7 +105,7 @@ export default async function AccountOrdersPage() {
           order.items.map((item) => (
             <div
               key={item.id}
-              className="border-b border-[#ece8e2] pb-2 last:border-0 last:pb-0"
+              className="border-b border-[color:var(--line)] pb-2 last:border-0 last:pb-0"
             >
               <p className="text-sm leading-5 font-medium text-[var(--foreground)]">
                 {item.snapshotName}

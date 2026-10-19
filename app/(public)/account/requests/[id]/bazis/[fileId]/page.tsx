@@ -70,7 +70,7 @@ export default async function AccountBazisPage({
         <ArrowLeft className="size-4" /> Мои заявки
       </Link>
       <div>
-        <p className="text-xs font-semibold tracking-[0.14em] text-[#a94730] uppercase">
+        <p className="text-xs font-semibold tracking-[0.14em] text-[var(--accent)] uppercase">
           Заявка {request.number ?? request.id.slice(0, 8)}
         </p>
         <h1 className="mt-1 text-2xl leading-tight font-semibold text-[var(--foreground)] sm:text-3xl">

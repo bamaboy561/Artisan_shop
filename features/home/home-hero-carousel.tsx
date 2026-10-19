@@ -33,7 +33,7 @@ function HeroButton({ href, children }: { href: string; children: ReactNode }) {
   return (
     <Link
       href={href}
-      className="inline-flex h-10 min-w-40 items-center justify-center border border-white/42 px-5 font-mono text-[10px] tracking-[0.16em] text-white uppercase transition hover:bg-white hover:text-black max-sm:w-full sm:h-11 sm:px-6 sm:text-[11px]"
+      className="inline-flex h-10 min-w-40 items-center justify-center border border-white/42 px-5 font-mono text-[10px] tracking-[0.16em] text-white uppercase transition hover:bg-[var(--surface-strong)] hover:text-black max-sm:w-full sm:h-11 sm:px-6 sm:text-[11px]"
     >
       {children}
     </Link>
@@ -117,7 +117,7 @@ export function HomeHeroCarousel({ slides }: { slides: HomeHeroSlide[] }) {
       <button
         type="button"
         onClick={goToPrev}
-        className="absolute top-1/2 left-5 z-10 hidden size-10 -translate-y-1/2 items-center justify-center border border-white/22 bg-black/12 text-white/62 backdrop-blur transition hover:bg-white hover:text-black lg:flex"
+        className="absolute top-1/2 left-5 z-10 hidden size-10 -translate-y-1/2 items-center justify-center border border-white/22 bg-black/12 text-white/62 backdrop-blur transition hover:bg-[var(--surface-strong)] hover:text-black lg:flex"
         aria-label="Предыдущий слайд"
       >
         <ChevronLeft className="size-5" />
@@ -125,7 +125,7 @@ export function HomeHeroCarousel({ slides }: { slides: HomeHeroSlide[] }) {
       <button
         type="button"
         onClick={goToNext}
-        className="absolute top-1/2 right-5 z-10 hidden size-10 -translate-y-1/2 items-center justify-center border border-white/22 bg-black/12 text-white/62 backdrop-blur transition hover:bg-white hover:text-black lg:flex"
+        className="absolute top-1/2 right-5 z-10 hidden size-10 -translate-y-1/2 items-center justify-center border border-white/22 bg-black/12 text-white/62 backdrop-blur transition hover:bg-[var(--surface-strong)] hover:text-black lg:flex"
         aria-label="Следующий слайд"
       >
         <ChevronRight className="size-5" />
@@ -170,8 +170,8 @@ export function HomeHeroCarousel({ slides }: { slides: HomeHeroSlide[] }) {
               className={cn(
                 "h-1.5 rounded-full transition-all",
                 slideIndex === activeIndex
-                  ? "w-12 bg-white/70"
-                  : "w-2 bg-white/32 hover:bg-white/58",
+                  ? "w-12 bg-[var(--surface-strong)]/70"
+                  : "w-2 bg-white/32 hover:bg-[var(--surface-strong)]/58",
               )}
               aria-label={`Открыть слайд ${slideIndex + 1}`}
             />

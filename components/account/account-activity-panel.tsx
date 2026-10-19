@@ -156,7 +156,7 @@ function PanelLink({ href, children }: { href: string; children: ReactNode }) {
   return (
     <Link
       href={href}
-      className="inline-flex h-9 items-center gap-2 rounded-full border border-[color:var(--line)] px-3.5 text-sm font-semibold text-[var(--foreground)] transition hover:border-[color:var(--foreground)] hover:bg-[var(--foreground)] hover:text-white"
+      className="inline-flex h-9 items-center gap-2 rounded-full border border-[color:var(--line)] px-3.5 text-sm font-semibold text-[var(--foreground)] transition hover:border-[color:var(--foreground)] hover:bg-[var(--foreground)] hover:text-[var(--background)]"
     >
       {children}
       <ArrowUpRight className="size-3.5" strokeWidth={1.8} />
@@ -171,7 +171,7 @@ export function AccountActivityPanel({
 }: AccountActivityPanelProps) {
   return (
     <section className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_420px]">
-      <article className="surface-glow rounded-[26px] border border-[color:var(--line)] bg-white/92 p-4 shadow-[0_18px_44px_rgba(17,17,17,0.04)] sm:p-5">
+      <article className="surface-glow rounded-[26px] border border-[color:var(--line)] bg-[var(--surface-strong)]/92 p-4 shadow-[0_18px_44px_rgba(17,17,17,0.04)] sm:p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-xs font-medium text-[var(--accent)]">Бонусы</p>
@@ -248,7 +248,7 @@ export function AccountActivityPanel({
       </article>
 
       <div className="grid gap-3">
-        <article className="surface-glow rounded-[26px] border border-[color:var(--line)] bg-white/92 p-4 shadow-[0_18px_44px_rgba(17,17,17,0.04)] sm:p-5">
+        <article className="surface-glow rounded-[26px] border border-[color:var(--line)] bg-[var(--surface-strong)]/92 p-4 shadow-[0_18px_44px_rgba(17,17,17,0.04)] sm:p-5">
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-xs font-medium text-[var(--muted)]">Заказы</p>
@@ -292,7 +292,7 @@ export function AccountActivityPanel({
           </div>
         </article>
 
-        <article className="surface-glow rounded-[26px] border border-[color:var(--line)] bg-white/92 p-4 shadow-[0_18px_44px_rgba(17,17,17,0.04)] sm:p-5">
+        <article className="surface-glow rounded-[26px] border border-[color:var(--line)] bg-[var(--surface-strong)]/92 p-4 shadow-[0_18px_44px_rgba(17,17,17,0.04)] sm:p-5">
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-xs font-medium text-[var(--muted)]">Заявки</p>
@@ -336,7 +336,7 @@ export function AccountActivityPanel({
 
         <article className="rounded-[26px] border border-[color:var(--line)] bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(248,242,236,0.86))] p-4 sm:p-5">
           <div className="flex items-start gap-3">
-            <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-white text-[var(--accent)]">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-[var(--surface-strong)] text-[var(--accent)]">
               <FolderClock className="size-4" strokeWidth={1.9} />
             </span>
             <div>

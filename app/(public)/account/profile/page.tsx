@@ -33,7 +33,7 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
     <div className="space-y-4">
       <section className="rounded-[20px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-5 sm:p-7">
         <div className="flex items-start gap-4">
-          <div className="flex size-11 shrink-0 items-center justify-center bg-[var(--foreground)] text-white">
+          <div className="flex size-11 shrink-0 items-center justify-center bg-[var(--foreground)] text-[var(--background)]">
             <UserRound className="size-5" aria-hidden />
           </div>
           <SectionHeading
@@ -66,7 +66,7 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
 
       <form
         action={updateAccountProfileAction}
-        className="grid gap-5 border border-[color:var(--line)] bg-white p-5 sm:p-7"
+        className="grid gap-5 border border-[color:var(--line)] bg-[var(--surface-strong)] p-5 sm:p-7"
       >
         <div className="grid gap-4 md:grid-cols-2">
           <ProfileField

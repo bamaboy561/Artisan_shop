@@ -36,7 +36,7 @@ export default async function CalculatorPage({
   ]);
 
   return (
-    <div className="bg-[#f4f1eb]">
+    <div className="bg-[var(--surface)]">
       <CalculatorHero prices={sitePrices} />
       <section className="px-4 pb-5 sm:px-8 sm:pb-10 lg:px-10 lg:pb-12">
         <div className="mx-auto max-w-[1600px]">

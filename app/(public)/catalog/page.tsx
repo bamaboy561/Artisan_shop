@@ -72,7 +72,7 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
     "Каталог мебельных панелей, МДФ, ЛДСП, декоров и материалов для распила Artisan.";
 
   return (
-    <div className="bg-[#f1eee8]">
+    <div className="bg-[var(--surface)]">
       <StructuredData
         data={collectionJsonLd({
           name: "Каталог Artisan",
@@ -81,7 +81,7 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
           products: pagination.items,
         })}
       />
-      <section className="border-b border-[color:var(--line)] bg-white px-4 py-5 sm:px-8 lg:px-10">
+      <section className="border-b border-[color:var(--line)] bg-[var(--surface-strong)] px-4 py-5 sm:px-8 lg:px-10">
         <div className="mx-auto flex max-w-[1500px] flex-wrap items-baseline justify-between gap-3">
           <h1 className="text-2xl font-semibold text-[var(--foreground)] sm:text-3xl">
             Каталог
@@ -95,21 +95,21 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
         </div>
       </section>
 
-      <section className="border-b border-[color:var(--line)] bg-[#f1eee8] px-4 py-2.5 sm:px-8 sm:py-4 lg:px-10">
+      <section className="border-b border-[color:var(--line)] bg-[var(--surface)] px-4 py-2.5 sm:px-8 sm:py-4 lg:px-10">
         <div className="-mx-4 overflow-x-auto px-4 sm:mx-auto sm:flex sm:max-w-[1500px] sm:flex-wrap sm:gap-3 sm:px-0">
           <div className="flex w-max gap-2 sm:w-auto sm:flex-wrap sm:gap-3">
             {catalogCategories.map((category) => (
               <Link
                 key={category.slug}
                 href={`/catalog/${category.slug}`}
-                className="inline-flex h-8.5 items-center border border-[color:var(--line)] bg-white/70 px-3 font-mono text-[9px] tracking-[0.14em] text-[var(--foreground)] uppercase transition hover:border-[var(--foreground)] sm:h-10 sm:px-4 sm:text-[10px]"
+                className="inline-flex h-8.5 items-center border border-[color:var(--line)] bg-[var(--surface-strong)]/70 px-3 font-mono text-[9px] tracking-[0.14em] text-[var(--foreground)] uppercase transition hover:border-[var(--foreground)] sm:h-10 sm:px-4 sm:text-[10px]"
               >
                 {category.name}
               </Link>
             ))}
             <Link
               href="/calculator"
-              className="inline-flex h-8.5 items-center border border-[color:var(--foreground)] bg-[var(--foreground)] px-3 font-mono text-[9px] tracking-[0.14em] text-white uppercase transition hover:bg-transparent hover:text-[var(--foreground)] sm:h-10 sm:px-4 sm:text-[10px]"
+              className="inline-flex h-8.5 items-center border border-[color:var(--foreground)] bg-[var(--foreground)] px-3 font-mono text-[9px] tracking-[0.14em] text-[var(--background)] uppercase transition hover:bg-transparent hover:text-[var(--foreground)] sm:h-10 sm:px-4 sm:text-[10px]"
             >
               Калькулятор распила
             </Link>
@@ -182,7 +182,7 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
               <div className="relative overflow-hidden border border-[color:var(--line)] bg-[#f7f3ea] px-6 py-14 text-center sm:px-12 sm:py-20">
                 <div className="pointer-events-none absolute inset-0 [background-image:radial-gradient(circle_at_1px_1px,#151411_1px,transparent_0)] [background-size:14px_14px] opacity-[0.04]" />
                 <div className="relative mx-auto max-w-[36rem]">
-                  <span className="inline-flex items-center gap-2 border border-[color:var(--line-strong)]/50 bg-white/70 px-3 py-1 font-mono text-[10px] tracking-[0.18em] text-[var(--accent)] uppercase">
+                  <span className="inline-flex items-center gap-2 border border-[color:var(--line-strong)]/50 bg-[var(--surface-strong)]/70 px-3 py-1 font-mono text-[10px] tracking-[0.18em] text-[var(--accent)] uppercase">
                     <span className="size-1 rounded-full bg-[var(--accent)]" />
                     Каталог в работе
                   </span>
@@ -197,13 +197,13 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
                   <div className="mt-7 flex flex-col items-center justify-center gap-3 sm:flex-row">
                     <Link
                       href="/contacts"
-                      className="inline-flex h-11 w-full items-center justify-center bg-[var(--foreground)] px-7 font-mono text-[11px] tracking-[0.16em] text-white uppercase transition hover:bg-[#9d573d] sm:w-auto"
+                      className="inline-flex h-11 w-full items-center justify-center bg-[var(--foreground)] px-7 font-mono text-[11px] tracking-[0.16em] text-[var(--accent-ink)] uppercase transition hover:bg-[var(--accent-strong)] sm:w-auto"
                     >
                       Связаться с менеджером
                     </Link>
                     <Link
                       href="/calculator"
-                      className="inline-flex h-11 w-full items-center justify-center border border-[var(--foreground)] px-7 font-mono text-[11px] tracking-[0.16em] text-[var(--foreground)] uppercase transition hover:bg-[var(--foreground)] hover:text-white sm:w-auto"
+                      className="inline-flex h-11 w-full items-center justify-center border border-[var(--foreground)] px-7 font-mono text-[11px] tracking-[0.16em] text-[var(--foreground)] uppercase transition hover:bg-[var(--foreground)] hover:text-[var(--background)] sm:w-auto"
                     >
                       Открыть калькулятор
                     </Link>
@@ -224,7 +224,7 @@ export default async function CatalogPage({ searchParams }: CatalogPageProps) {
                 </p>
                 <Link
                   href="/catalog"
-                  className="mt-6 inline-flex h-11 items-center border border-[var(--foreground)] px-7 font-mono text-[11px] tracking-[0.16em] text-[var(--foreground)] uppercase transition hover:bg-[var(--foreground)] hover:text-white sm:mt-7"
+                  className="mt-6 inline-flex h-11 items-center border border-[var(--foreground)] px-7 font-mono text-[11px] tracking-[0.16em] text-[var(--foreground)] uppercase transition hover:bg-[var(--foreground)] hover:text-[var(--background)] sm:mt-7"
                 >
                   Сбросить фильтры
                 </Link>

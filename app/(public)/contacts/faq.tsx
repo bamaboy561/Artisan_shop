@@ -49,7 +49,7 @@ export function ContactsFaq() {
               key={item.question}
               className="group border-b border-[color:var(--line-strong)]/40 [&[open]>summary>span:last-child]:rotate-45"
             >
-              <summary className="flex cursor-pointer list-none items-start justify-between gap-6 py-5 transition hover:text-[#9d573d] sm:py-6">
+              <summary className="flex cursor-pointer list-none items-start justify-between gap-6 py-5 transition hover:text-[var(--accent)] sm:py-6">
                 <span className="flex items-start gap-4 sm:gap-6">
                   <span className="font-mono text-[10px] tracking-[0.22em] text-[var(--muted)] uppercase">
                     0{index + 1}

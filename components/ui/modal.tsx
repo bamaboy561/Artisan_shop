@@ -55,7 +55,7 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="animate-modal-in max-h-[90svh] w-full overflow-y-auto rounded-t-[1.6rem] border-x-0 border-t border-b-0 border-white/20 bg-white p-5 shadow-[0_-24px_80px_rgba(8,18,29,0.24)] sm:max-h-[min(90svh,760px)] sm:max-w-xl sm:rounded-[28px] sm:border sm:p-8 sm:shadow-[0_44px_120px_rgba(8,18,29,0.34)]"
+        className="animate-modal-in max-h-[90svh] w-full overflow-y-auto rounded-t-[1.6rem] border-x-0 border-t border-b-0 border-white/20 bg-[var(--surface-strong)] p-5 shadow-[0_-24px_80px_rgba(8,18,29,0.24)] sm:max-h-[min(90svh,760px)] sm:max-w-xl sm:rounded-[28px] sm:border sm:p-8 sm:shadow-[0_44px_120px_rgba(8,18,29,0.34)]"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-4">

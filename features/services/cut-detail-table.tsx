@@ -43,7 +43,7 @@ const sideTitles: Record<EdgeSide, string> = {
 };
 
 const fieldClass =
-  "h-10 w-full min-w-0 rounded-lg border border-[color:var(--line)] bg-white px-2.5 text-[14px] text-[var(--foreground)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/15";
+  "h-10 w-full min-w-0 rounded-lg border border-[color:var(--line)] bg-[var(--surface-strong)] px-2.5 text-[14px] text-[var(--foreground)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/15";
 
 function EdgePicker({
   row,
@@ -66,7 +66,7 @@ function EdgePicker({
           disabled && "pointer-events-none opacity-40",
         )}
       >
-        <span className="absolute inset-4 rounded-[3px] bg-[#f3ece1] sm:inset-[7px]" />
+        <span className="absolute inset-4 rounded-[3px] bg-[var(--surface)] sm:inset-[7px]" />
         {ALL_SIDES.map((side) => {
           const active = row.edgedSides.includes(side);
           const horizontal = side === "top" || side === "bottom";
@@ -131,8 +131,8 @@ export function CutDetailTable({
   onDrilling,
 }: CutDetailTableProps) {
   return (
-    <div className="mt-4 overflow-hidden rounded-2xl border border-[color:var(--line)] bg-white shadow-[0_1px_0_rgba(21,20,17,0.04)] sm:mt-5">
-      <div className="hidden grid-cols-[28px_minmax(0,1.4fr)_92px_92px_64px_128px_minmax(0,1fr)_96px_auto] gap-2 border-b border-[color:var(--line)] bg-[#faf7f2] px-3 py-2.5 text-xs font-semibold text-[var(--muted)] lg:grid">
+    <div className="mt-4 overflow-hidden rounded-2xl border border-[color:var(--line)] bg-[var(--surface-strong)] shadow-[0_1px_0_rgba(21,20,17,0.04)] sm:mt-5">
+      <div className="hidden grid-cols-[28px_minmax(0,1.4fr)_92px_92px_64px_128px_minmax(0,1fr)_96px_auto] gap-2 border-b border-[color:var(--line)] bg-[var(--surface)] px-3 py-2.5 text-xs font-semibold text-[var(--muted)] lg:grid">
         <span>№</span>
         <span>Название</span>
         <span>Длина, мм</span>
@@ -176,7 +176,7 @@ export function CutDetailTable({
                   aria-label={`Присадка детали ${index + 1}`}
                   title="Присадка: фурнитура на чертеже детали"
                   className={cn(
-                    "flex h-9 items-center justify-center gap-1 rounded-lg px-2 text-[12px] transition hover:bg-[#f3ece1] hover:text-[var(--foreground)] disabled:opacity-30",
+                    "flex h-9 items-center justify-center gap-1 rounded-lg px-2 text-[12px] transition hover:bg-[var(--surface)] hover:text-[var(--foreground)] disabled:opacity-30",
                     drillingLabels[row.id]
                       ? "font-semibold text-[var(--accent)]"
                       : "text-[var(--muted)]",
@@ -193,7 +193,7 @@ export function CutDetailTable({
                 onClick={() => onDuplicate(row.id)}
                 aria-label="Дублировать деталь"
                 title="Дублировать"
-                className="flex size-9 items-center justify-center rounded-lg text-[var(--muted)] transition hover:bg-[#f3ece1] hover:text-[var(--foreground)]"
+                className="flex size-9 items-center justify-center rounded-lg text-[var(--muted)] transition hover:bg-[var(--surface)] hover:text-[var(--foreground)]"
               >
                 <Copy className="size-4" />
               </button>
@@ -203,7 +203,7 @@ export function CutDetailTable({
                 disabled={rows.length === 1}
                 aria-label="Удалить деталь"
                 title="Удалить"
-                className="flex size-9 items-center justify-center rounded-lg text-[var(--muted)] transition hover:bg-[#fbe9e2] hover:text-[#b4492a] disabled:opacity-30"
+                className="flex size-9 items-center justify-center rounded-lg text-[var(--muted)] transition hover:bg-[var(--surface)] hover:text-[var(--accent)] disabled:opacity-30"
               >
                 <Trash2 className="size-4" />
               </button>

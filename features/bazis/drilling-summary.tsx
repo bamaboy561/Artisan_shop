@@ -41,19 +41,21 @@ export function DrillingSummary({
   const unpriced = priced.some((row) => row.price === null);
 
   return (
-    <section className="grid gap-3 bg-white p-4 sm:p-5">
+    <section className="grid gap-3 bg-[var(--surface-strong)] p-4 sm:p-5">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-xl font-semibold text-[#252b29]">Присадка</h2>
-        <p className="text-sm text-[#252b29]">
+        <h2 className="text-xl font-semibold text-[var(--foreground)]">
+          Присадка
+        </h2>
+        <p className="text-sm text-[var(--foreground)]">
           Всего отверстий:{" "}
           <span className="font-semibold">{drilling.holes}</span>
         </p>
       </div>
-      <ul className="grid gap-1 text-sm text-[#252b29] sm:grid-cols-2">
+      <ul className="grid gap-1 text-sm text-[var(--foreground)] sm:grid-cols-2">
         {priced.map((row) => (
           <li
             key={row.diameter}
-            className="flex justify-between gap-3 border-b border-[#e1e5e1] py-1.5"
+            className="flex justify-between gap-3 border-b border-[color:var(--line)] py-1.5"
           >
             <span>{drillingDiameter(row.diameter)}</span>
             <span className="text-right">
@@ -61,7 +63,7 @@ export function DrillingSummary({
               <span className="font-semibold whitespace-nowrap">
                 = {row.holes} шт.
               </span>
-              <span className="block text-xs text-[#69716d]">
+              <span className="block text-xs text-[var(--muted)]">
                 {row.price === null
                   ? "цену назовёт менеджер"
                   : `× ${row.price} сом = ${formatPrice(row.cost)}`}
@@ -70,13 +72,13 @@ export function DrillingSummary({
           </li>
         ))}
       </ul>
-      <p className="flex justify-between gap-3 text-sm text-[#252b29]">
+      <p className="flex justify-between gap-3 text-sm text-[var(--foreground)]">
         <span>
           Присадка по прайсу{unpriced ? " (без отверстий без цены)" : ""}
         </span>
         <span className="font-semibold">{formatPrice(total)}</span>
       </p>
-      <p className="text-xs text-[#69716d]">
+      <p className="text-xs text-[var(--muted)]">
         Посчитано по фурнитуре в файле проекта так же, как отверстия уходят на
         станок. Окончательно присадку подтвердит менеджер.
       </p>

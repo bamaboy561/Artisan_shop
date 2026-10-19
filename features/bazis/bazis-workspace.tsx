@@ -38,7 +38,7 @@ const numberFormatter = new Intl.NumberFormat("ru-RU", {
 });
 
 const inputClassName =
-  "h-9 w-full min-w-0 border border-[#d7d4ce] bg-white px-2 text-sm text-[#252b29] outline-none focus:border-[#a94730]";
+  "h-9 w-full min-w-0 border border-[color:var(--line)] bg-[var(--surface-strong)] px-2 text-sm text-[var(--foreground)] outline-none focus:border-[color:var(--accent)]";
 
 function toNumber(value: string) {
   const parsed = Number.parseFloat(value.replace(",", "."));
@@ -391,16 +391,16 @@ export function BazisWorkspace({
 
   return (
     <div className="grid gap-5">
-      <label className="flex cursor-pointer flex-col items-center gap-2 border-2 border-dashed border-[#cbc7bf] bg-white px-4 py-8 text-center transition hover:border-[#a94730]">
-        <Upload className="size-6 text-[#a94730]" />
-        <span className="text-base font-semibold text-[#252b29]">
+      <label className="flex cursor-pointer flex-col items-center gap-2 border-2 border-dashed border-[color:var(--line)] bg-[var(--surface-strong)] px-4 py-8 text-center transition hover:border-[color:var(--accent)]">
+        <Upload className="size-6 text-[var(--accent)]" />
+        <span className="text-base font-semibold text-[var(--foreground)]">
           {loading
             ? "Читаем проект..."
             : project
               ? "Открыть другой проект"
               : "Выберите файл проекта Базис-Мебельщик (.b3d)"}
         </span>
-        <span className="text-xs text-[#69716d]">
+        <span className="text-xs text-[var(--muted)]">
           {fileName
             ? `Открыт: ${fileName}`
             : "До 4 МБ. Копия файла хранится у нас 2 дня, чтобы менеджер мог помочь, потом удаляется"}
@@ -430,22 +430,22 @@ export function BazisWorkspace({
 
       {project ? (
         <>
-          <section className="grid gap-3 bg-white p-4 sm:p-5">
+          <section className="grid gap-3 bg-[var(--surface-strong)] p-4 sm:p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-xl font-semibold text-[#252b29]">
+              <h2 className="text-xl font-semibold text-[var(--foreground)]">
                 {project.orderName || "Проект"}: макет
               </h2>
               <button
                 type="button"
                 onClick={closeProject}
-                className="inline-flex h-9 items-center justify-center gap-2 border border-[#cbc7bf] bg-white px-3 text-sm font-medium text-[#252b29] transition hover:border-[#252b29]"
+                className="inline-flex h-9 items-center justify-center gap-2 border border-[color:var(--line)] bg-[var(--surface-strong)] px-3 text-sm font-medium text-[var(--foreground)] transition hover:border-[color:var(--line-strong)]"
               >
                 <X className="size-4" />
                 Закрыть проект
               </button>
             </div>
             {restored ? (
-              <p className="border border-[#e1e5e1] bg-[#f3f5f3] px-3 py-2 text-sm text-[#252b29]">
+              <p className="border border-[color:var(--line)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--foreground)]">
                 Открыт проект, с которым вы работали в прошлый раз, вместе с
                 вашими правками. Он хранится только в этом браузере.
               </p>
@@ -456,14 +456,16 @@ export function BazisWorkspace({
               highlightTone={highlight}
               toneColors={toneColors}
             />
-            <p className="text-xs text-[#69716d]">
+            <p className="text-xs text-[var(--muted)]">
               Цвет деталей примерный: он подобран по названию материала.
             </p>
           </section>
 
-          <section className="grid gap-3 bg-white p-4 sm:p-5">
-            <h2 className="text-xl font-semibold text-[#252b29]">Материалы</h2>
-            <p className="text-sm text-[#69716d]">
+          <section className="grid gap-3 bg-[var(--surface-strong)] p-4 sm:p-5">
+            <h2 className="text-xl font-semibold text-[var(--foreground)]">
+              Материалы
+            </h2>
+            <p className="text-sm text-[var(--muted)]">
               Материал можно заменить: начните вводить название плиты из нашего
               каталога или впишите своё.
             </p>
@@ -476,7 +478,7 @@ export function BazisWorkspace({
               {materialStats.map((material) => (
                 <div
                   key={material.index}
-                  className="grid gap-2 border border-[#e1e5e1] p-3 lg:grid-cols-[minmax(0,1fr)_auto_auto_auto] lg:items-center"
+                  className="grid gap-2 border border-[color:var(--line)] p-3 lg:grid-cols-[minmax(0,1fr)_auto_auto_auto] lg:items-center"
                 >
                   <input
                     value={material.name}
@@ -491,7 +493,7 @@ export function BazisWorkspace({
                       )
                     }
                   />
-                  <p className="text-sm whitespace-nowrap text-[#69716d]">
+                  <p className="text-sm whitespace-nowrap text-[var(--muted)]">
                     {numberFormatter.format(material.pieces)} дет. ·{" "}
                     {numberFormatter.format(material.area)} м²
                   </p>
@@ -503,7 +505,7 @@ export function BazisWorkspace({
                       )
                     }
                     aria-pressed={highlight === material.index}
-                    className={`inline-flex h-9 items-center justify-center gap-2 border px-3 text-sm font-medium transition ${highlight === material.index ? "border-[#a94730] bg-[#a94730] text-white" : "border-[#cbc7bf] bg-white text-[#252b29] hover:border-[#252b29]"}`}
+                    className={`inline-flex h-9 items-center justify-center gap-2 border px-3 text-sm font-medium transition ${highlight === material.index ? "border-[color:var(--accent)] bg-[var(--accent-strong)] text-[var(--accent-ink)]" : "border-[color:var(--line)] bg-[var(--surface-strong)] text-[var(--foreground)] hover:border-[color:var(--line-strong)]"}`}
                   >
                     <Eye className="size-4" />
                     {highlight === material.index
@@ -514,7 +516,7 @@ export function BazisWorkspace({
                     type="button"
                     onClick={() => sendToCalculator(material.index)}
                     disabled={material.pieces === 0}
-                    className="inline-flex h-9 items-center justify-center gap-2 bg-[#252b29] px-3 text-sm font-semibold text-white transition hover:bg-[#a94730] disabled:opacity-40"
+                    className="inline-flex h-9 items-center justify-center gap-2 bg-[#252b29] px-3 text-sm font-semibold text-[var(--accent-ink)] transition hover:bg-[var(--accent-strong)] disabled:opacity-40"
                   >
                     <Scissors className="size-4" />
                     Рассчитать раскрой
@@ -522,16 +524,16 @@ export function BazisWorkspace({
                 </div>
               ))}
             </div>
-            <p className="text-xs text-[#69716d]">
+            <p className="text-xs text-[var(--muted)]">
               «Рассчитать раскрой» открывает калькулятор с деталями этого
               материала. Плита из нашего каталога подставится сама, кромку
               выберите уже там.
             </p>
           </section>
 
-          <section className="grid gap-3 bg-white p-4 sm:p-5">
+          <section className="grid gap-3 bg-[var(--surface-strong)] p-4 sm:p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-xl font-semibold text-[#252b29]">
+              <h2 className="text-xl font-semibold text-[var(--foreground)]">
                 Детали: {rows.length} строк
               </h2>
               <div className="flex flex-wrap gap-2">
@@ -555,7 +557,7 @@ export function BazisWorkspace({
                       },
                     ])
                   }
-                  className="inline-flex h-11 items-center justify-center gap-2 border border-[#cbc7bf] bg-white px-4 text-sm font-medium text-[#252b29] transition hover:border-[#252b29]"
+                  className="inline-flex h-11 items-center justify-center gap-2 border border-[color:var(--line)] bg-[var(--surface-strong)] px-4 text-sm font-medium text-[var(--foreground)] transition hover:border-[color:var(--line-strong)]"
                 >
                   <Plus className="size-4" />
                   Добавить деталь
@@ -566,7 +568,7 @@ export function BazisWorkspace({
                 />
               </div>
             </div>
-            <p className="text-sm text-[#69716d]">
+            <p className="text-sm text-[var(--muted)]">
               Размеры указаны для готовой детали. Всё в списке можно править:
               название, размеры, количество, материал и кромку. Новый размер
               сразу виден на макете: деталь меняется от своего угла, соседние
@@ -575,7 +577,7 @@ export function BazisWorkspace({
             <div className="overflow-x-auto">
               <table className="w-full min-w-[920px] border-collapse text-sm">
                 <thead>
-                  <tr className="bg-[#f3f5f3] text-left text-xs text-[#69716d]">
+                  <tr className="bg-[var(--surface)] text-left text-xs text-[var(--muted)]">
                     {[
                       "Деталь",
                       "Длина, мм",
@@ -594,7 +596,10 @@ export function BazisWorkspace({
                 </thead>
                 <tbody>
                   {rows.map((row) => (
-                    <tr key={row.id} className="border-b border-[#e1e5e1]">
+                    <tr
+                      key={row.id}
+                      className="border-b border-[color:var(--line)]"
+                    >
                       <td className="min-w-60 px-1 py-1.5">
                         <input
                           value={row.name}
@@ -605,7 +610,7 @@ export function BazisWorkspace({
                           }
                         />
                         {row.complexContour ? (
-                          <span className="mt-0.5 block text-[11px] text-[#a94730]">
+                          <span className="mt-0.5 block text-[11px] text-[var(--accent)]">
                             Сложный контур: размер по габариту
                           </span>
                         ) : null}
@@ -685,7 +690,7 @@ export function BazisWorkspace({
                               current.filter((item) => item.id !== row.id),
                             )
                           }
-                          className="grid size-9 place-items-center text-[#69716d] transition hover:text-red-700"
+                          className="grid size-9 place-items-center text-[var(--muted)] transition hover:text-red-700"
                         >
                           <Trash2 className="size-4" />
                         </button>
@@ -700,15 +705,15 @@ export function BazisWorkspace({
           <DrillingSummary drilling={project.drilling} />
 
           {project.hardware.length > 0 ? (
-            <section className="grid gap-3 bg-white p-4 sm:p-5">
-              <h2 className="text-xl font-semibold text-[#252b29]">
+            <section className="grid gap-3 bg-[var(--surface-strong)] p-4 sm:p-5">
+              <h2 className="text-xl font-semibold text-[var(--foreground)]">
                 Фурнитура в проекте
               </h2>
-              <ul className="grid gap-1 text-sm text-[#252b29] sm:grid-cols-2">
+              <ul className="grid gap-1 text-sm text-[var(--foreground)] sm:grid-cols-2">
                 {project.hardware.map((item) => (
                   <li
                     key={item.name}
-                    className="flex justify-between gap-3 border-b border-[#e1e5e1] py-1.5"
+                    className="flex justify-between gap-3 border-b border-[color:var(--line)] py-1.5"
                   >
                     <span>{item.name}</span>
                     <span className="font-semibold whitespace-nowrap">

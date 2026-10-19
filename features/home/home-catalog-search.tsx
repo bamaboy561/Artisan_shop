@@ -82,7 +82,7 @@ export function HomeCatalogSearch() {
 
   return (
     <section className="bg-background px-4 py-5 sm:px-8 lg:px-10">
-      <div className="mx-auto max-w-[1500px] overflow-hidden rounded-[8px] border border-[#e2dbd1] bg-[linear-gradient(135deg,#fffdf9_0%,#f7f1e8_100%)] p-4 shadow-[0_18px_48px_rgba(37,31,24,0.08)] sm:p-5">
+      <div className="mx-auto max-w-[1500px] overflow-hidden rounded-[8px] border border-[color:var(--line)] bg-[linear-gradient(135deg,#fffdf9_0%,#f7f1e8_100%)] p-4 shadow-[0_18px_48px_rgba(37,31,24,0.08)] sm:p-5">
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
           <form
             action="/catalog"
@@ -95,10 +95,10 @@ export function HomeCatalogSearch() {
             >
               Поиск по каталогу
             </label>
-            <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center rounded-[8px] border border-[#ddd3c7] bg-white/96 shadow-[0_8px_24px_rgba(37,31,24,0.06)] transition focus-within:border-[#c56c45] focus-within:shadow-[0_10px_30px_rgba(197,108,69,0.14)] sm:grid-cols-[auto_minmax(0,1fr)_auto]">
+            <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center rounded-[8px] border border-[color:var(--line)] bg-[var(--surface-strong)]/96 shadow-[0_8px_24px_rgba(37,31,24,0.06)] transition focus-within:border-[color:var(--accent)] focus-within:shadow-[0_10px_30px_rgba(197,108,69,0.14)] sm:grid-cols-[auto_minmax(0,1fr)_auto]">
               <Search
                 aria-hidden
-                className="ml-4 h-4 w-4 text-[#8b7d70] sm:ml-5"
+                className="ml-4 h-4 w-4 text-[var(--muted)] sm:ml-5"
               />
               <input
                 id="home-catalog-search"
@@ -106,7 +106,7 @@ export function HomeCatalogSearch() {
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Введите название, бренд или артикул"
-                className="h-[52px] min-w-0 bg-transparent px-3 text-base text-[var(--foreground)] outline-none placeholder:text-[#8b7d70] sm:h-14 sm:px-4 sm:text-lg"
+                className="h-[52px] min-w-0 bg-transparent px-3 text-base text-[var(--foreground)] outline-none placeholder:text-[var(--muted)] sm:h-14 sm:px-4 sm:text-lg"
                 autoComplete="off"
                 maxLength={200}
               />
@@ -121,7 +121,7 @@ export function HomeCatalogSearch() {
           </form>
 
           <div className="grid gap-2 xl:max-w-[44rem]">
-            <p className="font-mono text-[10px] tracking-[0.18em] text-[#8b7d70] uppercase xl:text-right">
+            <p className="font-mono text-[10px] tracking-[0.18em] text-[var(--muted)] uppercase xl:text-right">
               Быстрый выбор
             </p>
             <div className="flex flex-wrap gap-2 xl:justify-end">
@@ -129,7 +129,7 @@ export function HomeCatalogSearch() {
                 <Link
                   key={item}
                   href={catalogSearchHref(item)}
-                  className="inline-flex h-10 items-center rounded-[6px] border border-[#ddd3c7] bg-white/72 px-3.5 text-sm text-[var(--foreground)] shadow-[0_4px_14px_rgba(37,31,24,0.04)] transition hover:border-[#c56c45] hover:bg-white hover:text-[#9f4f32]"
+                  className="inline-flex h-10 items-center rounded-[6px] border border-[color:var(--line)] bg-[var(--surface-strong)]/72 px-3.5 text-sm text-[var(--foreground)] shadow-[0_4px_14px_rgba(37,31,24,0.04)] transition hover:border-[color:var(--accent)] hover:bg-[var(--surface-strong)] hover:text-[var(--accent)]"
                 >
                   {item}
                 </Link>
@@ -139,12 +139,12 @@ export function HomeCatalogSearch() {
         </div>
 
         {suggestions.length > 0 ? (
-          <div className="mt-4 grid gap-2 border-t border-[#e6ded3] pt-4 sm:grid-cols-2 lg:grid-cols-5">
+          <div className="mt-4 grid gap-2 border-t border-[color:var(--line)] pt-4 sm:grid-cols-2 lg:grid-cols-5">
             {suggestions.map((product) => (
               <Link
                 key={product.slug}
                 href={`/product/${product.slug}`}
-                className="group min-w-0 rounded-[8px] border border-[#ddd3c7] bg-white/72 p-3 shadow-[0_8px_20px_rgba(37,31,24,0.04)] transition hover:border-[#c56c45] hover:bg-white"
+                className="group min-w-0 rounded-[8px] border border-[color:var(--line)] bg-[var(--surface-strong)]/72 p-3 shadow-[0_8px_20px_rgba(37,31,24,0.04)] transition hover:border-[color:var(--accent)] hover:bg-[var(--surface-strong)]"
               >
                 <div className="flex items-start justify-between gap-3">
                   <p className="text-sm leading-5 font-semibold [overflow-wrap:anywhere] text-[var(--foreground)]">

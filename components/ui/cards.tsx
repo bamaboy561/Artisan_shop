@@ -78,7 +78,7 @@ export function ProductCard({
           <div className="relative self-start sm:w-full">
             <Link
               href={href}
-              className="group relative block aspect-square w-24 overflow-hidden rounded bg-white sm:aspect-[4/3] sm:w-full"
+              className="group relative block aspect-square w-24 overflow-hidden rounded bg-[var(--surface-strong)] sm:aspect-[4/3] sm:w-full"
             >
               <ProductImage
                 src={image}
@@ -99,7 +99,7 @@ export function ProductCard({
               </div>
             ) : null}
             {isBundle ? (
-              <span className="mt-1 block text-xs text-[var(--muted)] sm:absolute sm:bottom-2 sm:left-2 sm:bg-white sm:px-2 sm:py-1">
+              <span className="mt-1 block text-xs text-[var(--muted)] sm:absolute sm:bottom-2 sm:left-2 sm:bg-[var(--surface-strong)] sm:px-2 sm:py-1">
                 Комплект
               </span>
             ) : null}
@@ -196,7 +196,7 @@ export function ProductCard({
       >
         <div
           className={cn(
-            "relative overflow-hidden bg-[#ece8df]",
+            "relative overflow-hidden bg-[var(--surface)]",
             mobileList && "w-[7rem] shrink-0 sm:w-full",
             aspect,
           )}
@@ -215,7 +215,7 @@ export function ProductCard({
           />
 
           {isBundle ? (
-            <span className="absolute top-2.5 left-2.5 inline-flex items-center bg-white/92 px-2 py-1 text-xs text-[var(--foreground)] backdrop-blur-sm sm:top-3 sm:left-3 sm:text-xs font-medium">
+            <span className="absolute top-2.5 left-2.5 inline-flex items-center bg-[var(--surface-strong)]/92 px-2 py-1 text-xs font-medium text-[var(--foreground)] backdrop-blur-sm sm:top-3 sm:left-3 sm:text-xs">
               Комплект
             </span>
           ) : null}
@@ -223,7 +223,7 @@ export function ProductCard({
           {!inStock ? (
             <span
               className={cn(
-                "absolute left-2.5 inline-flex items-center gap-1.5 bg-white/92 px-2 py-1 text-xs text-[var(--foreground)] backdrop-blur-sm sm:left-3 sm:text-xs font-medium",
+                "absolute left-2.5 inline-flex items-center gap-1.5 bg-[var(--surface-strong)]/92 px-2 py-1 text-xs font-medium text-[var(--foreground)] backdrop-blur-sm sm:left-3 sm:text-xs",
                 isBundle ? "top-10 sm:top-11" : "top-2.5 sm:top-3",
               )}
             >
@@ -245,7 +245,7 @@ export function ProductCard({
         >
           <p
             className={cn(
-              "text-[var(--muted)] font-medium",
+              "font-medium text-[var(--muted)]",
               mobileList
                 ? "text-[9px] sm:text-[10px]"
                 : "text-[10px] sm:text-[11px]",
@@ -256,7 +256,7 @@ export function ProductCard({
 
           <h3
             className={cn(
-              "mt-1.5 font-medium tracking-[-0.01em] text-[var(--foreground)] transition-colors duration-300 group-hover:text-[#9d573d]",
+              "mt-1.5 font-medium tracking-[-0.01em] text-[var(--foreground)] transition-colors duration-300 group-hover:text-[var(--accent)]",
               compact
                 ? "text-[15px] leading-[1.3]"
                 : denseMobile
@@ -271,7 +271,7 @@ export function ProductCard({
           {sku ? (
             <p
               className={cn(
-                "mt-2 leading-4 [overflow-wrap:anywhere] text-[var(--muted)] font-medium",
+                "mt-2 leading-4 font-medium [overflow-wrap:anywhere] text-[var(--muted)]",
                 compact ? "text-[9px]" : "text-[9px] sm:text-[10px]",
               )}
             >
@@ -316,7 +316,7 @@ export function ProductCard({
 
             <span
               className={cn(
-                "block max-w-full leading-4 [overflow-wrap:anywhere] text-[var(--muted)] font-medium",
+                "block max-w-full leading-4 font-medium [overflow-wrap:anywhere] text-[var(--muted)]",
                 compact ? "text-[9px]" : "text-[9px] sm:text-[10px]",
               )}
             >
@@ -355,9 +355,7 @@ export function CategoryCard({
       )}
     >
       <span className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[var(--accent)]/50 to-transparent opacity-0 transition group-hover:opacity-100" />
-      <p className="text-xs text-[var(--accent)] font-medium">
-        {indicator}
-      </p>
+      <p className="text-xs font-medium text-[var(--accent)]">{indicator}</p>
       <h3 className="mt-3 text-lg font-semibold text-[var(--foreground)]">
         {name}
       </h3>
@@ -403,7 +401,7 @@ export function BrandCard({ brand, className }: BrandCardProps) {
         className,
       )}
     >
-      <p className="text-xs text-[var(--accent)] font-medium">
+      <p className="text-xs font-medium text-[var(--accent)]">
         Партнерский бренд
       </p>
       <h3 className="mt-3 text-base font-semibold text-[var(--foreground)]">

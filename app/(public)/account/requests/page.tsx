@@ -114,7 +114,7 @@ export default async function AccountRequestsPage() {
                   href={file.fileUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="rounded-full border border-[color:var(--line)] bg-white px-3 py-1 text-xs font-medium text-[var(--foreground)] transition hover:border-[color:var(--foreground)]"
+                  className="rounded-full border border-[color:var(--line)] bg-[var(--surface-strong)] px-3 py-1 text-xs font-medium text-[var(--foreground)] transition hover:border-[color:var(--foreground)]"
                 >
                   {file.fileName}
                 </a>
@@ -125,7 +125,7 @@ export default async function AccountRequestsPage() {
                   <Link
                     key={`bazis-${file.id}`}
                     href={`/account/requests/${request.id}/bazis/${file.id}`}
-                    className="rounded-full bg-[var(--foreground)] px-3 py-1 text-xs font-semibold text-white transition hover:bg-[var(--accent)]"
+                    className="rounded-full bg-[var(--foreground)] px-3 py-1 text-xs font-semibold text-[var(--accent-ink)] transition hover:bg-[var(--accent)]"
                   >
                     Посмотреть макет
                   </Link>
@@ -205,7 +205,7 @@ export default async function AccountRequestsPage() {
                   href={file.fileUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="rounded-full border border-[color:var(--line)] bg-white px-3 py-1 text-xs font-medium text-[var(--foreground)] transition hover:border-[color:var(--foreground)]"
+                  className="rounded-full border border-[color:var(--line)] bg-[var(--surface-strong)] px-3 py-1 text-xs font-medium text-[var(--foreground)] transition hover:border-[color:var(--foreground)]"
                 >
                   {file.fileName}
                 </a>

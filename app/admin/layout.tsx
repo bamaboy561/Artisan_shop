@@ -61,55 +61,60 @@ export default async function AdminLayout({
           : "Админка Artisan";
   if (productionWorkspace) {
     return (
-      <ProductionFrame
-        title={workspaceTitle}
-        name={adminName}
-        role={roleDefinitions[session.roleCode].label}
-        items={adminItems}
-      >
-        {children}
-      </ProductionFrame>
+      <div className="theme-light min-h-screen">
+        <ProductionFrame
+          title={workspaceTitle}
+          name={adminName}
+          role={roleDefinitions[session.roleCode].label}
+          items={adminItems}
+        >
+          {children}
+        </ProductionFrame>
+      </div>
     );
   }
+  // Админка остаётся светлой: сайт для покупателей — «Тёмный орех».
   return (
-    <DashboardFrame
-      eyebrow={productionWorkspace ? "Производство" : "Панель управления"}
-      title={workspaceTitle}
-      description={
-        productionWorkspace
-          ? "Очередь, QR маршрутных листов, этапы производства и готовность к выдаче."
-          : "Рабочая среда команды: каталог, входящие заявки, заказы, клиенты и акции."
-      }
-      items={adminItems}
-      variant="admin"
-      actions={
-        <div className="space-y-3">
-          <div className="flex items-center gap-3 rounded-xl px-2 py-2">
-            <span className="flex size-10 items-center justify-center rounded-full bg-[#c65b3a] text-sm font-bold text-white">
-              {adminName.charAt(0).toUpperCase()}
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-semibold text-white">
-                {adminName}
+    <div className="theme-light min-h-screen">
+      <DashboardFrame
+        eyebrow={productionWorkspace ? "Производство" : "Панель управления"}
+        title={workspaceTitle}
+        description={
+          productionWorkspace
+            ? "Очередь, QR маршрутных листов, этапы производства и готовность к выдаче."
+            : "Рабочая среда команды: каталог, входящие заявки, заказы, клиенты и акции."
+        }
+        items={adminItems}
+        variant="admin"
+        actions={
+          <div className="space-y-3">
+            <div className="flex items-center gap-3 rounded-xl px-2 py-2">
+              <span className="flex size-10 items-center justify-center rounded-full bg-[#c65b3a] text-sm font-bold text-white">
+                {adminName.charAt(0).toUpperCase()}
               </span>
-              <span className="block truncate text-xs text-white/52">
-                {roleDefinitions[session.roleCode].label}
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-semibold text-white">
+                  {adminName}
+                </span>
+                <span className="block truncate text-xs text-white/52">
+                  {roleDefinitions[session.roleCode].label}
+                </span>
               </span>
-            </span>
-          </div>
+            </div>
 
-          <form action={signOutAction}>
-            <button
-              type="submit"
-              className="flex h-10 w-full items-center justify-center rounded-lg border border-white/10 text-sm font-medium text-white/70 transition hover:border-white/30 hover:bg-white/8 hover:text-white"
-            >
-              Выйти
-            </button>
-          </form>
-        </div>
-      }
-    >
-      {children}
-    </DashboardFrame>
+            <form action={signOutAction}>
+              <button
+                type="submit"
+                className="flex h-10 w-full items-center justify-center rounded-lg border border-white/10 text-sm font-medium text-white/70 transition hover:border-white/30 hover:bg-white/8 hover:text-white"
+              >
+                Выйти
+              </button>
+            </form>
+          </div>
+        }
+      >
+        {children}
+      </DashboardFrame>
+    </div>
   );
 }

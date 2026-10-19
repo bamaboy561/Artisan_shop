@@ -24,7 +24,7 @@ export function UploadBlock({
   return (
     <label
       className={cn(
-        "group block cursor-pointer border border-dashed border-[color:var(--line-strong)] bg-[var(--surface)] p-4 transition duration-300 hover:border-[color:var(--foreground)] hover:bg-white sm:p-5",
+        "group block cursor-pointer border border-dashed border-[color:var(--line-strong)] bg-[var(--surface)] p-4 transition duration-300 hover:border-[color:var(--foreground)] hover:bg-[var(--surface-strong)] sm:p-5",
         className,
       )}
     >
@@ -37,7 +37,7 @@ export function UploadBlock({
         className="sr-only"
       />
       <div className="flex items-start gap-3">
-        <span className="border border-[color:var(--line)] bg-white p-2 text-[var(--accent)] transition group-hover:border-[color:var(--foreground)]">
+        <span className="border border-[color:var(--line)] bg-[var(--surface-strong)] p-2 text-[var(--accent)] transition group-hover:border-[color:var(--foreground)]">
           <Upload className="size-4" />
         </span>
         <span className="space-y-1">

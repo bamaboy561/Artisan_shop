@@ -77,7 +77,7 @@ function BrandLogoBadge({ item }: { item: BrandGalleryItem }) {
 
   return (
     <div
-      className="absolute top-4 right-4 z-10 h-12 w-28 rounded-2xl border border-white/30 bg-white/90 bg-contain bg-center bg-no-repeat shadow-[0_18px_44px_rgba(0,0,0,0.16)] sm:top-6 sm:right-6 sm:h-14 sm:w-32"
+      className="absolute top-4 right-4 z-10 h-12 w-28 rounded-2xl border border-white/30 bg-[var(--surface-strong)]/90 bg-contain bg-center bg-no-repeat shadow-[0_18px_44px_rgba(0,0,0,0.16)] sm:top-6 sm:right-6 sm:h-14 sm:w-32"
       style={{ backgroundImage: `url(${item.logoUrl})` }}
       aria-label={`Логотип ${item.name}`}
     />
@@ -98,8 +98,8 @@ function PlaceholderVisual({
       className={cn(
         "relative overflow-hidden",
         planned
-          ? "border border-[#151411]/10 bg-[#e7e1d6] text-[#151411]"
-          : "bg-[#151411] text-white",
+          ? "border border-[color:var(--line-strong)]/10 bg-[#e7e1d6] text-[var(--foreground)]"
+          : "bg-[var(--foreground)] text-[var(--background)]",
         compact
           ? "min-h-[28svh] sm:min-h-[46svh] lg:min-h-[68svh]"
           : "min-h-[42svh]",
@@ -124,7 +124,9 @@ function PlaceholderVisual({
             key={index}
             className={cn(
               "border-r",
-              planned ? "border-[#151411]/10" : "border-white/30",
+              planned
+                ? "border-[color:var(--line-strong)]/10"
+                : "border-white/30",
             )}
           />
         ))}
@@ -135,7 +137,7 @@ function PlaceholderVisual({
         <p
           className={cn(
             "font-mono text-[10px] tracking-[0.2em] uppercase",
-            planned ? "text-[#151411]/44" : "text-white/56",
+            planned ? "text-[var(--foreground)]/44" : "text-white/56",
           )}
         >
           {planned ? "В подготовке" : "Каталог в подготовке"}
@@ -143,13 +145,13 @@ function PlaceholderVisual({
         <h3
           className={cn(
             "mt-2.5 max-w-[18rem] text-[1.85rem] leading-[0.95] font-semibold tracking-[-0.055em] text-balance sm:mt-3 sm:text-[3rem]",
-            planned ? "text-[#151411]" : "text-white",
+            planned ? "text-[var(--foreground)]" : "text-white",
           )}
         >
           {item.name}
         </h3>
         {planned ? (
-          <p className="mt-2.5 max-w-[20rem] text-sm leading-5 text-[#151411]/62 sm:mt-3 sm:leading-6">
+          <p className="mt-2.5 max-w-[20rem] text-sm leading-5 text-[var(--foreground)]/62 sm:mt-3 sm:leading-6">
             Бренд уже добавлен в структуру сайта. Наполнение товарами и
             материалами появится следующим слоем.
           </p>
@@ -281,8 +283,8 @@ function ProductRail({
                   className={cn(
                     "relative aspect-[4/5.2] overflow-hidden",
                     planned
-                      ? "border border-[#151411]/8 bg-[#ebe6de]"
-                      : "bg-[#e2ded6]",
+                      ? "border border-[color:var(--line-strong)]/8 bg-[#ebe6de]"
+                      : "bg-[var(--surface)]",
                   )}
                 >
                   {isPromotional ? (
@@ -302,7 +304,9 @@ function ProductRail({
                 <p
                   className={cn(
                     "mt-2 text-[13px] leading-5 font-medium sm:mt-2.5 sm:text-sm",
-                    planned ? "text-[#151411]/74" : "text-[#151411]",
+                    planned
+                      ? "text-[var(--foreground)]/74"
+                      : "text-[var(--foreground)]",
                   )}
                 >
                   {product.name}
@@ -311,7 +315,9 @@ function ProductRail({
                   <p
                     className={cn(
                       "mt-1 font-mono text-[10px] tracking-[0.14em] uppercase",
-                      isPromotional ? "text-[#c96b43]" : "text-[#7b756d]",
+                      isPromotional
+                        ? "text-[var(--accent)]"
+                        : "text-[var(--muted)]",
                     )}
                   >
                     {productMetaLabel}
@@ -339,14 +345,14 @@ function ProductRail({
             className={cn(
               "flex aspect-square items-end p-3.5 sm:p-4",
               planned
-                ? "border border-dashed border-[#151411]/10 bg-[#f5f1ea]"
-                : "bg-[#e2ded6]",
+                ? "border border-dashed border-[color:var(--line-strong)]/10 bg-[#f5f1ea]"
+                : "bg-[var(--surface)]",
             )}
           >
             <span
               className={cn(
                 "font-mono text-[10px] leading-5 tracking-[0.16em] uppercase",
-                planned ? "text-[#9a9389]" : "text-[#7b756d]",
+                planned ? "text-[var(--muted)]" : "text-[var(--muted)]",
               )}
             >
               {label}
@@ -374,8 +380,8 @@ function MetaRow({ item }: { item: BrandGalleryItem }) {
           className={cn(
             "inline-flex min-h-8 items-center px-3 font-mono text-[10px] tracking-[0.14em] uppercase",
             planned
-              ? "border border-[#151411]/8 bg-white/36 text-[#948c81]"
-              : "border border-[#151411]/14 text-[#6b655e]",
+              ? "border border-[color:var(--line-strong)]/8 bg-white/36 text-[var(--muted)]"
+              : "border border-[color:var(--line-strong)]/14 text-[var(--muted)]",
           )}
         >
           {chip}

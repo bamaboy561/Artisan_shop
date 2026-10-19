@@ -1667,7 +1667,7 @@ export function BazisViewer({
       ? boxes.filter((box) => blockKey(box) === explodedBlock).length
       : 0;
   const buttonClassName =
-    "border border-[#cbc7bf] bg-white px-3 py-1.5 text-xs font-medium text-[#171714] transition hover:border-[#171714] disabled:cursor-default disabled:opacity-40 disabled:hover:border-[#cbc7bf]";
+    "border border-[color:var(--line)] bg-[var(--surface-strong)] px-3 py-1.5 text-xs font-medium text-[var(--foreground)] transition hover:border-[color:var(--line-strong)] disabled:cursor-default disabled:opacity-40 disabled:hover:border-[color:var(--line)]";
 
   return (
     <div className="grid gap-2">
@@ -1731,11 +1731,11 @@ export function BazisViewer({
           type="button"
           onClick={() => (step === null ? goToStep(1) : leaveSteps())}
           aria-pressed={step !== null}
-          className={`${buttonClassName} ${step !== null ? "border-[#171714] bg-[#171714] text-white hover:bg-[#2b2b27]" : ""}`}
+          className={`${buttonClassName} ${step !== null ? "border-[color:var(--line-strong)] bg-[#171714] text-white hover:bg-[#2b2b27]" : ""}`}
         >
           {step === null ? "Сборка по шагам" : "Выйти из сборки по шагам"}
         </button>
-        <label className="flex min-w-48 flex-1 items-center gap-2 text-xs text-[#55524c] sm:max-w-72">
+        <label className="flex min-w-48 flex-1 items-center gap-2 text-xs text-[var(--muted)] sm:max-w-72">
           <span className="whitespace-nowrap">Разнести детали</span>
           <input
             type="range"
@@ -1753,7 +1753,7 @@ export function BazisViewer({
         </label>
       </div>
       {step !== null ? (
-        <div className="flex flex-wrap items-center gap-2 border border-[#171714] bg-white px-3 py-2 text-sm text-[#171714]">
+        <div className="flex flex-wrap items-center gap-2 border border-[color:var(--line-strong)] bg-[var(--surface-strong)] px-3 py-2 text-sm text-[var(--foreground)]">
           <button
             type="button"
             onClick={() => goToStep(step - 1)}
@@ -1778,27 +1778,27 @@ export function BazisViewer({
             </span>{" "}
             {info?.name || `деталь ${(scene.buildOrder[step - 1] ?? 0) + 1}`}
             {attachedLabel ? (
-              <span className="text-[#55524c]">
+              <span className="text-[var(--muted)]">
                 {" "}
                 · крепится к: {attachedLabel}
               </span>
             ) : null}
             {step >= stepTotal ? (
-              <span className="text-[#55524c]"> · изделие собрано</span>
+              <span className="text-[var(--muted)]"> · изделие собрано</span>
             ) : null}
           </p>
-          <span className="hidden text-xs text-[#77736c] sm:inline">
+          <span className="hidden text-xs text-[var(--muted)] sm:inline">
             Стрелки ← → на клавиатуре листают шаги
           </span>
         </div>
       ) : null}
       {explodedBlock !== null && step === null ? (
-        <div className="flex flex-wrap items-center gap-2 border border-[#171714] bg-white px-3 py-2 text-sm text-[#171714]">
+        <div className="flex flex-wrap items-center gap-2 border border-[color:var(--line-strong)] bg-[var(--surface-strong)] px-3 py-2 text-sm text-[var(--foreground)]">
           <p className="min-w-0 flex-1">
             <span className="font-semibold">
               Блок «{scene.blockLabels.get(explodedBlock)}»
             </span>
-            <span className="text-[#55524c]">
+            <span className="text-[var(--muted)]">
               {" "}
               · {openBlockCount} {pluralParts(openBlockCount)} · нажмите на
               деталь, чтобы увидеть её размеры
@@ -1818,7 +1818,7 @@ export function BazisViewer({
           ref={canvasRef}
           role="img"
           aria-label="Объёмный вид проекта. Поворачивайте мышью или пальцем."
-          className={`${heightClassName} w-full cursor-grab touch-none border border-[#d7d4ce] bg-[#f6f4f0] active:cursor-grabbing`}
+          className={`${heightClassName} w-full cursor-grab touch-none border border-[color:var(--line)] bg-[#f6f4f0] active:cursor-grabbing`}
           onPointerDown={(event) => {
             stopAnimation();
             stopSpin();
@@ -1939,10 +1939,10 @@ export function BazisViewer({
         {selectedBox !== null ? (
           <aside
             aria-live="polite"
-            className="grid gap-2 border border-[#d7d4ce] bg-white/95 p-3 text-sm shadow-sm sm:absolute sm:top-3 sm:right-3 sm:w-80"
+            className="grid gap-2 border border-[color:var(--line)] bg-[var(--surface-strong)]/95 p-3 text-sm shadow-sm sm:absolute sm:top-3 sm:right-3 sm:w-80"
           >
             <div className="flex items-start justify-between gap-3">
-              <p className="font-semibold break-words text-[#171714]">
+              <p className="font-semibold break-words text-[var(--foreground)]">
                 {step !== null ? `Шаг ${step}. ` : ""}
                 {info?.name || `Деталь ${selectedBox + 1}`}
               </p>
@@ -1952,7 +1952,7 @@ export function BazisViewer({
                   step !== null ? leaveSteps() : setSelected(null)
                 }
                 aria-label="Закрыть"
-                className="-mt-1 -mr-1 px-2 text-lg leading-none text-[#77736c] hover:text-[#171714]"
+                className="-mt-1 -mr-1 px-2 text-lg leading-none text-[var(--muted)] hover:text-[var(--foreground)]"
               >
                 ×
               </button>
@@ -1961,13 +1961,15 @@ export function BazisViewer({
               <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-xs">
                 {facts.map(([label, value]) => (
                   <div key={label} className="contents">
-                    <dt className="text-[#77736c]">{label}</dt>
-                    <dd className="break-words text-[#171714]">{value}</dd>
+                    <dt className="text-[var(--muted)]">{label}</dt>
+                    <dd className="break-words text-[var(--foreground)]">
+                      {value}
+                    </dd>
                   </div>
                 ))}
               </dl>
             ) : (
-              <p className="text-xs text-[#77736c]">
+              <p className="text-xs text-[var(--muted)]">
                 {`${numberFormatter.format(boxes[selectedBox].sizeX)} × ${numberFormatter.format(boxes[selectedBox].sizeY)} × ${numberFormatter.format(boxes[selectedBox].thickness)} мм`}
               </p>
             )}
@@ -1991,7 +1993,7 @@ export function BazisViewer({
           </aside>
         ) : null}
       </div>
-      <p className="text-xs text-[#77736c]">
+      <p className="text-xs text-[var(--muted)]">
         Поворачивайте мышью или пальцем, приближайте колесом или двумя пальцами.
         Нажмите на деталь, чтобы увидеть её размер, материал, присадку и место в
         изделии. Показаны детали из плитных материалов; фурнитура и профили не

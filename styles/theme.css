@@ -1,4 +1,6 @@
-:root {
+/* Светлая тема: админка и рабочие страницы цеха. */
+:root,
+.theme-light {
   --background: #f4f1eb;
   --foreground: #1b1c19;
   --surface: #faf8f4;
@@ -8,6 +10,8 @@
   --line-strong: rgba(27, 28, 25, 0.22);
   --accent: #c4532b;
   --accent-strong: #a8431f;
+  /* Текст на кнопке цвета акцента. */
+  --accent-ink: #ffffff;
   --ink: #0f0f0d;
   --hero: #1f2b25;
   --hero-secondary: #2c3b33;
@@ -16,4 +20,38 @@
   --font-body-family: var(--font-manrope);
   --font-display-family: var(--font-manrope);
   --font-mono-family: var(--font-ibm-plex-mono);
+}
+
+.theme-light {
+  color-scheme: light;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-manrope), Arial, sans-serif;
+}
+
+/* «Тёмный орех» — стиль сайта для покупателей: тёмный тёплый фон,
+   янтарный акцент, шрифт Onest. Админка остаётся светлой. */
+.theme-walnut {
+  --background: #15120f;
+  --foreground: #f2ece4;
+  --surface: #1e1a16;
+  --surface-strong: #221d18;
+  --muted: #b3a89b;
+  --line: #342c25;
+  --line-strong: #4a4037;
+  --accent: #e8b04b;
+  --accent-strong: #f3c97a;
+  --accent-ink: #15120f;
+  --ink: #f2ece4;
+  --hero: #1e1a16;
+  --hero-secondary: #2c2620;
+  --shadow-soft: 0 10px 28px rgba(0, 0, 0, 0.28);
+  --shadow-strong: 0 26px 64px rgba(0, 0, 0, 0.45);
+  --font-body-family: var(--font-onest);
+  --font-display-family: var(--font-onest);
+  --font-mono-family: var(--font-ibm-plex-mono);
+  color-scheme: dark;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-onest), Arial, sans-serif;
 }

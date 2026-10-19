@@ -29,16 +29,18 @@ export async function loadBazisViewProject(requestId: string, fileId: string) {
 
 function Notice({ title, text }: { title: string; text: string }) {
   return (
-    <div className="bg-white p-6">
-      <h1 className="text-xl font-semibold text-[#252b29]">{title}</h1>
-      <p className="mt-2 text-sm leading-6 text-[#69716d]">{text}</p>
+    <div className="bg-[var(--surface-strong)] p-6">
+      <h1 className="text-xl font-semibold text-[var(--foreground)]">
+        {title}
+      </h1>
+      <p className="mt-2 text-sm leading-6 text-[var(--muted)]">{text}</p>
     </div>
   );
 }
 
 export function PartPageView({ found }: { found: PartPageResult }) {
   return (
-    <div className="bg-[#f3f5f3]">
+    <div className="bg-[var(--surface)]">
       <section className="mx-auto max-w-[900px] px-4 py-6 sm:px-8 sm:py-10">
         {found === "expired" ? (
           <Notice

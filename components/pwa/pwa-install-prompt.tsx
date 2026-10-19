@@ -151,7 +151,7 @@ export function PwaInstallPrompt() {
           className="size-[52px] shrink-0 rounded-[12px]"
         />
         <div className="min-w-0 flex-1 pt-0.5">
-          <p className="font-mono text-[9px] tracking-[0.16em] text-[#e3845b] uppercase">
+          <p className="font-mono text-[9px] tracking-[0.16em] text-[var(--accent)] uppercase">
             Приложение Artisan
           </p>
           <h2 id="pwa-install-title" className="mt-1 text-base font-semibold">
@@ -173,7 +173,7 @@ export function PwaInstallPrompt() {
 
       {isIos ? (
         <div className="mt-4 flex items-center gap-3 border-t border-white/10 pt-4 text-xs leading-5 text-white/72">
-          <Share2 className="size-5 shrink-0 text-[#e3845b]" />
+          <Share2 className="size-5 shrink-0 text-[var(--accent)]" />
           <p>В Safari нажмите «Поделиться», затем «На экран Домой».</p>
         </div>
       ) : (

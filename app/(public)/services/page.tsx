@@ -63,8 +63,8 @@ export default async function ServicesPage() {
     fallbackServiceImage;
 
   return (
-    <div className="bg-[#f1eee8]">
-      <section className="relative overflow-hidden bg-[#151411] text-white">
+    <div className="bg-[var(--surface)]">
+      <section className="relative overflow-hidden bg-[var(--foreground)] text-[var(--background)]">
         <ProductImage
           src={heroImage}
           alt="Услуги распила Artisan"
@@ -93,7 +93,7 @@ export default async function ServicesPage() {
               <ButtonLink
                 href="/calculator"
                 variant="secondary"
-                className="w-full border-white/42 text-white hover:bg-white hover:text-black sm:w-auto"
+                className="w-full border-white/42 text-white hover:bg-[var(--surface-strong)] hover:text-black sm:w-auto"
               >
                 Калькулятор
               </ButtonLink>
@@ -146,7 +146,7 @@ export default async function ServicesPage() {
             {workflowSteps.map((step) => (
               <div
                 key={step.step}
-                className="grid gap-3 border-b border-[color:var(--line)] bg-[#f1eee8] p-4 last:border-b-0 sm:grid-cols-[76px_minmax(0,1fr)] sm:gap-4 sm:p-5"
+                className="grid gap-3 border-b border-[color:var(--line)] bg-[var(--surface)] p-4 last:border-b-0 sm:grid-cols-[76px_minmax(0,1fr)] sm:gap-4 sm:p-5"
               >
                 <p className="font-mono text-[10px] tracking-[0.18em] text-[var(--accent)] uppercase">
                   {step.step}

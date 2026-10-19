@@ -28,15 +28,15 @@ function AdminFrame({
     items.find((item) => item.href === "/admin/requests")?.badge ?? "0";
   const notificationBadge = requestBadge;
   const topLinkClass =
-    "inline-flex h-10 shrink-0 items-center gap-2 rounded-full border border-[#e3ddd2] bg-white px-4 font-medium transition hover:border-[#1b1c19]";
+    "inline-flex h-10 shrink-0 items-center gap-2 rounded-full border border-[color:var(--line)] bg-[var(--surface-strong)] px-4 font-medium transition hover:border-[color:var(--line-strong)]";
 
   return (
-    <div className="min-h-screen bg-[#f4f1eb] text-[#1b1c19] lg:grid lg:grid-cols-[256px_minmax(0,1fr)] print:block print:bg-white">
+    <div className="min-h-screen bg-[var(--surface)] text-[var(--foreground)] lg:grid lg:grid-cols-[256px_minmax(0,1fr)] print:block print:bg-[var(--surface-strong)]">
       <aside className="sticky top-0 z-30 bg-[#1f2b25] text-white shadow-[0_8px_24px_rgba(31,43,37,0.18)] lg:h-screen lg:overflow-hidden lg:shadow-none print:hidden">
         <div className="flex flex-col px-3 py-2.5 lg:h-full lg:min-h-0 lg:py-4">
           <div className="flex items-center justify-between gap-3 px-1">
             <Link href="/admin" className="flex min-w-0 items-center gap-3">
-              <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[#f4f1eb] text-lg font-black text-[#1f2b25] lg:size-10">
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[var(--surface)] text-lg font-black text-[var(--foreground)] lg:size-10">
                 A
               </span>
               <span className="min-w-0">
@@ -50,7 +50,7 @@ function AdminFrame({
             </Link>
             <Link
               href="/"
-              className="inline-flex h-9 shrink-0 items-center gap-2 rounded-full border border-white/15 px-3 text-sm font-medium text-white/85 transition hover:bg-white hover:text-[#1f2b25] lg:hidden"
+              className="inline-flex h-9 shrink-0 items-center gap-2 rounded-full border border-white/15 px-3 text-sm font-medium text-white/85 transition hover:bg-[var(--surface-strong)] hover:text-[var(--foreground)] lg:hidden"
             >
               <Home className="size-4" strokeWidth={1.85} />
               На сайт
@@ -59,7 +59,7 @@ function AdminFrame({
 
           <Link
             href="/"
-            className="mt-4 hidden h-10 items-center justify-center gap-2 rounded-full border border-white/15 px-3 text-sm font-medium text-white/85 transition hover:bg-white hover:text-[#1f2b25] lg:inline-flex"
+            className="mt-4 hidden h-10 items-center justify-center gap-2 rounded-full border border-white/15 px-3 text-sm font-medium text-white/85 transition hover:bg-[var(--surface-strong)] hover:text-[var(--foreground)] lg:inline-flex"
           >
             <Home className="size-4" strokeWidth={1.85} />
             На сайт
@@ -84,7 +84,7 @@ function AdminFrame({
       </aside>
 
       <div className="min-w-0 overflow-x-clip print:overflow-visible">
-        <header className="sticky top-0 z-20 hidden border-b border-[#e3ddd2] bg-[#f4f1eb]/90 backdrop-blur-xl lg:block print:hidden">
+        <header className="sticky top-0 z-20 hidden border-b border-[color:var(--line)] bg-[var(--surface)]/90 backdrop-blur-xl lg:block print:hidden">
           <nav className="flex min-h-16 items-center justify-end gap-2 px-6 text-sm xl:px-7">
             <AdminSearchForm className="mr-auto w-full max-w-sm" />
             <Link href="/calculator" className={topLinkClass}>
@@ -95,7 +95,7 @@ function AdminFrame({
               <FileStack className="size-4" strokeWidth={1.8} />
               Запросы
               {requestBadge !== "0" ? (
-                <span className="rounded-full bg-[#c4532b] px-1.5 py-0.5 text-[11px] font-semibold text-white">
+                <span className="rounded-full bg-[var(--accent)] px-1.5 py-0.5 text-[11px] font-semibold text-[var(--accent-ink)]">
                   {requestBadge}
                 </span>
               ) : null}
@@ -104,7 +104,7 @@ function AdminFrame({
               <Bell className="size-4" strokeWidth={1.8} />
               Уведомления
               {notificationBadge !== "0" ? (
-                <span className="rounded-full bg-[#c4532b] px-1.5 py-0.5 text-[11px] font-semibold text-white">
+                <span className="rounded-full bg-[var(--accent)] px-1.5 py-0.5 text-[11px] font-semibold text-[var(--accent-ink)]">
                   {notificationBadge}
                 </span>
               ) : null}
@@ -147,7 +147,7 @@ function AccountFrame({
         <DashboardNav items={items} variant={variant} mode="mobile" />
       </div>
 
-      <aside className="hidden min-w-0 space-y-3 rounded-[20px] bg-white p-3 lg:sticky lg:top-4 lg:block">
+      <aside className="hidden min-w-0 space-y-3 rounded-[20px] bg-[var(--surface-strong)] p-3 lg:sticky lg:top-4 lg:block">
         {actions}
         <DashboardNav items={items} variant={variant} />
       </aside>

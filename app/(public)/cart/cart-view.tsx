@@ -222,7 +222,7 @@ export function CartView() {
                   <div className="flex min-w-0 gap-4">
                     <Link
                       href={`/product/${row.product.slug}`}
-                      className="relative size-20 shrink-0 overflow-hidden border border-[color:var(--line)] bg-white"
+                      className="relative size-20 shrink-0 overflow-hidden border border-[color:var(--line)] bg-[var(--surface-strong)]"
                       aria-label={`Открыть ${row.product.name}`}
                     >
                       <ProductImage
@@ -257,7 +257,7 @@ export function CartView() {
                         </p>
                       ) : null}
                       {row.product.isBundle ? (
-                        <p className="mt-2 inline-flex w-fit items-center rounded-full bg-[#f1eee8] px-2.5 py-1 text-xs font-medium text-[var(--foreground)]">
+                        <p className="mt-2 inline-flex w-fit items-center rounded-full bg-[var(--surface)] px-2.5 py-1 text-xs font-medium text-[var(--foreground)]">
                           Комплект
                           {row.product.bundleItems.length > 0
                             ? `: ${row.product.bundleItems.length} поз.`

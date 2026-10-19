@@ -232,7 +232,7 @@ export function CutListImportPanel({
   };
 
   return (
-    <div className="mt-3.5 border border-dashed border-[color:var(--line-strong)] bg-[#fcfaf6] p-3 sm:mt-5 sm:p-4">
+    <div className="mt-3.5 border border-dashed border-[color:var(--line-strong)] bg-[var(--surface)] p-3 sm:mt-5 sm:p-4">
       <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <p className="text-[13px] font-semibold text-[var(--accent)]">
@@ -296,7 +296,7 @@ export function CutListImportPanel({
                 onClick={() =>
                   applyBazisGroup(group, bazisChoice.groups, bazisChoice.source)
                 }
-                className="border border-[color:var(--line)] bg-white px-3 py-2 text-left text-[13px] transition hover:border-[var(--accent)]"
+                className="border border-[color:var(--line)] bg-[var(--surface-strong)] px-3 py-2 text-left text-[13px] transition hover:border-[var(--accent)]"
               >
                 <span className="block font-semibold text-[var(--foreground)]">
                   {formatGroupLabel(group)}
@@ -340,8 +340,8 @@ export function CutListImportPanel({
                   className={cn(
                     "border px-2.5 py-1.5 transition",
                     mode === value
-                      ? "border-[var(--accent)] bg-[var(--accent)] text-white"
-                      : "border-[color:var(--line)] bg-white text-[var(--muted)]",
+                      ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-ink)]"
+                      : "border-[color:var(--line)] bg-[var(--surface-strong)] text-[var(--muted)]",
                   )}
                 >
                   {label}
@@ -383,8 +383,8 @@ export function CutListImportPanel({
           className={cn(
             "mt-2.5 border px-3 py-2 text-[12px] leading-5",
             feedback.tone === "success"
-              ? "border-[rgba(55,131,82,0.2)] bg-[rgba(55,131,82,0.08)] text-[#2f6a41]"
-              : "border-[rgba(185,88,45,0.18)] bg-[rgba(185,88,45,0.08)] text-[#8c4a27]",
+              ? "border-[rgba(55,131,82,0.2)] bg-[rgba(55,131,82,0.08)] text-[#7cc49a]"
+              : "border-[rgba(185,88,45,0.18)] bg-[rgba(185,88,45,0.08)] text-[var(--accent)]",
           )}
         >
           {feedback.message}

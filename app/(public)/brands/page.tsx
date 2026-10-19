@@ -42,15 +42,15 @@ function BrandCard({ profile }: { profile: BrandProfile }) {
   return (
     <Link
       href={profile.brandPageHref}
-      className="group view-rise flex h-full flex-col border border-[#151411]/10 bg-white/80 p-5 transition hover:border-[#151411] hover:bg-white"
+      className="group view-rise flex h-full flex-col border border-[color:var(--line-strong)]/10 bg-[var(--surface-strong)]/80 p-5 transition hover:border-[color:var(--line-strong)] hover:bg-[var(--surface-strong)]"
     >
-      <div className="grid gap-4 border border-[#151411]/8 bg-[#f6f2ea] p-4 sm:gap-5 sm:p-5">
-        <div className="flex h-[9.5rem] items-center justify-center rounded-[28px] border border-[#151411]/8 bg-white/72 shadow-[0_22px_54px_rgba(21,20,17,0.08)] transition duration-500 group-hover:bg-white/88 sm:h-[10.5rem]">
+      <div className="grid gap-4 border border-[color:var(--line-strong)]/8 bg-[#f6f2ea] p-4 sm:gap-5 sm:p-5">
+        <div className="flex h-[9.5rem] items-center justify-center rounded-[28px] border border-[color:var(--line-strong)]/8 bg-[var(--surface-strong)]/72 shadow-[0_22px_54px_rgba(21,20,17,0.08)] transition duration-500 group-hover:bg-[var(--surface-strong)]/88 sm:h-[10.5rem]">
           <div
             className={
               profile.logoUrl
                 ? "h-full w-full [background-size:82%_auto] bg-center bg-no-repeat sm:[background-size:76%_auto]"
-                : "flex h-full w-full items-center justify-center text-[3.6rem] leading-none font-semibold tracking-[-0.06em] text-[#151411] sm:text-[4.7rem]"
+                : "flex h-full w-full items-center justify-center text-[3.6rem] leading-none font-semibold tracking-[-0.06em] text-[var(--foreground)] sm:text-[4.7rem]"
             }
             style={logoStyle}
             aria-label={`Логотип ${profile.name}`}
@@ -60,11 +60,11 @@ function BrandCard({ profile }: { profile: BrandProfile }) {
         </div>
 
         <div className="min-h-[6rem]">
-          <p className="font-mono text-[10px] tracking-[0.16em] text-[#8a837b] uppercase">
+          <p className="font-mono text-[10px] tracking-[0.16em] text-[var(--muted)] uppercase">
             {profile.sectionName}
           </p>
           <h2
-            className={`mt-3 max-w-[12ch] leading-[0.92] font-semibold tracking-[-0.06em] text-[#151411] ${getWordmarkClass(profile.name)}`}
+            className={`mt-3 max-w-[12ch] leading-[0.92] font-semibold tracking-[-0.06em] text-[var(--foreground)] ${getWordmarkClass(profile.name)}`}
           >
             {profile.name}
           </h2>
@@ -72,7 +72,7 @@ function BrandCard({ profile }: { profile: BrandProfile }) {
       </div>
 
       <div className="mt-auto pt-5">
-        <p className="text-[15px] leading-7 text-[#5f5952]">
+        <p className="text-[15px] leading-7 text-[var(--muted)]">
           {profile.headline}
         </p>
       </div>
@@ -84,7 +84,7 @@ export default async function BrandsPage() {
   const profiles = await getBrandProfiles();
 
   return (
-    <div className="bg-[#f1eee8]">
+    <div className="bg-[var(--surface)]">
       <StructuredData
         data={{
           "@context": "https://schema.org",
@@ -103,10 +103,10 @@ export default async function BrandsPage() {
       <section className="px-5 pt-14 pb-12 sm:px-8 lg:px-10">
         <div className="mx-auto max-w-[1500px]">
           <div className="max-w-[46rem]">
-            <p className="font-mono text-[10px] tracking-[0.22em] text-[#9d573d] uppercase">
+            <p className="font-mono text-[10px] tracking-[0.22em] text-[var(--accent)] uppercase">
               Бренды
             </p>
-            <h1 className="mt-3 text-[2.45rem] leading-[0.95] font-semibold tracking-[-0.05em] text-[#151411] sm:text-[3.6rem]">
+            <h1 className="mt-3 text-[2.45rem] leading-[0.95] font-semibold tracking-[-0.05em] text-[var(--foreground)] sm:text-[3.6rem]">
               Бренды Artisan.
             </h1>
           </div>

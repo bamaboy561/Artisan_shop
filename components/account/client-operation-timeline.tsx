@@ -32,7 +32,7 @@ export function ClientOperationTimeline({
           key={event.id}
           className="grid grid-cols-[18px_minmax(0,1fr)] gap-2 text-sm"
         >
-          <span className="relative mt-1 flex size-4 items-center justify-center rounded-full border border-[color:var(--line-strong)] bg-white">
+          <span className="relative mt-1 flex size-4 items-center justify-center rounded-full border border-[color:var(--line-strong)] bg-[var(--surface-strong)]">
             <span className="size-1.5 rounded-full bg-[var(--accent)]" />
             {index < visibleEvents.length - 1 ? (
               <span className="absolute top-4 h-7 w-px bg-[var(--line)]" />

@@ -32,9 +32,9 @@ const contactTopics = [
 
 export default function ContactsPage() {
   return (
-    <div className="bg-[#f1eee8]">
+    <div className="bg-[var(--surface)]">
       <StructuredData data={organizationJsonLd()} />
-      <section className="relative overflow-hidden border-b border-[color:var(--line)] bg-gradient-to-b from-[#f6f1e7] via-[#efeadf] to-[#f1eee8]">
+      <section className="relative overflow-hidden border-b border-[color:var(--line)] bg-gradient-to-b from-[var(--surface)] via-[var(--surface)] to-[var(--background)]">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[var(--foreground)]/12 to-transparent" />
         <div className="pointer-events-none absolute inset-0 [background-image:radial-gradient(circle_at_1px_1px,#151411_1px,transparent_0)] [background-size:18px_18px] opacity-[0.035]" />
 
@@ -55,14 +55,14 @@ export default function ContactsPage() {
           <div className="flex flex-wrap gap-3 lg:justify-end">
             <Link
               href={`tel:${companyContacts.phoneTel}`}
-              className="inline-flex h-11 items-center gap-2 bg-[var(--foreground)] px-6 font-mono text-[11px] tracking-[0.16em] text-white uppercase transition hover:bg-[#9d573d]"
+              className="inline-flex h-11 items-center gap-2 bg-[var(--foreground)] px-6 font-mono text-[11px] tracking-[0.16em] text-[var(--accent-ink)] uppercase transition hover:bg-[var(--accent-strong)]"
             >
               <Phone className="size-3.5" />
               Позвонить
             </Link>
             <Link
               href={companyContacts.whatsapp}
-              className="inline-flex h-11 items-center gap-2 border border-[var(--foreground)] px-6 font-mono text-[11px] tracking-[0.16em] text-[var(--foreground)] uppercase transition hover:bg-[var(--foreground)] hover:text-white"
+              className="inline-flex h-11 items-center gap-2 border border-[var(--foreground)] px-6 font-mono text-[11px] tracking-[0.16em] text-[var(--foreground)] uppercase transition hover:bg-[var(--foreground)] hover:text-[var(--background)]"
               target="_blank"
               rel="noreferrer"
             >
@@ -77,7 +77,7 @@ export default function ContactsPage() {
         <div className="mx-auto grid max-w-[1500px] gap-3 sm:grid-cols-3 sm:gap-4">
           <a
             href={`tel:${companyContacts.phoneTel}`}
-            className="group flex flex-col gap-2 border border-[color:var(--line)] bg-white/72 px-5 py-5 transition hover:border-[var(--foreground)] hover:bg-white sm:px-6 sm:py-6"
+            className="group flex flex-col gap-2 border border-[color:var(--line)] bg-[var(--surface-strong)]/72 px-5 py-5 transition hover:border-[var(--foreground)] hover:bg-[var(--surface-strong)] sm:px-6 sm:py-6"
           >
             <span className="inline-flex items-center gap-2 font-mono text-[10px] tracking-[0.18em] text-[var(--accent)] uppercase">
               <Phone className="size-3" />
@@ -93,7 +93,7 @@ export default function ContactsPage() {
 
           <a
             href={`mailto:${companyContacts.email}`}
-            className="group flex flex-col gap-2 border border-[color:var(--line)] bg-white/72 px-5 py-5 transition hover:border-[var(--foreground)] hover:bg-white sm:px-6 sm:py-6"
+            className="group flex flex-col gap-2 border border-[color:var(--line)] bg-[var(--surface-strong)]/72 px-5 py-5 transition hover:border-[var(--foreground)] hover:bg-[var(--surface-strong)] sm:px-6 sm:py-6"
           >
             <span className="inline-flex items-center gap-2 font-mono text-[10px] tracking-[0.18em] text-[var(--accent)] uppercase">
               <Mail className="size-3" />
@@ -111,7 +111,7 @@ export default function ContactsPage() {
             href={companyContacts.whatsapp}
             target="_blank"
             rel="noreferrer"
-            className="group flex flex-col gap-2 border border-[color:var(--line)] bg-white/72 px-5 py-5 transition hover:border-[var(--foreground)] hover:bg-white sm:px-6 sm:py-6"
+            className="group flex flex-col gap-2 border border-[color:var(--line)] bg-[var(--surface-strong)]/72 px-5 py-5 transition hover:border-[var(--foreground)] hover:bg-[var(--surface-strong)] sm:px-6 sm:py-6"
           >
             <span className="inline-flex items-center gap-2 font-mono text-[10px] tracking-[0.18em] text-[var(--accent)] uppercase">
               <MessageCircle className="size-3" />
@@ -144,7 +144,7 @@ export default function ContactsPage() {
             </p>
           </div>
 
-          <div className="relative mt-7 overflow-hidden border border-[color:var(--line-strong)]/40 bg-white/70 sm:mt-9">
+          <div className="relative mt-7 overflow-hidden border border-[color:var(--line-strong)]/40 bg-[var(--surface-strong)]/70 sm:mt-9">
             <div className="aspect-[16/8] w-full sm:aspect-[16/6] lg:aspect-[16/5]">
               <iframe
                 src="https://www.openstreetmap.org/export/embed.html?bbox=74.5500%2C42.8200%2C74.6800%2C42.9000&amp;layer=mapnik"
@@ -156,7 +156,7 @@ export default function ContactsPage() {
             </div>
             <div className="pointer-events-none absolute inset-0 [background-image:linear-gradient(180deg,rgba(245,239,225,0.18)_0%,rgba(245,239,225,0)_24%,rgba(245,239,225,0)_72%,rgba(21,20,17,0.06)_100%)] mix-blend-multiply" />
 
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-wrap items-end justify-between gap-3 bg-gradient-to-t from-white/95 via-white/80 to-transparent p-4 sm:p-5">
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-wrap items-end justify-between gap-3 bg-gradient-to-t from-[var(--surface-strong)]/95 via-[var(--surface-strong)]/80 to-transparent p-4 sm:p-5">
               <div className="pointer-events-auto">
                 <p className="font-mono text-[10px] tracking-[0.22em] text-[var(--accent)] uppercase">
                   Карта Бишкека
@@ -170,7 +170,7 @@ export default function ContactsPage() {
                 href="https://2gis.kg/bishkek/search/Artisan"
                 target="_blank"
                 rel="noreferrer"
-                className="pointer-events-auto inline-flex h-10 items-center gap-2 border border-[var(--foreground)] bg-white px-4 font-mono text-[10px] tracking-[0.16em] text-[var(--foreground)] uppercase transition hover:bg-[var(--foreground)] hover:text-white sm:h-11 sm:px-5 sm:text-[11px]"
+                className="pointer-events-auto inline-flex h-10 items-center gap-2 border border-[var(--foreground)] bg-[var(--surface-strong)] px-4 font-mono text-[10px] tracking-[0.16em] text-[var(--foreground)] uppercase transition hover:bg-[var(--foreground)] hover:text-[var(--background)] sm:h-11 sm:px-5 sm:text-[11px]"
               >
                 Открыть в 2GIS
                 <ArrowUpRight className="size-3.5" />
@@ -182,7 +182,7 @@ export default function ContactsPage() {
             {companyBranches.map((branch, index) => (
               <article
                 key={branch.slug}
-                className="group relative flex h-full flex-col overflow-hidden border border-[color:var(--line)] bg-white/85 p-5 transition hover:border-[var(--foreground)] hover:bg-white sm:p-6"
+                className="group relative flex h-full flex-col overflow-hidden border border-[color:var(--line)] bg-[var(--surface-strong)]/85 p-5 transition hover:border-[var(--foreground)] hover:bg-[var(--surface-strong)] sm:p-6"
               >
                 <span
                   aria-hidden
@@ -230,7 +230,7 @@ export default function ContactsPage() {
                   href={branch.mapUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="relative mt-6 inline-flex items-center justify-between border-t border-[color:var(--line-strong)]/40 pt-4 font-mono text-[11px] tracking-[0.18em] text-[var(--foreground)] uppercase transition group-hover:text-[#9d573d]"
+                  className="relative mt-6 inline-flex items-center justify-between border-t border-[color:var(--line-strong)]/40 pt-4 font-mono text-[11px] tracking-[0.18em] text-[var(--foreground)] uppercase transition group-hover:text-[var(--accent)]"
                 >
                   <span>Открыть в 2GIS</span>
                   <ArrowUpRight className="size-4 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
@@ -244,7 +244,7 @@ export default function ContactsPage() {
       <section className="px-4 py-10 sm:px-8 sm:py-14 lg:px-10">
         <div className="mx-auto grid max-w-[1500px] gap-8 lg:grid-cols-[0.82fr_1.18fr]">
           <aside className="lg:sticky lg:top-20 lg:self-start">
-            <div className="border border-[color:var(--line)] bg-white/82 p-5 sm:p-6">
+            <div className="border border-[color:var(--line)] bg-[var(--surface-strong)]/82 p-5 sm:p-6">
               <p className="font-mono text-[10px] tracking-[0.22em] text-[var(--accent)] uppercase">
                 Темы обращения
               </p>

@@ -96,7 +96,7 @@ export function ProductGalleryViewer({
 
   if (gallery.length === 0) {
     return (
-      <div className="relative aspect-[0.95] overflow-hidden bg-[#dad7cf] sm:aspect-[0.86]">
+      <div className="relative aspect-[0.95] overflow-hidden bg-[var(--surface)] sm:aspect-[0.86]">
         <ProductImage
           src=""
           alt={productName}
@@ -116,7 +116,7 @@ export function ProductGalleryViewer({
           <button
             type="button"
             onClick={() => openImage(activeIndex)}
-            className="group relative block aspect-[0.95] w-full overflow-hidden bg-[#dad7cf] text-left sm:aspect-[0.86]"
+            className="group relative block aspect-[0.95] w-full overflow-hidden bg-[var(--surface)] text-left sm:aspect-[0.86]"
             aria-label="Открыть фото товара в полном размере"
           >
             <ProductImage
@@ -167,9 +167,9 @@ export function ProductGalleryViewer({
                   type="button"
                   onClick={() => openImage(index)}
                   className={cn(
-                    "relative aspect-square w-[8.25rem] overflow-hidden bg-[#dad7cf] text-left transition sm:w-auto",
+                    "relative aspect-square w-[8.25rem] overflow-hidden bg-[var(--surface)] text-left transition sm:w-auto",
                     index === activeIndex
-                      ? "ring-2 ring-[var(--foreground)] ring-offset-2 ring-offset-[#f1eee8]"
+                      ? "ring-2 ring-[var(--foreground)] ring-offset-2 ring-offset-[var(--background)]"
                       : "opacity-78 hover:opacity-100",
                   )}
                   aria-label={`Открыть фото ${index + 1} в полном размере`}

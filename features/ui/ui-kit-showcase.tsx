@@ -95,7 +95,7 @@ export function UiKitShowcase() {
         <h2 className="text-2xl font-semibold text-[var(--foreground)]">
           Типографика
         </h2>
-        <div className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/80 p-6">
+        <div className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-[var(--surface-strong)]/80 p-6">
           <h1 className="font-display text-5xl text-[var(--foreground)]">
             H1 Главный заголовок
           </h1>
@@ -120,7 +120,7 @@ export function UiKitShowcase() {
         <h2 className="text-2xl font-semibold text-[var(--foreground)]">
           Кнопки
         </h2>
-        <div className="surface-glow flex flex-wrap gap-3 rounded-[28px] border border-[color:var(--line)] bg-white/80 p-6">
+        <div className="surface-glow flex flex-wrap gap-3 rounded-[28px] border border-[color:var(--line)] bg-[var(--surface-strong)]/80 p-6">
           <Button variant="primary">Основной CTA</Button>
           <Button variant="accent">Акцентный CTA</Button>
           <Button variant="secondary">Вторичная</Button>
@@ -208,7 +208,7 @@ export function UiKitShowcase() {
           Интерактивные компоненты
         </h2>
         <div className="grid gap-4 lg:grid-cols-2">
-          <div className="surface-glow space-y-4 rounded-[28px] border border-[color:var(--line)] bg-white/80 p-6">
+          <div className="surface-glow space-y-4 rounded-[28px] border border-[color:var(--line)] bg-[var(--surface-strong)]/80 p-6">
             <Dropdown
               label="Сортировка"
               items={[

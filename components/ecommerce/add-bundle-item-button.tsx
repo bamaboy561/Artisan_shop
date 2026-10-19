@@ -56,7 +56,7 @@ export function AddBundleItemButton({
           }
         }}
         className={cn(
-          "inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-[var(--foreground)] text-white transition hover:bg-[var(--accent)] disabled:cursor-not-allowed disabled:bg-[var(--muted)]/45",
+          "inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-[var(--foreground)] text-[var(--accent-ink)] transition hover:bg-[var(--accent)] disabled:cursor-not-allowed disabled:bg-[var(--muted)]/45",
           className,
         )}
         aria-label={
@@ -79,7 +79,7 @@ export function AddBundleItemButton({
       {error ? (
         <span
           role="alert"
-          className="absolute top-full right-0 z-30 mt-2 w-52 rounded border border-rose-200 bg-white p-2 text-xs text-rose-700 shadow"
+          className="absolute top-full right-0 z-30 mt-2 w-52 rounded border border-rose-200 bg-[var(--surface-strong)] p-2 text-xs text-rose-700 shadow"
         >
           {error}
         </span>

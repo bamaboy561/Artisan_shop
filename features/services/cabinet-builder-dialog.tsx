@@ -15,7 +15,7 @@ import {
 import { hardwareHoles } from "./drilling-hardware";
 
 const inputClass =
-  "h-10 w-full min-w-0 rounded-lg border border-[color:var(--line)] bg-white px-2.5 text-[14px] text-[var(--foreground)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/15";
+  "h-10 w-full min-w-0 rounded-lg border border-[color:var(--line)] bg-[var(--surface-strong)] px-2.5 text-[14px] text-[var(--foreground)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/15";
 
 const sizeFormatter = new Intl.NumberFormat("ru-RU", {
   maximumFractionDigits: 1,
@@ -229,7 +229,7 @@ export function CabinetBuilderDialog({
       onClick={onClose}
     >
       <div
-        className="flex max-h-[94vh] w-full max-w-5xl flex-col overflow-hidden rounded-t-2xl bg-white shadow-xl sm:rounded-2xl"
+        className="flex max-h-[94vh] w-full max-w-5xl flex-col overflow-hidden rounded-t-2xl bg-[var(--surface-strong)] shadow-xl sm:rounded-2xl"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3 border-b border-[color:var(--line)] px-4 py-3">
@@ -246,7 +246,7 @@ export function CabinetBuilderDialog({
             type="button"
             onClick={onClose}
             aria-label="Закрыть"
-            className="flex size-9 shrink-0 items-center justify-center rounded-lg text-[var(--muted)] hover:bg-[#f3ece1]"
+            className="flex size-9 shrink-0 items-center justify-center rounded-lg text-[var(--muted)] hover:bg-[var(--surface)]"
           >
             <X className="size-5" />
           </button>
@@ -265,7 +265,7 @@ export function CabinetBuilderDialog({
                   className={cn(
                     "rounded-full border px-3.5 py-1.5 text-[13px]",
                     spec.kind === kind
-                      ? "border-[var(--accent)] bg-[var(--accent)] text-white"
+                      ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-ink)]"
                       : "border-[color:var(--line)] hover:border-[var(--foreground)]",
                   )}
                 >
@@ -371,7 +371,7 @@ export function CabinetBuilderDialog({
               полкодержатели под каждую полку, петли на дверях. Кромка по
               переднему торцу корпуса и полок, двери по кругу.
             </p>
-            <p className="rounded-xl bg-[#faf7f2] p-3 text-[13px] leading-5">
+            <p className="rounded-xl bg-[var(--surface)] p-3 text-[13px] leading-5">
               Задняя стенка из ХДФ — другой материал, её посчитает менеджер.
             </p>
           </div>
@@ -399,7 +399,7 @@ export function CabinetBuilderDialog({
                 group.label,
               );
             }}
-            className="inline-flex h-10 items-center rounded-full bg-[var(--accent)] px-5 text-sm font-semibold text-white disabled:opacity-40"
+            className="inline-flex h-10 items-center rounded-full bg-[var(--accent)] px-5 text-sm font-semibold text-[var(--accent-ink)] disabled:opacity-40"
           >
             Добавить в раскрой
           </button>

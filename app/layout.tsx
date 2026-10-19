@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { IBM_Plex_Mono, Manrope, Unbounded } from "next/font/google";
+import { IBM_Plex_Mono, Manrope, Onest, Unbounded } from "next/font/google";
 
 import { PwaInstallPrompt } from "@/components/pwa/pwa-install-prompt";
 import { PwaRegistration } from "@/components/pwa/pwa-registration";
@@ -11,6 +11,12 @@ import "./globals.css";
 
 const manrope = Manrope({
   variable: "--font-manrope",
+  subsets: ["latin", "cyrillic"],
+});
+
+// Шрифт сайта для покупателей («Тёмный орех»).
+const onest = Onest({
+  variable: "--font-onest",
   subsets: ["latin", "cyrillic"],
 });
 
@@ -81,7 +87,7 @@ export default function RootLayout({
   return (
     <html
       lang="ru"
-      className={`${manrope.variable} ${unbounded.variable} ${ibmPlexMono.variable} h-full scroll-smooth antialiased`}
+      className={`${manrope.variable} ${onest.variable} ${unbounded.variable} ${ibmPlexMono.variable} theme-walnut h-full scroll-smooth antialiased`}
     >
       <body className="bg-background text-foreground min-h-full">
         <a href="#main-content" className="skip-link">

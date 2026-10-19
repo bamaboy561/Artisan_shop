@@ -59,8 +59,9 @@ export function AddToCartButton({
           aria-busy={pending}
           onClick={handleAdd}
           className={cn(
-            "group/cart inline-flex size-9 items-center justify-center rounded-full border border-[color:var(--line)] bg-white/92 text-[var(--foreground)] shadow-[0_12px_30px_rgba(21,20,17,0.08)] backdrop-blur transition duration-300 hover:border-[var(--accent)] hover:bg-[var(--accent)] hover:text-white disabled:cursor-not-allowed disabled:opacity-45 sm:size-10",
-            added && "border-[var(--accent)] bg-[var(--accent)] text-white",
+            "group/cart inline-flex size-9 items-center justify-center rounded-full border border-[color:var(--line)] bg-[var(--surface-strong)]/92 text-[var(--foreground)] shadow-[0_12px_30px_rgba(21,20,17,0.08)] backdrop-blur transition duration-300 hover:border-[var(--accent)] hover:bg-[var(--accent)] hover:text-[var(--accent-ink)] disabled:cursor-not-allowed disabled:opacity-45 sm:size-10",
+            added &&
+              "border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-ink)]",
             className,
           )}
         >
@@ -75,7 +76,7 @@ export function AddToCartButton({
         {error ? (
           <span
             role="alert"
-            className="absolute top-full right-0 z-30 mt-2 w-52 rounded border border-rose-200 bg-white p-2 text-xs text-rose-700 shadow"
+            className="absolute top-full right-0 z-30 mt-2 w-52 rounded border border-rose-200 bg-[var(--surface-strong)] p-2 text-xs text-rose-700 shadow"
           >
             {error}
           </span>

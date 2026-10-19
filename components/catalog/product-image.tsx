@@ -60,7 +60,7 @@ export function ProductImage({
     return (
       <div
         className={cn(
-          "flex items-center justify-center bg-[#ece8df] bg-[repeating-linear-gradient(135deg,transparent_0_14px,rgba(27,28,25,0.035)_14px_15px)] text-[#6e6b63]",
+          "flex items-center justify-center bg-[var(--surface)] bg-[repeating-linear-gradient(135deg,transparent_0_14px,rgba(27,28,25,0.035)_14px_15px)] text-[var(--muted)]",
           fill ? "absolute inset-0" : "h-full w-full",
           fallbackClassName,
         )}

@@ -57,7 +57,7 @@ export function Pagination({
   const prevPage = Math.max(1, currentPage - 1);
   const nextPage = Math.min(totalPages, currentPage + 1);
   const mobileButtonClassName =
-    "inline-flex h-10 items-center justify-center border border-[color:var(--line)] bg-white/80 px-4 text-xs font-semibold text-[var(--foreground)] transition";
+    "inline-flex h-10 items-center justify-center border border-[color:var(--line)] bg-[var(--surface-strong)]/80 px-4 text-xs font-semibold text-[var(--foreground)] transition";
 
   return (
     <nav aria-label="Пагинация" className={cn("w-full min-w-0", className)}>
@@ -85,7 +85,7 @@ export function Pagination({
           </span>
         )}
 
-        <span className="px-1 text-center text-xs whitespace-nowrap text-[var(--muted)] font-medium">
+        <span className="px-1 text-center text-xs font-medium whitespace-nowrap text-[var(--muted)]">
           {currentPage} / {totalPages}
         </span>
 
@@ -141,8 +141,8 @@ export function Pagination({
                   className={cn(
                     sharedClassName,
                     isActive
-                      ? "border-[var(--foreground)] bg-[var(--foreground)] text-white"
-                      : "border-[color:var(--line)] bg-white/78 text-[var(--foreground)] hover:border-[color:var(--line-strong)]",
+                      ? "border-[var(--foreground)] bg-[var(--foreground)] text-[var(--background)]"
+                      : "border-[color:var(--line)] bg-[var(--surface-strong)]/78 text-[var(--foreground)] hover:border-[color:var(--line-strong)]",
                   )}
                 >
                   {page}
@@ -157,8 +157,8 @@ export function Pagination({
                 className={cn(
                   sharedClassName,
                   isActive
-                    ? "border-[var(--foreground)] bg-[var(--foreground)] text-white"
-                    : "border-[color:var(--line)] bg-white/78 text-[var(--foreground)]",
+                    ? "border-[var(--foreground)] bg-[var(--foreground)] text-[var(--background)]"
+                    : "border-[color:var(--line)] bg-[var(--surface-strong)]/78 text-[var(--foreground)]",
                 )}
               >
                 {page}

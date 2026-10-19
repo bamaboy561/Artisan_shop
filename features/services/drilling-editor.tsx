@@ -35,7 +35,7 @@ import { formatSitePrice } from "@/features/cutting/site-prices";
 const SIDES: PartSide[] = ["top", "right", "bottom", "left"];
 
 const inputClass =
-  "h-9 w-full min-w-0 rounded-lg border border-[color:var(--line)] bg-white px-2 text-[14px] text-[var(--foreground)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/15";
+  "h-9 w-full min-w-0 rounded-lg border border-[color:var(--line)] bg-[var(--surface-strong)] px-2 text-[14px] text-[var(--foreground)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/15";
 
 function NumberField({
   label,
@@ -354,7 +354,7 @@ export function DrillingEditor({
       onClick={onClose}
     >
       <div
-        className="flex max-h-[94vh] w-full max-w-5xl flex-col overflow-hidden rounded-t-2xl bg-white shadow-xl sm:rounded-2xl"
+        className="flex max-h-[94vh] w-full max-w-5xl flex-col overflow-hidden rounded-t-2xl bg-[var(--surface-strong)] shadow-xl sm:rounded-2xl"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3 border-b border-[color:var(--line)] px-4 py-3">
@@ -371,7 +371,7 @@ export function DrillingEditor({
             type="button"
             onClick={onClose}
             aria-label="Закрыть"
-            className="flex size-9 shrink-0 items-center justify-center rounded-lg text-[var(--muted)] hover:bg-[#f3ece1]"
+            className="flex size-9 shrink-0 items-center justify-center rounded-lg text-[var(--muted)] hover:bg-[var(--surface)]"
           >
             <X className="size-5" />
           </button>
@@ -398,7 +398,7 @@ export function DrillingEditor({
                   className={cn(
                     "rounded-full border px-3 py-1 text-[13px]",
                     item === side
-                      ? "border-[var(--accent)] bg-[var(--accent)] text-white"
+                      ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-ink)]"
                       : "border-[color:var(--line)] hover:border-[var(--foreground)]",
                   )}
                 >
@@ -495,7 +495,7 @@ export function DrillingEditor({
               </div>
             </details>
             {value.length === 0 ? (
-              <p className="rounded-xl bg-[#faf7f2] p-4 text-sm leading-6 text-[var(--muted)]">
+              <p className="rounded-xl bg-[var(--surface)] p-4 text-sm leading-6 text-[var(--muted)]">
                 Выберите сторону детали и добавьте фурнитуру кнопками слева.
                 Отступы, диаметры и глубину можно поменять — у каждого цеха
                 свои.
@@ -529,7 +529,7 @@ export function DrillingEditor({
                         onChange(value.filter((other) => other.id !== item.id))
                       }
                       aria-label="Убрать фурнитуру"
-                      className="flex size-8 items-center justify-center rounded-lg text-[var(--muted)] hover:bg-[#fbe9e2] hover:text-[#b4492a]"
+                      className="flex size-8 items-center justify-center rounded-lg text-[var(--muted)] hover:bg-[var(--surface)] hover:text-[var(--accent)]"
                     >
                       <Trash2 className="size-4" />
                     </button>
@@ -646,7 +646,7 @@ export function DrillingEditor({
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex h-10 items-center rounded-full bg-[var(--foreground)] px-5 text-sm font-semibold text-white"
+            className="inline-flex h-10 items-center rounded-full bg-[var(--foreground)] px-5 text-sm font-semibold text-[var(--background)]"
           >
             Готово
           </button>

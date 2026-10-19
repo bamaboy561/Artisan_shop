@@ -77,7 +77,7 @@ function BrandLogo({
   if (brand.logoUrl) {
     return (
       <div
-        className="h-full min-h-[8rem] w-full rounded-[28px] border border-[#151411]/10 bg-white bg-contain bg-center bg-no-repeat shadow-[0_24px_70px_rgba(21,20,17,0.09)] sm:min-h-[10rem] lg:min-h-[13rem]"
+        className="h-full min-h-[8rem] w-full rounded-[28px] border border-[color:var(--line-strong)]/10 bg-[var(--surface-strong)] bg-contain bg-center bg-no-repeat shadow-[0_24px_70px_rgba(21,20,17,0.09)] sm:min-h-[10rem] lg:min-h-[13rem]"
         style={{ backgroundImage: `url(${brand.logoUrl})` }}
         aria-label={`Логотип ${brand.name}`}
       />
@@ -89,7 +89,7 @@ function BrandLogo({
       className={`flex min-h-[8rem] items-center justify-center rounded-[28px] border text-[4.5rem] leading-none font-semibold tracking-[-0.08em] sm:min-h-[10rem] sm:text-[6rem] lg:min-h-[13rem] lg:text-[8rem] ${
         mode === "dark"
           ? "border-white/12 bg-white/8 text-white"
-          : "border-[#151411]/10 bg-white text-[#151411]"
+          : "border-[color:var(--line-strong)]/10 bg-[var(--surface-strong)] text-[var(--foreground)]"
       }`}
       aria-label={`Логотип ${brand.name}`}
     >
@@ -144,7 +144,7 @@ function BrandHeroVisual({
   const [heroProduct, secondProduct, thirdProduct] = products;
 
   return (
-    <div className="grid min-h-[27rem] gap-3 bg-[#151411] p-3 text-white sm:min-h-[34rem] lg:min-h-[42rem] lg:grid-cols-[1.2fr_0.8fr]">
+    <div className="grid min-h-[27rem] gap-3 bg-[var(--foreground)] p-3 text-[var(--background)] sm:min-h-[34rem] lg:min-h-[42rem] lg:grid-cols-[1.2fr_0.8fr]">
       <Link
         href={
           heroProduct
@@ -185,7 +185,7 @@ function BrandHeroVisual({
           </p>
         </Link>
 
-        <div className="grid min-h-[12rem] overflow-hidden bg-[#f4efe6] text-[#151411]">
+        <div className="grid min-h-[12rem] overflow-hidden bg-[#f4efe6] text-[var(--foreground)]">
           {thirdProduct?.image ? (
             <Link href={`/product/${thirdProduct.slug}`} className="group grid">
               <ProductVisual product={thirdProduct} className="min-h-[12rem]" />
@@ -207,9 +207,9 @@ function PreviewTiles({ labels }: { labels: string[] }) {
       {labels.map((label) => (
         <div
           key={label}
-          className="flex min-h-[12rem] items-end rounded-[26px] border border-[#151411]/8 bg-[linear-gradient(135deg,#f9f6ef,#dfd7ca)] p-4"
+          className="flex min-h-[12rem] items-end rounded-[26px] border border-[color:var(--line-strong)]/8 bg-[linear-gradient(135deg,#f9f6ef,#dfd7ca)] p-4"
         >
-          <span className="font-mono text-[10px] tracking-[0.16em] text-[#6f6962] uppercase">
+          <span className="font-mono text-[10px] tracking-[0.16em] text-[var(--muted)] uppercase">
             {label}
           </span>
         </div>
@@ -265,23 +265,23 @@ function RelatedBrandCard({ brand }: { brand: BrandProfile }) {
   return (
     <Link
       href={brand.brandPageHref}
-      className="group grid min-h-[17rem] content-between rounded-[30px] border border-[#151411]/10 bg-white/86 p-5 transition hover:-translate-y-1 hover:border-[#151411]/24 hover:bg-white hover:shadow-[0_24px_60px_rgba(21,20,17,0.08)]"
+      className="group grid min-h-[17rem] content-between rounded-[30px] border border-[color:var(--line-strong)]/10 bg-[var(--surface-strong)]/86 p-5 transition hover:-translate-y-1 hover:border-[color:var(--line-strong)]/24 hover:bg-[var(--surface-strong)] hover:shadow-[0_24px_60px_rgba(21,20,17,0.08)]"
     >
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <p className="font-mono text-[10px] tracking-[0.18em] text-[var(--accent)] uppercase">
             {brand.sectionName}
           </p>
-          <h3 className="mt-3 text-2xl leading-none font-semibold tracking-[-0.055em] text-[#151411]">
+          <h3 className="mt-3 text-2xl leading-none font-semibold tracking-[-0.055em] text-[var(--foreground)]">
             {brand.name}
           </h3>
         </div>
-        <span className="flex size-10 shrink-0 items-center justify-center rounded-full border border-[#151411]/10 text-[#151411] transition group-hover:bg-[#151411] group-hover:text-white">
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-full border border-[color:var(--line-strong)]/10 text-[var(--foreground)] transition group-hover:bg-[var(--foreground)] group-hover:text-[var(--background)]">
           <ArrowUpRight className="size-4" strokeWidth={1.8} />
         </span>
       </div>
 
-      <p className="mt-8 line-clamp-3 text-sm leading-6 text-[#6a645d]">
+      <p className="mt-8 line-clamp-3 text-sm leading-6 text-[var(--muted)]">
         {brand.headline}
       </p>
     </Link>
@@ -325,7 +325,7 @@ export default async function BrandDetailPage({ params }: BrandPageProps) {
   ];
 
   return (
-    <div className="bg-[#f4f0e8] text-[#151411]">
+    <div className="bg-[#f4f0e8] text-[var(--foreground)]">
       <StructuredData
         data={[
           breadcrumbJsonLd([
@@ -354,7 +354,7 @@ export default async function BrandDetailPage({ params }: BrandPageProps) {
             />
           </div>
 
-          <div className="overflow-hidden rounded-[34px] border border-[#151411]/10 bg-[#fbf8f1] shadow-[0_28px_90px_rgba(21,20,17,0.08)]">
+          <div className="overflow-hidden rounded-[34px] border border-[color:var(--line-strong)]/10 bg-[#fbf8f1] shadow-[0_28px_90px_rgba(21,20,17,0.08)]">
             <div className="grid lg:grid-cols-[0.9fr_1.1fr]">
               <div className="grid min-h-[32rem] content-between gap-8 p-5 sm:p-8 lg:min-h-[42rem] lg:p-10 xl:p-12">
                 <div className="grid gap-6">
@@ -367,24 +367,24 @@ export default async function BrandDetailPage({ params }: BrandPageProps) {
                         .map((chip) => (
                           <span
                             key={chip}
-                            className="inline-flex min-h-8 items-center rounded-full border border-[#151411]/10 bg-white/72 px-3 font-mono text-[10px] tracking-[0.13em] text-[#6f6962] uppercase"
+                            className="inline-flex min-h-8 items-center rounded-full border border-[color:var(--line-strong)]/10 bg-[var(--surface-strong)]/72 px-3 font-mono text-[10px] tracking-[0.13em] text-[var(--muted)] uppercase"
                           >
                             {chip}
                           </span>
                         ))}
                     </div>
 
-                    <h1 className="max-w-[11ch] text-[3.35rem] leading-[0.86] font-semibold tracking-[-0.075em] text-[#151411] sm:text-[5.2rem] lg:text-[6rem] xl:text-[7.2rem]">
+                    <h1 className="max-w-[11ch] text-[3.35rem] leading-[0.86] font-semibold tracking-[-0.075em] text-[var(--foreground)] sm:text-[5.2rem] lg:text-[6rem] xl:text-[7.2rem]">
                       {brand.name}
                     </h1>
-                    <p className="mt-5 max-w-[36rem] text-base leading-7 text-[#5f5952] sm:text-lg sm:leading-8">
+                    <p className="mt-5 max-w-[36rem] text-base leading-7 text-[var(--muted)] sm:text-lg sm:leading-8">
                       {brand.headline}
                     </p>
                   </div>
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-                  <p className="max-w-[40rem] text-sm leading-7 text-[#756f67]">
+                  <p className="max-w-[40rem] text-sm leading-7 text-[var(--muted)]">
                     {brand.overview}
                   </p>
                   <div className="flex flex-col gap-2 sm:min-w-[14rem]">
@@ -409,12 +409,12 @@ export default async function BrandDetailPage({ params }: BrandPageProps) {
           {brandStats.map(([label, value]) => (
             <article
               key={label}
-              className="rounded-[26px] border border-[#151411]/10 bg-white/78 p-5"
+              className="rounded-[26px] border border-[color:var(--line-strong)]/10 bg-[var(--surface-strong)]/78 p-5"
             >
-              <p className="font-mono text-[10px] tracking-[0.18em] text-[#8a837b] uppercase">
+              <p className="font-mono text-[10px] tracking-[0.18em] text-[var(--muted)] uppercase">
                 {label}
               </p>
-              <p className="mt-3 text-2xl leading-none font-semibold tracking-[-0.04em] text-[#151411]">
+              <p className="mt-3 text-2xl leading-none font-semibold tracking-[-0.04em] text-[var(--foreground)]">
                 {value}
               </p>
             </article>
@@ -426,10 +426,10 @@ export default async function BrandDetailPage({ params }: BrandPageProps) {
         <div className="mx-auto max-w-[1540px]">
           <div className="grid gap-5 lg:grid-cols-[0.72fr_1.28fr] lg:items-start">
             <div className="lg:sticky lg:top-24">
-              <h2 className="text-[2.1rem] leading-[0.95] font-semibold tracking-[-0.06em] text-[#151411] sm:text-[3.4rem]">
+              <h2 className="text-[2.1rem] leading-[0.95] font-semibold tracking-[-0.06em] text-[var(--foreground)] sm:text-[3.4rem]">
                 Что важно в {brand.name}.
               </h2>
-              <p className="mt-4 max-w-[32rem] text-sm leading-7 text-[#6c665f]">
+              <p className="mt-4 max-w-[32rem] text-sm leading-7 text-[var(--muted)]">
                 Коротко о том, почему бренд стоит держать в подборке проекта и
                 как его удобнее использовать в заказе.
               </p>
@@ -439,12 +439,12 @@ export default async function BrandDetailPage({ params }: BrandPageProps) {
               {brand.strengths.map((strength) => (
                 <article
                   key={strength}
-                  className="rounded-[28px] border border-[#151411]/10 bg-white/84 p-5 shadow-[0_18px_50px_rgba(21,20,17,0.04)]"
+                  className="rounded-[28px] border border-[color:var(--line-strong)]/10 bg-[var(--surface-strong)]/84 p-5 shadow-[0_18px_50px_rgba(21,20,17,0.04)]"
                 >
-                  <span className="flex size-9 items-center justify-center rounded-full bg-[#151411] text-white">
+                  <span className="flex size-9 items-center justify-center rounded-full bg-[var(--foreground)] text-[var(--background)]">
                     <Check className="size-4" strokeWidth={2} />
                   </span>
-                  <p className="mt-7 text-lg leading-tight font-semibold tracking-[-0.035em] text-[#151411]">
+                  <p className="mt-7 text-lg leading-tight font-semibold tracking-[-0.035em] text-[var(--foreground)]">
                     {strength}
                   </p>
                 </article>
@@ -458,10 +458,10 @@ export default async function BrandDetailPage({ params }: BrandPageProps) {
         <div className="mx-auto max-w-[1540px]">
           <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <h2 className="text-[2.2rem] leading-none font-semibold tracking-[-0.06em] text-[#151411] sm:text-[3.5rem]">
+              <h2 className="text-[2.2rem] leading-none font-semibold tracking-[-0.06em] text-[var(--foreground)] sm:text-[3.5rem]">
                 Подборка бренда.
               </h2>
-              <p className="mt-3 max-w-[34rem] text-sm leading-7 text-[#6c665f]">
+              <p className="mt-3 max-w-[34rem] text-sm leading-7 text-[var(--muted)]">
                 Самые заметные позиции бренда для быстрого перехода в карточку и
                 запроса цены.
               </p>
@@ -469,7 +469,7 @@ export default async function BrandDetailPage({ params }: BrandPageProps) {
             {brand.catalogHref ? (
               <Link
                 href={brand.catalogHref}
-                className="inline-flex items-center gap-2 font-mono text-[10px] tracking-[0.16em] text-[#151411] uppercase transition hover:text-[var(--accent)]"
+                className="inline-flex items-center gap-2 font-mono text-[10px] tracking-[0.16em] text-[var(--foreground)] uppercase transition hover:text-[var(--accent)]"
               >
                 Весь каталог
                 <ChevronRight className="size-4" strokeWidth={1.8} />
@@ -490,7 +490,7 @@ export default async function BrandDetailPage({ params }: BrandPageProps) {
       </section>
 
       <section className="px-4 py-10 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-[1540px] overflow-hidden rounded-[34px] bg-[#151411] text-white">
+        <div className="mx-auto max-w-[1540px] overflow-hidden rounded-[34px] bg-[var(--foreground)] text-[var(--background)]">
           <div className="grid gap-8 p-5 sm:p-8 lg:grid-cols-[0.72fr_1.28fr] lg:p-10 xl:p-12">
             <div>
               <h2 className="text-[2.2rem] leading-[0.94] font-semibold tracking-[-0.06em] text-white sm:text-[3.7rem]">
@@ -526,17 +526,17 @@ export default async function BrandDetailPage({ params }: BrandPageProps) {
           <div className="mx-auto max-w-[1540px]">
             <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <h2 className="text-[2rem] leading-none font-semibold tracking-[-0.055em] text-[#151411] sm:text-[3rem]">
+                <h2 className="text-[2rem] leading-none font-semibold tracking-[-0.055em] text-[var(--foreground)] sm:text-[3rem]">
                   Бренды рядом.
                 </h2>
-                <p className="mt-3 max-w-[34rem] text-sm leading-7 text-[#6c665f]">
+                <p className="mt-3 max-w-[34rem] text-sm leading-7 text-[var(--muted)]">
                   Другие направления Artisan, которые часто смотрят вместе с
                   этим брендом.
                 </p>
               </div>
               <Link
                 href="/brands"
-                className="font-mono text-[10px] tracking-[0.16em] text-[#6c665f] uppercase transition hover:text-[#151411]"
+                className="font-mono text-[10px] tracking-[0.16em] text-[var(--muted)] uppercase transition hover:text-[var(--foreground)]"
               >
                 Все бренды
               </Link>

@@ -23,7 +23,7 @@ export function Checkbox({
     >
       <input
         type="checkbox"
-        className="mt-0.5 size-4 border-[color:var(--line-strong)] bg-white accent-[var(--accent)]"
+        className="mt-0.5 size-4 border-[color:var(--line-strong)] bg-[var(--surface-strong)] accent-[var(--accent)]"
         {...props}
       />
       <span className="space-y-1">

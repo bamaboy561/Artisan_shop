@@ -63,28 +63,28 @@ export function PartLocator({
   return (
     <div className="grid gap-4">
       <div>
-        <p className="text-xs font-semibold tracking-[0.14em] text-[#a94730] uppercase">
+        <p className="text-xs font-semibold tracking-[0.14em] text-[var(--accent)] uppercase">
           {project.orderName || "Проект"}
         </p>
-        <h1 className="mt-1 text-2xl leading-tight font-semibold text-[#252b29] sm:text-3xl">
+        <h1 className="mt-1 text-2xl leading-tight font-semibold text-[var(--foreground)] sm:text-3xl">
           {panel.name}
         </h1>
       </div>
 
-      <dl className="grid gap-x-6 gap-y-2 bg-white p-4 text-sm sm:grid-cols-2">
+      <dl className="grid gap-x-6 gap-y-2 bg-[var(--surface-strong)] p-4 text-sm sm:grid-cols-2">
         {facts.map(([label, value]) => (
           <div key={label} className="flex justify-between gap-3 sm:block">
-            <dt className="text-[#69716d]">{label}</dt>
-            <dd className="text-right font-semibold text-[#252b29] sm:text-left">
+            <dt className="text-[var(--muted)]">{label}</dt>
+            <dd className="text-right font-semibold text-[var(--foreground)] sm:text-left">
               {value}
             </dd>
           </div>
         ))}
       </dl>
 
-      <div className="grid gap-2 bg-white p-4">
+      <div className="grid gap-2 bg-[var(--surface-strong)] p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm font-semibold text-[#252b29]">
+          <p className="text-sm font-semibold text-[var(--foreground)]">
             {sameParts.length > 1
               ? `Таких деталей в изделии ${sameParts.length}. Деталь подходит в любое из выделенных мест.`
               : "Место детали в изделии выделено цветом."}
@@ -92,7 +92,7 @@ export function PartLocator({
           <button
             type="button"
             onClick={() => setReplay((current) => current + 1)}
-            className="inline-flex h-9 items-center justify-center bg-[#a94730] px-3 text-sm font-semibold text-white transition hover:bg-[#8c3a26]"
+            className="inline-flex h-9 items-center justify-center bg-[var(--accent-strong)] px-3 text-sm font-semibold text-[var(--accent-ink)] transition hover:bg-[#8c3a26]"
           >
             Показать ещё раз
           </button>

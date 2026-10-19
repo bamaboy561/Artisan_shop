@@ -77,13 +77,15 @@ export function BazisFilePreview({ file }: { file: File | null }) {
   }
 
   return (
-    <div className="grid gap-2 border border-[#d7d4ce] bg-white p-3">
-      <p className="text-sm font-semibold text-[#252b29]">
+    <div className="grid gap-2 border border-[color:var(--line)] bg-[var(--surface-strong)] p-3">
+      <p className="text-sm font-semibold text-[var(--foreground)]">
         Макет проекта{project?.orderName ? ` «${project.orderName}»` : ""}
-        <span className="ml-2 font-normal text-[#69716d]">{file.name}</span>
+        <span className="ml-2 font-normal text-[var(--muted)]">
+          {file.name}
+        </span>
       </p>
       {state === "loading" ? (
-        <p className="text-sm text-[#69716d]">Строим макет…</p>
+        <p className="text-sm text-[var(--muted)]">Строим макет…</p>
       ) : null}
       {state === "error" ? (
         <p role="alert" className="text-sm text-red-800">
@@ -92,7 +94,7 @@ export function BazisFilePreview({ file }: { file: File | null }) {
       ) : null}
       {project ? (
         <>
-          <p className="text-xs text-[#69716d]">
+          <p className="text-xs text-[var(--muted)]">
             Деталей: {project.panels.length}. Материалы:{" "}
             {project.materials.filter(Boolean).join("; ") || "не указаны"}.
           </p>

@@ -70,7 +70,7 @@ function AdminNavItem({ item, pathname }: { item: NavItem; pathname: string }) {
       className={cn(
         "group flex h-10 shrink-0 items-center justify-between gap-3 rounded-lg px-3 text-[13px] font-medium transition focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:outline-none lg:w-full",
         active
-          ? "bg-[#c4532b] text-white shadow-[0_10px_24px_rgba(196,83,43,0.3)]"
+          ? "bg-[var(--accent)] text-[var(--accent-ink)] shadow-[0_10px_24px_rgba(196,83,43,0.3)]"
           : "text-white/78 hover:bg-white/[0.08] hover:text-white",
       )}
     >
@@ -115,7 +115,7 @@ function AccountNav({
             className={cn(
               "flex min-w-0 items-center gap-3 rounded-2xl px-3 py-2.5 text-[15px] font-semibold transition focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none",
               active
-                ? "bg-[var(--foreground)] text-white"
+                ? "bg-[var(--foreground)] text-[var(--background)]"
                 : "text-[var(--foreground)] hover:bg-[var(--background)]",
             )}
           >
@@ -138,7 +138,7 @@ function AccountMobileNav({
   return (
     <nav
       aria-label="Разделы кабинета"
-      className="-mx-4 flex min-w-0 [scrollbar-width:none] gap-2 overflow-x-auto px-4 [&::-webkit-scrollbar]:hidden"
+      className="-mx-4 flex min-w-0 gap-2 overflow-x-auto px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
     >
       {items.map((item) => {
         const Icon =
@@ -154,8 +154,8 @@ function AccountMobileNav({
             className={cn(
               "inline-flex h-10 shrink-0 items-center gap-2 rounded-full border px-4 text-sm font-semibold whitespace-nowrap transition focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none",
               active
-                ? "border-[var(--foreground)] bg-[var(--foreground)] text-white"
-                : "border-[color:var(--line)] bg-white text-[var(--foreground)]",
+                ? "border-[var(--foreground)] bg-[var(--foreground)] text-[var(--background)]"
+                : "border-[color:var(--line)] bg-[var(--surface-strong)] text-[var(--foreground)]",
             )}
           >
             <Icon className="size-4 shrink-0" strokeWidth={1.9} />
