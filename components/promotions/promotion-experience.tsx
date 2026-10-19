@@ -26,12 +26,12 @@ export function PromotionExperience({
   return (
     <>
       <section
-        className="border-b border-rose-200 bg-rose-50 text-rose-950"
+        className="border-b border-[color:var(--line)] bg-[var(--surface)] text-[var(--foreground)]"
         aria-label="Акция"
       >
         <div className="mx-auto flex min-h-11 max-w-[1500px] items-center gap-2 px-4 py-2 text-xs sm:gap-3 sm:px-8 sm:text-sm lg:px-10">
           <Tag className="hidden size-4 shrink-0 sm:block" aria-hidden="true" />
-          <span className="shrink-0 font-semibold text-rose-700">
+          <span className="shrink-0 font-semibold text-[var(--accent)]">
             {formatPromoOffer(promotion)}
           </span>
           <Link
@@ -66,7 +66,7 @@ export function PromotionExperience({
         }
       >
         <div className="space-y-4 text-sm leading-6">
-          <p className="text-3xl font-semibold text-rose-700">
+          <p className="text-3xl font-semibold text-[var(--accent)]">
             {formatPromoOffer(promotion)}
           </p>
           {promotion.description ? <p>{promotion.description}</p> : null}
