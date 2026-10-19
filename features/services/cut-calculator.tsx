@@ -2991,38 +2991,38 @@ export function CutCalculator({
             </div>
           </div>
 
-          <div className="mt-4 rounded-2xl bg-[#f2ece4] p-4 text-[#15120f] xl:hidden">
+          <div className="mt-4 rounded-2xl bg-[#1f2b25] p-4 text-white xl:hidden">
             <div className="flex items-end justify-between gap-3">
               <div>
-                <p className="text-[13px] font-semibold text-[#15120f]/60">
+                <p className="text-[13px] font-semibold text-white/60">
                   Ориентир по раскрою
                 </p>
-                <p className="mt-1 font-[family-name:var(--font-onest)] text-[1.7rem] leading-none font-medium">
+                <p className="mt-1 font-[family-name:var(--font-unbounded)] text-[1.7rem] leading-none font-medium">
                   {formatPrice(Math.round(estimate.totalEstimate))}
                 </p>
               </div>
               <div className="text-right">
-                <p className="font-[family-name:var(--font-onest)] text-[1.35rem] leading-none text-[#8a5a0b]">
+                <p className="font-[family-name:var(--font-unbounded)] text-[1.35rem] leading-none text-[var(--accent)]">
                   {estimate.sheetCount}
                 </p>
-                <p className="mt-1 text-[11px] text-[#15120f]/55">
+                <p className="mt-1 text-[11px] text-white/55">
                   {estimate.sheetCount === 1 ? "лист" : "листа"}
                 </p>
               </div>
             </div>
-            <div className="mt-3 grid grid-cols-3 gap-2 border-t border-[#15120f]/10 pt-3 text-[12px]">
+            <div className="mt-3 grid grid-cols-3 gap-2 border-t border-white/10 pt-3 text-[12px]">
               <div>
-                <p className="text-[#15120f]/55">Деталей</p>
+                <p className="text-white/55">Деталей</p>
                 <p className="mt-0.5 font-semibold">{cutMap.placedPieces}</p>
               </div>
               <div>
-                <p className="text-[#15120f]/55">КИМ</p>
+                <p className="text-white/55">КИМ</p>
                 <p className="mt-0.5 font-semibold">
                   {(cutMap.utilization * 100).toFixed(0)}%
                 </p>
               </div>
               <div>
-                <p className="text-[#15120f]/55">Кромка</p>
+                <p className="text-white/55">Кромка</p>
                 <p className="mt-0.5 font-semibold">
                   {calculation.totalEdgeMeters.toFixed(1)} м
                 </p>
@@ -3036,7 +3036,7 @@ export function CutCalculator({
           >
             {cuttingSiteIncentive ? (
               <div className="mt-3.5 flex items-center gap-3 rounded-[20px] bg-[var(--accent)] px-4 py-3 text-[var(--accent-ink)] sm:mt-5 sm:px-4 sm:py-3">
-                <span className="shrink-0 font-[family-name:var(--font-onest)] text-lg font-medium sm:text-xl">
+                <span className="shrink-0 font-[family-name:var(--font-unbounded)] text-lg font-medium sm:text-xl">
                   {cuttingSiteIncentive.badge}
                 </span>
                 <div className="min-w-0">
@@ -3883,15 +3883,15 @@ export function CutCalculator({
         </div>
 
         <aside className="hidden border-t border-[color:var(--line-strong)]/10 bg-[var(--surface)] p-4 text-[var(--foreground)] sm:p-5 lg:p-6 xl:sticky xl:top-20 xl:block xl:self-start xl:border-t-0 xl:border-l xl:border-[color:var(--line-strong)]/10">
-          <div className="rounded-2xl bg-[#f2ece4] p-5 text-[#15120f] shadow-[0_18px_40px_rgba(0,0,0,0.35)]">
-            <p className="text-[13px] font-semibold text-[#15120f]/60">
+          <div className="rounded-2xl bg-[#1f2b25] p-5 text-white shadow-[0_18px_40px_rgba(21,20,17,0.25)]">
+            <p className="text-[13px] font-semibold text-white/60">
               Ориентир по раскрою
             </p>
-            <p className="mt-2 font-[family-name:var(--font-onest)] text-[2rem] leading-none font-medium">
+            <p className="mt-2 font-[family-name:var(--font-unbounded)] text-[2rem] leading-none font-medium">
               {formatPrice(Math.round(estimate.totalEstimate))}
             </p>
-            <p className="mt-3 text-[13px] text-[#15120f]/70">
-              <span className="font-semibold text-[#8a5a0b]">
+            <p className="mt-3 text-[13px] text-white/70">
+              <span className="font-semibold text-[var(--accent)]">
                 {estimate.sheetCount} лист.
               </span>{" "}
               · {cutMap.placedPieces} дет. · КИМ{" "}
@@ -3903,11 +3903,11 @@ export function CutCalculator({
                 event.preventDefault();
                 goToStep(4);
               }}
-              className="mt-4 flex h-11 items-center justify-center rounded-full bg-[#15120f] text-sm font-semibold text-[#f2ece4] transition hover:bg-[#2c2620]"
+              className="mt-4 flex h-11 items-center justify-center rounded-full bg-[var(--accent)] text-sm font-semibold text-[var(--accent-ink)] transition hover:bg-[var(--accent-strong)]"
             >
               Отправить заявку
             </a>
-            <p className="mt-2 text-center text-[11px] text-[#15120f]/55">
+            <p className="mt-2 text-center text-[11px] text-white/55">
               Точную сумму подтвердит менеджер
             </p>
           </div>
