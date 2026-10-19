@@ -87,7 +87,7 @@ export default function RootLayout({
   return (
     <html
       lang="ru"
-      className={`${manrope.variable} ${onest.variable} ${unbounded.variable} ${ibmPlexMono.variable} theme-walnut h-full scroll-smooth antialiased`}
+      className={`${manrope.variable} ${onest.variable} ${unbounded.variable} ${ibmPlexMono.variable} h-full scroll-smooth antialiased`}
     >
       <body className="bg-background text-foreground min-h-full">
         <a href="#main-content" className="skip-link">

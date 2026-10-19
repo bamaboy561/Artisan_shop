@@ -1,21 +1,22 @@
 .root {
-  /* «Тёмный орех»: тёмный тёплый фон, янтарный акцент. */
-  --foreground: #f2ece4;
-  --muted: #b3a89b;
-  --accent: #e8b04b;
-  --line: #342c25;
-  --pv-ink: #f2ece4;
-  --pv-muted: #b3a89b;
-  --pv-accent: #e8b04b;
-  --pv-line: #342c25;
-  --pv-soft: #15120f;
-  --ws-paper: #1e1a16;
-  --ws-paper-2: #26211c;
-  --ws-glass: rgba(21, 18, 15, 0.92);
-  --ws-forest: #2c2620;
-  --ws-forest-soft: #b3a89b;
-  --ws-accent-hover: #f3c97a;
-  --ws-ok: #7cc49a;
+  /* Светлая тема сайта. Тёмный «орех» отключён: на нём плохо читалось. */
+  --foreground: #1b1c19;
+  --muted: #6e6b63;
+  --accent: #c4532b;
+  --line: #e3ddd2;
+  --pv-ink: #1b1c19;
+  --pv-muted: #6e6b63;
+  --pv-accent: #c4532b;
+  --pv-accent-ink: #ffffff;
+  --pv-line: #e3ddd2;
+  --pv-soft: #f4f1eb;
+  --ws-paper: #ffffff;
+  --ws-paper-2: #f4f1eb;
+  --ws-glass: rgba(255, 255, 255, 0.93);
+  --ws-forest: #1f2b25;
+  --ws-forest-soft: #cfd9d2;
+  --ws-accent-hover: #a8431f;
+  --ws-ok: #2f7a55;
   --ws-radius: 20px;
   --ws-radius-sm: 14px;
   background: var(--pv-soft);
@@ -162,7 +163,7 @@
   top: 0;
   right: 0;
   background: var(--pv-accent);
-  color: #15120f;
+  color: var(--pv-accent-ink);
   border-radius: 20px;
   min-width: 16px;
   height: 16px;
@@ -264,7 +265,7 @@
   line-height: 1.4;
 }
 .primaryButton {
-  color: #15120f;
+  color: var(--pv-accent-ink);
   background: var(--pv-accent);
 }
 .primaryButton:hover:not(:disabled) {
@@ -604,7 +605,7 @@
   overflow: hidden;
 }
 .serviceText .eyebrow {
-  color: var(--pv-accent);
+  color: #e3ddd2;
 }
 .serviceText h2 {
   font-size: 45px;
@@ -612,7 +613,7 @@
   font-weight: 400;
 }
 .serviceText > p:not(.eyebrow) {
-  color: var(--pv-muted);
+  color: #e3ddd2;
   max-width: 360px;
   margin-top: 22px;
   line-height: 1.8;
@@ -2681,7 +2682,7 @@
   background: var(--ws-accent-hover);
 }
 .lightButton {
-  border: 1px solid #4a4037;
+  border: 1px solid var(--pv-line);
 }
 .ghostButton {
   display: inline-flex;
@@ -2866,7 +2867,7 @@
 }
 .promoTile {
   background: var(--pv-accent);
-  color: #15120f;
+  color: var(--pv-accent-ink);
 }
 .promoTile:hover {
   background: var(--ws-accent-hover);
@@ -3015,7 +3016,7 @@
   padding: 5px 12px;
   border-radius: 999px;
   background: var(--pv-accent);
-  color: #15120f;
+  color: var(--pv-accent-ink);
 }
 .productInfo {
   padding: 16px 18px 18px;
@@ -3512,11 +3513,11 @@
 .categoryRail a[aria-current="page"] {
   border-color: var(--pv-accent);
   background: var(--pv-accent);
-  color: #15120f;
+  color: var(--pv-accent-ink);
 }
 .categoryRail a[aria-current="page"] span {
   background: rgba(21, 18, 15, 0.18);
-  color: #15120f;
+  color: var(--pv-accent-ink);
 }
 .thicknesses span {
   width: auto;
@@ -3547,7 +3548,7 @@
   padding: 0 6px;
   border-radius: 999px;
   background: var(--pv-accent);
-  color: #15120f;
+  color: var(--pv-accent-ink);
   font-size: 11px;
   font-weight: 700;
 }
