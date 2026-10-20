@@ -5239,6 +5239,10 @@ export async function createSalesFloorOrderAction(formData: FormData) {
     redirect("/admin/sales-floor?error=empty");
   }
 
+  if (!receiptNumber) {
+    redirect("/admin/sales-floor?error=receipt");
+  }
+
   const db = getDb();
 
   // Повторная отправка той же формы открывает уже созданную продажу.
