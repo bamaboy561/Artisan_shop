@@ -977,10 +977,13 @@ export function SalesFloorForm({
 
           <div className="mt-4 grid gap-3">
             <label className="grid gap-1.5 text-sm">
-              Кассовый чек
+              Кассовый чек *
               <Input
                 name="receiptNumber"
-                placeholder="Если есть"
+                required
+                pattern=".*\S.*"
+                title="Укажите номер кассового чека"
+                placeholder="Номер кассового чека"
                 className="h-11 border-white/10 bg-white/10 text-white placeholder:text-white/34"
               />
             </label>
