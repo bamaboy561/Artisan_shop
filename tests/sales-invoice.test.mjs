@@ -235,8 +235,9 @@ function saleFixture({ stock = 20, missing = false } = {}) {
       lastName: null,
       email: "manager@test",
     }),
-    getString: (data, key) => String(data.get(key) ?? ""),
-    getOptionalString: (data, key) => data.get(key) || null,
+    getString: (data, key) => String(data.get(key) ?? "").trim(),
+    getOptionalString: (data, key) =>
+      String(data.get(key) ?? "").trim() || null,
     getOptionalInt: (data, key) => Number(data.get(key) ?? 0),
     redirect: (url) => {
       throw new Error(`REDIRECT:${url}`);
@@ -312,6 +313,7 @@ function saleFixture({ stock = 20, missing = false } = {}) {
   data.set("quantity", "6");
   data.set("itemUnitPrice", "3150");
   data.set("invoiceReference", "23566");
+  data.set("receiptNumber", "К-1024");
   data.set("accrueLoyalty", "on");
   return { action: loaded.exports.createSalesFloorOrderAction, state, data };
 }
@@ -334,6 +336,20 @@ test("ordinary manual sales keep catalog promotion pricing", async () => {
   await assert.rejects(action(data), /REDIRECT:\/admin\/orders/);
   assert.equal(state.orders[0].items.create[0].unitPrice, 9999);
   assert.equal(state.orders[0].discountTotal, 9999 * 0.1 * 6);
+});
+test("sale without a receipt number fails before sale, points or notifications", async () => {
+  for (const receipt of [null, "", "   "]) {
+    const { action, state, data } = saleFixture();
+    if (receipt === null) data.delete("receiptNumber");
+    else data.set("receiptNumber", receipt);
+    await assert.rejects(
+      action(data),
+      /REDIRECT:\/admin\/sales-floor\?error=receipt/,
+    );
+    assert.equal(state.orders.length, 0);
+    assert.equal(state.loyalty.length, 0);
+    assert.equal(state.notifications.length, 0);
+  }
 });
 test("stock, missing products and invalid invoice values fail before sale, points or notifications", async () => {
   for (const options of [{ stock: 2 }, { missing: true }, {}]) {
