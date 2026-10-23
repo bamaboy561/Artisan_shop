@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { withBazisAccept } from "@/lib/bazis-file";
 
 type CustomerOption = {
   id: string;
@@ -450,7 +451,9 @@ export function CuttingRequestForm({ customers }: CuttingRequestFormProps) {
                 type="file"
                 name="files"
                 multiple
-                accept=".pdf,.xls,.xlsx,.csv,.txt,.doc,.docx,.zip,.rar,.jpg,.jpeg,.png,.webp,.heic,.dwg,.dxf,.project,.b3d,.bpr,.sto,.xml"
+                accept={withBazisAccept(
+                  ".pdf,.xls,.xlsx,.csv,.txt,.doc,.docx,.zip,.rar,.jpg,.jpeg,.png,.webp,.heic,.dwg,.dxf,.project,.b3d,.bpr,.sto,.xml",
+                )}
                 className="sr-only"
                 onChange={(event) => {
                   const files = Array.from(event.currentTarget.files ?? []);
