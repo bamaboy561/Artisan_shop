@@ -59,6 +59,7 @@ import { bazisExtrasFromRequestFiles } from "@/lib/server/cutting-bazis-extras";
 import { CuttingExtrasFields } from "@/components/cutting/cutting-extras-fields";
 import { CuttingQuoteLines } from "@/components/cutting/cutting-quote-lines";
 import { repriceCuttingRequestAction } from "@/app/admin/cutting/pricing/actions";
+import { withBazisAccept } from "@/lib/bazis-file";
 
 type AdminRequestDetailPageProps = {
   params: Promise<{ id: string }>;
@@ -690,7 +691,9 @@ export default async function AdminRequestDetailPage({
                   name="files"
                   type="file"
                   multiple
-                  accept=".pdf,.xls,.xlsx,.csv,.txt,.doc,.docx,.zip,.rar,.jpg,.jpeg,.png,.webp,.heic,.dwg,.dxf,.project,.b3d,.bpr,.sto,.xml"
+                  accept={withBazisAccept(
+                    ".pdf,.xls,.xlsx,.csv,.txt,.doc,.docx,.zip,.rar,.jpg,.jpeg,.png,.webp,.heic,.dwg,.dxf,.project,.b3d,.bpr,.sto,.xml",
+                  )}
                 />
               </label>
               <label className="grid gap-2 text-sm font-medium text-[var(--foreground)]">

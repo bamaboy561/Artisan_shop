@@ -23,6 +23,7 @@ import { hasDatabaseUrl } from "@/lib/db";
 import { getAccountRequests, getAccountUser } from "@/lib/server/account-data";
 import { getCuttingRequestQuote } from "@/lib/server/cutting-pricing";
 import { uploadAccountRequestFilesAction } from "@/app/(public)/account/requests/actions";
+import { withBazisAccept } from "@/lib/bazis-file";
 
 export const dynamic = "force-dynamic";
 
@@ -166,7 +167,9 @@ export default async function AccountRequestsPage() {
                 name="files"
                 type="file"
                 multiple
-                accept=".pdf,.xls,.xlsx,.csv,.zip,.rar,.jpg,.jpeg,.png,.webp,.dwg,.dxf,.project"
+                accept={withBazisAccept(
+                  ".pdf,.xls,.xlsx,.csv,.zip,.rar,.jpg,.jpeg,.png,.webp,.dwg,.dxf,.project,.b3d",
+                )}
                 className="h-auto py-2 text-xs"
               />
               <AdminSubmitButton

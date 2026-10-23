@@ -16,6 +16,7 @@ import {
   type BazisViewResponse,
 } from "@/features/bazis/project-view";
 import { describeEdgedSides } from "@/features/bazis/part-groups";
+import { BAZIS_FILE_ACCEPT, withBazisExtension } from "@/lib/bazis-file";
 
 // Строка списка деталей. panelIndexes связывает её с деталями макета:
 // удалили строку, детали пропали с макета.
@@ -186,11 +187,12 @@ export function BazisWorkspace({
     [materials],
   );
 
-  async function openFile(file: File) {
+  async function openFile(picked: File) {
     setLoading(true);
     setError("");
 
     try {
+      const file = await withBazisExtension(picked);
       const body = new FormData();
       body.set("file", file);
       const response = await fetch("/api/bazis/project", {
@@ -407,7 +409,7 @@ export function BazisWorkspace({
         </span>
         <input
           type="file"
-          accept=".b3d"
+          accept={BAZIS_FILE_ACCEPT}
           className="sr-only"
           disabled={loading}
           onChange={(event) => {

@@ -88,6 +88,7 @@ import {
 } from "@/features/cutting/site-prices";
 import { useSiteCuttingPrices } from "@/features/cutting/site-prices-context";
 import { cn } from "@/lib/utils";
+import { withBazisAccept, withBazisExtensions } from "@/lib/bazis-file";
 
 type EdgeSide = "top" | "right" | "bottom" | "left";
 type BasisFirstCutDirection = "auto" | "vertical" | "horizontal";
@@ -530,8 +531,9 @@ const DRAFT_STORAGE_KEY = "artisan:cut-calculator:draft:v1";
 const MAX_REQUEST_ATTACHMENTS = 5;
 // Vercel принимает запрос до 4,5 МБ, оставляем запас на данные заявки.
 const MAX_REQUEST_ATTACHMENTS_BYTES = 4 * 1024 * 1024;
-const requestAttachmentAccept =
-  ".jpg,.jpeg,.png,.webp,.heic,.pdf,.xls,.xlsx,.csv,.txt,.doc,.docx,.zip,.rar,.b3d,.bpr,.sto,.project,.xml,.dxf,.dwg";
+const requestAttachmentAccept = withBazisAccept(
+  ".jpg,.jpeg,.png,.webp,.heic,.pdf,.xls,.xlsx,.csv,.txt,.doc,.docx,.zip,.rar,.b3d,.bpr,.sto,.project,.xml,.dxf,.dwg",
+);
 
 type CalculatorDraft = {
   details: DetailRow[];
@@ -2477,7 +2479,9 @@ export function CutCalculator({
     if (picked.length === 0) return;
 
     setIsPreparingAttachments(true);
-    const prepared = await Promise.all(picked.map(compressImageAttachment));
+    const prepared = await Promise.all(
+      (await withBazisExtensions(picked)).map(compressImageAttachment),
+    );
     setIsPreparingAttachments(false);
 
     const next = [...attachments, ...prepared].slice(

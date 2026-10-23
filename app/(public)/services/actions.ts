@@ -10,6 +10,7 @@ import {
   createCuttingRequest,
   isAllowedRequestFile,
 } from "@/lib/server/request-inbox";
+import { withBazisExtensions } from "@/lib/bazis-file";
 
 const serviceRequestSchema = z.object({
   contactName: z.string().trim().min(2, "Укажите имя для заявки."),
@@ -123,7 +124,9 @@ export async function submitServiceRequestAction(
     };
   }
 
-  const files = normalizeFiles(formData.getAll("files"));
+  const files = await withBazisExtensions(
+    normalizeFiles(formData.getAll("files")),
+  );
 
   if (files.length > 5) {
     return {
