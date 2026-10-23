@@ -89,10 +89,6 @@ const noticeMessages: Record<
   },
   "deadline-saved": { tone: "success", text: "Плановая готовность сохранена." },
   issued: { tone: "success", text: "Заказ отмечен как выданный." },
-  "not-launched": {
-    tone: "error",
-    text: "Заявка ещё не запущена в производство. Дождитесь менеджера.",
-  },
   "deadline-conflict": {
     tone: "error",
     text: "Срок уже изменён другим сотрудником. Проверьте обновлённую дату.",
