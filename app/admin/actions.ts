@@ -4911,11 +4911,8 @@ export async function advanceProductionStageAction(formData: FormData) {
     redirect(productionActionReturn(formData, requestId, "stage-conflict"));
   }
 
-  // Оператор берёт в работу только то, что менеджер запустил в производство.
-  if (!request.cuttingStage && request.status !== RequestStatus.IN_PROGRESS) {
-    redirect(productionActionReturn(formData, requestId, "not-launched"));
-  }
-
+  // Скан QR маршрутного листа и «Начать распил» сами запускают заявку в
+  // работу: отдельно ставить «В работе» менеджеру не нужно.
   const pickupCell = getOptionalString(formData, "cuttingPickupCell");
 
   if (transition.requiresPickupCell && !pickupCell) {
