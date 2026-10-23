@@ -10,6 +10,7 @@ import {
   isAllowedRequestFile,
   persistRequestFiles,
 } from "@/lib/server/request-inbox";
+import { withBazisExtensions } from "@/lib/bazis-file";
 
 const requestUploadStatuses = [
   RequestStatus.NEW,
@@ -32,8 +33,7 @@ function getFileList(formData: FormData, key: string) {
       (value): value is File =>
         typeof value !== "string" &&
         typeof value.name === "string" &&
-        value.size > 0 &&
-        isAllowedRequestFile(value.name),
+        value.size > 0,
     );
 }
 
@@ -51,7 +51,9 @@ export async function uploadAccountRequestFilesAction(formData: FormData) {
 
   const session = await verifySession("/login?next=/account/requests");
   const requestId = getString(formData, "requestId");
-  const files = getFileList(formData, "files");
+  const files = (
+    await withBazisExtensions(getFileList(formData, "files"))
+  ).filter((file) => isAllowedRequestFile(file.name));
 
   if (!requestId || files.length === 0) {
     return;

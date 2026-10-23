@@ -20,6 +20,11 @@ import {
   type BazisMaterialGroup,
 } from "@/features/services/bazis-import";
 import { cn } from "@/lib/utils";
+import {
+  isBazisFile,
+  withBazisAccept,
+  withBazisExtension,
+} from "@/lib/bazis-file";
 
 type ImportMode = "append" | "replace";
 
@@ -207,8 +212,8 @@ export function CutListImportPanel({
   const handleFile = async (file: File | undefined) => {
     if (!file) return;
 
-    if (file.name.toLowerCase().endsWith(".b3d")) {
-      await handleBazisFile(file);
+    if (await isBazisFile(file)) {
+      await handleBazisFile(await withBazisExtension(file));
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
@@ -264,7 +269,7 @@ export function CutListImportPanel({
           <input
             ref={fileInputRef}
             type="file"
-            accept=".xlsx,.xls,.csv,.txt,.b3d"
+            accept={withBazisAccept(".xlsx,.xls,.csv,.txt,.b3d")}
             className="hidden"
             onChange={(event) => void handleFile(event.target.files?.[0])}
           />
