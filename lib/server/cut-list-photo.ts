@@ -41,7 +41,10 @@ async function claimAttempt(
         CASE WHEN "SiteSetting"."value"->>'day' = ${day}::text
         THEN ("SiteSetting"."value"->>'count')::int + 1 ELSE 1 END),
       "updatedAt" = NOW()
-    WHERE "SiteSetting"."updatedAt" <= NOW() - (${cooldownSeconds}::int * INTERVAL '1 second')
+    -- Без паузы (общий лимит) время не сравниваем: иначе одновременные
+    -- запросы отказывают друг другу, хотя лимит не исчерпан.
+    WHERE (${cooldownSeconds}::int = 0
+        OR "SiteSetting"."updatedAt" <= NOW() - (${cooldownSeconds}::int * INTERVAL '1 second'))
       AND ("SiteSetting"."value"->>'day' <> ${day}::text
         OR ("SiteSetting"."value"->>'count')::int < ${maximum}::int)
     RETURNING "id"

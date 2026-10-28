@@ -26,7 +26,10 @@ export function orderedGallery(product: {
 const KEEP_UPPERCASE = new Set([
   "ЛДСП",
   "ДСП",
+  "ДВП",
+  "ЛДВП",
   "МДФ",
+  "ЛМДФ",
   "ХДФ",
   "ЛХДФ",
   "ПВХ",

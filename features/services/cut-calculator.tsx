@@ -1733,6 +1733,8 @@ export function CutCalculator({
   const attachmentInputRef = useRef<HTMLInputElement>(null);
   const calculatorSectionRef = useRef<HTMLElement>(null);
   const [showStickySummary, setShowStickySummary] = useState(false);
+  // Исходный файл из загрузки списка (Базис, фото) → его копия в заявке.
+  const attachedSources = useRef(new Map<string, File>());
 
   useEffect(() => {
     const section = calculatorSectionRef.current;
@@ -2291,12 +2293,15 @@ export function CutCalculator({
     setRestoredDraftAt(null);
   };
 
-  const addAttachments = async (fileList: FileList | File[] | null) => {
+  // Возвращает подготовленные файлы, которые попали в заявку.
+  const addAttachments = async (
+    fileList: FileList | File[] | null,
+  ): Promise<File[]> => {
     const picked = Array.from(fileList ?? []);
     if (attachmentInputRef.current) {
       attachmentInputRef.current.value = "";
     }
-    if (picked.length === 0) return;
+    if (picked.length === 0) return [];
 
     setIsPreparingAttachments(true);
     const prepared = await Promise.all(picked.map(compressImageAttachment));
@@ -2314,7 +2319,7 @@ export function CutCalculator({
         message:
           "Файлы больше 4 МБ вместе. Прикрепите меньше файлов или отправьте большой проект менеджеру в WhatsApp.",
       });
-      return;
+      return [];
     }
 
     if (attachments.length + prepared.length > MAX_REQUEST_ATTACHMENTS) {
@@ -2327,6 +2332,7 @@ export function CutCalculator({
     }
 
     setAttachments(next);
+    return prepared.filter((file) => next.includes(file));
   };
 
   const removeAttachment = (index: number) => {
@@ -3067,9 +3073,16 @@ export function CutCalculator({
               photoEnabled={photoEnabled}
               onProjectFile={(file) => {
                 // Проект Базиса или фото списка уходит менеджеру вместе с заявкой.
-                if (!attachments.some((item) => item.name === file.name)) {
-                  void addAttachments([file]);
-                }
+                // Телефон называет все снимки image.jpg, поэтому повтор
+                // узнаём по имени, размеру и времени файла, а не по имени.
+                // Если клиент удалил файл из заявки, при повторной загрузке
+                // он приложится снова.
+                const key = `${file.name}:${file.size}:${file.lastModified}`;
+                const previous = attachedSources.current.get(key);
+                if (previous && attachments.includes(previous)) return;
+                void addAttachments([file]).then(([added]) => {
+                  if (added) attachedSources.current.set(key, added);
+                });
               }}
             />
 
@@ -3907,7 +3920,8 @@ export function CutCalculator({
               <span className="font-semibold text-[var(--accent)]">
                 {estimate.sheetCount} лист.
               </span>{" "}
-              · {cutMap.placedPieces} дет. · отход {wastePercent}%
+              · {cutMap.placedPieces} дет. · отход{" "}
+              {cutMap.placedPieces > 0 ? `${wastePercent}%` : "—"}
             </p>
             <a
               href="#cut-request-form"

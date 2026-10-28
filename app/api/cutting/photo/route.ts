@@ -14,6 +14,8 @@ import {
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+// Распознавание ждёт модель до 75 секунд.
+export const maxDuration = 90;
 
 function fail(error: string, status: number) {
   return Response.json({ ok: false, error } satisfies CutListPhotoResponse, {

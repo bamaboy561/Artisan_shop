@@ -143,6 +143,7 @@ export function CutListImportPanel({
   const [isReadingFile, setIsReadingFile] = useState(false);
   const [bazisPreviewFile, setBazisPreviewFile] = useState<File | null>(null);
   const [photoNotes, setPhotoNotes] = useState<string[]>([]);
+  const [isReadingPhoto, setIsReadingPhoto] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
@@ -272,11 +273,11 @@ export function CutListImportPanel({
     }
     if (!file) return;
 
-    setIsReadingFile(true);
+    setIsReadingPhoto(true);
     setBazisChoice(null);
     setPhotoNotes([]);
     const result = await readCutListPhoto(file);
-    setIsReadingFile(false);
+    setIsReadingPhoto(false);
 
     if (!result.ok) {
       setFeedback({ tone: "error", message: result.error });
@@ -314,7 +315,7 @@ export function CutListImportPanel({
           <Button
             variant="secondary"
             onClick={() => fileInputRef.current?.click()}
-            disabled={isReadingFile}
+            disabled={isReadingFile || isReadingPhoto}
             className="w-full sm:w-auto"
           >
             <Upload className="size-4" />
@@ -324,11 +325,11 @@ export function CutListImportPanel({
             <Button
               variant="secondary"
               onClick={() => photoInputRef.current?.click()}
-              disabled={isReadingFile}
+              disabled={isReadingFile || isReadingPhoto}
               className="col-span-2 w-full sm:col-span-1 sm:w-auto"
             >
               <Camera className="size-4" />
-              {isReadingFile ? "Распознаём…" : "Фото списка"}
+              {isReadingPhoto ? "Распознаём…" : "Фото списка"}
             </Button>
           ) : null}
           <input
@@ -475,8 +476,8 @@ export function CutListImportPanel({
           aria-label="Проверьте после распознавания"
           className="mt-2 grid gap-1 border border-[rgba(185,88,45,0.18)] bg-[rgba(185,88,45,0.06)] px-3 py-2 text-[12px] leading-5 text-[var(--foreground)]"
         >
-          {photoNotes.map((note) => (
-            <li key={note}>{note}</li>
+          {photoNotes.map((note, index) => (
+            <li key={`${index}-${note}`}>{note}</li>
           ))}
         </ul>
       ) : null}
