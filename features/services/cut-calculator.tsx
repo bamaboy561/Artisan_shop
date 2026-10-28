@@ -1677,6 +1677,8 @@ type CutCalculatorProps = {
   materials: MaterialOption[];
   sheets: SheetFormat[];
   presets: CalculatorPreset[];
+  /** На сервере подключено распознавание фото списка деталей. */
+  photoEnabled?: boolean;
 };
 
 export function CutCalculator({
@@ -1684,6 +1686,7 @@ export function CutCalculator({
   materials,
   sheets,
   presets,
+  photoEnabled = false,
 }: CutCalculatorProps) {
   const { items: cartItems } = useCart();
   // Цены сайта из «Прайс работ» в админке.
@@ -3052,8 +3055,9 @@ export function CutCalculator({
 
             <CutListImportPanel
               onImport={importDetails}
+              photoEnabled={photoEnabled}
               onProjectFile={(file) => {
-                // Проект Базиса уходит менеджеру вместе с заявкой.
+                // Проект Базиса или фото списка уходит менеджеру вместе с заявкой.
                 if (!attachments.some((item) => item.name === file.name)) {
                   void addAttachments([file]);
                 }

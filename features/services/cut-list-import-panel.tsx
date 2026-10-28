@@ -2,11 +2,12 @@
 
 import { useRef, useState } from "react";
 
-import { ClipboardPaste, FileSpreadsheet, Upload } from "lucide-react";
+import { Camera, ClipboardPaste, FileSpreadsheet, Upload } from "lucide-react";
 
 import { BazisFilePreview } from "@/components/bazis/bazis-file-preview";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { compressInvoicePhoto } from "@/features/admin/invoice-photo-client";
 import {
   cutListTemplateRows,
   parseCutListRows,
@@ -19,6 +20,7 @@ import {
   type BazisImportResponse,
   type BazisMaterialGroup,
 } from "@/features/services/bazis-import";
+import type { CutListPhotoResponse } from "@/features/services/cut-list-photo-result";
 import { cn } from "@/lib/utils";
 
 type ImportMode = "append" | "replace";
@@ -26,6 +28,8 @@ type ImportMode = "append" | "replace";
 type CutListImportPanelProps = {
   onImport: (details: ImportedDetail[], mode: ImportMode) => void;
   onProjectFile?: (file: File) => void;
+  /** Показывать кнопку «Фото списка» (на сервере есть ключ распознавания). */
+  photoEnabled?: boolean;
 };
 
 const pastePlaceholder = `Боковина\t720\t560\t2\t2Д
@@ -56,6 +60,32 @@ async function readSpreadsheet(file: File): Promise<CutListImportResult> {
   return parseCutListRows(
     rows.map((row) => row.map((cell) => String(cell ?? ""))),
   );
+}
+
+async function readCutListPhoto(file: File): Promise<CutListPhotoResponse> {
+  let photo: File;
+  try {
+    photo = await compressInvoicePhoto(file);
+  } catch (error) {
+    return {
+      ok: false,
+      error:
+        error instanceof Error ? error.message : "Не удалось подготовить фото.",
+    };
+  }
+
+  const body = new FormData();
+  body.append("file", photo);
+
+  try {
+    const response = await fetch("/api/cutting/photo", {
+      method: "POST",
+      body,
+    });
+    return (await response.json()) as CutListPhotoResponse;
+  } catch {
+    return { ok: false, error: "Нет связи с сайтом. Попробуйте ещё раз." };
+  }
 }
 
 async function downloadTemplate() {
@@ -96,6 +126,7 @@ function formatGroupLabel(group: BazisMaterialGroup) {
 export function CutListImportPanel({
   onImport,
   onProjectFile,
+  photoEnabled = false,
 }: CutListImportPanelProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [text, setText] = useState("");
@@ -111,9 +142,12 @@ export function CutListImportPanel({
   } | null>(null);
   const [isReadingFile, setIsReadingFile] = useState(false);
   const [bazisPreviewFile, setBazisPreviewFile] = useState<File | null>(null);
+  const [photoNotes, setPhotoNotes] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   const applyResult = (result: CutListImportResult) => {
+    setPhotoNotes([]);
     if (result.details.length === 0) {
       setFeedback({
         tone: "error",
@@ -206,6 +240,7 @@ export function CutListImportPanel({
 
   const handleFile = async (file: File | undefined) => {
     if (!file) return;
+    setPhotoNotes([]);
 
     if (file.name.toLowerCase().endsWith(".b3d")) {
       await handleBazisFile(file);
@@ -231,6 +266,29 @@ export function CutListImportPanel({
     }
   };
 
+  const handlePhoto = async (file: File | undefined) => {
+    if (photoInputRef.current) {
+      photoInputRef.current.value = "";
+    }
+    if (!file) return;
+
+    setIsReadingFile(true);
+    setBazisChoice(null);
+    setPhotoNotes([]);
+    const result = await readCutListPhoto(file);
+    setIsReadingFile(false);
+
+    if (!result.ok) {
+      setFeedback({ tone: "error", message: result.error });
+      return;
+    }
+
+    // Оригинал фото уходит менеджеру вместе с заявкой для сверки.
+    onProjectFile?.(file);
+    applyResult(result);
+    setPhotoNotes(result.warnings);
+  };
+
   return (
     <div className="mt-3.5 border border-dashed border-[color:var(--line-strong)] bg-[var(--surface)] p-3 sm:mt-5 sm:p-4">
       <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
@@ -239,7 +297,8 @@ export function CutListImportPanel({
             Список деталей готов?
           </p>
           <p className="mt-1 text-sm font-medium text-[var(--foreground)]">
-            Загрузите проект Базиса (.b3d), таблицу Excel или список деталей из
+            Загрузите проект Базиса (.b3d), таблицу Excel
+            {photoEnabled ? ", фото списка" : ""} или список деталей из
             SketchUp (выгрузка OpenCutList), детали появятся сами.
           </p>
         </div>
@@ -261,6 +320,24 @@ export function CutListImportPanel({
             <Upload className="size-4" />
             {isReadingFile ? "Читаем файл…" : "Excel / Базис"}
           </Button>
+          {photoEnabled ? (
+            <Button
+              variant="secondary"
+              onClick={() => photoInputRef.current?.click()}
+              disabled={isReadingFile}
+              className="col-span-2 w-full sm:col-span-1 sm:w-auto"
+            >
+              <Camera className="size-4" />
+              {isReadingFile ? "Распознаём…" : "Фото списка"}
+            </Button>
+          ) : null}
+          <input
+            ref={photoInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            className="hidden"
+            onChange={(event) => void handlePhoto(event.target.files?.[0])}
+          />
           <input
             ref={fileInputRef}
             type="file"
@@ -373,7 +450,9 @@ export function CutListImportPanel({
           href="#cut-request-form"
           className="text-[var(--foreground)] underline underline-offset-2"
         >
-          Есть фото списка или другой файл? Прикрепите к заявке
+          {photoEnabled
+            ? "Другой файл или эскиз? Прикрепите к заявке"
+            : "Есть фото списка или другой файл? Прикрепите к заявке"}
         </a>
       </div>
 
@@ -389,6 +468,17 @@ export function CutListImportPanel({
         >
           {feedback.message}
         </p>
+      ) : null}
+
+      {photoNotes.length > 0 ? (
+        <ul
+          aria-label="Проверьте после распознавания"
+          className="mt-2 grid gap-1 border border-[rgba(185,88,45,0.18)] bg-[rgba(185,88,45,0.06)] px-3 py-2 text-[12px] leading-5 text-[var(--foreground)]"
+        >
+          {photoNotes.map((note) => (
+            <li key={note}>{note}</li>
+          ))}
+        </ul>
       ) : null}
     </div>
   );
