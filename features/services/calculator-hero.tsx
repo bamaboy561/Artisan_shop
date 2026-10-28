@@ -1,4 +1,10 @@
-import { ArrowDown, LayoutGrid, Paperclip } from "lucide-react";
+import {
+  ArrowRight,
+  LayoutGrid,
+  PencilLine,
+  Upload,
+  type LucideIcon,
+} from "lucide-react";
 
 import type { SiteCuttingPrices } from "@/features/cutting/site-prices";
 
@@ -24,7 +30,7 @@ const cuts = [
   "M333 269 H461",
 ];
 
-function PriceTag({
+function PriceInline({
   label,
   price,
   regular,
@@ -36,18 +42,51 @@ function PriceTag({
   unit: string;
 }) {
   return (
-    <div className={`${s.price} rounded-xl px-4 py-3 sm:px-5 sm:py-4`}>
-      <p className="text-[11px] tracking-[0.14em] text-white/60 uppercase">
-        {label}
-      </p>
-      <p className="mt-1 flex flex-wrap items-baseline gap-x-2">
-        <strong className="text-2xl sm:text-[1.9rem]">{price}</strong>
-        <span className="text-xs whitespace-nowrap text-white/80 sm:text-sm">
-          {unit}
+    <span className="whitespace-nowrap">
+      {label}{" "}
+      <strong className="font-[family-name:var(--font-unbounded)] text-base font-semibold text-white sm:text-lg">
+        {price}
+      </strong>{" "}
+      {unit} <del className="text-white/50">{regular}</del>
+    </span>
+  );
+}
+
+function StartOption({
+  href,
+  icon: Icon,
+  title,
+  hint,
+  primary = false,
+}: {
+  href: string;
+  icon: LucideIcon;
+  title: string;
+  hint: string;
+  primary?: boolean;
+}) {
+  return (
+    <a
+      href={href}
+      className={
+        primary
+          ? "flex min-h-14 items-center gap-3.5 rounded-[14px] bg-[#c4532b] px-4 py-3 text-white transition hover:bg-[#a8431f]"
+          : "flex min-h-14 items-center gap-3.5 rounded-[14px] border border-[rgba(27,28,25,0.22)] px-4 py-3 transition hover:border-[#c4532b]"
+      }
+    >
+      <Icon aria-hidden="true" className="size-5 shrink-0" />
+      <span className="flex min-w-0 flex-1 flex-col">
+        <strong className="text-[15px]">{title}</strong>
+        <span
+          className={
+            primary ? "text-[13px] text-white/85" : "text-[13px] text-[#6e6b63]"
+          }
+        >
+          {hint}
         </span>
-        <del className="text-sm text-white/45">{regular}</del>
-      </p>
-    </div>
+      </span>
+      <ArrowRight aria-hidden="true" className="size-4 shrink-0" />
+    </a>
   );
 }
 
@@ -55,69 +94,82 @@ export function CalculatorHero({ prices }: { prices: SiteCuttingPrices }) {
   return (
     <>
       <section className={s.hero}>
-        <div className="mx-auto grid max-w-[1600px] gap-8 px-4 py-9 sm:px-8 sm:py-14 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)] lg:items-center lg:gap-14 lg:px-10 lg:py-16">
+        <div className="mx-auto grid max-w-[1600px] gap-8 px-4 py-6 sm:px-8 sm:py-14 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)] lg:items-center lg:gap-14 lg:px-10 lg:py-16">
           <div>
-            <p className="inline-flex items-center gap-2 rounded-full border border-white/20 px-3 py-1 text-[11px] tracking-[0.14em] text-white/80 uppercase">
-              <span className="size-1.5 rounded-full bg-[#f0a48f]" />
-              Раскрой онлайн
-            </p>
             <h1
-              className={`${s.heroTitle} mt-4 text-[1.75rem] sm:text-[2.5rem] xl:text-[3.2rem]`}
+              className={`${s.heroTitle} text-[1.45rem] sm:text-[2.2rem] xl:text-[2.8rem]`}
             >
               Соберите раскрой сами.
               <br />
               <em>Это быстрее и дешевле.</em>
             </h1>
-            <p className="mt-4 max-w-[36rem] text-[15px] leading-7 text-white/75 sm:text-base">
-              Вставьте список деталей, и калькулятор сразу покажет карту
-              раскроя, число листов и ориентир цены. Заявка уходит менеджеру.
-            </p>
-
-            <div className="mt-6 grid max-w-[30rem] grid-cols-2 gap-3">
-              <PriceTag
+            <p className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-[13px] text-white/75 sm:text-sm">
+              <PriceInline
                 label="Распил"
                 price={prices.sheet}
                 regular={prices.sheetRegular}
-                unit="сом / лист"
+                unit="сом/лист"
               />
-              <PriceTag
+              <PriceInline
                 label="Кромка"
                 price={prices.edge}
                 regular={prices.edgeRegular}
-                unit="сом / метр"
+                unit="сом/м"
               />
+            </p>
+
+            {/* Один выбор вместо четырёх равных кнопок: клиент начинает
+                расчёт уже на первом экране. */}
+            <div className="mt-5 max-w-[34rem] rounded-[18px] bg-white p-4 text-[#1b1c19] shadow-[0_18px_40px_rgba(0,0,0,0.25)] sm:p-5">
+              <h2 className="text-[17px] font-bold">С чего начнём?</h2>
+              <div className="mt-3 grid gap-2.5">
+                <StartOption
+                  href="#cut-calculator"
+                  icon={PencilLine}
+                  title="Ввести детали"
+                  hint="Размеры, количество, кромка"
+                  primary
+                />
+                <StartOption
+                  href="#cut-import"
+                  icon={Upload}
+                  title="Загрузить список"
+                  hint="Фото, Excel, проект Базиса или SketchUp"
+                />
+                <StartOption
+                  href="#cabinet"
+                  icon={LayoutGrid}
+                  title="Собрать шкаф по размерам"
+                  hint="Детали посчитаются сами"
+                />
+              </div>
+              <a
+                href="/bazis"
+                className="mt-3 inline-flex min-h-11 items-center text-[13px] text-[#6e6b63] underline underline-offset-2 hover:text-[#1b1c19]"
+              >
+                Есть проект Базиса? Откройте макет и детали
+              </a>
             </div>
-            <p className="mt-2 text-xs text-white/50">
+
+            <ol
+              aria-label="Шаги расчёта"
+              className="mt-5 grid max-w-[34rem] grid-cols-4 gap-1.5 text-center text-[12px] font-semibold text-white/80"
+            >
+              {["Материал", "Детали", "Раскрой", "Заявка"].map(
+                (label, index) => (
+                  <li key={label} className="flex flex-col items-center gap-1.5">
+                    <span className="flex size-7 items-center justify-center rounded-full border border-white/30 text-[12px]">
+                      {index + 1}
+                    </span>
+                    {label}
+                  </li>
+                ),
+              )}
+            </ol>
+            <p className="mt-3 text-xs text-white/60">
               Цены для заявок, собранных на сайте. Точную сумму подтвердит
               менеджер.
             </p>
-
-            <div className="mt-7 grid gap-3 sm:flex sm:flex-wrap">
-              <a
-                href="#cut-calculator"
-                className="inline-flex items-center justify-center gap-2.5 rounded-full bg-[#c4532b] px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-[#a8431f]"
-              >
-                Начать раскрой <ArrowDown className="size-4" />
-              </a>
-              <a
-                href="#cabinet"
-                className="inline-flex items-center justify-center gap-2.5 rounded-full border border-white/60 bg-white/10 px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-white/20"
-              >
-                <LayoutGrid className="size-4" /> Собрать шкаф по размерам
-              </a>
-              <a
-                href="#cut-request-form"
-                className="inline-flex items-center justify-center gap-2.5 rounded-full border border-white/25 px-6 py-3.5 text-sm font-semibold text-white transition hover:border-white/60"
-              >
-                <Paperclip className="size-4" /> Есть файл Базиса или фото
-              </a>
-              <a
-                href="/bazis"
-                className="inline-flex items-center justify-center gap-2.5 rounded-full border border-white/25 px-6 py-3.5 text-sm font-semibold text-white transition hover:border-white/60"
-              >
-                Открыть проект Базиса: макет и детали
-              </a>
-            </div>
           </div>
 
           <div className="relative mx-auto hidden w-full max-w-[620px] sm:block">
