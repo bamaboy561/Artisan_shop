@@ -238,19 +238,23 @@ const edgeSideMeta: Record<
 
 const orientationModeMeta: Record<
   OrientationMode,
-  { label: string; description: string }
+  // label — для цеха и ведомости; choice — подпись в списке для клиента.
+  { label: string; choice: string; description: string }
 > = {
   free: {
     label: "Свободно",
+    choice: "Можно повернуть",
     description: "Калькулятор может развернуть деталь ради лучшего КИМ.",
   },
   fixed: {
     label: "Как введено",
+    choice: "Длина по текстуре",
     description:
       "Сохраняет ориентацию размеров. Удобно для текстуры и фасадов.",
   },
   rotated: {
     label: "Повернуть 90°",
+    choice: "Длина поперёк текстуры",
     description: "Жестко меняет ориентацию детали на листе.",
   },
 };
@@ -2680,10 +2684,16 @@ export function CutCalculator({
   const detailColors = Object.fromEntries(
     details.map((detail, index) => [detail.id, getCutMapColor(index)]),
   );
+  // Клиенту понятнее «отход», чем производственный КИМ.
+  const wastePercent = Math.max(
+    0,
+    100 - Math.round(cutMap.utilization * 100),
+  );
   const detailLineTotals = Object.fromEntries(
     calculation.rows.map((row) => [
       row.id,
-      row.lineTotal > 0 ? formatPrice(Math.round(row.lineTotal)) : "—",
+      // Пока цены нет, ничего не пишем: одинокий прочерк на телефоне непонятен.
+      row.lineTotal > 0 ? formatPrice(Math.round(row.lineTotal)) : "",
     ]),
   );
   const detailEdgeLabels = Object.fromEntries(
@@ -2694,7 +2704,7 @@ export function CutCalculator({
   );
   const orientationOptions = (
     Object.keys(orientationModeMeta) as OrientationMode[]
-  ).map((mode) => ({ value: mode, label: orientationModeMeta[mode].label }));
+  ).map((mode) => ({ value: mode, label: orientationModeMeta[mode].choice }));
 
   const summaryCards = [
     {
@@ -2749,7 +2759,8 @@ export function CutCalculator({
                     onClick={() => goToStep(item.step)}
                     aria-current={step === item.step ? "step" : undefined}
                     className={cn(
-                      "flex min-h-11 w-full items-center justify-center gap-1.5 rounded-xl px-2 text-[13px] transition sm:justify-start sm:px-3.5 sm:text-sm",
+                      // На узком телефоне номер над подписью: подпись видна всегда.
+                      "flex min-h-11 w-full flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-1 text-[11px] leading-4 transition min-[420px]:flex-row min-[420px]:gap-1.5 min-[420px]:px-2 min-[420px]:text-[13px] sm:justify-start sm:px-3.5 sm:text-sm",
                       step === item.step
                         ? "bg-[var(--line)] font-semibold text-[var(--foreground)]"
                         : "text-[var(--muted)] hover:text-[var(--foreground)]",
@@ -2758,9 +2769,7 @@ export function CutCalculator({
                     <span className="font-[family-name:var(--font-ibm-plex-mono)] text-[12px]">
                       {item.step}
                     </span>
-                    <span className="hidden min-[420px]:inline">
-                      {item.label}
-                    </span>
+                    <span>{item.label}</span>
                   </button>
                 </li>
               ))}
@@ -3019,9 +3028,9 @@ export function CutCalculator({
                 <p className="mt-0.5 font-semibold">{cutMap.placedPieces}</p>
               </div>
               <div>
-                <p className="text-white/55">КИМ</p>
+                <p className="text-white/55">Отход</p>
                 <p className="mt-0.5 font-semibold">
-                  {(cutMap.utilization * 100).toFixed(0)}%
+                  {cutMap.placedPieces > 0 ? `${wastePercent}%` : "—"}
                 </p>
               </div>
               <div>
@@ -3215,7 +3224,7 @@ export function CutCalculator({
               <button
                 type="button"
                 onClick={() => goToStep(1)}
-                className="text-sm text-[var(--muted)] underline-offset-2 hover:text-[var(--foreground)] hover:underline"
+                className="min-h-11 text-sm text-[var(--muted)] underline-offset-2 hover:text-[var(--foreground)] hover:underline"
               >
                 ← Материал
               </button>
@@ -3898,8 +3907,7 @@ export function CutCalculator({
               <span className="font-semibold text-[var(--accent)]">
                 {estimate.sheetCount} лист.
               </span>{" "}
-              · {cutMap.placedPieces} дет. · КИМ{" "}
-              {(cutMap.utilization * 100).toFixed(0)}%
+              · {cutMap.placedPieces} дет. · отход {wastePercent}%
             </p>
             <a
               href="#cut-request-form"
@@ -4002,15 +4010,16 @@ export function CutCalculator({
       <div
         className={cn(
           "fixed inset-x-3 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-30 flex items-center gap-3 rounded-2xl bg-[#1f2b25] px-4 py-3 text-white shadow-[0_18px_40px_rgba(21,20,17,0.35)] transition duration-300 xl:hidden",
-          showStickySummary
+          // Без деталей плашке нечего показать и нечего отправлять.
+          showStickySummary && cutMap.placedPieces > 0
             ? "translate-y-0 opacity-100"
             : "pointer-events-none translate-y-4 opacity-0",
         )}
       >
         <div className="min-w-0 flex-1">
           <p className="truncate text-[11px] text-white/60">
-            {estimate.sheetCount} лист. · {cutMap.placedPieces} дет. · КИМ{" "}
-            {(cutMap.utilization * 100).toFixed(0)}%
+            {estimate.sheetCount} лист. · {cutMap.placedPieces} дет. · отход{" "}
+            {wastePercent}%
           </p>
           <p className="text-[1.05rem] leading-tight font-semibold">
             {formatPrice(Math.round(estimate.totalEstimate))}

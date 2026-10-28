@@ -441,7 +441,7 @@ export function CutListImportPanel({
         <button
           type="button"
           onClick={() => void downloadTemplate()}
-          className="inline-flex items-center gap-1.5 text-[var(--foreground)] underline underline-offset-2"
+          className="inline-flex min-h-11 items-center gap-1.5 text-[var(--foreground)] underline underline-offset-2"
         >
           <FileSpreadsheet className="size-3.5" />
           Скачать шаблон Excel

@@ -62,11 +62,12 @@ function EdgePicker({
     <div className="flex items-center gap-2">
       <div
         className={cn(
-          "relative h-16 w-28 shrink-0 sm:h-10 sm:w-16",
+          // На телефоне стороны крупнее, чтобы попадать пальцем.
+          "relative h-[88px] w-36 shrink-0 sm:h-10 sm:w-16",
           disabled && "pointer-events-none opacity-40",
         )}
       >
-        <span className="absolute inset-4 rounded-[3px] bg-[var(--surface)] sm:inset-[7px]" />
+        <span className="absolute inset-6 rounded-[3px] bg-[var(--surface)] sm:inset-[7px]" />
         {ALL_SIDES.map((side) => {
           const active = row.edgedSides.includes(side);
           const horizontal = side === "top" || side === "bottom";
@@ -82,8 +83,8 @@ function EdgePicker({
               className={cn(
                 "absolute flex items-center justify-center",
                 horizontal
-                  ? "inset-x-4 h-4 sm:inset-x-[7px] sm:h-[9px]"
-                  : "inset-y-4 w-4 sm:inset-y-[7px] sm:w-[9px]",
+                  ? "inset-x-6 h-6 sm:inset-x-[7px] sm:h-[9px]"
+                  : "inset-y-6 w-6 sm:inset-y-[7px] sm:w-[9px]",
                 side === "top" && "top-0",
                 side === "bottom" && "bottom-0",
                 side === "left" && "left-0",
@@ -109,7 +110,7 @@ function EdgePicker({
         onClick={() => onSetAll(allActive ? [] : [...ALL_SIDES])}
         className="px-2 py-2.5 text-[13px] whitespace-nowrap text-[var(--muted)] underline-offset-2 hover:text-[var(--foreground)] hover:underline disabled:opacity-40 sm:p-0 sm:text-[11px]"
       >
-        {allActive ? "Убрать" : "Кругом"}
+        {allActive ? "Без кромки" : "Кромка кругом"}
       </button>
     </div>
   );
@@ -180,7 +181,7 @@ export function CutDetailTable({
                       : "Присадка: фурнитура на чертеже детали"
                   }
                   className={cn(
-                    "flex h-9 items-center justify-center gap-1 rounded-lg px-2 text-[12px] transition hover:bg-[var(--surface)] hover:text-[var(--foreground)] disabled:opacity-30",
+                    "flex h-11 min-w-11 items-center justify-center gap-1 rounded-lg px-2 text-[12px] transition 2xl:h-9 2xl:min-w-0 hover:bg-[var(--surface)] hover:text-[var(--foreground)] disabled:opacity-30",
                     drillingLabels[row.id]
                       ? "font-semibold text-[var(--accent)]"
                       : "text-[var(--muted)]",
@@ -188,7 +189,14 @@ export function CutDetailTable({
                 >
                   <Drill className="size-4" />
                   {/* В широкой таблице подпись не помещается: только значок. */}
-                  <span className="2xl:sr-only">
+                  {/* На телефоне и в широкой таблице подпись не помещается:
+                      показываем её, только когда присадка уже задана. */}
+                  <span
+                    className={cn(
+                      "2xl:sr-only",
+                      !drillingLabels[row.id] && "sr-only sm:not-sr-only",
+                    )}
+                  >
                     {drillingLabels[row.id] || "Присадка"}
                   </span>
                 </button>
@@ -198,7 +206,7 @@ export function CutDetailTable({
                 onClick={() => onDuplicate(row.id)}
                 aria-label="Дублировать деталь"
                 title="Дублировать"
-                className="flex size-9 items-center justify-center rounded-lg text-[var(--muted)] transition hover:bg-[var(--surface)] hover:text-[var(--foreground)]"
+                className="flex size-11 items-center justify-center rounded-lg text-[var(--muted)] transition hover:bg-[var(--surface)] 2xl:size-9 hover:text-[var(--foreground)]"
               >
                 <Copy className="size-4" />
               </button>
@@ -208,7 +216,7 @@ export function CutDetailTable({
                 disabled={rows.length === 1}
                 aria-label="Удалить деталь"
                 title="Удалить"
-                className="flex size-9 items-center justify-center rounded-lg text-[var(--muted)] transition hover:bg-[var(--surface)] hover:text-[var(--accent)] disabled:opacity-30"
+                className="flex size-11 items-center justify-center rounded-lg text-[var(--muted)] transition hover:bg-[var(--surface)] 2xl:size-9 hover:text-[var(--accent)] disabled:opacity-30"
               >
                 <Trash2 className="size-4" />
               </button>
@@ -263,7 +271,10 @@ export function CutDetailTable({
             </div>
 
             <div className="col-span-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 2xl:contents">
-              <div title={edgeLabels[row.id]}>
+              <div title={edgeLabels[row.id]} className="grid gap-1 2xl:block">
+                <span className="text-[10px] tracking-[0.08em] text-[var(--muted)] uppercase 2xl:hidden">
+                  Кромка: нажмите на стороны
+                </span>
                 <EdgePicker
                   row={row}
                   disabled={!edgingAvailable}
@@ -271,22 +282,28 @@ export function CutDetailTable({
                   onSetAll={(sides) => onSetEdges(row.id, sides)}
                 />
               </div>
-              <select
-                aria-label={`Текстура детали ${index + 1}`}
-                className={cn(fieldClass, "w-auto min-w-[9rem] 2xl:w-full")}
-                value={row.orientationMode}
-                onChange={(event) =>
-                  onChange(row.id, {
-                    orientationMode: event.target.value as OrientationMode,
-                  })
-                }
-              >
-                {orientationOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
+              <label className="grid gap-1 text-[10px] tracking-[0.08em] text-[var(--muted)] uppercase 2xl:block">
+                <span className="2xl:hidden">Текстура</span>
+                <select
+                  aria-label={`Текстура детали ${index + 1}`}
+                  className={cn(
+                    fieldClass,
+                    "w-auto min-w-[11rem] tracking-normal normal-case 2xl:w-full",
+                  )}
+                  value={row.orientationMode}
+                  onChange={(event) =>
+                    onChange(row.id, {
+                      orientationMode: event.target.value as OrientationMode,
+                    })
+                  }
+                >
+                  {orientationOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <span className="ml-auto text-right text-[14px] font-semibold whitespace-nowrap text-[var(--foreground)] 2xl:ml-0">
                 {lineTotals[row.id]}
               </span>
