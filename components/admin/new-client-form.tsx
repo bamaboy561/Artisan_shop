@@ -38,7 +38,7 @@ export function NewClientForm({
             type="tel"
             required
             inputMode="tel"
-            placeholder="0553 432 131"
+            placeholder="0502 788 118"
             className="h-10"
           />
         </label>

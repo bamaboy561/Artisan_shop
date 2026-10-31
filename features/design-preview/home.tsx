@@ -240,7 +240,7 @@ export function PreviewHome() {
           <h2>Обсудим ваш проект?</h2>
         </div>
         <a
-          href="https://wa.me/996553432131"
+          href="https://wa.me/996502788118"
           target="_blank"
           rel="noreferrer"
           className={s.primaryButton}

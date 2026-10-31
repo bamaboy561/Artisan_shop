@@ -434,8 +434,8 @@ export function PreviewShell({ children }: { children: ReactNode }) {
               </Link>
               <Link href={`${previewRoot}#brands`}>Бренды</Link>
               <Link href={`${previewRoot}#services`}>Распил и услуги</Link>
-              <a href="tel:+996553432131" className={s.phone}>
-                +996 553 432 131
+              <a href="tel:+996502788118" className={s.phone}>
+                +996 502 788 118
               </a>
             </div>
           </nav>
@@ -453,10 +453,10 @@ export function PreviewShell({ children }: { children: ReactNode }) {
               <p>
                 <MapPin size={16} /> Бишкек, Кыргызстан
               </p>
-              <a href="tel:+996553432131">+996 553 432 131</a>
+              <a href="tel:+996502788118">+996 502 788 118</a>
             </div>
             <a
-              href="https://wa.me/996553432131"
+              href="https://wa.me/996502788118"
               target="_blank"
               rel="noreferrer"
               className={s.textLink}

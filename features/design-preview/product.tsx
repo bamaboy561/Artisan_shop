@@ -266,7 +266,7 @@ export function PreviewProduct({ product }: { product: PreviewProductData }) {
                 менеджером Artisan.
               </p>
               <a
-                href="https://wa.me/996553432131"
+                href="https://wa.me/996502788118"
                 target="_blank"
                 rel="noreferrer"
                 className={s.textLink}

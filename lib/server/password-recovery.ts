@@ -128,7 +128,7 @@ export async function resetRecoveredPassword(token: string, password: string, co
   // A notification failure must not roll back a successful password change.
   try {
     await sendRecoveryEmail(email, "Пароль Artisan изменён",
-      "Пароль вашего аккаунта Artisan изменён. Прежние сеансы завершены. Войдите с новым паролем: https://artisan.shop.kg/login\nЕсли это сделали не вы, обратитесь в Artisan: +996553432131.");
+      "Пароль вашего аккаунта Artisan изменён. Прежние сеансы завершены. Войдите с новым паролем: https://artisan.shop.kg/login\nЕсли это сделали не вы, обратитесь в Artisan: +996502788118.");
   } catch { console.error("[password-recovery:notification-failed]"); }
   return true;
 }
