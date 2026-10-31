@@ -9,7 +9,7 @@ export type PasswordRecoveryState = { success?: boolean; message?: string };
 export async function requestPasswordRecoveryAction(_state: PasswordRecoveryState, formData: FormData): Promise<PasswordRecoveryState> {
   const email = recoveryEmailSchema.safeParse(formData.get("email"));
   if (!email.success) return { message: "Введите корректный email." };
-  if (!isPasswordRecoveryConfigured()) return { message: "Восстановление через email пока недоступно. Свяжитесь с магазином: +996553432131." };
+  if (!isPasswordRecoveryConfigured()) return { message: "Восстановление через email пока недоступно. Свяжитесь с магазином: +996502788118." };
   after(async () => {
     try { await requestPasswordRecovery(email.data); }
     catch { console.error("[password-recovery:request-failed]"); }

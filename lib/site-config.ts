@@ -126,12 +126,12 @@ export const adminNavigation: NavItem[] = [
 ];
 
 export const companyContacts = {
-  phone: "+996 553 432 131",
-  phoneTel: "+996553432131",
+  phone: "+996 502 788 118",
+  phoneTel: "+996502788118",
   email: "info@artisan.kg",
   address: "г. Бишкек, ул. Кулатова 3/1",
   hours: "Пн-Пт 09:00-17:00",
-  whatsapp: "https://wa.me/996553432131",
+  whatsapp: "https://wa.me/996502788118",
   telegram: "",
 };
 

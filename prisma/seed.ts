@@ -798,9 +798,9 @@ async function seedPagesAndSettings() {
     where: { key: "contact.primary" },
     update: {
       value: {
-        phone: "+996 553 432 131",
+        phone: "+996 502 788 118",
         email: "info@artisan.kg",
-        whatsapp: "https://wa.me/996553432131",
+        whatsapp: "https://wa.me/996502788118",
         telegram: "https://t.me/artisan_local",
       },
       description: "Основные контактные данные сайта.",
@@ -808,9 +808,9 @@ async function seedPagesAndSettings() {
     create: {
       key: "contact.primary",
       value: {
-        phone: "+996 553 432 131",
+        phone: "+996 502 788 118",
         email: "info@artisan.kg",
-        whatsapp: "https://wa.me/996553432131",
+        whatsapp: "https://wa.me/996502788118",
         telegram: "https://t.me/artisan_local",
       },
       description: "Основные контактные данные сайта.",

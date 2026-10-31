@@ -16,7 +16,7 @@ import { loadAction } from "./load-action.mjs";
 const data = {
   siteUrl: "https://artisan.shop.kg",
   contacts: {
-    phone: "+996 553 432 131",
+    phone: "+996 502 788 118",
     email: "info@artisan.kg",
     address: "г. Бишкек",
     hours: "Пн-Пт 09:00-17:00",
