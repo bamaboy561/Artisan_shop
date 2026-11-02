@@ -1237,6 +1237,9 @@ test("one colour from two suppliers adds up into the single site product", async
   const entries = stock.buildStockReconciliation(parsed.rows, products, plan);
   assert.ok(entries.every((entry) => entry.kind !== "notFound"));
   assert.equal(entries.find((entry) => entry.selectable).fileQuantity, 3650);
+  // Одна из строк найдена только по похожему названию: сумма ждёт галочки.
+  assert.equal(merged.match, "similar");
+  assert.equal(stock.defaultStockSelection(entries).size, 0);
 });
 
 test("a link chosen by hand matches the row on later uploads", async () => {

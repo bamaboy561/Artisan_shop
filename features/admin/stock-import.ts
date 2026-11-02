@@ -768,6 +768,10 @@ export function buildStockImportPlan(
         ? "ready"
         : "unchanged";
       primary.fileQuantity = total;
+      // Если хоть одна строка найдена только по похожему названию, сумму
+      // тоже нужно подтвердить: она не отмечается сама.
+      if (entries.some((entry) => entry.match === "similar"))
+        primary.match = "similar";
       const format = (value: number) => String(value).replace(".", ",");
       primary.reason = `Остатки сложены (${entries.length} позиции файла): ${groupRows
         .map((row) => `«${row.name.trim()}» ${format(row.stockQuantity!)}`)
