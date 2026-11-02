@@ -25,6 +25,15 @@ const quantity = (value: number | null) =>
     ? "—"
     : value.toLocaleString("ru-RU", { maximumFractionDigits: 10 });
 const pageSize = 50;
+// Карточка нового товара открывается в новой вкладке, чтобы проверка файла
+// не сбросилась; название, артикул и остаток подставятся сами.
+function newProductHref(entry: StockReconciliationEntry) {
+  const params = new URLSearchParams({ newName: entry.name.trim() });
+  if (entry.sku.trim()) params.set("newSku", entry.sku.trim());
+  if (entry.fileQuantity !== null)
+    params.set("newQty", String(entry.fileQuantity));
+  return `/admin/products?${params}#new-product`;
+}
 
 export function StockReconciliationTable({
   entries,
@@ -305,6 +314,18 @@ export function StockReconciliationTable({
                       {entry.reason}
                     </p>
                   )}
+                  {entry.kind === "notFound" &&
+                  entry.name.trim() &&
+                  !(entry.linkKey && manualLinks[entry.linkKey]) ? (
+                    <a
+                      href={newProductHref(entry)}
+                      target="_blank"
+                      rel="noopener"
+                      className="mt-2 inline-flex rounded-full bg-[#171613] px-2.5 py-1 font-medium whitespace-nowrap text-white hover:bg-black"
+                    >
+                      Добавить на сайт
+                    </a>
+                  ) : null}
                   {preview &&
                   onLink &&
                   entry.linkKey &&

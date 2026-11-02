@@ -39,6 +39,7 @@ import { requireAdminSession } from "@/lib/auth/dal";
 import { getDb, hasDatabaseUrl } from "@/lib/db";
 import { getStockImportHistory } from "@/lib/server/stock-history";
 import { getStockPendingItems } from "@/lib/server/stock-pending";
+import { stockPendingKey } from "@/features/admin/stock-import";
 import {
   getAdminProductFormOptions,
   getAdminProducts,
@@ -244,18 +245,60 @@ export default async function AdminProductsPage({
     getStockImportHistory(getDb()).catch(() => null),
   ]);
 
-  const pendingPrefillItem = pendingItems?.find(
-    (item) => item.id === getImportText(resolvedSearchParams, "fromPending"),
+  // «Добавить» из таблицы проверки: позиция может быть ещё не сохранена
+  // в «Нет на сайте», поэтому название, артикул и остаток приходят в ссылке.
+  const stockPrefillName = getImportText(resolvedSearchParams, "newName")
+    .trim()
+    .slice(0, 300);
+  const stockPrefillSku =
+    getImportText(resolvedSearchParams, "newSku").trim().slice(0, 120) || null;
+  const stockPrefillQuantityText = getImportText(
+    resolvedSearchParams,
+    "newQty",
   );
-  const pendingPrefillStock =
-    pendingPrefillItem?.quantity == null
-      ? null
-      : Math.max(0, Math.floor(pendingPrefillItem.quantity));
-  const pendingPrefill = pendingPrefillItem
+  const stockPrefillQuantity =
+    stockPrefillQuantityText !== "" &&
+    Number.isFinite(Number(stockPrefillQuantityText))
+      ? Number(stockPrefillQuantityText)
+      : null;
+  const fromPendingId = getImportText(resolvedSearchParams, "fromPending");
+  const stockPrefillKey = stockPrefillName
+    ? stockPendingKey({ sku: stockPrefillSku, name: stockPrefillName })
+    : null;
+  // Строка файла важнее сохранённой позиции: берём её название, артикул и
+  // остаток, а позицию «Нет на сайте» связываем только при полном совпадении,
+  // чтобы после сохранения она ушла из списка.
+  const pendingPrefillItem = stockPrefillKey
+    ? pendingItems?.find(
+        (item) =>
+          stockPendingKey(item) === stockPrefillKey &&
+          item.name.trim() === stockPrefillName,
+      )
+    : pendingItems?.find((item) => item.id === fromPendingId);
+  const prefillSource = stockPrefillName
     ? {
-        pendingItemId: pendingPrefillItem.id,
-        name: pendingPrefillItem.name,
-        sku: pendingPrefillItem.sku,
+        pendingItemId: pendingPrefillItem?.id ?? null,
+        name: stockPrefillName,
+        sku: stockPrefillSku,
+        quantity: stockPrefillQuantity,
+      }
+    : pendingPrefillItem
+      ? {
+          pendingItemId: pendingPrefillItem.id,
+          name: pendingPrefillItem.name,
+          sku: pendingPrefillItem.sku,
+          quantity: pendingPrefillItem.quantity,
+        }
+      : null;
+  const pendingPrefillStock =
+    prefillSource?.quantity == null
+      ? null
+      : Math.max(0, Math.floor(prefillSource.quantity));
+  const pendingPrefill = prefillSource
+    ? {
+        pendingItemId: prefillSource.pendingItemId,
+        name: prefillSource.name,
+        sku: prefillSource.sku,
         stockQuantity: pendingPrefillStock,
         inventoryStatus:
           pendingPrefillStock === null
@@ -482,14 +525,19 @@ export default async function AdminProductsPage({
         </div>
 
         <div className="p-3 sm:p-4">
-          {pendingPrefillItem ? (
+          {pendingPrefill ? (
             <p className="mb-3 rounded-2xl bg-amber-50 px-3 py-2 text-sm text-amber-900">
-              Заполнено из списка «Нет на сайте». Выберите категорию, укажите
-              цену и сохраните.
+              {stockPrefillName
+                ? "Заполнено из файла остатков."
+                : "Заполнено из списка «Нет на сайте»."}{" "}
+              Выберите категорию, укажите цену и сохраните.
             </p>
           ) : null}
           <NewProductForm
-            key={pendingPrefillItem?.id ?? "new"}
+            key={
+              pendingPrefillItem?.id ??
+              (pendingPrefill ? `file:${pendingPrefill.name}` : "new")
+            }
             prefill={pendingPrefill}
             categories={categories}
             brands={brands}
