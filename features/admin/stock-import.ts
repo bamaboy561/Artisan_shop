@@ -170,6 +170,41 @@ export function buildStockReconciliation(
   return entries;
 }
 
+// Строки, которые отмечаются для обновления сразу после проверки: всё,
+// что найдено уверенно (по артикулу, названию или запомненной связи).
+// Похожие названия ждут подтверждения галочкой.
+export function defaultStockSelection(entries: StockReconciliationEntry[]) {
+  return new Set(
+    entries
+      .filter((entry) => entry.selectable && entry.match !== "similar")
+      .map((entry) => entry.key),
+  );
+}
+
+// Короткая сводка «почему не обновилось» после применения: причины
+// с количеством строк, самые частые сначала.
+export function stockNotUpdatedSummary(
+  entries: Array<{ status: StockImportStatus; reason: string }>,
+  limit = 5,
+) {
+  const counts = new Map<string, number>();
+  for (const entry of entries) {
+    if (entry.status === "updated" || entry.status === "unchanged") continue;
+    const reason =
+      entry.reason.split(". ")[0].replace(/[.:]?\s*$/, "") || "Без причины";
+    const short = reason.startsWith("Товар не найден")
+      ? "Нет на сайте (см. список «Нет на сайте»)"
+      : reason.startsWith("Несколько товаров совпадают")
+        ? "Несколько похожих товаров, нужен выбор «Это он»"
+        : reason;
+    counts.set(short, (counts.get(short) ?? 0) + 1);
+  }
+  return [...counts]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, limit)
+    .map(([reason, count]) => `${reason}: ${count}`);
+}
+
 export function stockReconciliationCsv(entries: StockReconciliationEntry[]) {
   const escape = (value: unknown) => {
     let text = value == null ? "" : String(value);
@@ -733,6 +768,10 @@ export function buildStockImportPlan(
         ? "ready"
         : "unchanged";
       primary.fileQuantity = total;
+      // Если хоть одна строка найдена только по похожему названию, сумму
+      // тоже нужно подтвердить: она не отмечается сама.
+      if (entries.some((entry) => entry.match === "similar"))
+        primary.match = "similar";
       const format = (value: number) => String(value).replace(".", ",");
       primary.reason = `Остатки сложены (${entries.length} позиции файла): ${groupRows
         .map((row) => `«${row.name.trim()}» ${format(row.stockQuantity!)}`)

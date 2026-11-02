@@ -1237,6 +1237,9 @@ test("one colour from two suppliers adds up into the single site product", async
   const entries = stock.buildStockReconciliation(parsed.rows, products, plan);
   assert.ok(entries.every((entry) => entry.kind !== "notFound"));
   assert.equal(entries.find((entry) => entry.selectable).fileQuantity, 3650);
+  // Одна из строк найдена только по похожему названию: сумма ждёт галочки.
+  assert.equal(merged.match, "similar");
+  assert.equal(stock.defaultStockSelection(entries).size, 0);
 });
 
 test("a link chosen by hand matches the row on later uploads", async () => {
@@ -1616,4 +1619,47 @@ test("pending items are saved in bulk upserts, not row by row", async () => {
   );
   assert.equal(calls[0][0].joined[0].values[1], "sku:0");
   assert.equal(calls[0][0].joined[0].values[7], "stock.xlsx");
+});
+
+test("after a check, confident matches are selected and similar names wait for a tick", () => {
+  const entry = (key, match, selectable = true) => ({ key, match, selectable });
+  assert.deepEqual(
+    [
+      ...stock.defaultStockSelection([
+        entry("a", "sku"),
+        entry("b", "name"),
+        entry("c", "linked"),
+        entry("d", "similar"),
+        entry("e", "sku", false),
+        entry("f", null, false),
+      ]),
+    ],
+    ["a", "b", "c"],
+  );
+});
+
+test("the not-updated summary groups reasons by count", () => {
+  const summary = stock.stockNotUpdatedSummary([
+    { status: "updated", reason: "" },
+    { status: "unchanged", reason: "" },
+    {
+      status: "skipped",
+      reason: "Товар не найден. Похожий на сайте: «X» (1).",
+    },
+    { status: "skipped", reason: "Товар не найден. Найдите его." },
+    {
+      status: "skipped",
+      reason: "Не выбрано для обновления. Остаток не изменён.",
+    },
+    {
+      status: "conflict",
+      reason:
+        "Товар изменён или удалён во время обновления. Загрузите файл повторно.",
+    },
+  ]);
+  assert.deepEqual(summary, [
+    "Нет на сайте (см. список «Нет на сайте»): 2",
+    "Не выбрано для обновления: 1",
+    "Товар изменён или удалён во время обновления: 1",
+  ]);
 });
