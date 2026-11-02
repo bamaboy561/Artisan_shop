@@ -109,6 +109,11 @@ export const adminNavigation: NavItem[] = [
     description: "Правила уровней, начисления и 1C.",
   },
   {
+    href: "/admin/price-trends",
+    label: "Динамика цен",
+    description: "Как менялись цены продаж по месяцам.",
+  },
+  {
     href: "/admin/promotions",
     label: "Акции",
     description: "Промо и механики.",
