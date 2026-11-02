@@ -105,7 +105,8 @@ type Props = {
 };
 
 export type ProductFormPrefill = {
-  pendingItemId: string;
+  // Нет, если товар добавляют прямо из таблицы проверки файла.
+  pendingItemId: string | null;
   name: string;
   sku: string | null;
   stockQuantity: number | null;
@@ -802,7 +803,7 @@ export function NewProductForm({
       className={cn("grid min-w-0 gap-3", compact ? "mt-3" : "mt-4")}
     >
       {defaults ? <input type="hidden" name="id" value={defaults.id} /> : null}
-      {!defaults && prefill ? (
+      {!defaults && prefill?.pendingItemId ? (
         <input
           type="hidden"
           name="pendingItemId"
