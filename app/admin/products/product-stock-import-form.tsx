@@ -14,6 +14,7 @@ import {
   type StockImportResult,
   type StockProductOption,
   type StockValues,
+  defaultStockSelection,
 } from "@/features/admin/stock-import";
 
 const modes: Array<{ value: StockImportMode; label: string }> = [
@@ -112,7 +113,12 @@ export function ProductStockImportForm({
       try {
         const next = await importAction(data);
         setResult(next);
-        setSelected(new Set());
+        // Уверенные совпадения отмечены сразу: достаточно нажать «Применить».
+        setSelected(
+          next.phase === "preview" && next.reconciliation
+            ? defaultStockSelection(next.reconciliation)
+            : new Set(),
+        );
         if (next.phase === "done") setManualLinks({});
         // Обновляем список «Нет на сайте» на странице.
         if (next.phase === "done") router.refresh();

@@ -7,6 +7,7 @@ import {
   buildStockImportPlan,
   buildStockReconciliation,
   stockLinkKey,
+  stockNotUpdatedSummary,
   stockLinksToRemember,
   stockMatchedPendingKeys,
   collectStockPendingItems,
@@ -152,6 +153,7 @@ export async function processStockImportAction(
     : [];
   let pendingSaved: number | null = null;
   let pendingError: string | null = null;
+  let reservedCount = 0;
 
   // «Обнулить то, чего нет в файле»: товар распродан и пропал из отчёта 1С,
   // но на сайте всё ещё числится в наличии. Только для сверки остатков.
@@ -264,6 +266,16 @@ export async function processStockImportAction(
               `Не удалось сохранить список «Нет на сайте»${pendingError ? ` (${pendingError})` : ""}. Остатки обновлены; скачайте отчёт CSV.`,
             ];
 
+    const notUpdated = phase === "done" ? stockNotUpdatedSummary(plan) : [];
+    const doneWarnings = [
+      ...(notUpdated.length ? [`Не обновлено. ${notUpdated.join("; ")}.`] : []),
+      ...(reservedCount
+        ? [
+            `У ${reservedCount} товаров остаток на сайте меньше, чем в файле: учтён резерв неоплаченных заказов сайта.`,
+          ]
+        : []),
+    ];
+
     return {
       phase,
       message,
@@ -281,7 +293,12 @@ export async function processStockImportAction(
         before: entry.before,
         changes: entry.changes,
       })),
-      warnings: [...pendingWarnings, ...zeroWarnings, ...parsed.warnings],
+      warnings: [
+        ...doneWarnings,
+        ...pendingWarnings,
+        ...zeroWarnings,
+        ...parsed.warnings,
+      ],
       pendingCount: pendingItems.length,
       columns: parsed.mappedColumns,
       reconciliation,
@@ -364,6 +381,7 @@ export async function processStockImportAction(
       : 0;
 
     if (reserved > 0 && typeof entry.changes.stockQuantity === "number") {
+      reservedCount++;
       const availableQuantity = Math.max(
         0,
         entry.changes.stockQuantity - reserved,

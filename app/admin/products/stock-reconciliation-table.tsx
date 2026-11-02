@@ -102,6 +102,11 @@ export function StockReconciliationTable({
   const eligible = filtered.filter((entry) => entry.selectable);
   const allSelected =
     eligible.length > 0 && eligible.every((entry) => selected.has(entry.key));
+  // Похожие названия не отмечаются сами: их нужно подтвердить.
+  const similarPending = entries.filter(
+    (entry) =>
+      entry.selectable && entry.match === "similar" && !selected.has(entry.key),
+  );
   function toggle(keys: string[], checked: boolean) {
     const next = new Set(selected);
     for (const key of keys) {
@@ -161,6 +166,25 @@ export function StockReconciliationTable({
           Выбрать доступные в текущем списке ({eligible.length}) · Выбрано:{" "}
           {selected.size}
         </label>
+      )}
+      {preview && similarPending.length > 0 && (
+        <p className="flex flex-wrap items-center gap-2 rounded-lg bg-amber-50 p-2 text-xs text-amber-900">
+          Похожие названия не отмечены: {similarPending.length}. Проверьте их в
+          фильтре «Все расхождения» и отметьте, если это тот же товар.
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() =>
+              toggle(
+                similarPending.map((entry) => entry.key),
+                true,
+              )
+            }
+            className="rounded-full border border-amber-700 px-2.5 py-1 font-medium whitespace-nowrap hover:bg-amber-100 disabled:opacity-50"
+          >
+            Отметить все похожие
+          </button>
+        </p>
       )}
       <div
         className="max-h-[32rem] overflow-auto border-y border-zinc-200"
