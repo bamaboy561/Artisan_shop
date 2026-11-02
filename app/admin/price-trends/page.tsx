@@ -107,7 +107,7 @@ function PriceIndexChart({ months }: { months: PriceTrendMonth[] }) {
   return (
     <div className="rounded-lg border border-[#ece8e2] bg-[#fbfaf8] p-4 sm:p-5">
       <h3 className="text-sm font-semibold text-[#1b1c19]">
-        Индекс цены продажи (100 = цена в первый месяц продаж)
+        Индекс цены продажи (100 = уровень цен в начале периода)
       </h3>
       <svg
         viewBox={`0 0 ${width} ${height}`}
@@ -166,8 +166,9 @@ function PriceIndexChart({ months }: { months: PriceTrendMonth[] }) {
         )}
       </svg>
       <p className="mt-2 text-xs leading-5 text-[#6e6b63]">
-        Каждый товар сравнивается сам с собой, поэтому смена ассортимента не
-        искажает картину. Наведите на точку, чтобы увидеть число товаров.
+        В каждом месяце товар сравнивается со своей прошлой продажей, поэтому
+        появление новых позиций или уход старых не двигает график. Наведите на
+        точку, чтобы увидеть число сравнённых товаров.
       </p>
     </div>
   );
@@ -282,7 +283,7 @@ export default async function AdminPriceTrendsPage({
         <MetricCard
           label="Изменение цены"
           value={formatChange(report.overallChangePercent)}
-          detail="В среднем по товарам, с учётом проданного количества."
+          detail="По графику: от начала периода до последнего месяца."
           tone={
             report.overallChangePercent === null
               ? "neutral"

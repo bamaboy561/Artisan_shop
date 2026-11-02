@@ -14,7 +14,7 @@ export type PriceTrendLine = {
 export type PriceTrendMonth = {
   key: string;
   label: string;
-  // Средний индекс цены: 100 = цена товара в первый месяц продажи за период.
+  // Цепной индекс цены: 100 = уровень цен в начале периода.
   index: number | null;
   comparedProducts: number;
   lines: number;
@@ -140,7 +140,11 @@ export function buildPriceTrendReport(
     monthStats.set(monthKey, stats);
   }
 
+  // Цепной индекс: в каждом месяце товар сравнивается со своей предыдущей
+  // продажей, и месячные изменения перемножаются. Так приход или уход товара
+  // из продаж не двигает индекс — двигают только изменения цен.
   const ratiosByMonth = new Map<string, number[]>();
+  const baseMonths = new Set<string>();
   const products: PriceTrendProduct[] = [];
 
   for (const [productKey, product] of byProduct) {
@@ -158,10 +162,12 @@ export function buildPriceTrendReport(
     const firstMonth = soldMonths[0];
     const lastMonth = soldMonths[soldMonths.length - 1];
     const basePrice = averagePrice(firstMonth);
+    baseMonths.add(firstMonth);
 
-    for (const key of soldMonths) {
+    for (let index = 1; index < soldMonths.length; index += 1) {
+      const key = soldMonths[index];
       const ratios = ratiosByMonth.get(key) ?? [];
-      ratios.push(averagePrice(key) / basePrice);
+      ratios.push(averagePrice(key) / averagePrice(soldMonths[index - 1]));
       ratiosByMonth.set(key, ratios);
     }
 
@@ -180,20 +186,31 @@ export function buildPriceTrendReport(
     });
   }
 
+  let level = 100;
+  let started = false;
+  let lastIndex: number | null = null;
   const months = monthKeys.map((key) => {
     const ratios = ratiosByMonth.get(key) ?? [];
     const stats = monthStats.get(key) ?? { lines: 0, quantity: 0 };
+    let index: number | null = null;
+
+    if (ratios.length > 0) {
+      level *= ratios.reduce((sum, ratio) => sum + ratio, 0) / ratios.length;
+      started = true;
+      index = round(level);
+    } else if (!started && baseMonths.has(key)) {
+      // Месяц, от которого считаем: первые продажи сравниваемых товаров.
+      index = 100;
+    }
+
+    if (index !== null) {
+      lastIndex = index;
+    }
 
     return {
       key,
       label: formatPriceTrendMonth(key),
-      index:
-        ratios.length > 0
-          ? round(
-              (ratios.reduce((sum, ratio) => sum + ratio, 0) / ratios.length) *
-                100,
-            )
-          : null,
+      index,
       comparedProducts: ratios.length,
       lines: stats.lines,
       quantity: stats.quantity,
@@ -206,17 +223,9 @@ export function buildPriceTrendReport(
       right.quantity - left.quantity,
   );
 
-  // Общее изменение: средний процент по товарам, взвешенный по проданному количеству.
-  const weight = products.reduce((sum, product) => sum + product.quantity, 0);
+  // Общее изменение — последнее значение цепного индекса относительно 100.
   const overallChangePercent =
-    weight > 0
-      ? round(
-          products.reduce(
-            (sum, product) => sum + product.changePercent * product.quantity,
-            0,
-          ) / weight,
-        )
-      : null;
+    started && lastIndex !== null ? round(lastIndex - 100) : null;
 
   return { months, products, overallChangePercent, totalLines };
 }

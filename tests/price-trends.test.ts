@@ -59,7 +59,8 @@ test("each product is compared with its own first price", () => {
   assert.equal(report.products[0].productKey, "white");
   assert.equal(report.products[0].changePercent, 10);
   assert.equal(report.products[1].changePercent, 0);
-  assert.equal(report.overallChangePercent, 5);
+  // Март: white +10%, oak в марте не продавался → цепочка 100 → 100 → 110.
+  assert.equal(report.overallChangePercent, 10);
   assert.deepEqual(
     report.months.map((month) => month.index),
     [100, 100, 110],
@@ -79,4 +80,24 @@ test("monthly price is weighted by quantity", () => {
 
   assert.equal(report.products[0].lastPrice, 175);
   assert.equal(report.products[0].changePercent, 75);
+});
+
+test("assortment changes do not move the index", () => {
+  // A: 100 в январе, 200 в феврале и марте; B: 100 в марте и апреле.
+  const report = buildPriceTrendReport(
+    [
+      line("a", 100, "2026-01-05T06:00:00Z"),
+      line("a", 200, "2026-02-05T06:00:00Z"),
+      line("a", 200, "2026-03-05T06:00:00Z"),
+      line("b", 100, "2026-03-06T06:00:00Z"),
+      line("b", 100, "2026-04-06T06:00:00Z"),
+    ],
+    listPriceTrendMonths("2026-04", 4),
+  );
+
+  assert.deepEqual(
+    report.months.map((month) => month.index),
+    [100, 200, 200, 200],
+  );
+  assert.equal(report.overallChangePercent, 100);
 });
