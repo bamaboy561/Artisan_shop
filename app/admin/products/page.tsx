@@ -252,40 +252,42 @@ export default async function AdminProductsPage({
     .slice(0, 300);
   const stockPrefillSku =
     getImportText(resolvedSearchParams, "newSku").trim().slice(0, 120) || null;
-  const stockPrefillQuantity = Number(
-    getImportText(resolvedSearchParams, "newQty"),
+  const stockPrefillQuantityText = getImportText(
+    resolvedSearchParams,
+    "newQty",
   );
+  const stockPrefillQuantity =
+    stockPrefillQuantityText !== "" &&
+    Number.isFinite(Number(stockPrefillQuantityText))
+      ? Number(stockPrefillQuantityText)
+      : null;
   const fromPendingId = getImportText(resolvedSearchParams, "fromPending");
   const stockPrefillKey = stockPrefillName
     ? stockPendingKey({ sku: stockPrefillSku, name: stockPrefillName })
     : null;
-  const pendingPrefillItem =
-    pendingItems?.find((item) => item.id === fromPendingId) ??
-    (stockPrefillKey
-      ? (pendingItems?.find(
-          (item) =>
-            stockPendingKey(item) === stockPrefillKey &&
-            item.name.trim() === stockPrefillName,
-        ) ??
-        pendingItems?.find((item) => stockPendingKey(item) === stockPrefillKey))
-      : undefined);
-  const prefillSource = pendingPrefillItem
+  // Строка файла важнее сохранённой позиции: берём её название, артикул и
+  // остаток, а позицию «Нет на сайте» связываем только при полном совпадении,
+  // чтобы после сохранения она ушла из списка.
+  const pendingPrefillItem = stockPrefillKey
+    ? pendingItems?.find(
+        (item) =>
+          stockPendingKey(item) === stockPrefillKey &&
+          item.name.trim() === stockPrefillName,
+      )
+    : pendingItems?.find((item) => item.id === fromPendingId);
+  const prefillSource = stockPrefillName
     ? {
-        pendingItemId: pendingPrefillItem.id,
-        name: pendingPrefillItem.name,
-        sku: pendingPrefillItem.sku,
-        quantity: pendingPrefillItem.quantity,
+        pendingItemId: pendingPrefillItem?.id ?? null,
+        name: stockPrefillName,
+        sku: stockPrefillSku,
+        quantity: stockPrefillQuantity,
       }
-    : stockPrefillName
+    : pendingPrefillItem
       ? {
-          pendingItemId: null,
-          name: stockPrefillName,
-          sku: stockPrefillSku,
-          quantity:
-            getImportText(resolvedSearchParams, "newQty") !== "" &&
-            Number.isFinite(stockPrefillQuantity)
-              ? stockPrefillQuantity
-              : null,
+          pendingItemId: pendingPrefillItem.id,
+          name: pendingPrefillItem.name,
+          sku: pendingPrefillItem.sku,
+          quantity: pendingPrefillItem.quantity,
         }
       : null;
   const pendingPrefillStock =
@@ -525,9 +527,9 @@ export default async function AdminProductsPage({
         <div className="p-3 sm:p-4">
           {pendingPrefill ? (
             <p className="mb-3 rounded-2xl bg-amber-50 px-3 py-2 text-sm text-amber-900">
-              {pendingPrefillItem
-                ? "Заполнено из списка «Нет на сайте»."
-                : "Заполнено из файла остатков."}{" "}
+              {stockPrefillName
+                ? "Заполнено из файла остатков."
+                : "Заполнено из списка «Нет на сайте»."}{" "}
               Выберите категорию, укажите цену и сохраните.
             </p>
           ) : null}
