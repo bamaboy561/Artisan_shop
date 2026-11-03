@@ -10,7 +10,10 @@ import type { SessionPayload } from "@/lib/auth/session";
 import { getDb, hasDatabaseUrl, isDemoModeEnabled } from "@/lib/db";
 import type { OperationEventDto } from "@/lib/server/operation-events";
 import { getRequestInboxItemById } from "@/lib/server/request-inbox";
-import { ensureCuttingWorkflowTables } from "@/lib/server/cutting-workflow";
+import {
+  ensureCuttingWorkflowTables,
+  syncStandardDeadlines,
+} from "@/lib/server/cutting-workflow";
 
 export type ProductionPlanDto = { dueDate: string | null; version: number };
 type DemoPlan = ProductionPlanDto & {
@@ -44,6 +47,9 @@ export async function productionPlanningAvailable() {
   try {
     await ensureCuttingWorkflowTables();
     await getDb().productionPlan.findFirst({ select: { requestId: true } });
+    await syncStandardDeadlines().catch((error) =>
+      console.error("[production-planning] standard deadlines", error),
+    );
     return true;
   } catch (error) {
     console.error("Production planning schema is unavailable", error);

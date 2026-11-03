@@ -413,6 +413,9 @@ export function CuttingRequestForm({ customers }: CuttingRequestFormProps) {
           <label className="grid gap-2 text-sm font-medium">
             Плановая готовность
             <Input name="deadline" type="date" />
+            <span className="text-xs font-normal text-[var(--muted)]">
+              Если не указать, срок будет 7 дней от сегодня (норма цеха).
+            </span>
           </label>
           <label className="flex items-center gap-3 text-sm font-medium">
             <input

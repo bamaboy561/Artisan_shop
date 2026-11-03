@@ -5,6 +5,7 @@ import { setStaffAccountAccessAction } from "@/app/admin/staff/actions";
 import {
   productionBoardPath,
   safeProductionReturn,
+  standardCuttingDueDate,
 } from "@/features/production/queue";
 import {
   MAX_SALE_AMOUNT,
@@ -4451,7 +4452,10 @@ export async function createAdminCuttingRequestAction(
   const cuttingSheetCount = getOptionalInt(formData, "cuttingSheetCount");
   const cuttingEdgeMeters = getOptionalFloat(formData, "cuttingEdgeMeters");
   const edgeOption = getOptionalString(formData, "edgeOption")?.slice(0, 240);
-  const deadlineValue = getOptionalString(formData, "deadline");
+  // Без даты в форме — норма цеха: 7 дней от сегодня.
+  const deadlineValue =
+    getOptionalString(formData, "deadline") ??
+    standardCuttingDueDate(new Date());
   const deadline = formatAdminCuttingDeadline(deadlineValue);
   const comment = getOptionalString(formData, "comment");
   const files = getFileList(formData, "files");
@@ -4607,7 +4611,12 @@ export async function createAdminCuttingRequestAction(
         dueDate: deadlineValue,
         expectedVersion: 0,
         actor,
-      }).catch((error) => console.error("[cutting:deadline]", error));
+      })
+        .then((result) => {
+          if (result !== "saved")
+            console.error("[cutting:deadline] plan not saved", result);
+        })
+        .catch((error) => console.error("[cutting:deadline]", error));
     }
 
     await Promise.all([

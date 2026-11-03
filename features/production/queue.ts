@@ -38,6 +38,19 @@ export function productionDateKey(date: Date) {
   }).format(date);
 }
 
+// Норма цеха: распил готов не позже чем через 7 дней после заявки.
+export const standardCuttingDays = 7;
+
+export function addDaysToDateKey(dateKey: string, days: number) {
+  const date = new Date(`${dateKey}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+export function standardCuttingDueDate(createdAt: Date) {
+  return addDaysToDateKey(productionDateKey(createdAt), standardCuttingDays);
+}
+
 export function productionDateBounds(from: string, to: string) {
   return {
     ...(from ? { gte: new Date(`${from}T00:00:00+06:00`) } : {}),

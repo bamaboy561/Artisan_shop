@@ -84,3 +84,10 @@ npx next build
 
 - Work Telegram chat, topic «Распил» (`TELEGRAM_CUTTING_THREAD_ID`): a message when a request is marked urgent, when a problem is reported and when it is resolved. Stage changes already posted there; their titles now name the receiving station («пришло на кромку», «пришло на присадку», «новая работа для распила», «готово к выдаче») and carry an «Открыть в производстве» button that operators can open.
 - `/api/cron/daily-maintenance` (09:00 Bishkek) also sends «Цех на утро» to the same topic: yesterday's sheets cut / issued / problems, current counts per station, overdue, due today, urgent, problems, requests without a deadline, link to the board (`lib/server/production-digest.ts`, `features/production/digest.ts`).
+
+## Standard cutting deadline: 7 days (2026-11-03)
+
+- The workshop norm is that a cutting request is ready no later than 7 days after it was created (Bishkek date). Constants and helpers: `standardCuttingDays`, `standardCuttingDueDate` in `features/production/queue.ts`.
+- `syncStandardDeadlines()` (`lib/server/cutting-workflow.ts`, throttled to 30 s, called from `productionPlanningAvailable`) inserts a `ProductionPlan` row with `created + 7 days` for every open cutting request that has no plan row and is older than 10 minutes (so it never races the «Новый распил» form, which saves its own deadline at version 0). `ON CONFLICT DO NOTHING` means a date set or cleared by a manager is never overwritten.
+- The admin «Новый распил» form uses today + 7 days when the deadline field is left empty.
+- The request page shows the norm date under the deadline form, and a red «позже нормы» note when the planned date is later than the norm. A later date is allowed, for cases agreed with the client.

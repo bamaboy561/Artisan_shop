@@ -66,6 +66,8 @@ import {
 import {
   productionTimeZone,
   safeProductionReturn,
+  standardCuttingDays,
+  standardCuttingDueDate,
 } from "@/features/production/queue";
 
 export const dynamic = "force-dynamic";
@@ -219,6 +221,9 @@ export default async function ProductionRequestPage({
     getCuttingWorkflow(id),
   ]);
   const plan = planning ? (await getProductionPlans([id])).get(id) : undefined;
+  const normDueDate = standardCuttingDueDate(request.createdAt);
+  const overNorm = Boolean(plan?.dueDate && plan.dueDate > normDueDate);
+  const showDate = (value: string) => value.split("-").reverse().join(".");
   const timelineEvents = [...events, ...(await getDemoPlanningEvents(id))].sort(
     (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
   );
@@ -392,10 +397,14 @@ export default async function ProductionRequestPage({
           <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-[color:var(--line)] pt-3 text-sm">
             <span className="text-[var(--muted)]">Плановая готовность:</span>
             <strong>
-              {plan?.dueDate
-                ? plan.dueDate.split("-").reverse().join(".")
-                : "Не назначена"}
+              {plan?.dueDate ? showDate(plan.dueDate) : "Не назначена"}
             </strong>
+            {overNorm ? (
+              <span className="font-semibold text-red-700">
+                позже нормы {standardCuttingDays} дней (до{" "}
+                {showDate(normDueDate)})
+              </span>
+            ) : null}
           </div>
         ) : null}
         {request.message ? (
@@ -610,6 +619,11 @@ export default async function ProductionRequestPage({
                 idleLabel="Сохранить срок"
                 pendingLabel="Сохраняем..."
               />
+              <p className="basis-full text-xs text-[var(--muted)]">
+                Норма цеха: до {standardCuttingDays} дней от заявки, то есть до{" "}
+                {showDate(normDueDate)}. Позже ставьте только по договорённости
+                с клиентом.
+              </p>
             </form>
           ) : (
             <p className="mt-2 text-sm text-[var(--muted)]">

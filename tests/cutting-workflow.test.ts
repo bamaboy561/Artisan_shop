@@ -187,3 +187,18 @@ test("morning production digest counts stations, overdue and problems", async ()
   });
   assert.match(truncated.lines[0], /больше 400/);
 });
+
+test("standard cutting deadline is 7 days from the request date in Bishkek", async () => {
+  const { standardCuttingDueDate, addDaysToDateKey } =
+    await import("../features/production/queue");
+  assert.equal(addDaysToDateKey("2026-12-28", 7), "2027-01-04");
+  // 20:00 UTC — уже следующий день в Бишкеке (+06:00).
+  assert.equal(
+    standardCuttingDueDate(new Date("2026-11-03T20:00:00Z")),
+    "2026-11-11",
+  );
+  assert.equal(
+    standardCuttingDueDate(new Date("2026-11-03T05:00:00Z")),
+    "2026-11-10",
+  );
+});

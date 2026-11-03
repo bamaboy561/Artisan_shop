@@ -14,6 +14,7 @@ import {
 } from "@/features/production/workflow-flags";
 import { canManageProduction, canAccessProduction } from "@/lib/auth/roles";
 import type { SessionPayload } from "@/lib/auth/session";
+import { standardCuttingDays } from "@/features/production/queue";
 import { getDb, hasDatabaseUrl } from "@/lib/db";
 import { logOperationEvent } from "@/lib/server/operation-events";
 
@@ -86,6 +87,30 @@ async function syncLegacyUrgency() {
             coalesce(r."subject", '') || ' ' || coalesce(r."message", ''),
             'Приоритет:\\s*стандарт', '', 'gi'
           ) ~* 'срочно'
+    ON CONFLICT ("requestId") DO NOTHING
+  `);
+}
+
+let lastDeadlineSync = 0;
+
+// Норма «распил до 7 дней»: открытой заявке без плана ставим срок
+// «дата заявки + 7 дней» (по Бишкеку). Если менеджер уже менял или стирал
+// срок, строка плана есть и её не трогаем. Свежие заявки (до 10 минут)
+// пропускаем: форма «Новый распил» сама сохраняет свой срок версией 0, и
+// вставка нормы не должна её опередить.
+export async function syncStandardDeadlines() {
+  if (Date.now() - lastDeadlineSync < 30_000) return;
+  lastDeadlineSync = Date.now();
+  await getDb().$executeRawUnsafe(`
+    INSERT INTO "ProductionPlan" ("requestId", "dueDate", "version", "updatedAt")
+    SELECT r."id",
+           ((r."createdAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Bishkek')::date + ${standardCuttingDays},
+           1,
+           CURRENT_TIMESTAMP
+    FROM "Request" r
+    WHERE r."type" = 'CUTTING_SERVICE'
+      AND r."status" NOT IN ('COMPLETED', 'CANCELED')
+      AND r."createdAt" < (CURRENT_TIMESTAMP AT TIME ZONE 'UTC') - INTERVAL '10 minutes'
     ON CONFLICT ("requestId") DO NOTHING
   `);
 }
