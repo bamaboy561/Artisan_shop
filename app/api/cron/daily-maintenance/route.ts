@@ -4,6 +4,7 @@ import { getAttentionSummary } from "@/lib/server/attention";
 import { cleanupBazisTempFiles } from "@/lib/server/bazis-temp-files";
 import { sendStaffNotice } from "@/lib/server/commercial-integrations";
 import { sendPickupReminders } from "@/lib/server/pickup-reminders";
+import { getProductionDigest } from "@/lib/server/production-digest";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -11,7 +12,7 @@ export const maxDuration = 60;
 
 // Ежедневные задачи в 9:00 по Бишкеку: удалить проекты Базиса старше двух
 // дней, напомнить клиентам о готовых заказах и отправить в рабочий чат
-// сводку «что требует внимания». Задачи не
+// сводку «что требует внимания», а в тему «Распил» сводку цеха. Задачи не
 // зависят друг от друга: сбой одной не отменяет другую.
 export async function GET(request: Request) {
   const cronSecret = process.env.CRON_SECRET?.trim();
@@ -77,10 +78,29 @@ export async function GET(request: Request) {
     digest = "failed";
   }
 
+  let productionDigest = "skipped";
+
+  try {
+    const message = await getProductionDigest();
+
+    if (message) {
+      const result = await sendStaffNotice({
+        ...message,
+        threadKey: "cutting",
+      });
+
+      productionDigest = result.ok ? "sent" : result.message;
+    }
+  } catch (error) {
+    console.error("[cron:daily] production digest failed", error);
+    productionDigest = "failed";
+  }
+
   return Response.json({
     ok: true,
     deletedBazisFiles,
     pickupReminders,
     digest,
+    productionDigest,
   });
 }

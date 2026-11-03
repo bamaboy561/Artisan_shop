@@ -79,3 +79,8 @@ npx next build
 - Deadlines are now on by default. `ARTISAN_PRODUCTION_PLANNING=off` switches them off; the old value `false` no longer disables them.
 - Queue default order: urgent first, then by deadline, then oldest. Filter «Отметки»: only urgent / with a problem.
 - Request page: «Отметить «Срочно»» (managers), «Сообщить о проблеме» with a reason (operators and managers), «Проблема решена», and «Журнал этапов» built from `cutting_stage` operation events (who, when, how long).
+
+## Cutting notifications and morning digest (2026-11-03)
+
+- Work Telegram chat, topic «Распил» (`TELEGRAM_CUTTING_THREAD_ID`): a message when a request is marked urgent, when a problem is reported and when it is resolved. Stage changes already posted there; their titles now name the receiving station («пришло на кромку», «пришло на присадку», «новая работа для распила», «готово к выдаче») and carry an «Открыть в производстве» button that operators can open.
+- `/api/cron/daily-maintenance` (09:00 Bishkek) also sends «Цех на утро» to the same topic: yesterday's sheets cut / issued / problems, current counts per station, overdue, due today, urgent, problems, requests without a deadline, link to the board (`lib/server/production-digest.ts`, `features/production/digest.ts`).

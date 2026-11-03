@@ -533,6 +533,23 @@ function hasCuttingProgressChanged(input: RequestIntegrationInput) {
   return stageChanged || pickupCellChanged;
 }
 
+// Когда заявка приходит на станцию, заголовок говорит станции, что для неё
+// появилась работа.
+function stationArrivalLabel(stage: CuttingStage) {
+  switch (stage) {
+    case CuttingStage.ACCEPTED:
+      return "новая работа для распила";
+    case CuttingStage.EDGING:
+      return "пришло на кромку";
+    case CuttingStage.DRILLING:
+      return "пришло на присадку";
+    case CuttingStage.READY_FOR_PICKUP:
+      return "готово к выдаче";
+    default:
+      return null;
+  }
+}
+
 function buildRequestStatusTelegramMessage(
   input: RequestIntegrationInput,
 ): TelegramMessagePayload | null {
@@ -567,7 +584,10 @@ function buildRequestStatusTelegramMessage(
   let title = `Artisan · заявка ${input.number ?? input.id} обновлена`;
 
   if (cuttingProgressChanged && input.cuttingStage) {
-    title = `Artisan · распил ${input.number ?? input.id}: ${cuttingStageLabels[input.cuttingStage]}`;
+    const station = stationArrivalLabel(input.cuttingStage);
+    title = station
+      ? `Artisan · ${station}: распил ${input.number ?? input.id}`
+      : `Artisan · распил ${input.number ?? input.id}: ${cuttingStageLabels[input.cuttingStage]}`;
   } else if (managerAssigned) {
     title = `Artisan · заявка ${input.number ?? input.id} назначена менеджеру`;
   } else if (managerReassigned) {
@@ -592,6 +612,15 @@ function buildRequestStatusTelegramMessage(
         label: "Открыть заявку",
         url: absoluteUrl(`/admin/requests/${input.id}`),
       },
+      // Операторы станций не видят раздел заявок: им нужна карточка цеха.
+      ...(isCuttingRequest(input)
+        ? [
+            {
+              label: "Открыть в производстве",
+              url: absoluteUrl(`/admin/production/${input.id}`),
+            },
+          ]
+        : []),
     ],
     lines: [
       `Статус: ${requestStatusLabels[input.status] ?? input.status}`,
@@ -1357,6 +1386,7 @@ export async function sendStaffNotice(input: {
   title: string;
   lines: string[];
   threadKey?: TelegramThreadKey;
+  actions?: TelegramMessagePayload["actions"];
 }) {
   if (!isTelegramEnabled()) {
     return { ok: false, message: "Telegram не настроен." };

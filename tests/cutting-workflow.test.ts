@@ -122,3 +122,58 @@ test("stage journal shows who moved each stage and how long it took", () => {
   assert.equal(formatDuration(90 * 60_000), "1 ч 30 мин");
   assert.equal(formatDuration(26 * 3_600_000), "1 д 2 ч");
 });
+
+test("morning production digest counts stations, overdue and problems", async () => {
+  const { buildProductionDigest } =
+    await import("../features/production/digest");
+  const card = (
+    number: string,
+    column:
+      | "NEW"
+      | "QUEUED"
+      | "CUTTING"
+      | "EDGING"
+      | "DRILLING"
+      | "READY_FOR_PICKUP",
+    extra: Partial<{
+      dueDate: string;
+      isUrgent: boolean;
+      problemReason: string;
+    }> = {},
+  ) => ({
+    id: number,
+    number,
+    material: "ЛДСП",
+    column,
+    dueDate: extra.dueDate ?? null,
+    isUrgent: extra.isUrgent ?? false,
+    problemReason: extra.problemReason ?? null,
+  });
+  const digest = buildProductionDigest({
+    today: "2026-11-03",
+    cards: [
+      card("Р-1", "NEW", { isUrgent: true }),
+      card("Р-2", "CUTTING", { dueDate: "2026-11-01" }),
+      card("Р-3", "EDGING", {
+        dueDate: "2026-11-03",
+        problemReason: "no-material",
+      }),
+      card("Р-4", "READY_FOR_PICKUP", { dueDate: "2026-11-01" }),
+    ],
+    yesterday: { issued: 2, cutRequests: 3, cutSheets: 11, problems: 1 },
+    boardUrl: "https://artisan.shop.kg/admin/production/board",
+  });
+  const text = digest.lines.join("\n");
+  assert.equal(digest.title, "Цех на утро");
+  assert.match(text, /распилено 11 лист\. по 3 заявкам, выдано 2/);
+  assert.match(
+    text,
+    /В работе 3: ждут распила 0, распил 1, кромка 1, присадка 0, к выдаче 1/,
+  );
+  assert.match(text, /Не запущены в цех: 1/);
+  assert.match(text, /Просрочено: 1\n  • Р-2 · ЛДСП · срок 01\.11/);
+  assert.match(text, /Срок сегодня: 1/);
+  assert.match(text, /Срочные: 1/);
+  assert.match(text, /С проблемой: 1\n  • Р-3 · ЛДСП · Нет материала/);
+  assert.doesNotMatch(text, /Просрочек и проблем нет/);
+});
