@@ -19,6 +19,8 @@ export type DigestCard = {
 export type ProductionDigestInput = {
   cards: DigestCard[];
   today: string;
+  // На доске показаны не все открытые заявки: цифры ниже неполные.
+  truncated?: boolean;
   yesterday: {
     issued: number;
     cutRequests: number;
@@ -68,6 +70,12 @@ export function buildProductionDigest(input: ProductionDigestInput) {
   );
 
   const lines = [
+    ...(input.truncated
+      ? [
+          "Внимание: открытых заявок больше 400, ниже учтены только первые 400. Закройте выданные.",
+          "",
+        ]
+      : []),
     `Вчера: распилено ${input.yesterday.cutSheets} лист. по ${input.yesterday.cutRequests} заявкам, выдано ${input.yesterday.issued}, проблем отмечено ${input.yesterday.problems}`,
     "",
     `В работе ${inWork.length}: ждут распила ${count("QUEUED")}, распил ${count("CUTTING")}, кромка ${count("EDGING")}, присадка ${count("DRILLING")}, к выдаче ${count("READY_FOR_PICKUP")}`,

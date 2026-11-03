@@ -30,7 +30,14 @@ export async function getProductionDigest() {
         entityType: "request",
         eventType: "cutting_stage",
         fromStatus: CuttingStage.CUTTING,
-        toStatus: { not: CuttingStage.CUTTING },
+        // Возврат в очередь (CUTTING → ACCEPTED) — не распил.
+        toStatus: {
+          in: [
+            CuttingStage.EDGING,
+            CuttingStage.DRILLING,
+            CuttingStage.READY_FOR_PICKUP,
+          ],
+        },
         createdAt: window,
       },
       select: { entityId: true },
@@ -62,6 +69,7 @@ export async function getProductionDigest() {
       problemReason: card.workflow.problemReason,
     })),
     today: board.today,
+    truncated: board.truncated,
     yesterday: {
       issued,
       cutRequests: cutRequests.length,

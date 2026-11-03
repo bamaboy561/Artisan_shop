@@ -176,4 +176,14 @@ test("morning production digest counts stations, overdue and problems", async ()
   assert.match(text, /Срочные: 1/);
   assert.match(text, /С проблемой: 1\n  • Р-3 · ЛДСП · Нет материала/);
   assert.doesNotMatch(text, /Просрочек и проблем нет/);
+  assert.doesNotMatch(text, /больше 400/);
+
+  const truncated = buildProductionDigest({
+    today: "2026-11-03",
+    cards: [],
+    truncated: true,
+    yesterday: { issued: 0, cutRequests: 0, cutSheets: 0, problems: 0 },
+    boardUrl: "https://artisan.shop.kg/admin/production/board",
+  });
+  assert.match(truncated.lines[0], /больше 400/);
 });
