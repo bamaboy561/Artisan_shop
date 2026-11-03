@@ -4,6 +4,7 @@ import { RequestStatus, RequestType } from "@/generated/prisma";
 import {
   cuttingProblemReasons,
   emptyCuttingWorkflow,
+  isUrgentByText,
   type CuttingProblemReason,
   type CuttingWorkflowDto,
 } from "@/features/production/workflow-flags";
@@ -132,7 +133,7 @@ function actorName(actor: SessionPayload) {
 async function loadOpenCuttingRequest(requestId: string) {
   const request = await getDb().request.findUnique({
     where: { id: requestId },
-    select: { type: true, status: true },
+    select: { type: true, status: true, subject: true, message: true },
   });
   return request &&
     request.type === RequestType.CUTTING_SERVICE &&
@@ -175,7 +176,8 @@ export async function reportCuttingProblem(input: {
 }): Promise<WorkflowResult> {
   if (!canAccessProduction(input.actor.roleCode)) return "forbidden";
   if (!(await prepareCuttingWorkflow())) return "unavailable";
-  if (!(await loadOpenCuttingRequest(input.requestId))) return "closed";
+  const request = await loadOpenCuttingRequest(input.requestId);
+  if (!request) return "closed";
   const data = {
     problemReason: input.reason,
     problemNote: input.note?.slice(0, 1000) || null,
@@ -185,7 +187,12 @@ export async function reportCuttingProblem(input: {
   };
   await getDb().cuttingWorkflow.upsert({
     where: { requestId: input.requestId },
-    create: { requestId: input.requestId, ...data },
+    // Новая строка не должна терять срочность из текста заявки.
+    create: {
+      requestId: input.requestId,
+      isUrgent: isUrgentByText(request.subject, request.message),
+      ...data,
+    },
     update: data,
   });
   await logOperationEvent({

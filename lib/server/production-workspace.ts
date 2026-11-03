@@ -374,12 +374,13 @@ export async function getProductionBoard() {
     planning ? getProductionPlans(ids) : Promise.resolve(new Map()),
     getCuttingWorkflows(ids),
     hasDatabaseUrl()
-      ? getDb().request.count({
+      ? // Считаем сами выдачи, а не правки закрытых заявок.
+        getDb().operationEvent.count({
           where: {
-            type: RequestType.CUTTING_SERVICE,
-            status: RequestStatus.COMPLETED,
-            cuttingStage: CuttingStage.READY_FOR_PICKUP,
-            updatedAt: { gte: new Date(`${today}T00:00:00+06:00`) },
+            entityType: "request",
+            eventType: "status",
+            title: "Заказ выдан клиенту",
+            createdAt: { gte: new Date(`${today}T00:00:00+06:00`) },
           },
         })
       : Promise.resolve(0),
