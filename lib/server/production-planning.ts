@@ -10,6 +10,7 @@ import type { SessionPayload } from "@/lib/auth/session";
 import { getDb, hasDatabaseUrl, isDemoModeEnabled } from "@/lib/db";
 import type { OperationEventDto } from "@/lib/server/operation-events";
 import { getRequestInboxItemById } from "@/lib/server/request-inbox";
+import { ensureCuttingWorkflowTables } from "@/lib/server/cutting-workflow";
 
 export type ProductionPlanDto = { dueDate: string | null; version: number };
 type DemoPlan = ProductionPlanDto & {
@@ -31,10 +32,17 @@ async function readDemoPlans(): Promise<Record<string, DemoPlan>> {
   }
 }
 
+// Сроки включены по умолчанию: таблица создаётся сама при первом обращении.
+// Выключить можно переменной ARTISAN_PRODUCTION_PLANNING=off.
+function planningSwitchedOff() {
+  return process.env.ARTISAN_PRODUCTION_PLANNING === "off";
+}
+
 export async function productionPlanningAvailable() {
   if (!hasDatabaseUrl()) return isDemoModeEnabled();
-  if (process.env.ARTISAN_PRODUCTION_PLANNING !== "true") return false;
+  if (planningSwitchedOff()) return false;
   try {
+    await ensureCuttingWorkflowTables();
     await getDb().productionPlan.findFirst({ select: { requestId: true } });
     return true;
   } catch (error) {
@@ -63,7 +71,7 @@ export async function getProductionPlans(
       ),
     );
   }
-  if (process.env.ARTISAN_PRODUCTION_PLANNING !== "true") return new Map();
+  if (!(await productionPlanningAvailable())) return new Map();
   const plans = await getDb().productionPlan.findMany({
     where: { requestId: { in: ids } },
   });

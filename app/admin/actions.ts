@@ -2,7 +2,10 @@
 
 import { setStaffAccountAccessAction } from "@/app/admin/staff/actions";
 
-import { safeProductionReturn } from "@/features/production/queue";
+import {
+  productionBoardPath,
+  safeProductionReturn,
+} from "@/features/production/queue";
 import {
   MAX_SALE_AMOUNT,
   parseSalesItemInputs,
@@ -4553,6 +4556,8 @@ export async function createAdminCuttingRequestAction(
 
   const requestMessage = [
     "Создано менеджером в админке.",
+    // Строку «Приоритет: срочно» очередь превращает во флажок «Срочно».
+    getString(formData, "urgent") === "1" ? "Приоритет: срочно" : null,
     deadline ? `Плановая готовность: ${deadline}.` : "",
     files.length > 0
       ? `Исходных файлов: ${files.length}.`
@@ -4882,9 +4887,14 @@ function productionActionReturn(
   requestId: string,
   notice: string,
 ) {
+  const returnTo = safeProductionReturn(getString(formData, "returnTo"));
+  // Кнопки на доске распила возвращают на доску, а не в карточку заявки.
+  if (getString(formData, "origin") === "board") {
+    return `${productionBoardPath}?${new URLSearchParams({ notice, id: requestId })}`;
+  }
   const params = new URLSearchParams({
     notice,
-    returnTo: safeProductionReturn(getString(formData, "returnTo")),
+    returnTo,
   });
   return `/admin/production/${encodeURIComponent(requestId)}?${params}`;
 }

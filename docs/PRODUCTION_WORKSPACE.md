@@ -71,3 +71,11 @@ npx next build
 - Server source hashes were compared against the prior production deployment. Existing Telegram, loyalty, checkout and other existing server files matched except the reviewed catalog/production-workspace changes and production action redirects. Environment secrets and webhook settings were not changed.
 - Examined runtime error-level entries showed the existing pg SSL-mode deprecation warning with HTTP 200, not application exceptions. No live Telegram delivery or authenticated production-role workflow was exercised. Real phone QR scanning and real PostgreSQL planning migration remain pending.
 - Full UI rollback: `vercel promote dpl_7LvKQbBYvPmaHm49jzXRewk43kgL --yes`. No database rollback is needed for this release because no schema/data migration was run.
+
+## Cutting CRM: board, urgency, problems, stage journal (2026-11-03)
+
+- `/admin/production/board` (production managers only): open cutting requests in columns Новые → Ждут распила → Распил → Кромка → Присадка → К выдаче, with one-button moves, daily summary (in work, overdue, due today, urgent, problems, issued today).
+- `CuttingWorkflow` table (urgent flag, current problem) and `ProductionPlan` are created at runtime with `CREATE TABLE IF NOT EXISTS` (`lib/server/cutting-workflow.ts`), like the stock import tables. Requests whose text says «Приоритет: срочно» get the urgent flag automatically once; a manager can remove it.
+- Deadlines are now on by default. `ARTISAN_PRODUCTION_PLANNING=off` switches them off; the old value `false` no longer disables them.
+- Queue default order: urgent first, then by deadline, then oldest. Filter «Отметки»: only urgent / with a problem.
+- Request page: «Отметить «Срочно»» (managers), «Сообщить о проблеме» with a reason (operators and managers), «Проблема решена», and «Журнал этапов» built from `cutting_stage` operation events (who, when, how long).

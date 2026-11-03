@@ -45,7 +45,19 @@ import {
 import { getOperationEvents } from "@/lib/server/operation-events";
 import { getOrdersForRequest } from "@/lib/server/order-inbox";
 import { getRequestDetailById } from "@/lib/server/request-inbox";
-import { saveProductionDeadlineAction } from "@/app/admin/production/actions";
+import {
+  reportCuttingProblemAction,
+  resolveCuttingProblemAction,
+  saveProductionDeadlineAction,
+  setCuttingUrgentAction,
+} from "@/app/admin/production/actions";
+import { getCuttingWorkflow } from "@/lib/server/cutting-workflow";
+import { WorkflowFlags } from "@/features/production/queue-view";
+import { StageJournal } from "@/features/production/stage-journal";
+import {
+  cuttingProblemLabel,
+  cuttingProblemReasons,
+} from "@/features/production/workflow-flags";
 import {
   getDemoPlanningEvents,
   getProductionPlans,
@@ -88,6 +100,26 @@ const noticeMessages: Record<
     text: "Производственная заявка не найдена.",
   },
   "deadline-saved": { tone: "success", text: "Плановая готовность сохранена." },
+  "urgent-on": { tone: "success", text: "Заявка отмечена как срочная." },
+  "urgent-off": { tone: "success", text: "Отметка «Срочно» снята." },
+  "problem-saved": {
+    tone: "success",
+    text: "Проблема отмечена. Менеджер увидит её в очереди и на доске.",
+  },
+  "problem-resolved": { tone: "success", text: "Проблема снята." },
+  "problem-reason": { tone: "error", text: "Выберите причину проблемы." },
+  "flag-forbidden": {
+    tone: "error",
+    text: "Для этого аккаунта действие недоступно.",
+  },
+  "flag-closed": {
+    tone: "error",
+    text: "Заявка закрыта или удалена. Изменения не сохранены.",
+  },
+  "flag-unavailable": {
+    tone: "error",
+    text: "Не удалось сохранить. Попробуйте ещё раз.",
+  },
   issued: { tone: "success", text: "Заказ отмечен как выданный." },
   "deadline-conflict": {
     tone: "error",
@@ -182,7 +214,10 @@ export default async function ProductionRequestPage({
   const returnTo = safeProductionReturn(
     getSearchValue(resolvedSearchParams, "returnTo"),
   );
-  const planning = await productionPlanningAvailable();
+  const [planning, workflow] = await Promise.all([
+    productionPlanningAvailable(),
+    getCuttingWorkflow(id),
+  ]);
   const plan = planning ? (await getProductionPlans([id])).get(id) : undefined;
   const timelineEvents = [...events, ...(await getDemoPlanningEvents(id))].sort(
     (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
@@ -251,8 +286,43 @@ export default async function ProductionRequestPage({
             <StatusBadge tone={isClosed ? "neutral" : "success"}>
               {isClosed ? "Заявка закрыта" : "В производстве"}
             </StatusBadge>
+            <WorkflowFlags workflow={workflow} />
           </div>
         </div>
+
+        {workflow.problemReason && !isClosed ? (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+            <div className="min-w-0">
+              <p className="font-semibold">
+                Проблема: {cuttingProblemLabel(workflow.problemReason)}
+              </p>
+              {workflow.problemNote ? (
+                <p className="mt-1 break-words whitespace-pre-wrap">
+                  {workflow.problemNote}
+                </p>
+              ) : null}
+              <p className="mt-1 text-xs text-amber-800">
+                {[
+                  workflow.problemByName,
+                  workflow.problemAt ? formatDate(workflow.problemAt) : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </p>
+            </div>
+            <form action={resolveCuttingProblemAction}>
+              <input type="hidden" name="requestId" value={request.id} />
+              <input type="hidden" name="returnTo" value={returnTo} />
+              <AdminSubmitButton
+                type="submit"
+                variant="secondary"
+                size="sm"
+                idleLabel="Проблема решена"
+                pendingLabel="Сохраняем..."
+              />
+            </form>
+          </div>
+        ) : null}
 
         {operator ? (
           <div className="mt-4 space-y-2 text-sm lg:hidden">
@@ -548,6 +618,84 @@ export default async function ProductionRequestPage({
           )}
         </section>
       ) : null}
+
+      {!isClosed ? (
+        <section className="border-y border-[color:var(--line)] bg-white p-4 sm:p-5">
+          <h2 className="text-base font-semibold">Срочность и проблемы</h2>
+          <div className="mt-3 flex flex-wrap items-start gap-4">
+            {manager ? (
+              <form action={setCuttingUrgentAction}>
+                <input type="hidden" name="requestId" value={request.id} />
+                <input type="hidden" name="returnTo" value={returnTo} />
+                <input
+                  type="hidden"
+                  name="urgent"
+                  value={workflow.isUrgent ? "0" : "1"}
+                />
+                <AdminSubmitButton
+                  type="submit"
+                  variant={workflow.isUrgent ? "secondary" : "accent"}
+                  idleLabel={
+                    workflow.isUrgent ? "Снять «Срочно»" : "Отметить «Срочно»"
+                  }
+                  pendingLabel="Сохраняем..."
+                />
+              </form>
+            ) : null}
+            {!workflow.problemReason ? (
+              <details className="min-w-0 flex-[1_1_260px]">
+                <summary className="inline-flex h-11 cursor-pointer items-center border border-amber-400 px-4 text-sm font-semibold text-amber-900">
+                  Сообщить о проблеме
+                </summary>
+                <form
+                  action={reportCuttingProblemAction}
+                  className="mt-3 grid gap-3 sm:max-w-md"
+                >
+                  <input type="hidden" name="requestId" value={request.id} />
+                  <input type="hidden" name="returnTo" value={returnTo} />
+                  <label className="grid gap-2 text-sm font-medium">
+                    Причина
+                    <Select name="reason" defaultValue="" required>
+                      <option value="" disabled>
+                        Выберите причину
+                      </option>
+                      {Object.entries(cuttingProblemReasons).map(
+                        ([value, label]) => (
+                          <option key={value} value={value}>
+                            {label}
+                          </option>
+                        ),
+                      )}
+                    </Select>
+                  </label>
+                  <label className="grid gap-2 text-sm font-medium">
+                    Подробности
+                    <Textarea
+                      name="note"
+                      rows={2}
+                      placeholder="Например, не хватает 2 листов, клиент не отвечает"
+                    />
+                  </label>
+                  <AdminSubmitButton
+                    type="submit"
+                    variant="accent"
+                    idleLabel="Отметить проблему"
+                    pendingLabel="Сохраняем..."
+                    className="justify-self-start"
+                  />
+                </form>
+              </details>
+            ) : (
+              <p className="text-sm text-[var(--muted)]">
+                Проблема отмечена выше. Когда её решат, нажмите «Проблема
+                решена».
+              </p>
+            )}
+          </div>
+        </section>
+      ) : null}
+
+      <StageJournal events={events} closed={isClosed} />
 
       <section className="border border-[color:var(--line)] bg-white p-5 sm:p-6">
         <div className="flex flex-wrap items-end justify-between gap-3">

@@ -12,6 +12,7 @@ import {
   Gift,
   Layers3,
   LayoutDashboard,
+  LayoutGrid,
   Package2,
   ReceiptText,
   Rocket,
@@ -44,6 +45,7 @@ const iconMap = {
   "/admin/requests": FileStack,
   "/admin/cutting": Scissors,
   "/admin/production": Factory,
+  "/admin/production/board": LayoutGrid,
   "/admin/promotions": BadgePercent,
   "/admin/content": FileText,
   "/calculator": Calculator,
@@ -54,6 +56,8 @@ const iconMap = {
 } as const;
 
 function isItemActive(pathname: string, href: string) {
+  if (href === "/admin/production" && pathname === "/admin/production/board")
+    return false;
   return href === "/admin" || href === "/account"
     ? pathname === href
     : pathname === href || pathname.startsWith(`${href}/`);
