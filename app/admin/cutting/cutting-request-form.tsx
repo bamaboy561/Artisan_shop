@@ -414,12 +414,21 @@ export function CuttingRequestForm({ customers }: CuttingRequestFormProps) {
             Плановая готовность
             <Input name="deadline" type="date" />
           </label>
+          <label className="flex items-center gap-3 text-sm font-medium">
+            <input
+              type="checkbox"
+              name="urgent"
+              value="1"
+              className="size-4 accent-[var(--accent)]"
+            />
+            Срочно: поставить первым в очередь цеха
+          </label>
           <label className="grid gap-2 text-sm font-medium">
             Комментарий
             <Textarea
               name="comment"
               className="min-h-28 resize-y"
-              placeholder="Номер проекта Giblab, срочность или примечание"
+              placeholder="Номер проекта Giblab или примечание"
             />
           </label>
         </div>

@@ -34,6 +34,7 @@ export type CreateOperationEventInput = {
     | "client_files"
     | "cutting_stage"
     | "production_result"
+    | "production_flag"
     | "result_files"
     | "fulfillment";
   title: string;

@@ -339,3 +339,77 @@
     gap: 5px;
   }
 }
+
+/* Доска, срочность, проблемы, цвет срока */
+.headingActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+.boardLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid #22664e;
+  color: #22664e;
+  font-size: 14px;
+  font-weight: 600;
+}
+.boardLink:hover {
+  background: #22664e;
+  color: #fff;
+}
+.flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+.urgentFlag,
+.problemFlag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 18px;
+  white-space: nowrap;
+}
+.urgentFlag {
+  background: #b42318;
+  color: #fff;
+}
+.problemFlag {
+  background: #fff3cd;
+  color: #7a4b00;
+  border: 1px solid #e8b44a;
+}
+.desktopTable tr[data-urgent] td:first-child {
+  box-shadow: inset 3px 0 #b42318;
+}
+.dueToday,
+.dueSoon {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  font-weight: 650;
+}
+.dueToday,
+.dueToday small {
+  color: #9a5b00 !important;
+}
+.dueSoon,
+.dueSoon small {
+  color: #6b6b00 !important;
+}
+.deadline small,
+.overdue small,
+.dueToday small,
+.dueSoon small {
+  display: block;
+}

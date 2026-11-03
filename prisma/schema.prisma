@@ -523,6 +523,7 @@ model Request {
   managerNotes          ManagerNote[]
   linkedOrders          Order[]        @relation("RequestLinkedOrders")
   productionPlan        ProductionPlan?
+  cuttingWorkflow       CuttingWorkflow?
   createdAt             DateTime       @default(now())
   updatedAt             DateTime       @updatedAt
 
@@ -539,6 +540,22 @@ model ProductionPlan {
   updatedAt DateTime @updatedAt
 
   @@index([dueDate])
+}
+
+// Срочность и «Проблема» по заявке на распил. На продакшене таблица
+// создаётся при первом обращении (lib/server/cutting-workflow.ts).
+model CuttingWorkflow {
+  requestId     String    @id
+  request       Request   @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  isUrgent      Boolean   @default(false)
+  problemReason String?
+  problemNote   String?
+  problemAt     DateTime?
+  problemById   String?
+  problemByName String?
+  updatedAt     DateTime  @default(now()) @updatedAt
+
+  @@index([isUrgent])
 }
 
 model RequestFile {

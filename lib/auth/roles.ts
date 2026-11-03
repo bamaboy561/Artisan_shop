@@ -172,6 +172,11 @@ export function canAccessAdminPath(roleCode: RoleCode, pathname: string) {
     return canManageStaff(roleCode);
   }
 
+  // Доска распила только для тех, кто управляет производством.
+  if (pathname === "/admin/production/board") {
+    return canManageProduction(roleCode);
+  }
+
   if (isProductionManager(roleCode) || isProductionOperator(roleCode)) {
     const isProductionPath =
       pathname === "/admin/production" ||

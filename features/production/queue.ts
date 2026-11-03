@@ -8,8 +8,9 @@ export type ProductionFilters = {
   station: ProductionScope;
   from: string;
   to: string;
-  sort: "created-asc" | "created-desc" | "due-asc";
+  sort: "priority" | "created-asc" | "created-desc" | "due-asc";
   due: "all" | "overdue" | "today" | "unplanned";
+  flag: "all" | "urgent" | "problem";
   page: number;
 };
 type Params = Record<string, string | string[] | undefined>;
@@ -63,6 +64,7 @@ export function parseProductionFilters(
   const page = Number(get("page"));
   const sort = get("sort");
   const due = get("due");
+  const flag = get("flag");
   return {
     q: get("q").trim().slice(0, 120),
     station:
@@ -72,9 +74,14 @@ export function parseProductionFilters(
         : "all"),
     from,
     to,
-    sort: sort === "created-desc" || sort === "due-asc" ? sort : "created-asc",
+    // По умолчанию: срочные сверху, затем по сроку, затем старые.
+    sort:
+      sort === "created-asc" || sort === "created-desc" || sort === "due-asc"
+        ? sort
+        : "priority",
     due:
       due === "overdue" || due === "today" || due === "unplanned" ? due : "all",
+    flag: flag === "urgent" || flag === "problem" ? flag : "all",
     page:
       Number.isSafeInteger(page) && page > 0 ? Math.min(page, 1_000_000) : 1,
   };
@@ -93,6 +100,7 @@ export function productionQueueUrl(
     "to",
     "sort",
     "due",
+    "flag",
     "page",
   ] as const) {
     const value = String(values[key]);
@@ -100,14 +108,17 @@ export function productionQueueUrl(
       value &&
       value !== "all" &&
       !(key === "page" && value === "1") &&
-      !(key === "sort" && value === "created-asc")
+      !(key === "sort" && value === "priority")
     )
       params.set(key, value);
   }
   return `/admin/production${params.size ? `?${params}` : ""}`;
 }
 
+export const productionBoardPath = "/admin/production/board";
+
 export function safeProductionReturn(value: string) {
+  if (value === productionBoardPath) return productionBoardPath;
   if (!/^\/admin\/production(?:\?|$)/.test(value)) return "/admin/production";
   return productionQueueUrl(
     parseProductionFilters(

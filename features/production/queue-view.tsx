@@ -6,7 +6,10 @@ import {
   Factory,
   FileStack,
   Filter,
+  Flame,
+  LayoutGrid,
   RotateCcw,
+  TriangleAlert,
 } from "lucide-react";
 import { ProductionQrSearch } from "@/app/admin/production/production-qr-search";
 import { StatusBadge } from "@/components/admin/status-badge";
@@ -22,6 +25,12 @@ import {
   type ProductionScope,
 } from "./queue";
 import type { getProductionQueue } from "@/lib/server/production-workspace";
+import {
+  cuttingProblemLabel,
+  daysUntil,
+  deadlineTone,
+  type CuttingWorkflowDto,
+} from "./workflow-flags";
 import styles from "./workspace.module.css";
 
 type Queue = Awaited<ReturnType<typeof getProductionQueue>>;
@@ -61,10 +70,17 @@ export function ProductionQueueView({
           </p>
           <h1>{title}</h1>
         </div>
-        <span className={styles.total}>
-          {queue.total}
-          <span>заявок</span>
-        </span>
+        <div className={styles.headingActions}>
+          {!operator ? (
+            <Link className={styles.boardLink} href="/admin/production/board">
+              <LayoutGrid size={16} /> Доска распила
+            </Link>
+          ) : null}
+          <span className={styles.total}>
+            {queue.total}
+            <span>заявок</span>
+          </span>
+        </div>
       </header>
       {notice ? (
         <p role="alert" className={styles.alert}>
@@ -92,7 +108,7 @@ export function ProductionQueueView({
       <form
         action="/admin/production"
         className={styles.filters}
-        key={`${filters.from}/${filters.to}/${filters.sort}/${filters.due}`}
+        key={`${filters.from}/${filters.to}/${filters.sort}/${filters.due}/${filters.flag}`}
       >
         <input type="hidden" name="q" value={filters.q} />
         <input type="hidden" name="station" value={filters.station} />
@@ -127,9 +143,20 @@ export function ProductionQueueView({
             </Select>
           </label>
         ) : null}
+        {queue.workflowReady ? (
+          <label>
+            Отметки
+            <Select name="flag" defaultValue={filters.flag}>
+              <option value="all">Все заявки</option>
+              <option value="urgent">Только срочные</option>
+              <option value="problem">С проблемой</option>
+            </Select>
+          </label>
+        ) : null}
         <label>
           Порядок
           <Select name="sort" defaultValue={filters.sort}>
+            <option value="priority">Срочные, затем по сроку</option>
             <option value="created-asc">Сначала старые</option>
             <option value="created-desc">Сначала новые</option>
             {planning ? (
@@ -190,12 +217,17 @@ export function ProductionQueueView({
                     queue.today,
                   );
                   return (
-                    <tr key={request.id} data-overdue={overdue || undefined}>
+                    <tr
+                      key={request.id}
+                      data-overdue={overdue || undefined}
+                      data-urgent={request.workflow.isUrgent || undefined}
+                    >
                       <td>
                         <Link className={styles.orderLink} href={href}>
                           {request.number ??
                             request.id.slice(0, 8).toUpperCase()}
                         </Link>
+                        <WorkflowFlags workflow={request.workflow} />
                         <strong>{request.contactName}</strong>
                         <small>{dateFormatter.format(request.createdAt)}</small>
                       </td>
@@ -283,6 +315,7 @@ export function ProductionQueueView({
                     </strong>
                     <ArrowRight size={18} />
                   </div>
+                  <WorkflowFlags workflow={request.workflow} />
                   <StatusBadge
                     tone={
                       stage === CuttingStage.READY_FOR_PICKUP
@@ -403,25 +436,61 @@ export function ProductionQueueView({
   );
 }
 
-function Deadline({
+export function WorkflowFlags({ workflow }: { workflow: CuttingWorkflowDto }) {
+  if (!workflow.isUrgent && !workflow.problemReason) return null;
+  return (
+    <span className={styles.flags}>
+      {workflow.isUrgent ? (
+        <span className={styles.urgentFlag}>
+          <Flame size={12} /> Срочно
+        </span>
+      ) : null}
+      {workflow.problemReason ? (
+        <span className={styles.problemFlag}>
+          <TriangleAlert size={12} />
+          {cuttingProblemLabel(workflow.problemReason)}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
+export function Deadline({
   date,
-  overdue,
   today,
   stage,
 }: {
   date: string | null;
-  overdue: boolean;
+  overdue?: boolean;
   today: string;
   stage: CuttingStage;
 }) {
   if (!date) return <small>Не назначена</small>;
+  const tone = deadlineTone(
+    date,
+    today,
+    stage === CuttingStage.READY_FOR_PICKUP,
+  );
+  const days = daysUntil(date, today) ?? 0;
   return (
-    <span className={overdue ? styles.overdue : styles.deadline}>
+    <span
+      className={
+        tone === "overdue"
+          ? styles.overdue
+          : tone === "today"
+            ? styles.dueToday
+            : tone === "soon"
+              ? styles.dueSoon
+              : styles.deadline
+      }
+    >
       {date.split("-").reverse().join(".")}
-      {overdue ? (
-        <small>Просрочено</small>
-      ) : date === today && stage !== CuttingStage.READY_FOR_PICKUP ? (
+      {tone === "overdue" ? (
+        <small>Просрочено на {-days} дн.</small>
+      ) : tone === "today" ? (
         <small>Сегодня</small>
+      ) : tone === "soon" ? (
+        <small>Завтра</small>
       ) : null}
     </span>
   );

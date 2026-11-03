@@ -19,6 +19,14 @@ import {
 import { getDb, hasDatabaseUrl, isDemoModeEnabled } from "@/lib/db";
 import { getRequestInbox } from "@/lib/server/request-inbox";
 import {
+  getCuttingWorkflows,
+  prepareCuttingWorkflow,
+} from "@/lib/server/cutting-workflow";
+import {
+  emptyCuttingWorkflow,
+  isUrgentByText,
+} from "@/features/production/workflow-flags";
+import {
   getProductionPlans,
   productionPlanningAvailable,
 } from "@/lib/server/production-planning";
@@ -78,6 +86,12 @@ export async function getProductionQueue(input: ProductionFilters) {
         )
           return false;
         if (filters.due === "unplanned" && dueDate) return false;
+        if (filters.flag === "problem") return false;
+        if (
+          filters.flag === "urgent" &&
+          !isUrgentByText(request.subject, request.message)
+        )
+          return false;
         return (
           !filters.q ||
           [
@@ -95,7 +109,13 @@ export async function getProductionQueue(input: ProductionFilters) {
         );
       })
       .sort((a, b) => {
-        if (filters.sort === "due-asc") {
+        if (filters.sort === "priority") {
+          const urgent =
+            Number(isUrgentByText(b.subject, b.message)) -
+            Number(isUrgentByText(a.subject, a.message));
+          if (urgent) return urgent;
+        }
+        if (filters.sort === "due-asc" || filters.sort === "priority") {
           const due = (plans.get(a.id)?.dueDate ?? "9999").localeCompare(
             plans.get(b.id)?.dueDate ?? "9999",
           );
@@ -113,12 +133,17 @@ export async function getProductionQueue(input: ProductionFilters) {
         .slice(pagination.skip, pagination.skip + productionPageSize)
         .map((request) => ({
           ...request,
-          dueDate: plans.get(request.id)?.dueDate ?? null,
+          dueDate: (plans.get(request.id)?.dueDate as string | null) ?? null,
+          workflow: {
+            ...emptyCuttingWorkflow,
+            isUrgent: isUrgentByText(request.subject, request.message),
+          },
         })),
       total: matching.length,
       ...pagination,
       filters: { ...filters, page: pagination.page },
       planning,
+      workflowReady: false,
       today,
     };
   }
@@ -181,17 +206,36 @@ export async function getProductionQueue(input: ProductionFilters) {
         })),
       }
     : {};
+  const workflowReady = await prepareCuttingWorkflow();
+  const urgentWhere: Prisma.RequestWhereInput = {
+    cuttingWorkflow: { is: { isUrgent: true } },
+  };
+  const notUrgentWhere: Prisma.RequestWhereInput = {
+    OR: [
+      { cuttingWorkflow: { is: null } },
+      { cuttingWorkflow: { is: { isUrgent: false } } },
+    ],
+  };
+  const flagWhere: Prisma.RequestWhereInput = !workflowReady
+    ? {}
+    : filters.flag === "urgent"
+      ? urgentWhere
+      : filters.flag === "problem"
+        ? { cuttingWorkflow: { is: { problemReason: { not: null } } } }
+        : {};
   const where: Prisma.RequestWhereInput = {
     type: RequestType.CUTTING_SERVICE,
     status: { in: activeProductionStatuses },
     createdAt: dateBounds,
-    AND: [stageWhere, searchWhere, dueWhere],
+    AND: [stageWhere, searchWhere, dueWhere, flagWhere],
   };
   const db = getDb();
   const total = await db.request.count({ where });
   const pagination = getProductionPage(total, filters.page);
+  const byDue =
+    planning && (filters.sort === "due-asc" || filters.sort === "priority");
   const orderBy: Prisma.RequestOrderByWithRelationInput[] = [
-    ...(filters.sort === "due-asc"
+    ...(byDue
       ? [
           {
             productionPlan: {
@@ -203,31 +247,183 @@ export async function getProductionQueue(input: ProductionFilters) {
     { createdAt: filters.sort === "created-desc" ? "desc" : "asc" },
     { id: "asc" },
   ];
-  const items = await db.request.findMany({
-    where,
-    orderBy,
-    skip: pagination.skip,
-    take: productionPageSize,
-    include: {
-      manager: {
-        select: { id: true, firstName: true, lastName: true, email: true },
-      },
-      product: { select: { id: true, name: true, sku: true } },
-      _count: { select: { files: true } },
+  const include = {
+    manager: {
+      select: { id: true, firstName: true, lastName: true, email: true },
     },
-  });
-  const plans = planning
-    ? await getProductionPlans(items.map((item) => item.id))
-    : new Map();
+    product: { select: { id: true, name: true, sku: true } },
+    _count: { select: { files: true } },
+  } satisfies Prisma.RequestInclude;
+  let items;
+  if (filters.sort === "priority" && workflowReady) {
+    // Срочные всегда идут первыми: сначала страница из срочных, затем
+    // продолжение из остальных.
+    const urgentFilter = { AND: [where, urgentWhere] };
+    const urgentTotal = await db.request.count({ where: urgentFilter });
+    const urgentItems =
+      pagination.skip < urgentTotal
+        ? await db.request.findMany({
+            where: urgentFilter,
+            orderBy,
+            skip: pagination.skip,
+            take: productionPageSize,
+            include,
+          })
+        : [];
+    const restTake = productionPageSize - urgentItems.length;
+    const restItems =
+      restTake > 0
+        ? await db.request.findMany({
+            where: { AND: [where, notUrgentWhere] },
+            orderBy,
+            skip: Math.max(0, pagination.skip - urgentTotal),
+            take: restTake,
+            include,
+          })
+        : [];
+    items = [...urgentItems, ...restItems];
+  } else {
+    items = await db.request.findMany({
+      where,
+      orderBy,
+      skip: pagination.skip,
+      take: productionPageSize,
+      include,
+    });
+  }
+  const ids = items.map((item) => item.id);
+  const [plans, workflows] = await Promise.all([
+    planning ? getProductionPlans(ids) : Promise.resolve(new Map()),
+    getCuttingWorkflows(ids),
+  ]);
   return {
     items: items.map((item) => ({
       ...item,
-      dueDate: plans.get(item.id)?.dueDate ?? null,
+      dueDate: (plans.get(item.id)?.dueDate as string | null) ?? null,
+      workflow: workflows.get(item.id) ?? emptyCuttingWorkflow,
     })),
     total,
     ...pagination,
     filters: { ...filters, page: pagination.page },
     planning,
+    workflowReady,
     today,
+  };
+}
+
+export type BoardColumnKey =
+  | "NEW"
+  | "QUEUED"
+  | "CUTTING"
+  | "EDGING"
+  | "DRILLING"
+  | "READY_FOR_PICKUP";
+
+export function boardColumnFor(
+  stage: CuttingStage | null,
+  status: RequestStatus,
+): BoardColumnKey {
+  if (!stage) return status === RequestStatus.IN_PROGRESS ? "QUEUED" : "NEW";
+  if (stage === CuttingStage.ACCEPTED) return "QUEUED";
+  return stage;
+}
+
+const boardLimit = 400;
+
+// Доска распила: все открытые заявки по колонкам этапов.
+export async function getProductionBoard() {
+  const planning = await productionPlanningAvailable();
+  const today = productionDateKey(new Date());
+  const workflowReady = await prepareCuttingWorkflow();
+  const requests = hasDatabaseUrl()
+    ? await getDb().request.findMany({
+        where: {
+          type: RequestType.CUTTING_SERVICE,
+          status: { in: activeProductionStatuses },
+        },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        take: boardLimit,
+        select: {
+          id: true,
+          number: true,
+          status: true,
+          subject: true,
+          message: true,
+          material: true,
+          contactName: true,
+          cuttingSheetCount: true,
+          cuttingEdgeMeters: true,
+          cuttingStage: true,
+          cuttingPickupCell: true,
+          cuttingStageUpdatedAt: true,
+          createdAt: true,
+          manager: {
+            select: { firstName: true, lastName: true, email: true },
+          },
+        },
+      })
+    : isDemoModeEnabled()
+      ? (await getRequestInbox()).filter(
+          (request) =>
+            request.type === RequestType.CUTTING_SERVICE &&
+            activeProductionStatuses.includes(request.status),
+        )
+      : [];
+  const ids = requests.map((request) => request.id);
+  const [plans, workflows, issuedToday] = await Promise.all([
+    planning ? getProductionPlans(ids) : Promise.resolve(new Map()),
+    getCuttingWorkflows(ids),
+    hasDatabaseUrl()
+      ? getDb().request.count({
+          where: {
+            type: RequestType.CUTTING_SERVICE,
+            status: RequestStatus.COMPLETED,
+            cuttingStage: CuttingStage.READY_FOR_PICKUP,
+            updatedAt: { gte: new Date(`${today}T00:00:00+06:00`) },
+          },
+        })
+      : Promise.resolve(0),
+  ]);
+  const cards = requests
+    .map((request) => ({
+      id: request.id,
+      number: request.number,
+      status: request.status,
+      material: request.material || request.subject,
+      contactName: request.contactName,
+      sheets: request.cuttingSheetCount,
+      edgeMeters: request.cuttingEdgeMeters,
+      stage: request.cuttingStage,
+      pickupCell: request.cuttingPickupCell,
+      stageSince: request.cuttingStageUpdatedAt ?? request.createdAt,
+      createdAt: request.createdAt,
+      manager: request.manager
+        ? [request.manager.firstName, request.manager.lastName]
+            .filter(Boolean)
+            .join(" ") || request.manager.email
+        : null,
+      dueDate: (plans.get(request.id)?.dueDate as string | null) ?? null,
+      workflow: workflowReady
+        ? (workflows.get(request.id) ?? emptyCuttingWorkflow)
+        : {
+            ...emptyCuttingWorkflow,
+            isUrgent: isUrgentByText(request.subject, request.message),
+          },
+      column: boardColumnFor(request.cuttingStage, request.status),
+    }))
+    .sort(
+      (a, b) =>
+        Number(b.workflow.isUrgent) - Number(a.workflow.isUrgent) ||
+        (a.dueDate ?? "9999").localeCompare(b.dueDate ?? "9999") ||
+        a.createdAt.getTime() - b.createdAt.getTime(),
+    );
+  return {
+    cards,
+    planning,
+    workflowReady,
+    today,
+    issuedToday,
+    now: Date.now(),
+    truncated: requests.length >= boardLimit,
   };
 }

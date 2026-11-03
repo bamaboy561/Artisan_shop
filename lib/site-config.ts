@@ -79,6 +79,11 @@ export const adminNavigation: NavItem[] = [
     description: "Станции, QR и этапы выполнения.",
   },
   {
+    href: "/admin/production/board",
+    label: "Доска распила",
+    description: "Все заявки по этапам, сроки и проблемы.",
+  },
+  {
     href: "/admin/categories",
     label: "Каталог",
     description: "Структура каталога.",

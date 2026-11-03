@@ -13,6 +13,8 @@ import { getManagerDisplayName } from "@/features/admin/operations-filters";
 import { getGibLabProjectCode } from "@/components/admin/giblab-project-code";
 import { requireAdminSession } from "@/lib/auth/dal";
 import { absoluteUrl } from "@/lib/seo";
+import { getCuttingWorkflows } from "@/lib/server/cutting-workflow";
+import { isUrgentByText } from "@/features/production/workflow-flags";
 import {
   getProductionPlans,
   productionPlanningAvailable,
@@ -147,12 +149,11 @@ export default async function RouteSheetPage({ params }: RouteSheetPageProps) {
     ? (await getProductionPlans([id])).get(id)
     : undefined;
   const parsedMessage = parseRouteMessage(request.message);
-  const isUrgent = /срочно/i.test(
-    `${request.subject} ${request.message ?? ""}`.replace(
-      /Приоритет:\s*стандарт/gi,
-      "",
-    ),
-  );
+  // Флажок «Срочно» из производства; без него смотрим на текст заявки.
+  const workflow = (await getCuttingWorkflows([id])).get(id);
+  const isUrgent = workflow
+    ? workflow.isUrgent
+    : isUrgentByText(request.subject, request.message);
 
   return (
     <div className="mx-auto max-w-[210mm] bg-white text-[#171714] print:max-w-none">
