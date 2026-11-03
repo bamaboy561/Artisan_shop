@@ -95,7 +95,9 @@ let lastDeadlineSync = 0;
 
 // Норма «распил до 7 дней»: открытой заявке без плана ставим срок
 // «дата заявки + 7 дней» (по Бишкеку). Если менеджер уже менял или стирал
-// срок, строка плана есть и её не трогаем.
+// срок, строка плана есть и её не трогаем. Свежие заявки (до 10 минут)
+// пропускаем: форма «Новый распил» сама сохраняет свой срок версией 0, и
+// вставка нормы не должна её опередить.
 export async function syncStandardDeadlines() {
   if (Date.now() - lastDeadlineSync < 30_000) return;
   lastDeadlineSync = Date.now();
@@ -108,6 +110,7 @@ export async function syncStandardDeadlines() {
     FROM "Request" r
     WHERE r."type" = 'CUTTING_SERVICE'
       AND r."status" NOT IN ('COMPLETED', 'CANCELED')
+      AND r."createdAt" < (CURRENT_TIMESTAMP AT TIME ZONE 'UTC') - INTERVAL '10 minutes'
     ON CONFLICT ("requestId") DO NOTHING
   `);
 }

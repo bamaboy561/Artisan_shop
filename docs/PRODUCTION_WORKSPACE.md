@@ -88,6 +88,6 @@ npx next build
 ## Standard cutting deadline: 7 days (2026-11-03)
 
 - The workshop norm is that a cutting request is ready no later than 7 days after it was created (Bishkek date). Constants and helpers: `standardCuttingDays`, `standardCuttingDueDate` in `features/production/queue.ts`.
-- `syncStandardDeadlines()` (`lib/server/cutting-workflow.ts`, throttled to 30 s, called from `productionPlanningAvailable`) inserts a `ProductionPlan` row with `created + 7 days` for every open cutting request that has no plan row. `ON CONFLICT DO NOTHING` means a date set or cleared by a manager is never overwritten.
+- `syncStandardDeadlines()` (`lib/server/cutting-workflow.ts`, throttled to 30 s, called from `productionPlanningAvailable`) inserts a `ProductionPlan` row with `created + 7 days` for every open cutting request that has no plan row and is older than 10 minutes (so it never races the «Новый распил» form, which saves its own deadline at version 0). `ON CONFLICT DO NOTHING` means a date set or cleared by a manager is never overwritten.
 - The admin «Новый распил» form uses today + 7 days when the deadline field is left empty.
 - The request page shows the norm date under the deadline form, and a red «позже нормы» note when the planned date is later than the norm. A later date is allowed, for cases agreed with the client.

@@ -4611,7 +4611,12 @@ export async function createAdminCuttingRequestAction(
         dueDate: deadlineValue,
         expectedVersion: 0,
         actor,
-      }).catch((error) => console.error("[cutting:deadline]", error));
+      })
+        .then((result) => {
+          if (result !== "saved")
+            console.error("[cutting:deadline] plan not saved", result);
+        })
+        .catch((error) => console.error("[cutting:deadline]", error));
     }
 
     await Promise.all([
