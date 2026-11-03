@@ -1,7 +1,11 @@
 import "server-only";
 
-import { RequestStatus, RequestType } from "@/generated/prisma";
+import { CuttingStage, RequestStatus, RequestType } from "@/generated/prisma";
+import { cuttingStageLabels } from "@/features/cutting/progress";
+import { absoluteUrl } from "@/lib/seo";
+import { sendStaffNotice } from "@/lib/server/commercial-integrations";
 import {
+  cuttingProblemLabel,
   cuttingProblemReasons,
   emptyCuttingWorkflow,
   isUrgentByText,
@@ -133,7 +137,16 @@ function actorName(actor: SessionPayload) {
 async function loadOpenCuttingRequest(requestId: string) {
   const request = await getDb().request.findUnique({
     where: { id: requestId },
-    select: { type: true, status: true, subject: true, message: true },
+    select: {
+      type: true,
+      status: true,
+      subject: true,
+      message: true,
+      number: true,
+      material: true,
+      contactName: true,
+      cuttingStage: true,
+    },
   });
   return request &&
     request.type === RequestType.CUTTING_SERVICE &&
@@ -152,7 +165,8 @@ export async function setCuttingUrgent(input: {
 }): Promise<WorkflowResult> {
   if (!canManageProduction(input.actor.roleCode)) return "forbidden";
   if (!(await prepareCuttingWorkflow())) return "unavailable";
-  if (!(await loadOpenCuttingRequest(input.requestId))) return "closed";
+  const request = await loadOpenCuttingRequest(input.requestId);
+  if (!request) return "closed";
   await getDb().cuttingWorkflow.upsert({
     where: { requestId: input.requestId },
     create: { requestId: input.requestId, isUrgent: input.urgent },
@@ -165,6 +179,12 @@ export async function setCuttingUrgent(input: {
     title: input.urgent ? "Отмечено «Срочно»" : "Снята отметка «Срочно»",
     actor: input.actor,
   });
+  if (input.urgent) {
+    await notifyStaff(input.requestId, request, {
+      title: "срочная заявка",
+      lines: [`Отметил: ${actorName(input.actor)}`],
+    });
+  }
   return "saved";
 }
 
@@ -203,6 +223,13 @@ export async function reportCuttingProblem(input: {
     description: data.problemNote,
     actor: input.actor,
   });
+  await notifyStaff(input.requestId, request, {
+    title: `проблема: ${cuttingProblemReasons[input.reason]}`,
+    lines: [
+      data.problemNote ? `Подробности: ${data.problemNote}` : "",
+      `Отметил: ${data.problemByName}`,
+    ],
+  });
   return "saved";
 }
 
@@ -216,6 +243,16 @@ export async function resolveCuttingProblem(input: {
     where: { requestId: input.requestId },
   });
   if (!existing?.problemReason) return "saved";
+  const request = await getDb().request.findUnique({
+    where: { id: input.requestId },
+    select: {
+      number: true,
+      material: true,
+      subject: true,
+      contactName: true,
+      cuttingStage: true,
+    },
+  });
   await getDb().cuttingWorkflow.update({
     where: { requestId: input.requestId },
     data: {
@@ -238,5 +275,51 @@ export async function resolveCuttingProblem(input: {
       : null,
     actor: input.actor,
   });
+  if (request) {
+    await notifyStaff(input.requestId, request, {
+      title: "проблема решена",
+      lines: [
+        `Была: ${cuttingProblemLabel(existing.problemReason)}`,
+        `Снял: ${actorName(input.actor)}`,
+      ],
+    });
+  }
   return "saved";
+}
+
+type NotifyRequest = {
+  number: string | null;
+  material: string | null;
+  subject: string;
+  contactName: string;
+  cuttingStage: CuttingStage | null;
+};
+
+// Сообщение в тему «Распил» рабочего Telegram. Сбой отправки не мешает
+// сохранению: отметка уже записана.
+async function notifyStaff(
+  requestId: string,
+  request: NotifyRequest,
+  message: { title: string; lines: string[] },
+) {
+  try {
+    await sendStaffNotice({
+      title: `Artisan · распил ${request.number ?? requestId.slice(0, 8)}: ${message.title}`,
+      threadKey: "cutting",
+      lines: [
+        `Материал: ${request.material || request.subject}`,
+        `Клиент: ${request.contactName}`,
+        `Этап: ${request.cuttingStage ? cuttingStageLabels[request.cuttingStage] : "не запущена"}`,
+        ...message.lines,
+      ].filter(Boolean),
+      actions: [
+        {
+          label: "Открыть в производстве",
+          url: absoluteUrl(`/admin/production/${requestId}`),
+        },
+      ],
+    });
+  } catch (error) {
+    console.error("[cutting-workflow] staff notice failed", error);
+  }
 }
