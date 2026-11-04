@@ -8,6 +8,10 @@ const { calculateCuttingLaborTotal: calculate, parseCuttingLaborPrice: parse } =
   pure;
 const price = { sheetRate: 300, edgeRate: 25 };
 const sitePrices = loadAction("../features/cutting/site-prices.ts", {});
+const prismaEnums = (await import("../generated/prisma/index.js")).default;
+const roles = loadAction("../lib/auth/roles.ts", {
+  "@/generated/prisma": prismaEnums,
+});
 
 test("labor only: sheet count and fractional edge meters", () => {
   assert.equal(calculate(price, 4, 12.5, "ABS"), 1513);
@@ -168,9 +172,9 @@ test("new requests save the configured labor price and snapshot together", async
   assert.equal(f.settings.size, 0);
 });
 
-test("server actions enforce admin-only price edits and deny unauthorized recalculation", async () => {
+test("server actions let admins and the cutting manager edit prices and deny unauthorized recalculation", async () => {
   const enumRole = { ADMIN: "ADMIN", SUPER_ADMIN: "SUPER_ADMIN" };
-  let actor = { roleCode: "CUTTING_MANAGER", userId: "m" };
+  let actor = { roleCode: "MANAGER", userId: "m" };
   let writes = 0;
   const actions = loadAction("../app/admin/cutting/pricing/actions.ts", {
     "next/navigation": {
@@ -184,7 +188,10 @@ test("server actions enforce admin-only price edits and deny unauthorized recalc
       RequestType: { CUTTING_SERVICE: "CUTTING_SERVICE" },
     },
     "@/lib/auth/dal": { requireAdminSession: async () => actor },
-    "@/lib/auth/roles": { canAccessRequestType: (role) => role !== "CUSTOMER" },
+    "@/lib/auth/roles": {
+      canAccessRequestType: (role) => role !== "CUSTOMER",
+      canEditCuttingPrices: roles.canEditCuttingPrices,
+    },
     "@/lib/db": {
       hasDatabaseUrl: () => true,
       getDb: () => ({
@@ -209,7 +216,7 @@ test("server actions enforce admin-only price edits and deny unauthorized recalc
   form.set("sheetRate", "300");
   form.set("edgeRate", "25");
   form.set("requestId", "r1");
-  await assert.rejects(actions.saveCuttingPriceAction(form), /администратор/);
+  await assert.rejects(actions.saveCuttingPriceAction(form), /Нет прав/);
   assert.equal(writes, 0);
   actor = { roleCode: "CUSTOMER", userId: "c" };
   await assert.rejects(
@@ -220,9 +227,15 @@ test("server actions enforce admin-only price edits and deny unauthorized recalc
   actor = { roleCode: "ADMIN", userId: "a" };
   await assert.rejects(actions.saveCuttingPriceAction(form), /saved=1/);
   assert.equal(writes, 1);
+  actor = { roleCode: "CUTTING_MANAGER", userId: "cm" };
+  await assert.rejects(actions.saveCuttingPriceAction(form), /saved=1/);
+  assert.equal(writes, 2);
+  actor = { roleCode: "PRODUCTION_OPERATOR", userId: "o" };
+  await assert.rejects(actions.saveCuttingPriceAction(form), /Нет прав/);
+  assert.equal(writes, 2);
 });
 
-test("site prices: admin edits reach the calculator, broken values keep defaults", async () => {
+test("site prices: admin and cutting-manager edits reach the calculator, broken values keep defaults", async () => {
   const { parseSiteCuttingPrices, defaultSiteCuttingPrices, buildCuttingSiteIncentive } =
     sitePrices;
   assert.deepEqual(parseSiteCuttingPrices(null), defaultSiteCuttingPrices);
@@ -254,7 +267,7 @@ test("site prices: admin edits reach the calculator, broken values keep defaults
   );
 
   let saved;
-  let actor = { roleCode: "CUTTING_MANAGER", userId: "m" };
+  let actor = { roleCode: "MANAGER", userId: "m" };
   const actions = loadAction("../app/admin/cutting/pricing/actions.ts", {
     "next/navigation": {
       redirect: (url) => {
@@ -267,7 +280,7 @@ test("site prices: admin edits reach the calculator, broken values keep defaults
       RequestType: {},
     },
     "@/lib/auth/dal": { requireAdminSession: async () => actor },
-    "@/lib/auth/roles": {},
+    "@/lib/auth/roles": { canEditCuttingPrices: roles.canEditCuttingPrices },
     "@/lib/db": {
       hasDatabaseUrl: () => true,
       getDb: () => ({
@@ -285,9 +298,9 @@ test("site prices: admin edits reach the calculator, broken values keep defaults
   form.set("siteEdgeRegular", "35");
   for (const diameter of sitePrices.drillingDiameters)
     form.set(`drill${diameter}`, String(diameter));
-  await assert.rejects(actions.saveSiteCuttingPricesAction(form), /администратор/);
+  await assert.rejects(actions.saveSiteCuttingPricesAction(form), /Нет прав/);
   assert.equal(saved, undefined);
-  actor = { roleCode: "ADMIN", userId: "a" };
+  actor = { roleCode: "CUTTING_MANAGER", userId: "cm" };
   form.set("drill35", "");
   await assert.rejects(actions.saveSiteCuttingPricesAction(form), /siteError/);
   assert.equal(saved, undefined);

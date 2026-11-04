@@ -333,3 +333,26 @@ test("stale cookie cannot redirect login/register back into a blocked workspace"
     "https://example.test/account",
   );
 });
+
+test("cutting manager can edit cutting prices, other staff roles cannot", () => {
+  const allowed = new Set([
+    RoleCode.CUTTING_MANAGER,
+    RoleCode.ADMIN,
+    RoleCode.SUPER_ADMIN,
+  ]);
+  for (const role of Object.values(RoleCode)) {
+    assert.equal(roles.canEditCuttingPrices(role), allowed.has(role), role);
+  }
+  // Доступ менеджера кроя к остальным разделам не меняется.
+  assert.equal(
+    roles.canAccessAdminPath(
+      RoleCode.CUTTING_MANAGER,
+      "/admin/cutting/pricing",
+    ),
+    true,
+  );
+  assert.equal(
+    roles.canAccessAdminPath(RoleCode.CUTTING_MANAGER, "/admin/products"),
+    false,
+  );
+});
