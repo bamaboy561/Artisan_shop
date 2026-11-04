@@ -148,3 +148,35 @@ test("no alerts at night", () => {
   assert.equal(isAlertWorkingHour(19), true);
   assert.equal(isAlertWorkingHour(20), false);
 });
+
+test("a crowded alert still fits one Telegram message", () => {
+  const long =
+    "ЛДСП Egger H1145 ST10 Дуб Бардолино натуральный 18 мм 2800×2070";
+  const many = (prefix: string, due: string, n: number) =>
+    Array.from({ length: n }, (_, i) =>
+      card(`${prefix}${i}`, due, {
+        material: long + " ".repeat(40) + "x",
+        isUrgent: true,
+        problemReason: "no-material",
+        column: "DRILLING",
+      }),
+    );
+  const all = [
+    ...many("late", "2026-10-01", 40),
+    ...many("today", today, 40),
+    ...many("tomorrow", "2026-11-05", 40),
+  ];
+  const plan = planDeadlineAlert({
+    cards: all,
+    today,
+    announced: null,
+    overdueDue: true,
+  });
+  const message = buildDeadlineAlert({ ...plan, today });
+  const text = [message.title, ...message.lines].join("\n");
+  assert.ok(text.length <= 3500, `length ${text.length}`);
+  assert.ok(message.lines.includes("Просрочено: 40"));
+  assert.ok(message.lines.includes("Срок сегодня: 40"));
+  assert.ok(message.lines.includes("Срок завтра: 40"));
+  assert.ok(message.lines.some((line) => /… и ещё \d+/.test(line)));
+});

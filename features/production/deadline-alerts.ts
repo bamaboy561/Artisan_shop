@@ -29,6 +29,11 @@ export const alertWorkEndHour = 20;
 
 const listLimit = 15;
 
+// Telegram принимает до 4096 символов в сообщении; оставляем запас на
+// заголовок, оформление и экранирование.
+export const alertTextBudget = 3300;
+const materialMaxLength = 60;
+
 const columnLabels: Record<DeadlineAlertCard["column"], string> = {
   NEW: "не запущен в цех",
   QUEUED: "ждёт распила",
@@ -98,7 +103,9 @@ function formatDate(value: string) {
 function cardLine(card: DeadlineAlertCard, extra: string[]) {
   const parts = [
     card.number ?? card.id.slice(0, 8).toUpperCase(),
-    card.material,
+    card.material.length > materialMaxLength
+      ? `${card.material.slice(0, materialMaxLength - 1)}…`
+      : card.material,
     columnLabels[card.column],
     ...extra,
     ...(card.isUrgent ? ["СРОЧНО"] : []),
@@ -112,13 +119,22 @@ function cardLine(card: DeadlineAlertCard, extra: string[]) {
 function listed(
   cards: DeadlineAlertCard[],
   detail: (card: DeadlineAlertCard) => string[],
+  budget: { left: number },
 ) {
-  return [
-    ...cards.slice(0, listLimit).map((card) => cardLine(card, detail(card))),
-    ...(cards.length > listLimit
-      ? [`  … и ещё ${cards.length - listLimit}`]
-      : []),
-  ];
+  const lines: string[] = [];
+  const reserve = 30; // на строку «… и ещё N»
+  for (const card of cards.slice(0, listLimit)) {
+    const line = cardLine(card, detail(card));
+    if (line.length + 1 > budget.left - reserve) break;
+    budget.left -= line.length + 1;
+    lines.push(line);
+  }
+  if (cards.length > lines.length) {
+    const more = `  … и ещё ${cards.length - lines.length}`;
+    budget.left -= more.length + 1;
+    lines.push(more);
+  }
+  return lines;
 }
 
 export function buildDeadlineAlert(input: {
@@ -133,28 +149,39 @@ export function buildDeadlineAlert(input: {
   const mark = (card: DeadlineAlertCard) =>
     isNew.has(card.id) ? ["новый"] : [];
   const lines: string[] = [];
+  const budget = { left: alertTextBudget };
+  const header = (text: string) => {
+    budget.left -= text.length + 2;
+    return text;
+  };
 
   if (input.overdue.length) {
     lines.push(
-      `Просрочено: ${input.overdue.length}`,
-      ...listed(input.overdue, (card) => {
-        const late = -(daysUntil(card.dueDate, input.today) ?? 0);
-        return [`срок был ${formatDate(card.dueDate!)}, опоздание ${late} дн.`];
-      }),
+      header(`Просрочено: ${input.overdue.length}`),
+      ...listed(
+        input.overdue,
+        (card) => {
+          const late = -(daysUntil(card.dueDate, input.today) ?? 0);
+          return [
+            `срок был ${formatDate(card.dueDate!)}, опоздание ${late} дн.`,
+          ];
+        },
+        budget,
+      ),
     );
   }
   if (input.dueToday.length) {
     if (lines.length) lines.push("");
     lines.push(
-      `Срок сегодня: ${input.dueToday.length}`,
-      ...listed(input.dueToday, mark),
+      header(`Срок сегодня: ${input.dueToday.length}`),
+      ...listed(input.dueToday, mark, budget),
     );
   }
   if (input.dueTomorrow.length) {
     if (lines.length) lines.push("");
     lines.push(
-      `Срок завтра: ${input.dueTomorrow.length}`,
-      ...listed(input.dueTomorrow, mark),
+      header(`Срок завтра: ${input.dueTomorrow.length}`),
+      ...listed(input.dueTomorrow, mark, budget),
     );
   }
 
