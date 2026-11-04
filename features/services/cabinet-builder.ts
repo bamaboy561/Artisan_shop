@@ -77,6 +77,7 @@ const SHELF_CLEARANCE = 1; // зазор полки с каждой сторон
 const PIN_BELOW_SHELF = 8; // центр полкодержателя под полкой, мм
 const MINIFIX_OFFSET = 50; // от переднего и заднего торца, мм
 const BACK_OVERLAP_GAP = 2; // ХДФ меньше корпуса с каждой стороны, мм
+const HINGE_OFFSET = 100; // петля от верха и низа двери, мм
 
 export type CabinetPart = ImportedDetail & { hardware?: HardwareItem[] };
 
@@ -160,6 +161,30 @@ export function buildCabinet(
     offset: round(shelf - PIN_BELOW_SHELF),
   }));
 
+  // Двери накладные: от верха корпуса до цоколя с зазором. Петли на
+  // фасаде стоят на отступе HINGE_OFFSET от концов двери, ответные планки —
+  // на тех же высотах на боковине, к которой навешена дверь.
+  const doorHeight = round(H - plinth - DOOR_GAP);
+  const doorWidth = doors > 0 ? round((W - DOOR_GAP * (doors + 1)) / doors) : 0;
+  const hinges = hingeCount(doorHeight);
+  const hingeHeights = Array.from({ length: hinges }, (_, index) =>
+    round(
+      plinth +
+        DOOR_GAP +
+        HINGE_OFFSET +
+        ((doorHeight - 2 * HINGE_OFFSET) * index) / (hinges - 1),
+    ),
+  );
+  const plates = (): HardwareItem[] =>
+    hingeHeights.map((height) => ({
+      ...createHardware("hingePlate", "top"),
+      count: 1,
+      offset: height,
+    }));
+  // Одна дверь навешена на левую боковину, две — каждая на свою.
+  const platesOn = (label: string) =>
+    doors === 2 || (doors === 1 && label === "левая") ? plates() : [];
+
   for (const label of ["левая", "правая"]) {
     parts.push({
       title: `${name}: боковина ${label}`,
@@ -168,7 +193,7 @@ export function buildCabinet(
       quantity: 1,
       edgedSides: ["top"],
       fixedGrain: true,
-      hardware: [...sideHardware(), ...pins],
+      hardware: [...sideHardware(), ...pins, ...platesOn(label)],
     });
   }
 
@@ -219,11 +244,7 @@ export function buildCabinet(
     });
   }
 
-  const doorHeight = round(H - plinth - DOOR_GAP);
-  const doorWidth = doors > 0 ? round((W - DOOR_GAP * (doors + 1)) / doors) : 0;
-
   if (doors > 0) {
-    const hinges = hingeCount(doorHeight);
     const door = (label: string, hingeSide: "top" | "bottom") => ({
       title: `${name}: дверь${label}`,
       length: doorHeight,
@@ -240,7 +261,7 @@ export function buildCabinet(
         {
           ...createHardware("hinge", hingeSide),
           count: hinges,
-          offset: 100,
+          offset: HINGE_OFFSET,
         },
       ],
     });
