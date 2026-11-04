@@ -91,3 +91,11 @@ npx next build
 - `syncStandardDeadlines()` (`lib/server/cutting-workflow.ts`, throttled to 30 s, called from `productionPlanningAvailable`) inserts a `ProductionPlan` row with `created + 7 days` for every open cutting request that has no plan row and is older than 10 minutes (so it never races the «Новый распил» form, which saves its own deadline at version 0). `ON CONFLICT DO NOTHING` means a date set or cleared by a manager is never overwritten.
 - The admin «Новый распил» form uses today + 7 days when the deadline field is left empty.
 - The request page shows the norm date under the deadline form, and a red «позже нормы» note when the planned date is later than the norm. A later date is allowed, for cases agreed with the client.
+
+## Deadline alerts for the production manager (2026-11-04)
+
+- `GET /api/cron/production-deadlines` (`lib/server/production-deadline-alerts.ts`, logic in `features/production/deadline-alerts.ts`) runs every 30 minutes from 08:00 to 19:30 Bishkek time, triggered by GitHub Actions (`.github/workflows/production-deadlines.yml`), because the Vercel plan runs cron only once a day.
+- «Подходит срок»: requests due today or tomorrow are sent once per day; the list is re-sent only when a new request enters it (marked «новый»).
+- Overdue requests are repeated at most every 25 minutes while any exist, together with the today/tomorrow list.
+- Recipients: active `PRODUCTION_MANAGER` users who linked Telegram in their personal account (`/account`) get a personal message; if none received it, the message goes to the «Распил» topic.
+- State lives in the runtime-created `ProductionDeadlineAlert` table (a 5-minute run lock, the last overdue send, and the ids already announced today), so extra calls to the endpoint never send more often. `CRON_SECRET` is optional for this endpoint; with it the response includes details.
