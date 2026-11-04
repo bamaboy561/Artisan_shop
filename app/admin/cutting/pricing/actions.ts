@@ -2,9 +2,9 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { RoleCode, RequestType } from "@/generated/prisma";
+import { RequestType } from "@/generated/prisma";
 import { requireAdminSession } from "@/lib/auth/dal";
-import { canAccessRequestType } from "@/lib/auth/roles";
+import { canAccessRequestType, canEditCuttingPrices } from "@/lib/auth/roles";
 import { getDb, hasDatabaseUrl } from "@/lib/db";
 import { parseCuttingLaborPrice } from "@/features/cutting/labor-price";
 import {
@@ -21,12 +21,8 @@ import {
 
 export async function saveCuttingPriceAction(form: FormData) {
   const actor = await requireAdminSession("/login", "/admin/cutting/pricing");
-  if (
-    ![RoleCode.ADMIN, RoleCode.SUPER_ADMIN].some(
-      (role) => role === actor.roleCode,
-    )
-  )
-    throw new Error("Только администратор может менять прайс.");
+  if (!canEditCuttingPrices(actor.roleCode))
+    throw new Error("Нет прав менять прайс распила.");
   const rawSheet = String(form.get("sheetRate") ?? "")
     .trim()
     .replace(",", ".");
@@ -64,12 +60,8 @@ function readRate(form: FormData, field: string) {
 // и присадка по диаметрам. Сразу видны на всех страницах сайта.
 export async function saveSiteCuttingPricesAction(form: FormData) {
   const actor = await requireAdminSession("/login", "/admin/cutting/pricing");
-  if (
-    ![RoleCode.ADMIN, RoleCode.SUPER_ADMIN].some(
-      (role) => role === actor.roleCode,
-    )
-  )
-    throw new Error("Только администратор может менять прайс.");
+  if (!canEditCuttingPrices(actor.roleCode))
+    throw new Error("Нет прав менять прайс распила.");
   const sheet = readRate(form, "siteSheet");
   const sheetRegular = readRate(form, "siteSheetRegular");
   const edge = readRate(form, "siteEdge");
