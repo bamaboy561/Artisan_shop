@@ -161,12 +161,12 @@ export const HARDWARE: Record<HardwareKind, HardwareDefinition> = {
     fields: ["count", "offset", "indent"],
   },
   // Ответная (монтажная) планка петли на боковине: система 32 — два
-  // отверстия под евровинт на 37 мм от переднего края, ±16 мм от оси петли.
+  // кернения Ø3 под саморезы на 37 мм от переднего края, ±16 мм от оси петли.
   // Места ставятся так же, как петли на фасаде (тот же отступ и количество).
   hingePlate: {
     label: "Планка петли (на боковину)",
-    hint: "Два отверстия под ответную планку петли: 37 мм от переднего края, шаг 32 мм. Отступ и количество — как у петель на фасаде.",
-    holeLabels: ["Под евровинт"],
+    hint: "Два кернения Ø3 под саморезы ответной планки петли: 37 мм от переднего края, шаг 32 мм. Отступ и количество — как у петель на фасаде.",
+    holeLabels: ["Кернение"],
     defaults: {
       count: 2,
       offset: 100,
@@ -174,7 +174,7 @@ export const HARDWARE: Record<HardwareKind, HardwareDefinition> = {
       spacing: 32,
       mirror: false,
       edge: false,
-      holes: [{ diameter: 5, depth: 12 }],
+      holes: [{ diameter: 3, depth: 5 }],
     },
     fields: ["count", "offset", "indent", "spacing"],
   },

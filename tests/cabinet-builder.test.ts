@@ -63,11 +63,11 @@ test("minifix holes on the roof line up with bolt holes in the sides", () => {
       ["right", 530],
     ],
   );
-  // 4 болта, 4 полки × 2 ряда полкодержателей, 5 планок петель × 2.
+  // 4 болта, 4 полки × 2 ряда полкодержателей (кернения планок — Ø3).
   assert.equal(
     sideHoles.filter((hole) => hole.kind === "face" && hole.diameter === 5)
       .length,
-    4 + 8 + 10,
+    4 + 8,
   );
 });
 

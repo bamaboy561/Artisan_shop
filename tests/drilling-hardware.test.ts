@@ -89,7 +89,7 @@ test("draft data is checked before use", () => {
   assert.equal(sanitizeHardware([{ kind: "evil", side: "left" }]), undefined);
 });
 
-test("hinge plate gives two Ø5 holes 32 mm apart, 37 mm from the front edge", () => {
+test("hinge plate gives two Ø3 marks 32 mm apart, 37 mm from the front edge", () => {
   const item = createHardware("hingePlate", "top");
   const holes = hardwareHoles([item], 720, 300, 16);
   assert.deepEqual(
@@ -97,11 +97,11 @@ test("hinge plate gives two Ø5 holes 32 mm apart, 37 mm from the front edge", (
       hole.kind === "face" ? [hole.x, hole.y, hole.diameter, hole.depth] : null,
     ),
     [
-      [84, 263, 5, 12],
-      [116, 263, 5, 12],
-      [604, 263, 5, 12],
-      [636, 263, 5, 12],
+      [84, 263, 3, 5],
+      [116, 263, 3, 5],
+      [604, 263, 3, 5],
+      [636, 263, 3, 5],
     ],
   );
-  assert.deepEqual(holesToDrillCounts(holes), { "5": 4 });
+  assert.deepEqual(holesToDrillCounts(holes), { "3": 4 });
 });
