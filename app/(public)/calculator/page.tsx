@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { CalculatorHero } from "@/features/services/calculator-hero";
 import { CutCalculator } from "@/features/services/cut-calculator";
 import { getCalculatorBundle } from "@/lib/server/calculator-config";
+import { isCutListPhotoEnabled } from "@/lib/server/cut-list-photo";
 import { getSiteCuttingPrices } from "@/lib/server/cutting-pricing";
 import { getCalculatorContextBySlug } from "@/lib/server/catalog-public";
 import { createSeoMetadata } from "@/lib/seo";
@@ -46,6 +47,7 @@ export default async function CalculatorPage({
             materials={bundle.materials}
             sheets={bundle.sheets}
             presets={bundle.presets}
+            photoEnabled={isCutListPhotoEnabled()}
           />
         </div>
       </section>
