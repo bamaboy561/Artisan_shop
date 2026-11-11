@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   buildDailyReport,
+  buildDailyReportMessage,
   parseReportDay,
   type ReportCard,
   type ReportEvent,
@@ -149,4 +150,29 @@ test("день из адреса", () => {
   assert.equal(parseReportDay("2026-12-01", "2026-11-11"), "2026-11-11");
   assert.equal(parseReportDay("2026-02-30", "2026-11-11"), "2026-11-11");
   assert.equal(parseReportDay(undefined, "2026-11-11"), "2026-11-11");
+});
+
+test("итог дня для Telegram", () => {
+  const report = buildDailyReport({
+    day: "2026-11-11",
+    today: "2026-11-11",
+    now,
+    createdCount: 2,
+    events: [move("a", "CUTTING", "EDGING")],
+    sheets: new Map([["a", 3]]),
+    dueDates: new Map(),
+    cards: [
+      card("late", { dueDate: "2026-11-09" }),
+      card("problem", { problemReason: "machine" }),
+    ],
+  });
+  const message = buildDailyReportMessage(report, "2026-11-11");
+  assert.equal(message.title, "Итог дня по распилу · 11.11");
+  const text = message.lines.join("\n");
+  assert.match(text, /Новых заявок: 2/);
+  assert.match(text, /Распилено: 1 \(3 лист\.\)/);
+  assert.match(text, /Сейчас в работе: 2 · просрочено: 1/);
+  assert.match(text, /LATE · ЛДСП — срок был 09\.11/);
+  assert.match(text, /PROBLEM · ЛДСП — Станок не работает/);
+  assert.match(text, /Кто двигал заявки: Азамат 1/);
 });

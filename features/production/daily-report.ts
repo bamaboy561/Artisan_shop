@@ -1,4 +1,4 @@
-import { deadlineTone } from "./workflow-flags";
+import { cuttingProblemLabel, deadlineTone } from "./workflow-flags";
 
 export type ReportColumn =
   | "NEW"
@@ -178,4 +178,86 @@ export function parseReportDay(value: unknown, today: string) {
   if (Number.isNaN(parsed.getTime())) return today;
   if (parsed.toISOString().slice(0, 10) !== value) return today;
   return value > today ? today : value;
+}
+
+// Вечерний итог дня для Telegram: те же цифры, что под доской распила.
+export const eveningReportHour = 19;
+const messageListLimit = 5;
+
+function shortDate(day: string) {
+  return day.split("-").reverse().slice(0, 2).join(".");
+}
+
+function shortCard(card: ReportCard) {
+  const material =
+    card.material.length > 50
+      ? `${card.material.slice(0, 49)}…`
+      : card.material;
+  return `${card.number ?? card.id.slice(0, 8).toUpperCase()} · ${material}`;
+}
+
+export function buildDailyReportMessage(report: DailyReport, day: string) {
+  const { day: stats, now } = report;
+  const inWork = now.stages
+    .filter((stage) => stage.key !== "NEW")
+    .reduce((sum, stage) => sum + stage.count, 0);
+  const listed = (
+    cards: ReportCard[],
+    detail: (card: ReportCard) => string,
+  ) => [
+    ...cards
+      .slice(0, messageListLimit)
+      .map((card) => `  • ${shortCard(card)} — ${detail(card)}`),
+    ...(cards.length > messageListLimit
+      ? [`  … и ещё ${cards.length - messageListLimit}`]
+      : []),
+  ];
+  const lines = [
+    `Новых заявок: ${stats.created} · запущено в цех: ${stats.launched}`,
+    `Распилено: ${stats.cut}${stats.cutSheets ? ` (${stats.cutSheets} лист.)` : ""} · кромка: ${stats.edged} · присадка: ${stats.drilled}`,
+    `Готово к выдаче: ${stats.ready}${stats.readyLate ? ` (с опозданием: ${stats.readyLate})` : ""} · выдано клиентам: ${stats.issued}`,
+    `Проблем сообщено: ${stats.problemsReported} · решено: ${stats.problemsResolved}`,
+    "",
+    `Сейчас в работе: ${inWork} · просрочено: ${now.overdue.length} · висят дольше суток: ${now.stuck.length} · с проблемой: ${now.problems.length}`,
+    `По этапам: ${
+      now.stages
+        .filter((stage) => stage.count)
+        .map((stage) => `${stage.title} ${stage.count}`)
+        .join(" · ") || "пусто"
+    }`,
+  ];
+  if (now.overdue.length)
+    lines.push(
+      "",
+      `Просрочены: ${now.overdue.length}`,
+      ...listed(
+        now.overdue,
+        (card) => `срок был ${shortDate(card.dueDate ?? "")}`,
+      ),
+    );
+  if (now.stuck.length)
+    lines.push(
+      "",
+      `Висят дольше суток: ${now.stuck.length}`,
+      ...listed(
+        now.stuck,
+        (card) => reportColumns.find((c) => c.key === card.column)?.title ?? "",
+      ),
+    );
+  if (now.problems.length)
+    lines.push(
+      "",
+      `С проблемой: ${now.problems.length}`,
+      ...listed(now.problems, (card) =>
+        cuttingProblemLabel(card.problemReason),
+      ),
+    );
+  if (stats.people.length)
+    lines.push(
+      "",
+      `Кто двигал заявки: ${stats.people
+        .map((person) => `${person.name} ${person.moves}`)
+        .join(", ")}`,
+    );
+  return { title: `Итог дня по распилу · ${shortDate(day)}`, lines };
 }
