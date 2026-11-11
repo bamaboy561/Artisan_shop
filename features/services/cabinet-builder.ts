@@ -200,7 +200,14 @@ export function buildCabinet(
     D >= 400 ? { count: 2, offset: DOWEL_OFFSET } : { count: 1, offset: 0 };
 
   const joint: CabinetJoint = spec.joint ?? "minifix";
-  const led: CabinetLed = spec.led ?? "none";
+  // Паз 10 мм глубиной режем в плите от 14 мм: под пазом остаётся 4 мм.
+  const ledFits = t >= LED_GROOVE.depth + 4;
+  const led: CabinetLed = ledFits ? (spec.led ?? "none") : "none";
+  if (!ledFits && (spec.led ?? "none") !== "none") {
+    problems.push(
+      `Паз ${LED_GROOVE.width}×${LED_GROOVE.depth} под подсветку не сделать в плите ${t} мм: нужна толщина от ${LED_GROOVE.depth + 4} мм.`,
+    );
+  }
   const withDowels = joint !== "confirmat";
   // Конфирматов на стык: два, в глубоком корпусе — три.
   const confirmatPlaces =

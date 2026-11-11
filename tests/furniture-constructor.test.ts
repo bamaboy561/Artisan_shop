@@ -252,3 +252,11 @@ test("LED under shelves: groove on every shelf, none without doors in sides", ()
   const noDoors = buildCabinet({ ...spec, led: "sides" }, 16);
   assert.equal(noDoors.parts[0].milling?.grooves?.[0].indent, 20);
 });
+
+test("LED groove is refused on a board thinner than 14 mm", () => {
+  const spec = { ...wardrobe, led: "sides" as const };
+  const result = buildCabinet(spec, 10);
+  assert.ok(result.parts.every((part) => !part.milling));
+  assert.match(result.problems.join(" "), /не сделать в плите 10 мм/);
+  assert.equal(buildCabinet(spec, 16).problems.length, 0);
+});

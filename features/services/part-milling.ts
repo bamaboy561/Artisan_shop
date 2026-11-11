@@ -246,6 +246,19 @@ const GROOVE_EDGE: Record<PartSide, string> = {
   left: "левого",
 };
 
+// Паз, который станок может сделать: ширина и глубина больше нуля.
+// Недописанный паз из окна присадки не фрезеруется и не считается.
+export function validGrooves(milling: PartMilling | undefined) {
+  return (milling?.grooves ?? []).filter(
+    (groove) =>
+      Number.isFinite(groove.width) &&
+      Number.isFinite(groove.depth) &&
+      Number.isFinite(groove.indent) &&
+      groove.width > 0 &&
+      groove.depth > 0,
+  );
+}
+
 // Паз на детали length × width: прямоугольник в координатах детали
 // (x вдоль длины, y вдоль ширины) и ось, по которой идёт фреза.
 export function grooveRect(groove: PartGroove, length: number, width: number) {
@@ -273,7 +286,7 @@ export function grooveMillingProgram(
   thickness: number,
   milling: PartMilling | undefined,
 ) {
-  const grooves = milling?.grooves ?? [];
+  const grooves = validGrooves(milling);
   if (grooves.length === 0) return null;
   const tools = new Map<string, number>();
   let body = "";
@@ -349,7 +362,7 @@ export function millingMeters(
         : sum,
     0,
   );
-  const groove = (milling.grooves ?? []).reduce(
+  const groove = validGrooves(milling).reduce(
     (sum, item) =>
       sum + (item.side === "top" || item.side === "bottom" ? length : width),
     0,

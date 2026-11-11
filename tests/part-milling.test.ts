@@ -114,3 +114,12 @@ test("LED groove becomes a straight milling pass and is priced per metre", async
     /<ms x="5" y="0" dp="14"[^>]*\/><ml x="5" y="400"\/><ms x="13" y="0"/,
   );
 });
+
+test("unfinished groove (zero width) is neither milled nor billed", async () => {
+  const { grooveMillingProgram, millingMeters } =
+    await import("../features/services/part-milling");
+  const milling = emptyMilling();
+  milling.grooves = [{ side: "top", indent: 20, width: 0, depth: 10 }];
+  assert.equal(grooveMillingProgram(700, 400, 16, milling), null);
+  assert.equal(millingMeters(700, 400, milling).groove, 0);
+});
