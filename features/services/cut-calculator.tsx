@@ -3162,11 +3162,13 @@ export function CutCalculator({
                     id: row.id,
                     title: row.title,
                     size: `${row.width} × ${row.height}`,
+                    // Только точное совпадение: у повёрнутой детали те же
+                    // стороны оказались бы на других краях.
                     sameSize:
-                      (row.width === drillingRow.width &&
-                        row.height === drillingRow.height) ||
-                      (row.width === drillingRow.height &&
-                        row.height === drillingRow.width),
+                      parsePositive(row.width) ===
+                        parsePositive(drillingRow.width) &&
+                      parsePositive(row.height) ===
+                        parsePositive(drillingRow.height),
                     holes: Math.round(
                       Object.values(
                         calculation.rows.find((item) => item.id === row.id)
