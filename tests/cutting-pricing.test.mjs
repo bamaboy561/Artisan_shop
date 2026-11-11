@@ -603,3 +603,13 @@ test("new request total includes drilling; reprice keeps it and saves edits", as
   });
   assert.match(f.events.at(-1).description, /Присадка Ø8 мм: 10 отверстий/);
 });
+
+test("total is rounded once from all lines, not labor first", () => {
+  const result = quote.buildCuttingQuote(
+    { ...fullPrice, edgeRate: 25 },
+    { cuttingSheetCount: 4, cuttingEdgeMeters: 12.5, edgeOption: "ABS" },
+    { drilling: {}, curveMeters: 0, bevelMeters: 0.01, source: "manager" },
+  );
+  // 1200 + 312,5 + 2,5 = 1515, а не 1513 + 2,5 → 1516.
+  assert.equal(result.total, 1515);
+});

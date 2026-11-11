@@ -188,7 +188,7 @@ export function buildCuttingQuote(
       key: "sheets",
       label: "Распил листов",
       detail: `${sheets} ${plural(sheets, ["лист", "листа", "листов"])} × ${money(price.sheetRate)}`,
-      amount: Math.round(sheets * price.sheetRate * 100) / 100,
+      amount: (sheets * Math.round(price.sheetRate * 100)) / 100,
     },
   ];
 
@@ -197,7 +197,7 @@ export function buildCuttingQuote(
       key: "edge",
       label: "Кромление",
       detail: `${numberFormatter.format(edgeMeters)} м × ${money(price.edgeRate)}`,
-      amount: Math.round(edgeMeters * price.edgeRate * 100) / 100,
+      amount: (edgeMeters * Math.round(price.edgeRate * 100)) / 100,
     });
   }
 
@@ -253,7 +253,12 @@ export function buildCuttingQuote(
     });
   }
 
-  const total = Math.round(labor + extrasCents / 100);
+  // Округляем один раз — от суммы всех строк в тыйынах, как в
+  // calculateCuttingLaborTotal: строки и «Итог» всегда сходятся.
+  const laborCents =
+    sheets * Math.round(price.sheetRate * 100) +
+    edgeMeters * Math.round(price.edgeRate * 100);
+  const total = Math.round((laborCents + extrasCents) / 100);
   if (total > 2147483647) throw new Error("Сумма работ слишком большая.");
   return { lines, total, unpricedHoles };
 }
