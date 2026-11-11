@@ -27,7 +27,8 @@ const SHELF_CLEARANCE = 1;
 const OPEN_DOOR_ANGLE = 100;
 
 export type CabinetModelOptions = {
-  doorsOpen: boolean;
+  // Насколько открыты двери: 0 — закрыты, 1 — открыты полностью.
+  doorOpen: number;
   bodyMaterial: string;
   facadeMaterial: string;
 };
@@ -220,7 +221,9 @@ export function buildCabinetModel(
   // вертикальной оси петель наружу.
   const doors = result.parts.filter((part) => /: дверь/.test(part.title));
   const doorBottom = round(H - result.doorHeight);
-  const angle = options.doorsOpen ? (OPEN_DOOR_ANGLE * Math.PI) / 180 : 0;
+  const angle =
+    (Math.max(0, Math.min(1, options.doorOpen)) * OPEN_DOOR_ANGLE * Math.PI) /
+    180;
   doors.forEach((door, index) => {
     const left = DOOR_GAP + index * (result.doorWidth + DOOR_GAP);
     const hingeOnRight = doors.length === 2 && index === 1;

@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { DoorOpen, DoorClosed, Scissors, Search } from "lucide-react";
 
-import { BazisViewer } from "@/components/bazis/bazis-viewer";
 import { guessDecorColor } from "@/features/bazis/decor-color";
 import {
   CALCULATOR_DRAFT_KEY,
@@ -29,7 +29,22 @@ import {
   TONE_BODY,
   TONE_FACADE,
 } from "./cabinet-model";
+import type { SceneTone } from "./furniture-scene";
 
+// three.js тяжёлый: грузим только на странице конструктора и без SSR.
+const FurnitureScene = dynamic(
+  () => import("./furniture-scene").then((module) => module.FurnitureScene),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-full items-center justify-center text-sm text-[var(--muted)]">
+        Загружаем 3D…
+      </div>
+    ),
+  },
+);
+
+const DOOR_ANIMATION_MS = 700;
 const FALLBACK_COLOR = [214, 206, 192];
 const BACK_COLOR = [198, 170, 132];
 const sizeFormatter = new Intl.NumberFormat("ru-RU", {
@@ -222,6 +237,24 @@ export function FurnitureConstructor({
   const [bodyId, setBodyId] = useState(defaultDecor?.id ?? "");
   const [facadeId, setFacadeId] = useState(defaultDecor?.id ?? "");
   const [doorsOpen, setDoorsOpen] = useState(false);
+  // Насколько открыты двери сейчас: плавно идёт к doorsOpen.
+  const [doorOpen, setDoorOpen] = useState(0);
+  const doorFrame = useRef(0);
+  const doorOpenNow = useRef(0);
+  useEffect(() => {
+    const target = doorsOpen ? 1 : 0;
+    const startedAt = performance.now();
+    const from = doorOpenNow.current;
+    const tick = (now: number) => {
+      const progress = Math.min(1, (now - startedAt) / DOOR_ANIMATION_MS);
+      const eased = 1 - (1 - progress) ** 3;
+      doorOpenNow.current = from + (target - from) * eased;
+      setDoorOpen(doorOpenNow.current);
+      if (progress < 1) doorFrame.current = requestAnimationFrame(tick);
+    };
+    doorFrame.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(doorFrame.current);
+  }, [doorsOpen]);
   const [error, setError] = useState("");
 
   const bodyDecor = decors.find((decor) => decor.id === bodyId);
@@ -239,18 +272,24 @@ export function FurnitureConstructor({
   const boxes = useMemo(
     () =>
       buildCabinetModel(spec, thickness, result, {
-        doorsOpen,
+        doorOpen,
         bodyMaterial: bodyDecor?.label ?? `ЛДСП ${thickness} мм`,
         facadeMaterial: facadeDecor?.label ?? `ЛДСП ${thickness} мм`,
       }),
-    [spec, thickness, result, doorsOpen, bodyDecor, facadeDecor],
+    [spec, thickness, result, doorOpen, bodyDecor, facadeDecor],
   );
-  const toneColors = useMemo(() => {
-    const colors: number[][] = [];
-    colors[TONE_BODY] = decorColor(bodyDecor);
-    colors[TONE_FACADE] = decorColor(facadeDecor);
-    colors[TONE_BACK] = BACK_COLOR;
-    return colors;
+  const tones = useMemo(() => {
+    const list: SceneTone[] = [];
+    list[TONE_BODY] = {
+      color: decorColor(bodyDecor),
+      imageUrl: bodyDecor?.imageUrl,
+    };
+    list[TONE_FACADE] = {
+      color: decorColor(facadeDecor),
+      imageUrl: facadeDecor?.imageUrl,
+    };
+    list[TONE_BACK] = { color: BACK_COLOR };
+    return list;
   }, [bodyDecor, facadeDecor]);
   const fittings = useMemo(() => countCabinetFittings(result), [result]);
   const holes = result.parts.reduce(
@@ -312,10 +351,18 @@ export function FurnitureConstructor({
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(360px,1fr)]">
       <div className="min-w-0 lg:sticky lg:top-24 lg:self-start">
         <div className="overflow-hidden rounded-2xl border border-[color:var(--line)] bg-[var(--surface-strong)]">
-          <BazisViewer
+          <FurnitureScene
             boxes={boxes}
-            toneColors={toneColors}
-            heightClassName="h-[56vh] min-h-80 lg:h-[72vh]"
+            tones={tones}
+            handleTone={TONE_FACADE}
+            handlePlacement={
+              spec.kind === "wall"
+                ? "bottom"
+                : spec.kind === "base"
+                  ? "top"
+                  : "middle"
+            }
+            className="h-[56vh] min-h-80 lg:h-[72vh]"
           />
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2">

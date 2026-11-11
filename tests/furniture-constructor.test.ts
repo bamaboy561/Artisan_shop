@@ -17,7 +17,7 @@ const wardrobe = {
   ...CABINET_KINDS.wardrobe.defaults,
 };
 const options = {
-  doorsOpen: false,
+  doorOpen: 0,
   bodyMaterial: "Белый",
   facadeMaterial: "Дуб",
 };
@@ -64,7 +64,7 @@ test("open doors swing out to the front", () => {
   const result = buildCabinet(wardrobe, 16);
   const closed = bounds(buildCabinetModel(wardrobe, 16, result, options));
   const open = bounds(
-    buildCabinetModel(wardrobe, 16, result, { ...options, doorsOpen: true }),
+    buildCabinetModel(wardrobe, 16, result, { ...options, doorOpen: 1 }),
   );
   assert.ok(open.max[2] > closed.max[2] + 300);
 });
