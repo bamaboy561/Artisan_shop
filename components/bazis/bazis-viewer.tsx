@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Maximize2, Minimize2, Minus, Plus, RotateCcw } from "lucide-react";
 
 import type { BazisHole } from "@/lib/bazis-b3d";
 
@@ -90,7 +91,27 @@ const TAP_SLOP = 6;
 // Инерция поворота: за кадр скорость падает на столько, остановка ниже порога.
 const SPIN_DECAY = 0.93;
 const SPIN_STOP = 0.0004;
-const DEFAULT_VIEW = { yaw: -0.5, pitch: 0.3, zoom: 1 };
+// panX / panY — сдвиг изделия на экране в пикселях (правая кнопка мыши,
+// Shift или два пальца).
+const DEFAULT_VIEW = { yaw: -0.5, pitch: 0.3, zoom: 1, panX: 0, panY: 0 };
+type ViewState = typeof DEFAULT_VIEW;
+const MIN_ZOOM = 0.3;
+const MAX_ZOOM = 40;
+const DOUBLE_TAP_MS = 320;
+
+// Масштаб в factor раз так, чтобы точка (x, y) от центра окна осталась на
+// месте: под курсором, между пальцами.
+function zoomAround(view: ViewState, factor: number, x: number, y: number) {
+  const zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, view.zoom * factor));
+  const applied = zoom / view.zoom;
+
+  return {
+    ...view,
+    zoom,
+    panX: x * (1 - applied) + view.panX * applied,
+    panY: y * (1 - applied) + view.panY * applied,
+  };
+}
 
 const numberFormatter = new Intl.NumberFormat("ru-RU", {
   maximumFractionDigits: 1,
@@ -581,7 +602,11 @@ export function BazisViewer({
   defaultExploded?: boolean;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [view, setView] = useState(DEFAULT_VIEW);
+  const [view, setView] = useState<ViewState>(DEFAULT_VIEW);
+  // Окно на весь экран (своим слоем: Fullscreen API нет в Safari на iPhone).
+  const [expanded, setExpanded] = useState(false);
+  const panning = useRef(false);
+  const lastTap = useRef<{ at: number; x: number; y: number } | null>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const scene = useMemo(() => buildScene(boxes, joints), [boxes, joints]);
@@ -1048,6 +1073,67 @@ export function BazisViewer({
     };
   }, [animationKey, focused, showing]);
 
+  // Колесо мыши: свой обработчик с passive: false, иначе страница
+  // прокручивается вместе с приближением. Приближаем к точке под курсором.
+  const stopForWheel = useRef(() => {});
+  useEffect(() => {
+    stopForWheel.current = () => {
+      stopAnimation();
+      stopSpin();
+    };
+  });
+  useEffect(() => {
+    const canvas = canvasRef.current;
+
+    if (!canvas) {
+      return;
+    }
+
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      stopForWheel.current();
+      const rect = canvas.getBoundingClientRect();
+      // Тачпад присылает мелкие шаги: масштаб плавно по величине прокрутки.
+      const factor = Math.exp(
+        -Math.max(-120, Math.min(120, event.deltaY)) / 600,
+      );
+
+      setView((current) =>
+        zoomAround(
+          current,
+          factor,
+          event.clientX - rect.left - rect.width / 2,
+          event.clientY - rect.top - rect.height / 2,
+        ),
+      );
+    };
+
+    canvas.addEventListener("wheel", onWheel, { passive: false });
+    return () => canvas.removeEventListener("wheel", onWheel);
+  }, []);
+
+  // Во весь экран: Esc сворачивает, страница под окном не прокручивается.
+  useEffect(() => {
+    if (!expanded) {
+      return;
+    }
+
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setExpanded(false);
+      }
+    };
+    const overflow = document.body.style.overflow;
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKey);
+
+    return () => {
+      document.body.style.overflow = overflow;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [expanded]);
+
   useEffect(() => {
     const canvas = canvasRef.current;
 
@@ -1159,8 +1245,8 @@ export function BazisViewer({
         )) *
       shown.zoom;
     const toScreen = (point: number[]) => [
-      width / 2 + point[0] * scale,
-      size.height / 2 - point[1] * scale,
+      width / 2 + view.panX + point[0] * scale,
+      size.height / 2 + view.panY - point[1] * scale,
     ];
     const light = [0.35, 0.55, 0.76];
     const stepOrder = new Map<number, number>();
@@ -1669,9 +1755,31 @@ export function BazisViewer({
   const buttonClassName =
     "border border-[color:var(--line)] bg-[var(--surface-strong)] px-3 py-1.5 text-xs font-medium text-[var(--foreground)] transition hover:border-[color:var(--line-strong)] disabled:cursor-default disabled:opacity-40 disabled:hover:border-[color:var(--line)]";
 
+  // Кнопки масштаба поверх окна макета.
+  const zoomBy = (factor: number) => {
+    stopAnimation();
+    stopSpin();
+    setView((current) => zoomAround(current, factor, 0, 0));
+  };
+  const overlayButtonClassName =
+    "flex size-10 items-center justify-center rounded-full border border-[color:var(--line)] bg-[var(--surface-strong)]/95 text-[var(--foreground)] shadow-sm transition hover:border-[color:var(--line-strong)] sm:size-9";
+  const canvasCenter = () => {
+    const rect = canvasRef.current?.getBoundingClientRect();
+    return rect
+      ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
+      : { x: 0, y: 0 };
+  };
+
   return (
-    <div className="grid gap-2">
-      <div className="flex flex-wrap items-center gap-2">
+    <div
+      className={
+        expanded
+          ? "fixed inset-0 z-[85] flex flex-col gap-2 bg-[var(--surface-strong)] p-2 sm:p-4"
+          : "grid gap-2"
+      }
+    >
+      {/* На телефоне кнопки в одну строку с прокруткой, а не в 3–4 ряда. */}
+      <div className="-mx-1 flex items-center gap-2 overflow-x-auto px-1 pb-0.5 whitespace-nowrap [scrollbar-width:none] sm:flex-wrap sm:overflow-visible">
         {views.map((item) => (
           <button
             key={item.label}
@@ -1680,39 +1788,13 @@ export function BazisViewer({
               stopAnimation();
               stopSpin();
               setFocused(false);
-              setView({ yaw: item.yaw, pitch: item.pitch, zoom: 1 });
+              setView({ ...DEFAULT_VIEW, yaw: item.yaw, pitch: item.pitch });
             }}
             className={buttonClassName}
           >
             {item.label}
           </button>
         ))}
-        <button
-          type="button"
-          onClick={() =>
-            setView((current) => ({ ...current, zoom: current.zoom * 1.3 }))
-          }
-          aria-label="Приблизить"
-          className={buttonClassName}
-        >
-          +
-        </button>
-        <button
-          type="button"
-          onClick={() =>
-            setView((current) => ({
-              ...current,
-              zoom: Math.max(0.3, current.zoom / 1.3),
-            }))
-          }
-          aria-label="Отдалить"
-          className={buttonClassName}
-        >
-          −
-        </button>
-        <button type="button" onClick={resetView} className={buttonClassName}>
-          Сбросить вид
-        </button>
         <button
           type="button"
           onClick={() => animateExplode(explode > 0.5 ? 0 : 1)}
@@ -1735,7 +1817,7 @@ export function BazisViewer({
         >
           {step === null ? "Сборка по шагам" : "Выйти из сборки по шагам"}
         </button>
-        <label className="flex min-w-48 flex-1 items-center gap-2 text-xs text-[var(--muted)] sm:max-w-72">
+        <label className="flex min-w-44 shrink-0 items-center gap-2 text-xs text-[var(--muted)] sm:max-w-72 sm:min-w-48 sm:flex-1 sm:shrink">
           <span className="whitespace-nowrap">Разнести детали</span>
           <input
             type="range"
@@ -1813,15 +1895,26 @@ export function BazisViewer({
           </button>
         </div>
       ) : null}
-      <div className="relative grid gap-2">
+      <div
+        className={expanded ? "relative min-h-0 flex-1" : "relative grid gap-2"}
+      >
         <canvas
           ref={canvasRef}
           role="img"
-          aria-label="Объёмный вид проекта. Поворачивайте мышью или пальцем."
-          className={`${heightClassName} w-full cursor-grab touch-none border border-[color:var(--line)] bg-[#f6f4f0] active:cursor-grabbing`}
+          aria-label="Объёмный вид проекта. Вращайте мышью или пальцем, двигайте правой кнопкой или двумя пальцами."
+          className={`${expanded ? "h-full" : heightClassName} w-full cursor-grab touch-none border border-[color:var(--line)] bg-[#f6f4f0] active:cursor-grabbing`}
+          onContextMenu={(event) => event.preventDefault()}
           onPointerDown={(event) => {
             stopAnimation();
             stopSpin();
+            // Правая или средняя кнопка мыши, или Shift — сдвиг, а не поворот.
+            if (
+              pointers.current.size === 0 &&
+              event.pointerType === "mouse" &&
+              (event.button === 1 || event.button === 2 || event.shiftKey)
+            ) {
+              panning.current = true;
+            }
             tapStart.current =
               pointers.current.size === 0
                 ? { x: event.clientX, y: event.clientY }
@@ -1864,23 +1957,39 @@ export function BazisViewer({
                 ([id]) => id !== event.pointerId,
               )?.[1];
 
+              // Два пальца: щипок приближает к точке между пальцами,
+              // движение обоих пальцев сдвигает изделие.
+              panning.current = true;
+
               if (other) {
                 const before = Math.hypot(
                   previous.x - other.x,
                   previous.y - other.y,
                 );
                 const after = Math.hypot(next.x - other.x, next.y - other.y);
+                const center = canvasCenter();
+                const midX = (next.x + other.x) / 2 - center.x;
+                const midY = (next.y + other.y) / 2 - center.y;
 
-                if (before > 0) {
-                  setView((current) => ({
-                    ...current,
-                    zoom: Math.min(
-                      40,
-                      Math.max(0.3, current.zoom * (after / before)),
-                    ),
-                  }));
-                }
+                setView((current) => {
+                  const zoomed =
+                    before > 0
+                      ? zoomAround(current, after / before, midX, midY)
+                      : current;
+
+                  return {
+                    ...zoomed,
+                    panX: zoomed.panX + (next.x - previous.x) / 2,
+                    panY: zoomed.panY + (next.y - previous.y) / 2,
+                  };
+                });
               }
+            } else if (panning.current) {
+              setView((current) => ({
+                ...current,
+                panX: current.panX + next.x - previous.x,
+                panY: current.panY + next.y - previous.y,
+              }));
             } else {
               const yaw = (next.x - previous.x) * 0.008;
               const pitch = (next.y - previous.y) * 0.008;
@@ -1900,10 +2009,51 @@ export function BazisViewer({
           }}
           onPointerUp={(event) => {
             pointers.current.delete(event.pointerId);
+            const wasPanning = panning.current;
 
-            // Нажатие без поворота выбирает деталь, нажатие мимо — снимает выбор.
-            if (tapStart.current) {
+            if (pointers.current.size === 0) {
+              panning.current = false;
+            }
+
+            const now = performance.now();
+            const previousTap = lastTap.current;
+            const doubleTap =
+              tapStart.current !== null &&
+              previousTap !== null &&
+              now - previousTap.at < DOUBLE_TAP_MS &&
+              Math.hypot(
+                event.clientX - previousTap.x,
+                event.clientY - previousTap.y,
+              ) < 30;
+
+            if (doubleTap) {
+              // Двойное нажатие: приближаем в 2 раза к этому месту, деталь
+              // под пальцем остаётся выбранной.
+              const center = canvasCenter();
               const box = boxAt(event.clientX, event.clientY);
+
+              lastTap.current = null;
+              tapStart.current = null;
+              setView((current) =>
+                zoomAround(
+                  current,
+                  2,
+                  event.clientX - center.x,
+                  event.clientY - center.y,
+                ),
+              );
+              if (step === null && box !== null) {
+                setSelected(box);
+              }
+            } else if (tapStart.current) {
+              // Нажатие без поворота выбирает деталь, нажатие мимо — снимает выбор.
+              const box = boxAt(event.clientX, event.clientY);
+
+              lastTap.current = {
+                at: now,
+                x: event.clientX,
+                y: event.clientY,
+              };
 
               if (step !== null) {
                 // В пошаговой сборке нажатие на поставленную деталь
@@ -1916,30 +2066,66 @@ export function BazisViewer({
               }
 
               tapStart.current = null;
-            } else if (pointers.current.size === 0) {
+            } else if (pointers.current.size === 0 && !wasPanning) {
               startSpin();
             }
           }}
           onPointerCancel={(event) => {
             pointers.current.delete(event.pointerId);
             tapStart.current = null;
+            if (pointers.current.size === 0) {
+              panning.current = false;
+            }
           }}
           onPointerLeave={() => setHovered(null)}
-          onWheel={(event) => {
-            stopAnimation();
-            const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
-
-            setView((current) => ({
-              ...current,
-              zoom: Math.min(40, Math.max(0.3, current.zoom * factor)),
-            }));
-          }}
           style={{ cursor: hovered !== null ? "pointer" : undefined }}
         />
+        <div className="absolute bottom-2 left-2 flex gap-1.5">
+          <button
+            type="button"
+            onClick={() => zoomBy(1.4)}
+            aria-label="Приблизить"
+            title="Приблизить"
+            className={overlayButtonClassName}
+          >
+            <Plus className="size-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => zoomBy(1 / 1.4)}
+            aria-label="Отдалить"
+            title="Отдалить"
+            className={overlayButtonClassName}
+          >
+            <Minus className="size-4" />
+          </button>
+          <button
+            type="button"
+            onClick={resetView}
+            aria-label="Сбросить вид"
+            title="Сбросить вид: весь макет по центру"
+            className={overlayButtonClassName}
+          >
+            <RotateCcw className="size-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setExpanded((current) => !current)}
+            aria-label={expanded ? "Свернуть" : "Во весь экран"}
+            title={expanded ? "Свернуть (Esc)" : "Во весь экран"}
+            className={overlayButtonClassName}
+          >
+            {expanded ? (
+              <Minimize2 className="size-4" />
+            ) : (
+              <Maximize2 className="size-4" />
+            )}
+          </button>
+        </div>
         {selectedBox !== null ? (
           <aside
             aria-live="polite"
-            className="grid gap-2 border border-[color:var(--line)] bg-[var(--surface-strong)]/95 p-3 text-sm shadow-sm sm:absolute sm:top-3 sm:right-3 sm:w-80"
+            className={`grid gap-2 border border-[color:var(--line)] bg-[var(--surface-strong)]/95 p-3 text-sm shadow-sm sm:absolute sm:top-3 sm:right-3 sm:w-80 ${expanded ? "absolute top-2 right-2 left-2 max-h-[45%] overflow-y-auto sm:left-auto" : ""}`}
           >
             <div className="flex items-start justify-between gap-3">
               <p className="font-semibold break-words text-[var(--foreground)]">
@@ -1993,8 +2179,17 @@ export function BazisViewer({
           </aside>
         ) : null}
       </div>
-      <p className="text-xs text-[var(--muted)]">
-        Поворачивайте мышью или пальцем, приближайте колесом или двумя пальцами.
+      <p
+        className={`text-xs leading-5 text-[var(--muted)] ${expanded ? "hidden sm:block" : ""}`}
+      >
+        <span className="hidden sm:inline">
+          Вращать — левой кнопкой мыши, двигать — правой кнопкой или с Shift,
+          приближать — колесом или двойным щелчком.
+        </span>
+        <span className="sm:hidden">
+          Вращать — одним пальцем, двигать и приближать — двумя пальцами,
+          двойное нажатие — приблизить.
+        </span>{" "}
         Нажмите на деталь, чтобы увидеть её размер, материал, присадку и место в
         изделии. Показаны детали из плитных материалов; фурнитура и профили не
         рисуются.
