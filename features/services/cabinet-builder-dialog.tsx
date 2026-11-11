@@ -14,14 +14,14 @@ import {
 } from "./cabinet-builder";
 import { hardwareHoles } from "./drilling-hardware";
 
-const inputClass =
+export const inputClass =
   "h-10 w-full min-w-0 rounded-lg border border-[color:var(--line)] bg-[var(--surface-strong)] px-2.5 text-[14px] text-[var(--foreground)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/15";
 
 const sizeFormatter = new Intl.NumberFormat("ru-RU", {
   maximumFractionDigits: 1,
 });
 
-function Field({
+export function Field({
   label,
   value,
   onChange,

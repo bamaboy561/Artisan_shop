@@ -128,6 +128,7 @@ export function StorefrontHeader({
             ))}
             <Link href="/brands">Бренды</Link>
             <Link href="/calculator">Распил и услуги</Link>
+            <Link href="/konstruktor">Конструктор мебели</Link>
             <a href={`tel:${companyContacts.phoneTel}`} className={s.phone}>
               {companyContacts.phone}
             </a>
