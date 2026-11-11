@@ -60,6 +60,7 @@ async function readCurrentExtrasPrice(db: PricingDb) {
     drilling: prices.drilling,
     milling: prices.milling,
     bevel: prices.bevel,
+    groove: prices.groove,
   };
 }
 

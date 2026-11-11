@@ -15,6 +15,8 @@ export type CuttingExtras = {
   drilling: Record<string, number>;
   curveMeters: number;
   bevelMeters: number;
+  // Пазы в пласти; в старых заявках поля нет.
+  grooveMeters?: number;
   // Откуда взяты данные: калькулятор, проект Базиса или менеджер.
   source: "calculator" | "bazis" | "manager";
 };
@@ -24,6 +26,7 @@ export type CuttingExtrasPrice = {
   drilling: Record<number, number>;
   milling: number;
   bevel: number;
+  groove: number;
 };
 
 export type CuttingQuotePrice = CuttingLaborPrice & CuttingExtrasPrice;
@@ -92,12 +95,20 @@ export function parseCuttingExtras(value: unknown): CuttingExtras | null {
 
   const curveMeters = validMeters(raw.curveMeters ?? 0);
   const bevelMeters = validMeters(raw.bevelMeters ?? 0);
-  if (curveMeters === null || bevelMeters === null) return null;
+  const grooveMeters = validMeters(raw.grooveMeters ?? 0);
+  if (curveMeters === null || bevelMeters === null || grooveMeters === null)
+    return null;
   const source = sources.has(raw.source as CuttingExtras["source"])
     ? (raw.source as CuttingExtras["source"])
     : "manager";
 
-  return { drilling, curveMeters, bevelMeters, source };
+  return {
+    drilling,
+    curveMeters,
+    bevelMeters,
+    ...(grooveMeters > 0 ? { grooveMeters } : {}),
+    source,
+  };
 }
 
 export function hasCuttingExtras(extras: CuttingExtras | null | undefined) {
@@ -105,7 +116,8 @@ export function hasCuttingExtras(extras: CuttingExtras | null | undefined) {
     extras &&
     (Object.keys(extras.drilling).length > 0 ||
       extras.curveMeters > 0 ||
-      extras.bevelMeters > 0),
+      extras.bevelMeters > 0 ||
+      (extras.grooveMeters ?? 0) > 0),
   );
 }
 
@@ -136,6 +148,7 @@ export function parseCuttingExtrasPrice(
     drilling: rawDrilling ? drilling : { ...fallback.drilling },
     milling: isValidSitePrice(raw.milling) ? raw.milling : fallback.milling,
     bevel: isValidSitePrice(raw.bevel) ? raw.bevel : fallback.bevel,
+    groove: isValidSitePrice(raw.groove) ? raw.groove : fallback.groove,
   };
 }
 
@@ -240,6 +253,7 @@ export function buildCuttingQuote(
       price.milling,
     ],
     ["bevel", "Пропил под углом", extras?.bevelMeters ?? 0, price.bevel],
+    ["groove", "Паз в пласти", extras?.grooveMeters ?? 0, price.groove],
   ];
   for (const [key, label, meters, rate] of milling) {
     if (!(meters > 0)) continue;
@@ -297,13 +311,20 @@ export function cuttingExtrasFromForm(
   };
   const curveMeters = meters("curveMeters");
   const bevelMeters = meters("bevelMeters");
-  if (curveMeters === null || bevelMeters === null)
+  const grooveMeters = meters("grooveMeters");
+  if (curveMeters === null || bevelMeters === null || grooveMeters === null)
     return { ok: false, message: "Проверьте метры фрезеровки." };
 
   return {
     ok: true,
     extras: touched
-      ? { drilling, curveMeters, bevelMeters, source: "manager" }
+      ? {
+          drilling,
+          curveMeters,
+          bevelMeters,
+          ...(grooveMeters > 0 ? { grooveMeters } : {}),
+          source: "manager",
+        }
       : null,
   };
 }

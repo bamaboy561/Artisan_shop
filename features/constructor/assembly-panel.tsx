@@ -191,7 +191,7 @@ export function FittingsPanel({
               <span className="text-[var(--muted)]">{line.note}</span>
             </span>
             <span className="text-right font-semibold tabular-nums">
-              {line.count} шт.
+              {line.count} {line.unit ?? "шт."}
             </span>
             {bundled ? (
               <span className="col-span-2 text-[12px] text-[var(--muted)]">
@@ -301,7 +301,7 @@ export function AssemblyStepCard({
             <li key={item.label} className="flex justify-between gap-3">
               <span>{item.label}</span>
               <span className="font-semibold tabular-nums">
-                {item.count} шт.
+                {item.count} {item.unit ?? "шт."}
               </span>
             </li>
           ))}
@@ -363,7 +363,7 @@ export function instructionHtml({
   const fittingRows = fittings
     .map(
       (line) =>
-        `<tr><td>${escape(line.label)} <span class="m">${escape(line.note)}</span></td><td class="n">${line.count} шт.</td></tr>`,
+        `<tr><td>${escape(line.label)} <span class="m">${escape(line.note)}</span></td><td class="n">${line.count} ${line.unit ?? "шт."}</td></tr>`,
     )
     .join("");
   const partRows = parts
@@ -376,7 +376,7 @@ export function instructionHtml({
     .map((step, index) => {
       const image = images[index] ? `<img src="${images[index]}" alt="">` : "";
       const list = step.fittings.length
-        ? `<ul>${step.fittings.map((item) => `<li>${escape(item.label)} — <b>${item.count} шт.</b></li>`).join("")}</ul>`
+        ? `<ul>${step.fittings.map((item) => `<li>${escape(item.label)} — <b>${item.count} ${item.unit ?? "шт."}</b></li>`).join("")}</ul>`
         : "";
       return `<section class="step">${image}<div><h3>Шаг ${index + 1}. ${escape(step.title)}</h3><p>${escape(step.text)}</p>${list}</div></section>`;
     })

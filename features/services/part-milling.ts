@@ -8,12 +8,25 @@ import type { PartSide } from "./drilling-hardware";
 
 export type PartCorner = "topLeft" | "topRight" | "bottomRight" | "bottomLeft";
 
+// Паз в лицевой пласти на всю длину стороны side: под LED-профиль,
+// заднюю стенку и т. п. indent — от края side до ближней стенки паза.
+export type PartGroove = {
+  side: PartSide;
+  indent: number;
+  width: number;
+  depth: number;
+};
+
 export type PartMilling = {
   // Радиус скругления угла, мм; 0 — угол прямой.
   corners: Record<PartCorner, number>;
   // Скос торца, градусы; 0 — без скоса.
   bevels: Record<PartSide, number>;
+  grooves?: PartGroove[];
 };
+
+// Паз под LED-профиль 10 × 10 мм.
+export const LED_GROOVE = { width: 10, depth: 10 };
 
 export const CORNERS: PartCorner[] = [
   "topLeft",
@@ -42,7 +55,8 @@ export function hasMilling(milling: PartMilling | undefined) {
   return Boolean(
     milling &&
     (Object.values(milling.corners).some((radius) => radius > 0) ||
-      Object.values(milling.bevels).some((angle) => angle > 0)),
+      Object.values(milling.bevels).some((angle) => angle > 0) ||
+      (milling.grooves?.length ?? 0) > 0),
   );
 }
 
@@ -76,6 +90,26 @@ export function sanitizeMilling(value: unknown): PartMilling | undefined {
     const angle = number(raw.bevels?.[side]);
     milling.bevels[side] = BEVEL_ANGLES.includes(angle) ? angle : 0;
   }
+  const rawGrooves = (value as { grooves?: unknown }).grooves;
+  const grooves = Array.isArray(rawGrooves)
+    ? rawGrooves.slice(0, 20).flatMap((item): PartGroove[] => {
+        if (!item || typeof item !== "object") return [];
+        const raw = item as Record<string, unknown>;
+        const side = raw.side as PartSide;
+        if (!["top", "right", "bottom", "left"].includes(side)) return [];
+        const width = Math.min(number(raw.width), 100);
+        const depth = Math.min(number(raw.depth), 50);
+        if (!(width > 0 && depth > 0)) return [];
+        const indent =
+          typeof raw.indent === "number" &&
+          Number.isFinite(raw.indent) &&
+          raw.indent >= 0
+            ? Math.min(raw.indent, 5000)
+            : 0;
+        return [{ side, indent, width, depth }];
+      })
+    : [];
+  if (grooves.length > 0) milling.grooves = grooves;
   return hasMilling(milling) ? milling : undefined;
 }
 
@@ -101,6 +135,12 @@ export function rotateMilling(milling: PartMilling): PartMilling {
   }
   for (const side of Object.keys(milling.bevels) as PartSide[]) {
     rotated.bevels[ROTATED_SIDE[side]] = milling.bevels[side];
+  }
+  if (milling.grooves?.length) {
+    rotated.grooves = milling.grooves.map((groove) => ({
+      ...groove,
+      side: ROTATED_SIDE[groove.side],
+    }));
   }
   return rotated;
 }
@@ -180,7 +220,7 @@ export function contourMillingProgram(
     holes: [],
     panels: [
       {
-        // Пазов у детали калькулятора нет.
+        // Пазы калькулятора идут своей программой: grooveMillingProgram.
         cuts: [],
         name: "Деталь",
         artPos: "",
@@ -197,6 +237,71 @@ export function contourMillingProgram(
   });
   const match = project.match(/typeId="XNC"[^>]*?program="([^"]*)"/);
   return match ? decodeAttribute(match[1]) : null;
+}
+
+const GROOVE_EDGE: Record<PartSide, string> = {
+  top: "верхнего",
+  right: "правого",
+  bottom: "нижнего",
+  left: "левого",
+};
+
+// Паз на детали length × width: прямоугольник в координатах детали
+// (x вдоль длины, y вдоль ширины) и ось, по которой идёт фреза.
+export function grooveRect(groove: PartGroove, length: number, width: number) {
+  const along = groove.side === "top" || groove.side === "bottom";
+  const across = along ? width : length;
+  const near = Math.max(0, Math.min(groove.indent, across - groove.width));
+  // Отступ от стороны top/right считается от дальнего края.
+  const start =
+    groove.side === "top" || groove.side === "right"
+      ? across - near - groove.width
+      : near;
+  return along
+    ? { x: 0, y: start, w: length, h: groove.width, along }
+    : { x: start, y: 0, w: groove.width, h: width, along };
+}
+
+const fixed = (value: number) => String(Math.round(value * 100) / 100);
+
+// Программа пазов для GibLab: фреза диаметром в ширину паза идёт по оси
+// паза с края до края детали, без коррекции (c="0"). Паз шире фрезы
+// Ø10 проходится несколькими проходами.
+export function grooveMillingProgram(
+  length: number,
+  width: number,
+  thickness: number,
+  milling: PartMilling | undefined,
+) {
+  const grooves = milling?.grooves ?? [];
+  if (grooves.length === 0) return null;
+  const tools = new Map<string, number>();
+  let body = "";
+  for (const groove of grooves) {
+    const rect = grooveRect(groove, length, width);
+    const tool = Math.min(groove.width, 10);
+    const name = `Mill${fixed(tool)}`;
+    tools.set(name, tool);
+    const depth = Math.min(groove.depth, thickness - 2);
+    const passes = Math.max(1, Math.ceil(groove.width / tool - 1e-6));
+    for (let pass = 0; pass < passes; pass += 1) {
+      // Центры проходов: от края паза + радиус до другого края − радиус.
+      const span = (rect.along ? rect.h : rect.w) - tool;
+      const offset =
+        tool / 2 + (passes === 1 ? span / 2 : (span * pass) / (passes - 1));
+      if (rect.along) {
+        const y = rect.y + offset;
+        body += `<ms x="0" y="${fixed(y)}" dp="${fixed(depth)}" name="${name}" c="0"/><ml x="${fixed(length)}" y="${fixed(y)}"/>`;
+      } else {
+        const x = rect.x + offset;
+        body += `<ms x="${fixed(x)}" y="0" dp="${fixed(depth)}" name="${name}" c="0"/><ml x="${fixed(x)}" y="${fixed(width)}"/>`;
+      }
+    }
+  }
+  const toolXml = [...tools.entries()]
+    .map(([name, d]) => `<tool name="${name}" d="${fixed(d)}" />`)
+    .join("");
+  return `<?xml version="1.0" encoding="UTF-8"?><program dx="${length.toFixed(2)}" dy="${width.toFixed(2)}" dz="${thickness.toFixed(2)}">${toolXml}${body}</program>`;
 }
 
 // Сводит присадку и фрезеровку в одну программу станка: инструменты,
@@ -230,7 +335,8 @@ export function millingMeters(
   width: number,
   milling: PartMilling | undefined,
 ) {
-  if (!milling || !(length > 0 && width > 0)) return { curve: 0, bevel: 0 };
+  if (!milling || !(length > 0 && width > 0))
+    return { curve: 0, bevel: 0, groove: 0 };
   const curve = CORNERS.reduce(
     (sum, corner) =>
       sum + (Math.PI * cornerRadius(milling, corner, length, width)) / 2,
@@ -243,7 +349,12 @@ export function millingMeters(
         : sum,
     0,
   );
-  return { curve: curve / 1000, bevel: bevel / 1000 };
+  const groove = (milling.grooves ?? []).reduce(
+    (sum, item) =>
+      sum + (item.side === "top" || item.side === "bottom" ? length : width),
+    0,
+  );
+  return { curve: curve / 1000, bevel: bevel / 1000, groove: groove / 1000 };
 }
 
 export function describeMilling(milling: PartMilling | undefined) {
@@ -264,5 +375,9 @@ export function describeMilling(milling: PartMilling | undefined) {
       (side) =>
         `скос ${String(milling.bevels[side]).replace(".", ",")}° ${sideNames[side]}`,
     );
-  return [...corners, ...bevels].join(", ");
+  const grooves = (milling.grooves ?? []).map(
+    (groove) =>
+      `паз ${fixed(groove.width).replace(".", ",")}×${fixed(groove.depth).replace(".", ",")} в ${fixed(groove.indent).replace(".", ",")} мм от ${GROOVE_EDGE[groove.side]} края`,
+  );
+  return [...corners, ...bevels, ...grooves].join(", ");
 }

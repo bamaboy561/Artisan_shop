@@ -5,6 +5,7 @@ import {
   buildCabinetModel,
   TONE_BACK,
   TONE_FACADE,
+  TONE_LED,
 } from "../features/constructor/cabinet-model";
 import {
   CABINET_KINDS,
@@ -208,4 +209,46 @@ test("deep cabinet gets three confirmats per joint", () => {
     ]),
   );
   assert.equal(fittings.confirmat, 14);
+});
+
+test("LED in the sides: grooves behind hinge plates, profile in metres", () => {
+  const spec = { ...wardrobe, led: "sides" as const };
+  const result = buildCabinet(spec, 16);
+  const sides = result.parts.filter((part) => /боковина/.test(part.title));
+  for (const side of sides) {
+    assert.deepEqual(side.milling?.grooves, [
+      { side: "top", indent: 70, width: 10, depth: 10 },
+    ]);
+  }
+  assert.equal(
+    result.parts.some((part) => /полка/.test(part.title) && part.milling),
+    false,
+  );
+  const lines = cabinetFittings(spec, result, 16);
+  const byKey = Object.fromEntries(lines.map((line) => [line.key, line]));
+  // Два паза по 2100 мм — 5 м профиля и ленты.
+  assert.equal(byKey.ledProfile.count, 5);
+  assert.equal(byKey.ledProfile.unit, "м");
+  assert.equal(byKey.ledStrip.count, 5);
+  const steps = cabinetAssembly(spec, result, lines);
+  assert.ok(steps.some((step) => step.added.includes("подсветка")));
+  const glow = buildCabinetModel(spec, 16, result, options).filter(
+    (box) => box.tone === TONE_LED,
+  );
+  assert.equal(glow.length, 2);
+});
+
+test("LED under shelves: groove on every shelf, none without doors in sides", () => {
+  const spec = { ...wardrobe, led: "shelves" as const, doors: 0 as const };
+  const result = buildCabinet(spec, 16);
+  const shelf = result.parts.find((part) => /полка/.test(part.title))!;
+  assert.deepEqual(shelf.milling?.grooves, [
+    { side: "top", indent: 30, width: 10, depth: 10 },
+  ]);
+  const glow = buildCabinetModel(spec, 16, result, options).filter(
+    (box) => box.tone === TONE_LED,
+  );
+  assert.equal(glow.length, spec.shelves);
+  const noDoors = buildCabinet({ ...spec, led: "sides" }, 16);
+  assert.equal(noDoors.parts[0].milling?.grooves?.[0].indent, 20);
 });

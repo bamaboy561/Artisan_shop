@@ -16,7 +16,9 @@ export type FittingKey =
   | "handle"
   | "handleScrew"
   | "backNail"
-  | "hanger";
+  | "hanger"
+  | "ledProfile"
+  | "ledStrip";
 
 export type FittingLine = {
   key: FittingKey;
@@ -24,6 +26,8 @@ export type FittingLine = {
   // Размер или уточнение: «8×30 мм».
   note: string;
   count: number;
+  // Единица: штуки или метры (профиль и лента).
+  unit?: "м";
   // Слова для поиска товара в каталоге фурнитуры.
   search: RegExp;
 };
@@ -32,7 +36,7 @@ const BACK_NAIL_STEP = 150; // мм между гвоздями задней с�
 
 const FITTING_INFO: Record<
   FittingKey,
-  { label: string; note: string; search: RegExp }
+  { label: string; note: string; search: RegExp; unit?: "м" }
 > = {
   minifix: {
     label: "Эксцентрик (минификс)",
@@ -88,6 +92,18 @@ const FITTING_INFO: Record<
     label: "Навес для навесного шкафа",
     note: "левый и правый",
     search: /навес|подвес/i,
+  },
+  ledProfile: {
+    label: "Профиль для LED-ленты",
+    note: "врезной 10×10 мм, с рассеивателем",
+    search: /профил\S*.*(led|светодиод)|(led|светодиод).*профил/i,
+    unit: "м",
+  },
+  ledStrip: {
+    label: "Светодиодная лента",
+    note: "шириной до 8 мм, плюс блок питания",
+    search: /(лент\S*.*(led|светодиод))|((led|светодиод).*лент)/i,
+    unit: "м",
   },
 };
 
@@ -146,6 +162,23 @@ export function cabinetFittings(
   }
   if (spec.kind === "wall") add("hanger", 2);
 
+  // Подсветка: длина пазов под профиль, с запасом до целого метра.
+  let ledLength = 0;
+  for (const part of result.parts) {
+    for (const groove of part.milling?.grooves ?? []) {
+      const along =
+        groove.side === "top" || groove.side === "bottom"
+          ? part.length
+          : part.width;
+      ledLength += along * part.quantity;
+    }
+  }
+  if (ledLength > 0) {
+    const meters = Math.ceil(ledLength / 1000);
+    add("ledProfile", meters);
+    add("ledStrip", meters);
+  }
+
   const order: FittingKey[] = [
     "confirmat",
     "minifix",
@@ -158,6 +191,8 @@ export function cabinetFittings(
     "handleScrew",
     "hanger",
     "backNail",
+    "ledProfile",
+    "ledStrip",
   ];
   return order
     .filter((key) => counts.has(key))
@@ -171,7 +206,7 @@ export type AssemblyStep = {
   // названию детали без имени шкафа: «боковина левая», «полка»…).
   shown: string[];
   added: string[];
-  fittings: Array<{ label: string; count: number }>;
+  fittings: Array<{ label: string; count: number; unit?: "м" }>;
   doorsOpen?: boolean;
 };
 
@@ -187,7 +222,15 @@ export function cabinetAssembly(
   const count = (key: FittingKey) =>
     fittings.find((line) => line.key === key)?.count ?? 0;
   const item = (key: FittingKey, value: number) =>
-    value > 0 ? [{ label: FITTING_INFO[key].label, count: value }] : [];
+    value > 0
+      ? [
+          {
+            label: FITTING_INFO[key].label,
+            count: value,
+            ...(FITTING_INFO[key].unit ? { unit: FITTING_INFO[key].unit } : {}),
+          },
+        ]
+      : [];
   const has = (kind: string) =>
     result.parts.some((part) => partKind(part.title) === kind);
   const hasPlinth = has("цоколь");
@@ -278,13 +321,34 @@ export function cabinetAssembly(
   if (shelves) {
     steps.push({
       title: "Поставьте полки",
-      text: `Поставьте корпус. Вставьте полкодержатели в отверстия Ø5 — по 4 на полку — и уложите ${shelves.quantity} ${shelves.quantity === 1 ? "полку" : shelves.quantity < 5 ? "полки" : "полок"}.`,
+      text: `Поставьте корпус. Вставьте полкодержатели в отверстия Ø5 — по 4 на полку — и уложите ${shelves.quantity} ${shelves.quantity === 1 ? "полку" : shelves.quantity < 5 ? "полки" : "полок"}${shelves.milling?.grooves?.length ? " пазом вниз" : ""}.`,
       shown: [...withBack, "полка"],
       added: ["полка"],
       fittings: item("shelfPin", count("shelfPin")),
     });
   }
-  const inside = [...withBack, ...(shelves ? ["полка"] : [])];
+  const led = spec.led ?? "none";
+  const hasLed = count("ledProfile") > 0;
+  const inside = [
+    ...withBack,
+    ...(shelves ? ["полка"] : []),
+    ...(hasLed ? ["подсветка"] : []),
+  ];
+  if (hasLed) {
+    steps.push({
+      title: "Поставьте подсветку",
+      text:
+        led === "shelves"
+          ? "Нарежьте профиль по длине полок, вклейте ленту и вставьте профиль в паз 10×10 у переднего края. Полки ставятся пазом вниз. Провода выведите назад к блоку питания."
+          : "Нарежьте профиль по высоте между дном и крышей, вклейте ленту и вставьте профиль в пазы 10×10 на боковинах. Провода выведите вверх к блоку питания.",
+      shown: inside,
+      added: ["подсветка"],
+      fittings: [
+        ...item("ledProfile", count("ledProfile")),
+        ...item("ledStrip", count("ledStrip")),
+      ],
+    });
+  }
   if (doors.length > 0) {
     const doorKinds = doors.map((door) => partKind(door.title));
     steps.push({
