@@ -568,6 +568,124 @@ function insidePolygon(x: number, y: number, polygon: number[][]) {
   return inside;
 }
 
+// Порядок рисования деталей «от дальней к ближней». Сортировка граней по
+// средней глубине ошибается на длинных деталях: полка просвечивала сквозь
+// боковину. Детали не пересекаются, поэтому две детали, которые на экране
+// накрывают друг друга, почти всегда разделены по одной из осей модели —
+// по ней и видно, какая ближе. Остальные пары — по средней глубине.
+type PaintFace = {
+  box: number;
+  depth: number;
+  points: number[][];
+  placed: number[][];
+};
+
+export function paintOrder(faces: PaintFace[], toViewer: number[]) {
+  type Bounds = {
+    box: number;
+    min: number[];
+    max: number[];
+    screenMin: number[];
+    screenMax: number[];
+    depth: number;
+    faces: number;
+  };
+  const byBox = new Map<number, Bounds>();
+  for (const face of faces) {
+    let item = byBox.get(face.box);
+    if (!item) {
+      item = {
+        box: face.box,
+        min: [Infinity, Infinity, Infinity],
+        max: [-Infinity, -Infinity, -Infinity],
+        screenMin: [Infinity, Infinity],
+        screenMax: [-Infinity, -Infinity],
+        depth: 0,
+        faces: 0,
+      };
+      byBox.set(face.box, item);
+    }
+    for (const point of face.placed) {
+      for (let axis = 0; axis < 3; axis += 1) {
+        item.min[axis] = Math.min(item.min[axis], point[axis]);
+        item.max[axis] = Math.max(item.max[axis], point[axis]);
+      }
+    }
+    for (const point of face.points) {
+      for (let axis = 0; axis < 2; axis += 1) {
+        item.screenMin[axis] = Math.min(item.screenMin[axis], point[axis]);
+        item.screenMax[axis] = Math.max(item.screenMax[axis], point[axis]);
+      }
+    }
+    item.depth += face.depth;
+    item.faces += 1;
+  }
+  const items = [...byBox.values()];
+  for (const item of items) item.depth /= item.faces;
+
+  // 1 — a ближе b, -1 — дальше, 0 — не понять по осям.
+  const compare = (a: Bounds, b: Bounds) => {
+    let best = 0;
+    let bestWeight = 0.05;
+    for (let axis = 0; axis < 3; axis += 1) {
+      const weight = Math.abs(toViewer[axis]);
+      if (weight <= bestWeight) continue;
+      const eps = 0.5;
+      if (a.min[axis] >= b.max[axis] - eps) {
+        best = toViewer[axis] > 0 ? 1 : -1;
+        bestWeight = weight;
+      } else if (a.max[axis] <= b.min[axis] + eps) {
+        best = toViewer[axis] > 0 ? -1 : 1;
+        bestWeight = weight;
+      }
+    }
+    return best;
+  };
+
+  // Ребро «far → near» для пар, которые накрывают друг друга на экране.
+  const count = items.length;
+  const after: number[][] = items.map(() => []);
+  const incoming = new Array<number>(count).fill(0);
+  for (let i = 0; i < count; i += 1) {
+    const a = items[i];
+    for (let j = i + 1; j < count; j += 1) {
+      const b = items[j];
+      if (
+        a.screenMax[0] < b.screenMin[0] ||
+        b.screenMax[0] < a.screenMin[0] ||
+        a.screenMax[1] < b.screenMin[1] ||
+        b.screenMax[1] < a.screenMin[1]
+      ) {
+        continue;
+      }
+      const order = compare(a, b) || Math.sign(a.depth - b.depth);
+      if (order > 0) {
+        after[j].push(i);
+        incoming[i] += 1;
+      } else if (order < 0) {
+        after[i].push(j);
+        incoming[j] += 1;
+      }
+    }
+  }
+
+  // Топологическая сортировка; из готовых первой берём самую дальнюю.
+  // Если попался цикл, разрываем его самой дальней из оставшихся.
+  const order = new Map<number, number>();
+  const done = new Array<boolean>(count).fill(false);
+  const byDepth = items
+    .map((_, index) => index)
+    .sort((left, right) => items[left].depth - items[right].depth);
+  for (let placed = 0; placed < count; placed += 1) {
+    let next = byDepth.find((index) => !done[index] && incoming[index] === 0);
+    if (next === undefined) next = byDepth.find((index) => !done[index])!;
+    done[next] = true;
+    order.set(items[next].box, placed);
+    for (const near of after[next]) incoming[near] -= 1;
+  }
+  return order;
+}
+
 export function BazisViewer({
   boxes,
   joints,
@@ -1321,17 +1439,16 @@ export function BazisViewer({
         const marked =
           (markedBoxes?.has(face.box) ?? false) || face.box === selectedBox;
         const factor = markedBoxes?.has(face.box) ? grow : 1;
-        const points = face.points.map((point) =>
-          rotate(
-            point.map(
-              (value, axis) =>
-                face.pivot[axis] +
-                (value - face.pivot[axis]) * factor +
-                offset[axis] -
-                center[axis],
-            ),
+        const placed = face.points.map((point) =>
+          point.map(
+            (value, axis) =>
+              face.pivot[axis] +
+              (value - face.pivot[axis]) * factor +
+              offset[axis] -
+              center[axis],
           ),
         );
+        const points = placed.map(rotate);
         const depth =
           points.reduce((sum, point) => sum + point[2], 0) / points.length;
         const shade =
@@ -1346,6 +1463,7 @@ export function BazisViewer({
 
         return {
           points,
+          placed,
           depth,
           shade,
           tone: face.tone,
@@ -1354,14 +1472,19 @@ export function BazisViewer({
           appear,
         };
       })
-      .filter((face) => face !== null)
-      // Выделенные детали рисуем последними, чтобы их было видно сквозь
-      // остальные.
-      .sort(
-        (left, right) =>
-          Number(left.marked) - Number(right.marked) ||
-          left.depth - right.depth,
-      );
+      .filter((face) => face !== null);
+    // Направление на зрителя в координатах модели: чем больше проекция
+    // точки на него, тем ближе точка.
+    const toViewer = [-sinYaw * cosPitch, sinPitch, cosYaw * cosPitch];
+    const boxOrder = paintOrder(drawn, toViewer);
+    // Выделенные детали рисуем последними, чтобы их было видно сквозь
+    // остальные.
+    drawn.sort(
+      (left, right) =>
+        Number(left.marked) - Number(right.marked) ||
+        (boxOrder.get(left.box) ?? 0) - (boxOrder.get(right.box) ?? 0) ||
+        left.depth - right.depth,
+    );
 
     context.lineJoin = "round";
     context.lineWidth = 0.6;
