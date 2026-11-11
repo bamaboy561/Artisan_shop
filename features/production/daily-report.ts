@@ -102,9 +102,13 @@ export function buildDailyReport(input: DailyReportInput) {
 
   const day = {
     created: input.createdCount,
+    // В цех попадают: первый перевод этапа (в очередь или сразу на распил)
+    // и заявки, которые менеджер создал в админке уже запущенными.
     launched: distinct(
       events.filter(
-        (e) => isStageMove(e) && !e.fromStatus && e.toStatus === "ACCEPTED",
+        (e) =>
+          (isStageMove(e) && !e.fromStatus) ||
+          (e.eventType === "created" && e.title.startsWith("Распил ")),
       ),
     ).length,
     cut: cutIds.length,

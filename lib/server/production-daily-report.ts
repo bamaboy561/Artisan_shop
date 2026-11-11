@@ -19,7 +19,9 @@ export async function getProductionDailyReport(board: Board, day: string) {
         db.operationEvent.findMany({
           where: {
             entityType: "request",
-            eventType: { in: ["cutting_stage", "production_flag", "status"] },
+            eventType: {
+              in: ["cutting_stage", "production_flag", "status", "created"],
+            },
             createdAt: window,
           },
           select: {
@@ -48,6 +50,42 @@ export async function getProductionDailyReport(board: Board, day: string) {
       : [];
   const cuttingIds = new Set(requests.map((request) => request.id));
   const plans = await getProductionPlans([...cuttingIds]);
+  const dueDates = new Map(
+    [...plans].map(([id, plan]) => [id, plan.dueDate as string | null]),
+  );
+  // «С опозданием» сверяем со сроком, который действовал в тот день: если
+  // срок потом меняли, берём прежнее значение из первой поздней правки.
+  const readyIds = [
+    ...new Set(
+      events
+        .filter(
+          (event) =>
+            event.eventType === "cutting_stage" &&
+            event.toStatus === "READY_FOR_PICKUP" &&
+            event.fromStatus !== event.toStatus &&
+            cuttingIds.has(event.entityId),
+        )
+        .map((event) => event.entityId),
+    ),
+  ];
+  if (db && readyIds.length && window.lt) {
+    const laterChanges = await db.operationEvent.findMany({
+      where: {
+        entityType: "request",
+        eventType: "production_deadline",
+        entityId: { in: readyIds },
+        createdAt: { gte: window.lt },
+      },
+      orderBy: { createdAt: "asc" },
+      select: { entityId: true, fromStatus: true },
+    });
+    const seen = new Set<string>();
+    for (const change of laterChanges) {
+      if (seen.has(change.entityId)) continue;
+      seen.add(change.entityId);
+      dueDates.set(change.entityId, change.fromStatus);
+    }
+  }
   return buildDailyReport({
     day,
     today: board.today,
@@ -57,9 +95,7 @@ export async function getProductionDailyReport(board: Board, day: string) {
     sheets: new Map(
       requests.map((request) => [request.id, request.cuttingSheetCount]),
     ),
-    dueDates: new Map(
-      [...plans].map(([id, plan]) => [id, plan.dueDate as string | null]),
-    ),
+    dueDates,
     cards: board.cards.map((card) => ({
       id: card.id,
       number: card.number,

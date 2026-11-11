@@ -50,6 +50,15 @@ test("итоги дня считают переходы по этапам", () =
       move("a", null, "ACCEPTED"),
       move("a", "ACCEPTED", "CUTTING"),
       move("a", "CUTTING", "EDGING"),
+      move("d", null, "CUTTING"), // оператор сразу начал распил
+      {
+        entityId: "e",
+        eventType: "created",
+        title: "Распил Р-7 создан",
+        fromStatus: null,
+        toStatus: null,
+        actorName: "Менеджер",
+      },
       move("b", "CUTTING", "ACCEPTED"), // возврат — не распил
       move("c", "DRILLING", "READY_FOR_PICKUP", "Бека"),
       move("c", "READY_FOR_PICKUP", "READY_FOR_PICKUP"), // смена ячейки
@@ -75,7 +84,7 @@ test("итоги дня считают переходы по этапам", () =
     cards: [],
   });
   assert.equal(report.day.created, 3);
-  assert.equal(report.day.launched, 1);
+  assert.equal(report.day.launched, 3);
   assert.equal(report.day.cut, 1);
   assert.equal(report.day.cutSheets, 4);
   assert.equal(report.day.drilled, 1);
@@ -84,7 +93,7 @@ test("итоги дня считают переходы по этапам", () =
   assert.equal(report.day.issued, 1);
   assert.equal(report.day.problemsReported, 1);
   assert.deepEqual(report.day.people, [
-    { name: "Азамат", moves: 4 },
+    { name: "Азамат", moves: 5 },
     { name: "Бека", moves: 1 },
   ]);
 });
