@@ -37,6 +37,11 @@ import type { CalculatorProductContext } from "@/features/catalog/data";
 import { CALCULATOR_PRESET_HANDOFF_KEY } from "@/features/bazis/project-view";
 import type { ImportedDetail } from "@/features/services/cut-list-import";
 import { CutDetailTable } from "@/features/services/cut-detail-table";
+import {
+  NUMBER_COLUMNS,
+  gridCellValue,
+  type NumberColumn,
+} from "@/features/services/cut-table-input";
 import { CutListImportPanel } from "@/features/services/cut-list-import-panel";
 import { optimizeCutting } from "@/features/services/cut-optimizer";
 import type { DetailGroup } from "@/features/services/cut-list-import";
@@ -2270,8 +2275,115 @@ export function CutCalculator({
     URL.revokeObjectURL(url);
   };
 
+  // Новая деталь после указанной (или в конце). Кромку и текстуру берём
+  // у соседней детали: обычно у соседних деталей они одинаковые.
+  const addRowAfter = (anchorId?: string) => {
+    const id = createDetailId(Date.now());
+
+    setDetails((current) => {
+      const anchorIndex = anchorId
+        ? current.findIndex((row) => row.id === anchorId)
+        : -1;
+      const own = current.filter((row) => !row.group);
+      const source =
+        anchorIndex >= 0 ? current[anchorIndex] : own[own.length - 1];
+      const row: DetailRow = {
+        ...createRow(own.length + 1),
+        id,
+        ...(source && !source.group
+          ? {
+              edgedSides: [...source.edgedSides],
+              orientationMode: source.orientationMode,
+            }
+          : {}),
+      };
+
+      return anchorIndex >= 0
+        ? [
+            ...current.slice(0, anchorIndex + 1),
+            row,
+            ...current.slice(anchorIndex + 1),
+          ]
+        : [...current, row];
+    });
+
+    return id;
+  };
+
   const addRow = () => {
-    setDetails((current) => [...current, createRow(current.length + 1)]);
+    addRowAfter();
+  };
+
+  // Столбцы чисел из Excel: заполняем с этой детали вниз и с этой колонки
+  // вправо, недостающие детали добавляем.
+  const fillGrid = (rowId: string, column: NumberColumn, grid: string[][]) => {
+    setDetails((current) => {
+      const next = [...current];
+      const ownIndexes = next
+        .map((row, index) => (row.group ? -1 : index))
+        .filter((index) => index >= 0);
+      let position = ownIndexes.findIndex((index) => next[index].id === rowId);
+
+      if (position === -1) return current;
+
+      const startColumn = NUMBER_COLUMNS.indexOf(column);
+
+      for (const cells of grid) {
+        let index = ownIndexes[position];
+
+        if (index === undefined) {
+          const previous = next[ownIndexes[ownIndexes.length - 1]];
+          next.push({
+            ...createRow(ownIndexes.length + 1),
+            id: createDetailId(`${ownIndexes.length + 1}-paste`),
+            edgedSides: [...previous.edgedSides],
+            orientationMode: previous.orientationMode,
+          });
+          index = next.length - 1;
+          ownIndexes.push(index);
+        }
+
+        const patch: Partial<DetailRow> = {};
+        cells.forEach((cell, offset) => {
+          const field = NUMBER_COLUMNS[startColumn + offset];
+          const value = field ? gridCellValue(cell, field) : null;
+          if (field && value) patch[field] = value;
+        });
+        next[index] = { ...next[index], ...patch };
+        position += 1;
+      }
+
+      return next;
+    });
+  };
+
+  // Строки деталей из буфера: пустую деталь заменяют, иначе встают после
+  // неё.
+  const insertDetails = (rowId: string, imported: ImportedDetail[]) => {
+    setDetails((current) => {
+      const anchorIndex = current.findIndex((row) => row.id === rowId);
+      if (anchorIndex === -1) return current;
+
+      const anchor = current[anchorIndex];
+      const replaceAnchor =
+        !parsePositive(anchor.width) && !parsePositive(anchor.height);
+      const before = current.slice(
+        0,
+        replaceAnchor ? anchorIndex : anchorIndex + 1,
+      );
+      const after = current.slice(anchorIndex + 1);
+      const ownBefore = before.filter((row) => !row.group).length;
+      const inserted = imported.map((detail, offset) => {
+        const row = importedDetailToRow(detail, ownBefore + offset + 1);
+        // «Деталь 1» из буфера переименовываем по месту в таблице.
+        return /^Деталь \d+$/.test(row.title)
+          ? { ...row, title: `Деталь ${ownBefore + offset + 1}` }
+          : row;
+      });
+
+      return [...before, ...inserted, ...after];
+    });
+    setRestoredDraftAt(null);
   };
 
   const importDetails = (
@@ -2339,6 +2451,10 @@ export function CutCalculator({
   };
 
   const [drillingRowId, setDrillingRowId] = useState<string | null>(null);
+  const [removedRow, setRemovedRow] = useState<{
+    row: DetailRow;
+    index: number;
+  } | null>(null);
   const [cabinetOpen, setCabinetOpen] = useState(false);
   // Калькулятор по шагам: на экране один шаг, а не всё сразу.
   const [step, setStep] = useState<1 | 2 | 3 | 4>(2);
@@ -2424,6 +2540,16 @@ export function CutCalculator({
         parsePositive(row.width) > 0 &&
         parsePositive(row.height) > 0,
     ) ?? null;
+  // Детали, у которых можно открыть присадку: для ◀ ▶ и «Копировать на…».
+  const drillableRows = details.filter(
+    (row) =>
+      !row.group &&
+      parsePositive(row.width) > 0 &&
+      parsePositive(row.height) > 0,
+  );
+  const drillingIndex = drillingRow
+    ? drillableRows.findIndex((row) => row.id === drillingRow.id)
+    : -1;
   const drillingLabels = Object.fromEntries(
     calculation.rows.map((row) => {
       const holes = Object.values(row.drill ?? {}).reduce(
@@ -2530,9 +2656,25 @@ export function CutCalculator({
   };
 
   const removeRow = (id: string) => {
+    const index = details.findIndex((row) => row.id === id);
+
+    if (index === -1 || details.length === 1) return;
+
+    setRemovedRow({ row: details[index], index });
+    setDetails((current) => current.filter((row) => row.id !== id));
+  };
+
+  // Удалили по ошибке — возвращаем на прежнее место, без окна «Вы уверены?».
+  const restoreRemovedRow = () => {
+    if (!removedRow) return;
+
+    const { row, index } = removedRow;
     setDetails((current) =>
-      current.length === 1 ? current : current.filter((row) => row.id !== id),
+      current.some((item) => item.id === row.id)
+        ? current
+        : [...current.slice(0, index), row, ...current.slice(index)],
     );
+    setRemovedRow(null);
   };
 
   const toggleEdgeSide = (id: string, side: EdgeSide) => {
@@ -2562,6 +2704,7 @@ export function CutCalculator({
     setManualSheetWidthMm("");
     setManualSheetHeightMm("");
     setDetails(createInitialRows());
+    setRemovedRow(null);
     setRequestFeedback(null);
     setSubmittedProjectReference(null);
     setAttachments([]);
@@ -3133,12 +3276,102 @@ export function CutCalculator({
               }
               onDuplicate={duplicateRow}
               onRemove={removeRow}
+              onAddRowAfter={addRowAfter}
+              onFillGrid={fillGrid}
+              onInsertDetails={insertDetails}
               drillingLabels={drillingLabels}
               onDrilling={setDrillingRowId}
             />
 
+            {removedRow ? (
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[color:var(--line)] bg-[var(--surface)] px-3 py-2 text-[13px] text-[var(--foreground)]">
+                <span>
+                  Удалили «{removedRow.row.title || "деталь"}» (
+                  {removedRow.row.width || "?"} × {removedRow.row.height || "?"}
+                  ).
+                </span>
+                <span className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={restoreRemovedRow}
+                    className="font-semibold text-[var(--accent)] underline underline-offset-2"
+                  >
+                    Вернуть
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRemovedRow(null)}
+                    aria-label="Скрыть"
+                    className="text-[var(--muted)] hover:text-[var(--foreground)]"
+                  >
+                    ×
+                  </button>
+                </span>
+              </div>
+            ) : null}
+
             {drillingRow ? (
               <DrillingEditor
+                // Другая деталь — свежий редактор (сторона, выбор, копирование).
+                key={drillingRow.id}
+                position={
+                  drillingIndex >= 0
+                    ? { index: drillingIndex, total: drillableRows.length }
+                    : undefined
+                }
+                onPrev={
+                  drillingIndex > 0
+                    ? () =>
+                        setDrillingRowId(drillableRows[drillingIndex - 1].id)
+                    : undefined
+                }
+                onNext={
+                  drillingIndex >= 0 && drillingIndex < drillableRows.length - 1
+                    ? () =>
+                        setDrillingRowId(drillableRows[drillingIndex + 1].id)
+                    : undefined
+                }
+                copyTargets={drillableRows
+                  .filter((row) => row.id !== drillingRow.id)
+                  .map((row) => ({
+                    id: row.id,
+                    title: row.title,
+                    size: `${row.width} × ${row.height}`,
+                    // Только точное совпадение: у повёрнутой детали те же
+                    // стороны оказались бы на других краях.
+                    sameSize:
+                      parsePositive(row.width) ===
+                        parsePositive(drillingRow.width) &&
+                      parsePositive(row.height) ===
+                        parsePositive(drillingRow.height),
+                    holes: Math.round(
+                      Object.values(
+                        calculation.rows.find((item) => item.id === row.id)
+                          ?.drill ?? {},
+                      ).reduce((sum, count) => sum + count, 0),
+                    ),
+                  }))}
+                onCopyTo={(ids) => {
+                  const source = drillingRow.hardware ?? [];
+                  setDetails((current) =>
+                    current.map((row) =>
+                      ids.includes(row.id)
+                        ? {
+                            ...row,
+                            hardware: source.length
+                              ? source.map((item) => ({
+                                  ...item,
+                                  id: `hw-${Math.random().toString(36).slice(2, 9)}`,
+                                  holes: item.holes.map((hole) => ({
+                                    ...hole,
+                                  })),
+                                }))
+                              : undefined,
+                          }
+                        : row,
+                    ),
+                  );
+                }}
                 title={drillingRow.title}
                 length={parsePositive(drillingRow.width)}
                 width={parsePositive(drillingRow.height)}
