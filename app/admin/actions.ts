@@ -162,6 +162,7 @@ import {
 import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { withBazisExtensions } from "@/lib/bazis-file";
 
 type ManagerSnapshot = {
   firstName?: string | null;
@@ -4459,7 +4460,7 @@ export async function createAdminCuttingRequestAction(
     standardCuttingDueDate(new Date());
   const deadline = formatAdminCuttingDeadline(deadlineValue);
   const comment = getOptionalString(formData, "comment");
-  const files = getFileList(formData, "files");
+  const files = await withBazisExtensions(getFileList(formData, "files"));
   // Присадка и фрезеровка — в «Итог» заявки (без них — из проекта Базиса).
   const extrasInput = cuttingExtrasFromForm(formData);
 
@@ -5079,7 +5080,7 @@ export async function markCuttingRequestIssuedAction(formData: FormData) {
 
 export async function uploadRequestResultFilesAction(formData: FormData) {
   const requestId = getString(formData, "requestId");
-  const files = getFileList(formData, "files");
+  const files = await withBazisExtensions(getFileList(formData, "files"));
 
   if (!requestId || files.length === 0) {
     return;

@@ -10,6 +10,7 @@ import {
   isAllowedRequestFile,
   type CuttingRequestSubmission,
 } from "@/lib/server/request-inbox";
+import { withBazisExtensions } from "@/lib/bazis-file";
 
 export type SubmitCuttingRequestInput = CuttingRequestSubmission;
 
@@ -53,7 +54,7 @@ export async function submitCuttingRequestAction(
   input: SubmitCuttingRequestInput,
   attachments?: FormData | null,
 ): Promise<SubmitCuttingRequestResult> {
-  const files = readAttachments(attachments);
+  const files = await withBazisExtensions(readAttachments(attachments));
   const subject = normalizeRequiredText(input.subject);
   const message = normalizeRequiredText(input.message);
   const contactName = normalizeRequiredText(input.contactName);
