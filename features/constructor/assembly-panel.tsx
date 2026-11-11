@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Check, ShoppingCart } from "lucide-react";
 
 import { useCart } from "@/components/providers/cart-provider";
@@ -10,17 +10,75 @@ import type { AssemblyStep, FittingLine } from "./assembly";
 
 const priceFormatter = new Intl.NumberFormat("ru-RU");
 
+// Бренды, которые часто пишут только в названии товара, без карточки
+// бренда.
+const KNOWN_BRANDS = [
+  "Hettich",
+  "Blum",
+  "Italiana Ferramenta",
+  "Hafele",
+  "GTV",
+  "FGV",
+  "Boyard",
+  "Samet",
+];
+
+// Бренд товара: из карточки, иначе — бренд из списка, названный в имени
+// товара («Петля Hettich Sensys»).
+export function productBrand(
+  product: ConstructorFittingProduct,
+  brands: string[] = [],
+) {
+  if (product.brand) return product.brand;
+  const name = product.name.toLowerCase();
+  return (
+    [...brands, ...KNOWN_BRANDS].find((brand) =>
+      name.includes(brand.toLowerCase()),
+    ) ?? null
+  );
+}
+
+// Бренды фурнитуры в каталоге: сначала те, у кого больше товаров.
+export function fittingBrands(products: ConstructorFittingProduct[]) {
+  const counts = new Map<string, { name: string; count: number }>();
+  for (const product of products) {
+    const brand = productBrand(product);
+    if (!brand) continue;
+    const key = brand.toLowerCase();
+    const entry = counts.get(key) ?? { name: brand, count: 0 };
+    entry.count += 1;
+    counts.set(key, entry);
+  }
+  return [...counts.values()]
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, "ru"))
+    .map((entry) => entry.name);
+}
+
+const findIn = (line: FittingLine, products: ConstructorFittingProduct[]) =>
+  products.find((product) => line.search.test(product.name)) ??
+  products.find((product) => line.search.test(product.category)) ??
+  null;
+
 // Подходящий товар из каталога: сначала по названию товара, потом по
-// названию категории.
+// названию категории. С выбранным брендом — сначала среди его товаров;
+// чего у бренда нет, подбираем у других (fallback: true).
 export function matchFittingProduct(
   line: FittingLine,
   products: ConstructorFittingProduct[],
-) {
-  return (
-    products.find((product) => line.search.test(product.name)) ??
-    products.find((product) => line.search.test(product.category)) ??
-    null
-  );
+  brand = "",
+): { product: ConstructorFittingProduct | null; fallback: boolean } {
+  if (brand) {
+    const brands = fittingBrands(products);
+    const wanted = brand.toLowerCase();
+    const own = products.filter(
+      (product) => productBrand(product, brands)?.toLowerCase() === wanted,
+    );
+    const product = findIn(line, own);
+    if (product) return { product, fallback: false };
+    const other = findIn(line, products);
+    return { product: other, fallback: Boolean(other) };
+  }
+  return { product: findIn(line, products), fallback: false };
 }
 
 export function FittingsPanel({
@@ -34,9 +92,11 @@ export function FittingsPanel({
   const [added, setAdded] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const brands = useMemo(() => fittingBrands(products), [products]);
+  const [brand, setBrand] = useState("");
   const found = lines.map((line) => ({
     line,
-    product: matchFittingProduct(line, products),
+    ...matchFittingProduct(line, products, brand),
   }));
   // Эксцентрик часто продают вместе со штоком: тогда шток отдельно не
   // кладём.
@@ -96,9 +156,32 @@ export function FittingsPanel({
 
   return (
     <div className="rounded-xl border border-[color:var(--line)] p-3">
-      <p className="text-sm font-semibold">Фурнитура для сборки</p>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm font-semibold">Фурнитура для сборки</p>
+        {brands.length > 0 ? (
+          <label className="flex items-center gap-2 text-[12px] text-[var(--muted)]">
+            Бренд
+            <select
+              value={brand}
+              onChange={(event) => {
+                setBrand(event.target.value);
+                setAdded(new Set());
+                setMessage("");
+              }}
+              className="h-8 rounded-full border border-[color:var(--line)] bg-[var(--surface)] px-3 text-[13px] text-[var(--foreground)]"
+            >
+              <option value="">Любой</option>
+              {brands.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+      </div>
       <ul className="mt-2 grid gap-2 text-[13px]">
-        {matched.map(({ line, product, bundled }) => (
+        {matched.map(({ line, product, bundled, fallback }) => (
           <li
             key={line.key}
             className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 border-t border-[color:var(--line)] pt-2 first:border-t-0 first:pt-0"
@@ -121,7 +204,11 @@ export function FittingsPanel({
                   target="_blank"
                   rel="noreferrer"
                   className="min-w-0 truncate underline decoration-dotted underline-offset-2"
+                  title={
+                    fallback ? `У ${brand} нет — подобрали другой бренд` : ""
+                  }
                 >
+                  {fallback ? "Другой бренд: " : ""}
                   {product.name}
                   {product.price
                     ? ` · ${priceFormatter.format(product.price)} сом/шт.`
