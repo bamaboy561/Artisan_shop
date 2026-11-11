@@ -2208,6 +2208,18 @@ export function CutCalculator({
       cuttingEdgeMeters: calculation.totalEdgeMeters || null,
       edgeOption: edgeOptionLabel,
       estimatedBudget: Math.round(estimate.totalEstimate),
+      // Присадка и фрезеровка идут в «Итог» заявки по прайсу сервера.
+      cuttingExtras: {
+        drilling: Object.fromEntries(
+          estimate.drilling.rows.map((row) => [
+            String(row.diameter),
+            row.holes,
+          ]),
+        ),
+        curveMeters: Math.round(estimate.milling.curve * 100) / 100,
+        bevelMeters: Math.round(estimate.milling.bevel * 100) / 100,
+        source: "calculator",
+      },
     }),
     [
       activePreset,

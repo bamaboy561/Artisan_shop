@@ -6,6 +6,7 @@ import { StatusBadge } from "@/components/admin/status-badge";
 import { AdminSubmitButton } from "@/components/admin/admin-submit-button";
 import { ClientOperationTimeline } from "@/components/account/client-operation-timeline";
 import { CuttingProgress } from "@/components/cutting/cutting-progress";
+import { CuttingQuoteLines } from "@/components/cutting/cutting-quote-lines";
 import { Input } from "@/components/ui/input";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { DataTable } from "@/components/ui/table";
@@ -20,6 +21,7 @@ import {
 } from "@/features/admin/operations-filters";
 import { hasDatabaseUrl } from "@/lib/db";
 import { getAccountRequests, getAccountUser } from "@/lib/server/account-data";
+import { getCuttingRequestQuote } from "@/lib/server/cutting-pricing";
 import { uploadAccountRequestFilesAction } from "@/app/(public)/account/requests/actions";
 
 export const dynamic = "force-dynamic";
@@ -71,6 +73,25 @@ export default async function AccountRequestsPage() {
   }
 
   const requests = await getAccountRequests(user.id);
+  // Счёт по строкам — только если он сходится с «Итогом» заявки
+  // (сумму, введённую менеджером вручную, не расписываем).
+  const quotes = new Map(
+    await Promise.all(
+      requests
+        .filter(
+          (request) =>
+            request.type === RequestType.CUTTING_SERVICE &&
+            request.quotedTotal != null,
+        )
+        .map(
+          async (request) =>
+            [
+              request.id,
+              (await getCuttingRequestQuote(request))?.quote,
+            ] as const,
+        ),
+    ),
+  );
 
   const rows = requests.map((request) => {
     // Файл GibLab, который калькулятор сам прикладывает к заявке, — для
@@ -171,6 +192,19 @@ export default async function AccountRequestsPage() {
           <p className="text-xs text-[var(--muted)]">
             Итог: {formatBudget(request.quotedTotal)}
           </p>
+          {(() => {
+            const quote = quotes.get(request.id);
+            return quote && quote.total === request.quotedTotal ? (
+              <details className="max-w-xs">
+                <summary className="cursor-pointer text-xs font-semibold text-[var(--foreground)] underline">
+                  Из чего сумма
+                </summary>
+                <div className="mt-2">
+                  <CuttingQuoteLines quote={quote} compact />
+                </div>
+              </details>
+            ) : null;
+          })()}
         </div>
       ),
       production:
