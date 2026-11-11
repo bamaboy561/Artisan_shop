@@ -30,7 +30,10 @@ import {
   getProductionBoard,
   type BoardColumnKey,
 } from "@/lib/server/production-workspace";
+import { parseReportDay } from "@/features/production/daily-report";
+import { getProductionDailyReport } from "@/lib/server/production-daily-report";
 import styles from "./board.module.css";
+import { DailyReportSection } from "./daily-report";
 
 export const dynamic = "force-dynamic";
 
@@ -126,6 +129,8 @@ export default async function ProductionBoardPage({
   const notice = notices[noticeKey];
   const board = await getProductionBoard();
   const now = board.now;
+  const reportDay = parseReportDay(params.day, board.today);
+  const report = await getProductionDailyReport(board, reportDay);
   const byColumn = new Map<BoardColumnKey, Card[]>(
     columns.map((column) => [column.key, []]),
   );
@@ -244,6 +249,13 @@ export default async function ProductionBoardPage({
           );
         })}
       </div>
+
+      <DailyReportSection
+        report={report}
+        day={reportDay}
+        today={board.today}
+        now={now}
+      />
     </div>
   );
 }
