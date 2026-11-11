@@ -227,7 +227,9 @@ export function FurnitureConstructor({
   const bodyDecor = decors.find((decor) => decor.id === bodyId);
   const facadeDecor =
     decors.find((decor) => decor.id === facadeId) ?? bodyDecor;
-  const sameDecor = !facadeDecor || facadeDecor.id === bodyDecor?.id;
+  // Без дверей фасадов нет: всё уходит одной заявкой.
+  const sameDecor =
+    spec.doors === 0 || !facadeDecor || facadeDecor.id === bodyDecor?.id;
   const thickness = bodyDecor?.thickness ?? 16;
 
   const result = useMemo(
@@ -297,6 +299,7 @@ export function FurnitureConstructor({
       )
       .map((part) => ({ ...part, group }));
     try {
+      if (parts.length === 0) return;
       sendToCalculator(parts, which === "facade" ? facadeDecor : bodyDecor);
     } catch {
       setError(
@@ -408,7 +411,12 @@ export function FurnitureConstructor({
               decors={decors}
               value={bodyId}
               onChange={(id) => {
-                if (sameDecor) setFacadeId(id);
+                // Фасады режем из плиты той же толщины, что и корпус:
+                // другая толщина сбрасывается на декор корпуса.
+                const next = decors.find((decor) => decor.id === id);
+                if (sameDecor || facadeDecor?.thickness !== next?.thickness) {
+                  setFacadeId(id);
+                }
                 setBodyId(id);
               }}
             />
