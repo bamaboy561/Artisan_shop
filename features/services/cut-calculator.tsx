@@ -2437,6 +2437,11 @@ export function CutCalculator({
     setMaterialPresetScope("all");
     setMaterialSearch("");
     handlePresetChange(presetId);
+    // Свои размеры листа от прошлого материала не должны перебить формат
+    // подобранного материала.
+    setManualThicknessMm("");
+    setManualSheetWidthMm("");
+    setManualSheetHeightMm("");
   };
 
   const importDetails = (
