@@ -11,7 +11,8 @@ export const roleDefinitions = {
   },
   [RoleCode.CUTTING_MANAGER]: {
     label: "Менеджер кроя",
-    description: "Только очередь распила, файлы и этапы производства.",
+    description:
+      "Только очередь распила, файлы, этапы производства и прайс распила.",
   },
   [RoleCode.PRODUCTION_MANAGER]: {
     label: "Начальник производства",
@@ -132,6 +133,18 @@ export function canManageProduction(roleCode: RoleCode) {
     isCuttingManager(roleCode) ||
     isProductionManager(roleCode)
   );
+}
+
+// Прайс распила (цены на сайте и тарифы для заявок) меняют администраторы
+// и менеджер кроя. Остальной доступ менеджера кроя не расширяется.
+export const cuttingPriceEditorRoleCodes = new Set<RoleCode>([
+  RoleCode.CUTTING_MANAGER,
+  RoleCode.ADMIN,
+  RoleCode.SUPER_ADMIN,
+]);
+
+export function canEditCuttingPrices(roleCode: RoleCode) {
+  return cuttingPriceEditorRoleCodes.has(roleCode);
 }
 
 export function canManageStaff(roleCode: RoleCode) {

@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { RoleCode } from "@/generated/prisma";
 import { requireAdminSession } from "@/lib/auth/dal";
+import { canEditCuttingPrices } from "@/lib/auth/roles";
 import {
   getCuttingPrice,
   getSiteCuttingPrices,
@@ -26,9 +26,7 @@ export default async function CuttingPricingPage({
     getSiteCuttingPrices(),
   ]);
   const query = await searchParams;
-  const canEdit =
-    session.roleCode === RoleCode.ADMIN ||
-    session.roleCode === RoleCode.SUPER_ADMIN;
+  const canEdit = canEditCuttingPrices(session.roleCode);
   return (
     <section className="mx-auto max-w-2xl space-y-6">
       <Link href="/admin/cutting" className="text-sm underline">
