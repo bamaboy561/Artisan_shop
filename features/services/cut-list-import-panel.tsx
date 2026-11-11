@@ -19,13 +19,50 @@ import {
   type BazisImportResponse,
   type BazisMaterialGroup,
 } from "@/features/services/bazis-import";
+import type { MaterialMatch } from "@/features/services/bazis-material-match";
 import { cn } from "@/lib/utils";
 
 type ImportMode = "append" | "replace";
 
+export type ImportMaterialOption = {
+  id: string;
+  label: string;
+  sheetLabel: string;
+};
+
+// Сопоставление материалов файла с материалами сайта. Без него детали
+// уходили в калькулятор с материалом и форматом листа по умолчанию.
+export type ImportMaterialMatching = {
+  suggest: (group: BazisMaterialGroup) => MaterialMatch;
+  // Подходящие по толщине и виду, лучшие первыми.
+  ranked: (group: BazisMaterialGroup) => ImportMaterialOption[];
+  all: ImportMaterialOption[];
+  // Сменить материал калькулятора, не трогая детали.
+  onSelect: (presetId: string) => void;
+};
+
 type CutListImportPanelProps = {
-  onImport: (details: ImportedDetail[], mode: ImportMode) => void;
+  onImport: (
+    details: ImportedDetail[],
+    mode: ImportMode,
+    presetId?: string | null,
+  ) => void;
   onProjectFile?: (file: File) => void;
+  materialMatching?: ImportMaterialMatching;
+};
+
+function groupKey(group: BazisMaterialGroup) {
+  return `${group.material}\u0000${group.thickness}`;
+}
+
+type GroupMaterialConfidence = MaterialMatch["confidence"] | "manual";
+
+const matchHint: Record<GroupMaterialConfidence, string> = {
+  manual: "выбрано вручную",
+  code: "нашли по коду декора",
+  name: "нашли по названию",
+  thickness: "точно не нашли, подобрали по толщине, проверьте",
+  none: "на сайте не нашли, выберите материал",
 };
 
 const pastePlaceholder = `Боковина\t720\t560\t2\t2Д
@@ -96,6 +133,7 @@ function formatGroupLabel(group: BazisMaterialGroup) {
 export function CutListImportPanel({
   onImport,
   onProjectFile,
+  materialMatching,
 }: CutListImportPanelProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [text, setText] = useState("");
@@ -110,8 +148,31 @@ export function CutListImportPanel({
     source: "bazis" | "table";
   } | null>(null);
   const [isReadingFile, setIsReadingFile] = useState(false);
+  // Какой материал сайта выбран для каждого материала файла.
+  const [groupMaterials, setGroupMaterials] = useState<
+    Record<string, { presetId: string; confidence: GroupMaterialConfidence }>
+  >({});
+  const [activeGroupKey, setActiveGroupKey] = useState<string | null>(null);
   const [bazisPreviewFile, setBazisPreviewFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const prepareGroups = (groups: BazisMaterialGroup[]) => {
+    if (!materialMatching) return {};
+
+    const next = Object.fromEntries(
+      groups.map((group) => {
+        const match = materialMatching.suggest(group);
+        return [
+          groupKey(group),
+          { presetId: match.presetId ?? "", confidence: match.confidence },
+        ];
+      }),
+    );
+
+    setGroupMaterials(next);
+    setActiveGroupKey(null);
+    return next;
+  };
 
   const applyResult = (result: CutListImportResult) => {
     if (result.details.length === 0) {
@@ -126,6 +187,7 @@ export function CutListImportPanel({
     const groups = groupDetailsByMaterial(result.details);
 
     if (groups.length > 1) {
+      prepareGroups(groups);
       setBazisChoice({ orderName: "", groups, source: "table" });
       setFeedback(null);
       setText("");
@@ -152,11 +214,24 @@ export function CutListImportPanel({
     group: BazisMaterialGroup,
     groups: BazisMaterialGroup[],
     source: "bazis" | "table" = "bazis",
+    materials: typeof groupMaterials = groupMaterials,
   ) => {
-    onImport(group.details, mode);
+    const choice = materials[groupKey(group)];
+    const presetId = materialMatching ? choice?.presetId || null : undefined;
+    const presetLabel = presetId
+      ? materialMatching?.all.find((option) => option.id === presetId)?.label
+      : null;
+
+    onImport(group.details, mode, presetId);
+    setActiveGroupKey(groupKey(group));
     const others = groups.filter((item) => item !== group);
     const notes = [
       `${source === "bazis" ? "Из проекта Базиса" : "Из таблицы"}: ${formatGroupLabel(group)}, ${group.details.length} поз. (${group.pieces} дет.).`,
+      presetLabel
+        ? `Считаем на материале сайта: ${presetLabel}.`
+        : materialMatching
+          ? "Этого материала нет на сайте: выберите ему материал выше. Пока раскрой считается на материале и листе, выбранных в калькуляторе."
+          : "",
       group.complexCount > 0
         ? `У ${group.complexCount} дет. вырезы или скругления: размер взят по габариту, проверьте.`
         : "",
@@ -189,6 +264,7 @@ export function CutListImportPanel({
 
     onProjectFile?.(file);
     setBazisPreviewFile(file);
+    const materials = prepareGroups(result.groups);
 
     if (result.groups.length > 1) {
       setBazisChoice({
@@ -200,8 +276,18 @@ export function CutListImportPanel({
       return;
     }
 
-    setBazisChoice(null);
-    applyBazisGroup(result.groups[0], result.groups);
+    // Один материал: при сопоставлении всё равно показываем карточку,
+    // чтобы было видно, на каком материале сайта считаем.
+    setBazisChoice(
+      materialMatching
+        ? {
+            orderName: result.orderName,
+            groups: result.groups,
+            source: "bazis",
+          }
+        : null,
+    );
+    applyBazisGroup(result.groups[0], result.groups, "bazis", materials);
   };
 
   const handleFile = async (file: File | undefined) => {
@@ -285,27 +371,129 @@ export function CutListImportPanel({
               : bazisChoice.source === "table"
                 ? "В таблице "
                 : "В проекте "}
-            несколько материалов. Калькулятор считает один материал за раз,
-            выберите, с какого начать.
+            {bazisChoice.groups.length > 1
+              ? "несколько материалов. Калькулятор считает один материал за раз, выберите, с какого начать."
+              : "один материал."}
+            {materialMatching
+              ? " Каждый материал раскраивается на свой лист: проверьте, какой материал сайта ему соответствует."
+              : ""}
           </p>
           <div className="grid gap-1.5 sm:grid-cols-2">
-            {bazisChoice.groups.map((group) => (
-              <button
-                key={`${group.material}-${group.thickness}`}
-                type="button"
-                onClick={() =>
-                  applyBazisGroup(group, bazisChoice.groups, bazisChoice.source)
-                }
-                className="border border-[color:var(--line)] bg-[var(--surface-strong)] px-3 py-2 text-left text-[13px] transition hover:border-[var(--accent)]"
-              >
-                <span className="block font-semibold text-[var(--foreground)]">
-                  {formatGroupLabel(group)}
-                </span>
-                <span className="block text-[12px] text-[var(--muted)]">
-                  {group.pieces} дет., {group.areaM2.toLocaleString("ru-RU")} м²
-                </span>
-              </button>
-            ))}
+            {bazisChoice.groups.map((group) => {
+              const key = groupKey(group);
+              const choice = groupMaterials[key];
+              const isActive = activeGroupKey === key;
+              const chosenOption = choice?.presetId
+                ? materialMatching?.all.find(
+                    (option) => option.id === choice.presetId,
+                  )
+                : undefined;
+              const ranked = materialMatching?.ranked(group) ?? [];
+              const rankedIds = new Set(ranked.map((option) => option.id));
+              const rest =
+                materialMatching?.all.filter(
+                  (option) => !rankedIds.has(option.id),
+                ) ?? [];
+              const selectId = `import-material-${key.replace(/[^\p{L}\p{N}]+/gu, "-")}`;
+
+              return (
+                <div
+                  key={key}
+                  className={cn(
+                    "grid gap-2 border bg-[var(--surface-strong)] px-3 py-2 text-[13px]",
+                    isActive
+                      ? "border-[var(--accent)]"
+                      : "border-[color:var(--line)]",
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <span className="block font-semibold text-[var(--foreground)]">
+                        {formatGroupLabel(group)}
+                      </span>
+                      <span className="block text-[12px] text-[var(--muted)]">
+                        {group.pieces} дет.,{" "}
+                        {group.areaM2.toLocaleString("ru-RU")} м²
+                      </span>
+                    </div>
+                    <Button
+                      variant={isActive ? "secondary" : "accent"}
+                      onClick={() =>
+                        applyBazisGroup(
+                          group,
+                          bazisChoice.groups,
+                          bazisChoice.source,
+                        )
+                      }
+                      className="shrink-0"
+                    >
+                      {isActive ? "Считаем" : "Раскроить"}
+                    </Button>
+                  </div>
+
+                  {materialMatching ? (
+                    <div className="grid gap-1">
+                      <label
+                        htmlFor={selectId}
+                        className="text-[11px] text-[var(--muted)]"
+                      >
+                        Материал на сайте
+                        {choice ? ` (${matchHint[choice.confidence]})` : ""}
+                      </label>
+                      <select
+                        id={selectId}
+                        value={choice?.presetId ?? ""}
+                        onChange={(event) => {
+                          const presetId = event.target.value;
+                          setGroupMaterials((current) => ({
+                            ...current,
+                            [key]: {
+                              presetId,
+                              confidence: presetId ? "manual" : "none",
+                            },
+                          }));
+                          if (isActive && presetId) {
+                            materialMatching.onSelect(presetId);
+                          }
+                        }}
+                        className={cn(
+                          "h-9 w-full min-w-0 border bg-[var(--surface)] px-2 text-[12px] text-[var(--foreground)]",
+                          choice?.confidence === "none" ||
+                            choice?.confidence === "thickness"
+                            ? "border-[var(--accent)]"
+                            : "border-[color:var(--line)]",
+                        )}
+                      >
+                        <option value="">Не выбран</option>
+                        {ranked.length > 0 ? (
+                          <optgroup label="Подходят по толщине">
+                            {ranked.map((option) => (
+                              <option key={option.id} value={option.id}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </optgroup>
+                        ) : null}
+                        {rest.length > 0 ? (
+                          <optgroup label="Все материалы">
+                            {rest.map((option) => (
+                              <option key={option.id} value={option.id}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </optgroup>
+                        ) : null}
+                      </select>
+                      {chosenOption?.sheetLabel ? (
+                        <span className="text-[11px] text-[var(--muted)]">
+                          Раскрой на листе {chosenOption.sheetLabel}
+                        </span>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
           </div>
         </div>
       ) : null}
