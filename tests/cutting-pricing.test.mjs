@@ -8,6 +8,12 @@ const { calculateCuttingLaborTotal: calculate, parseCuttingLaborPrice: parse } =
   pure;
 const price = { sheetRate: 300, edgeRate: 25 };
 const sitePrices = loadAction("../features/cutting/site-prices.ts", {});
+const quote = loadAction("../features/cutting/quote.ts", {
+  "@/features/cutting/labor-price": pure,
+  "@/features/cutting/site-prices": sitePrices,
+});
+const laborOf = (value) =>
+  value && { sheetRate: value.sheetRate, edgeRate: value.edgeRate };
 
 test("labor only: sheet count and fractional edge meters", () => {
   assert.equal(calculate(price, 4, 12.5, "ABS"), 1513);
@@ -64,6 +70,7 @@ function fixture() {
     "@/lib/db": { getDb: () => db, hasDatabaseUrl: () => true },
     "@/features/cutting/labor-price": pure,
     "@/features/cutting/site-prices": sitePrices,
+    "@/features/cutting/quote": quote,
   });
   return { settings, request, events, pricing, db };
 }
@@ -71,11 +78,17 @@ function fixture() {
 test("explicit recalculation snapshots rates and records actor + old amount", async () => {
   const f = fixture();
   assert.equal(await f.pricing.repriceCuttingRequest("r1", "manager1"), 1513);
-  assert.deepEqual(f.settings.get("cutting:labor-price:request:r1"), price);
+  assert.deepEqual(
+    laborOf(f.settings.get("cutting:labor-price:request:r1")),
+    price,
+  );
   assert.equal(f.events[0].actorId, "manager1");
   assert.match(f.events[0].description, /999/);
   f.settings.set("cutting:labor-price:v1", { sheetRate: 900, edgeRate: 90 });
-  assert.deepEqual(await f.pricing.readCuttingPrice(f.db, "r1"), price);
+  assert.deepEqual(
+    laborOf(await f.pricing.readCuttingPrice(f.db, "r1")),
+    price,
+  );
 });
 test("unconfigured or incomplete requests do not save a snapshot or replace old totals", async () => {
   const f = fixture();
@@ -113,7 +126,11 @@ test("quantity edits use frozen rates; legacy totals remain unchanged", async ()
     "@/lib/auth/demo-access": {},
     "@/lib/db": { getDb: () => f.db, hasDatabaseUrl: () => true },
     "@/features/cutting/labor-price": pure,
+    "@/features/cutting/quote": quote,
     "@/lib/server/cutting-pricing": f.pricing,
+    "@/lib/server/cutting-bazis-extras": {
+      bazisExtrasFromUploads: async () => null,
+    },
   });
   await inbox.updateRequestCuttingDetails({
     id: "r1",
@@ -147,21 +164,50 @@ test("new requests save the configured labor price and snapshot together", async
   const f = fixture();
   let transactions = 0;
   const baseTransaction = f.db.$transaction;
-  f.db.$transaction = async (fn) => { transactions++; return baseTransaction(fn); };
+  f.db.$transaction = async (fn) => {
+    transactions++;
+    return baseTransaction(fn);
+  };
   f.db.request.findMany = async () => [];
-  f.db.request.create = async ({ data }) => { Object.assign(f.request, data); return { id: "r1", number: data.number }; };
+  f.db.request.create = async ({ data }) => {
+    Object.assign(f.request, data);
+    return { id: "r1", number: data.number };
+  };
   const inbox = loadAction("../lib/server/request-inbox.ts", {
-    "node:fs/promises": {}, "node:path": { default: path },
-    "@/generated/prisma": { RequestType: { CUTTING_SERVICE: "CUTTING_SERVICE" }, RequestStatus: { NEW: "NEW" }, MessengerType: {} },
+    "node:fs/promises": {},
+    "node:path": { default: path },
+    "@/generated/prisma": {
+      RequestType: { CUTTING_SERVICE: "CUTTING_SERVICE" },
+      RequestStatus: { NEW: "NEW" },
+      MessengerType: {},
+    },
     "@/lib/auth/demo-access": {},
     "@/lib/db": { getDb: () => f.db, hasDatabaseUrl: () => true },
-    "@/features/cutting/labor-price": pure, "@/lib/server/cutting-pricing": f.pricing,
+    "@/features/cutting/labor-price": pure,
+    "@/lib/server/cutting-pricing": f.pricing,
+    "@/features/cutting/quote": quote,
+    "@/lib/server/cutting-bazis-extras": {
+      bazisExtrasFromUploads: async () => null,
+    },
   });
-  const input = { subject: "Cutting", message: "", contactName: "Client", contactPhone: "12345678", material: "MDF", cuttingSheetCount: 2, cuttingEdgeMeters: 10, edgeOption: "ABS", estimatedBudget: null };
+  const input = {
+    subject: "Cutting",
+    message: "",
+    contactName: "Client",
+    contactPhone: "12345678",
+    material: "MDF",
+    cuttingSheetCount: 2,
+    cuttingEdgeMeters: 10,
+    edgeOption: "ABS",
+    estimatedBudget: null,
+  };
   await inbox.createCuttingRequest(input, { skipDuplicateCheck: true });
   assert.equal(transactions, 1);
   assert.equal(f.request.quotedTotal, 850);
-  assert.deepEqual(f.settings.get("cutting:labor-price:request:r1"), price);
+  assert.deepEqual(
+    laborOf(f.settings.get("cutting:labor-price:request:r1")),
+    price,
+  );
   f.settings.clear();
   await inbox.createCuttingRequest(input, { skipDuplicateCheck: true });
   assert.equal(f.request.quotedTotal, null);
@@ -197,6 +243,7 @@ test("server actions enforce admin-only price edits and deny unauthorized recalc
     },
     "@/features/cutting/labor-price": pure,
     "@/features/cutting/site-prices": sitePrices,
+    "@/features/cutting/quote": quote,
     "@/lib/server/cutting-pricing": {
       cuttingPriceKey: "price",
       siteCuttingPricesKey: "site",
@@ -223,8 +270,11 @@ test("server actions enforce admin-only price edits and deny unauthorized recalc
 });
 
 test("site prices: admin edits reach the calculator, broken values keep defaults", async () => {
-  const { parseSiteCuttingPrices, defaultSiteCuttingPrices, buildCuttingSiteIncentive } =
-    sitePrices;
+  const {
+    parseSiteCuttingPrices,
+    defaultSiteCuttingPrices,
+    buildCuttingSiteIncentive,
+  } = sitePrices;
   assert.deepEqual(parseSiteCuttingPrices(null), defaultSiteCuttingPrices);
   const parsed = parseSiteCuttingPrices({
     sheet: 320,
@@ -276,6 +326,7 @@ test("site prices: admin edits reach the calculator, broken values keep defaults
     },
     "@/features/cutting/labor-price": pure,
     "@/features/cutting/site-prices": sitePrices,
+    "@/features/cutting/quote": quote,
     "@/lib/server/cutting-pricing": { siteCuttingPricesKey: "site" },
   });
   const form = new FormData();
@@ -285,14 +336,20 @@ test("site prices: admin edits reach the calculator, broken values keep defaults
   form.set("siteEdgeRegular", "35");
   for (const diameter of sitePrices.drillingDiameters)
     form.set(`drill${diameter}`, String(diameter));
-  await assert.rejects(actions.saveSiteCuttingPricesAction(form), /администратор/);
+  await assert.rejects(
+    actions.saveSiteCuttingPricesAction(form),
+    /администратор/,
+  );
   assert.equal(saved, undefined);
   actor = { roleCode: "ADMIN", userId: "a" };
   form.set("drill35", "");
   await assert.rejects(actions.saveSiteCuttingPricesAction(form), /siteError/);
   assert.equal(saved, undefined);
   form.set("drill35", "40");
-  await assert.rejects(actions.saveSiteCuttingPricesAction(form), /siteSaved=1/);
+  await assert.rejects(
+    actions.saveSiteCuttingPricesAction(form),
+    /siteSaved=1/,
+  );
   assert.equal(saved.sheet, 320);
   assert.equal(saved.edge, 25.5);
   assert.equal(saved.drilling[35], 40);
@@ -302,13 +359,37 @@ test("site prices: admin edits reach the calculator, broken values keep defaults
 test("conversion carries the saved labor amount into the order, including zero", async () => {
   let saved;
   const orders = loadAction("../lib/server/order-inbox.ts", {
-    "node:fs/promises": {}, "node:path": { default: path },
+    "node:fs/promises": {},
+    "node:path": { default: path },
     "@/generated/prisma": { OrderStatus: { NEW: "NEW" } },
     "@/lib/auth/demo-access": {},
-    "@/lib/db": { hasDatabaseUrl: () => true, getDb: () => ({ order: { create: async (input) => { saved = input.data; return { id: "o1" }; } } }) },
-    "@/lib/server/inventory-reservations": {}, "@/lib/server/order-loyalty-cancellation": {},
+    "@/lib/db": {
+      hasDatabaseUrl: () => true,
+      getDb: () => ({
+        order: {
+          create: async (input) => {
+            saved = input.data;
+            return { id: "o1" };
+          },
+        },
+      }),
+    },
+    "@/lib/server/inventory-reservations": {},
+    "@/lib/server/order-loyalty-cancellation": {},
   });
-  const request = { id: "r1", type: "CUTTING_SERVICE", number: "R1", subject: "Cutting", material: "MDF", message: "", contactName: "Client", contactPhone: "123", files: [], estimatedBudget: 999, quotedTotal: 850 };
+  const request = {
+    id: "r1",
+    type: "CUTTING_SERVICE",
+    number: "R1",
+    subject: "Cutting",
+    material: "MDF",
+    message: "",
+    contactName: "Client",
+    contactPhone: "123",
+    files: [],
+    estimatedBudget: 999,
+    quotedTotal: 850,
+  };
   await orders.createOrderFromRequest(request);
   assert.equal(saved.total, 850);
   assert.equal(saved.items.create[0].unitPrice, 850);
@@ -382,4 +463,143 @@ test("cutting report totals exclude canceled requests and preserve item amounts"
     report.cuttingReport.items.find((r) => r.id === "b").quotedTotal,
     900,
   );
+});
+
+// Присадка и фрезеровка входят в «Итог» и расписаны строками.
+const fullPrice = {
+  ...price,
+  drilling: { 5: 6, 8: 10, 35: 32 },
+  milling: 200,
+  bevel: 250,
+};
+const extras = {
+  drilling: { 35: 4, 8: 20, 12: 2 },
+  curveMeters: 1.5,
+  bevelMeters: 0,
+  source: "calculator",
+};
+
+test("quote lists sheets, edge, drilling by diameter and milling", () => {
+  const result = quote.buildCuttingQuote(
+    fullPrice,
+    { cuttingSheetCount: 4, cuttingEdgeMeters: 12.5, edgeOption: "ABS" },
+    extras,
+  );
+  // 1513 работ + 4×32 + 20×10 + 1,5×200 = 2141; Ø12 без цены.
+  assert.equal(result.total, 2141);
+  assert.equal(result.unpricedHoles, 2);
+  assert.deepEqual(
+    result.lines.map((line) => [line.key, line.amount]),
+    [
+      ["sheets", 1200],
+      ["edge", 312.5],
+      ["drill-8", 200],
+      ["drill-12", null],
+      ["drill-35", 128],
+      ["curve", 300],
+    ],
+  );
+  assert.match(result.lines[0].detail, /4 листа × 300 сом/);
+  assert.match(result.lines[4].detail, /4 отверстия × 32 сом/);
+  assert.equal(
+    quote.buildCuttingQuote(fullPrice, { cuttingSheetCount: null }, extras),
+    null,
+  );
+});
+
+test("extras from the browser are validated, not trusted", () => {
+  assert.equal(quote.parseCuttingExtras({ drilling: { 8: -1 } }), null);
+  assert.equal(quote.parseCuttingExtras({ drilling: { 8: 1.5 } }), null);
+  assert.equal(quote.parseCuttingExtras({ drilling: { abc: 1 } }), null);
+  assert.equal(
+    quote.parseCuttingExtras({ drilling: {}, curveMeters: -2 }),
+    null,
+  );
+  assert.deepEqual(
+    quote.parseCuttingExtras({ drilling: { 8: 3, 5: 0 }, source: "hack" }),
+    { drilling: { 8: 3 }, curveMeters: 0, bevelMeters: 0, source: "manager" },
+  );
+});
+
+test("manager form fields become extras; empty form is no data", () => {
+  const form = new FormData();
+  assert.deepEqual(quote.cuttingExtrasFromForm(form), {
+    ok: true,
+    extras: null,
+  });
+  form.set("drill_8", "12");
+  form.set("drill_35", "");
+  form.set("curveMeters", "0,5");
+  assert.deepEqual(quote.cuttingExtrasFromForm(form), {
+    ok: true,
+    extras: {
+      drilling: { 8: 12 },
+      curveMeters: 0.5,
+      bevelMeters: 0,
+      source: "manager",
+    },
+  });
+  form.set("drill_5", "2.5");
+  assert.equal(quote.cuttingExtrasFromForm(form).ok, false);
+});
+
+test("new request total includes drilling; reprice keeps it and saves edits", async () => {
+  const f = fixture();
+  f.db.request.findMany = async () => [];
+  f.db.request.create = async ({ data }) => {
+    Object.assign(f.request, data);
+    return { id: "r1", number: data.number };
+  };
+  const inbox = loadAction("../lib/server/request-inbox.ts", {
+    "node:fs/promises": {},
+    "node:path": { default: path },
+    "@/generated/prisma": {
+      RequestType: { CUTTING_SERVICE: "CUTTING_SERVICE" },
+      RequestStatus: { NEW: "NEW" },
+      MessengerType: {},
+    },
+    "@/lib/auth/demo-access": {},
+    "@/lib/db": { getDb: () => f.db, hasDatabaseUrl: () => true },
+    "@/features/cutting/quote": quote,
+    "@/lib/server/cutting-pricing": f.pricing,
+    "@/lib/server/cutting-bazis-extras": {
+      bazisExtrasFromUploads: async () => null,
+    },
+  });
+  await inbox.createCuttingRequest(
+    {
+      subject: "Cutting",
+      message: "",
+      contactName: "Client",
+      contactPhone: "12345678",
+      material: "MDF",
+      cuttingSheetCount: 2,
+      cuttingEdgeMeters: 10,
+      edgeOption: "ABS",
+      estimatedBudget: null,
+      cuttingExtras: { drilling: { 35: 4 }, source: "calculator" },
+    },
+    { skipDuplicateCheck: true },
+  );
+  // 2×300 + 10×25 + 4×32 (цена Ø35 по умолчанию).
+  assert.equal(f.request.quotedTotal, 978);
+  assert.deepEqual(f.settings.get("cutting:extras:request:r1").drilling, {
+    35: 4,
+  });
+
+  f.request.cuttingSheetCount = 2;
+  assert.equal(await f.pricing.repriceCuttingRequest("r1", "m"), 978);
+  assert.equal(
+    await f.pricing.repriceCuttingRequest("r1", "m", {
+      drilling: { 8: 10 },
+      curveMeters: 0,
+      bevelMeters: 0,
+      source: "manager",
+    }),
+    950,
+  );
+  assert.deepEqual(f.settings.get("cutting:extras:request:r1").drilling, {
+    8: 10,
+  });
+  assert.match(f.events.at(-1).description, /Присадка Ø8 мм: 10 отверстий/);
 });
