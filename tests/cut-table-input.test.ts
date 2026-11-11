@@ -56,5 +56,8 @@ test("вставка из Excel: таблица чисел заполняет к
   assert.equal(isNumberGrid([["Боковина", "720"]], "width"), false);
   assert.equal(isNumberGrid([["720"], ["564"]], "quantity"), true);
   assert.equal(gridCellValue("720 мм"), "720");
+  assert.equal(gridCellValue("720,5"), "720.5");
+  assert.equal(gridCellValue("72,3 см"), "723");
+  assert.equal(gridCellValue("2,6", "quantity"), "3");
   assert.equal(gridCellValue(""), null);
 });

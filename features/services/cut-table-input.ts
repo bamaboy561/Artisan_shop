@@ -114,8 +114,14 @@ export function isNumberGrid(grid: string[][], startColumn: NumberColumn) {
   return hasValue;
 }
 
-/** Значение ячейки для числового поля: «720 мм» → «720». */
-export function gridCellValue(cell: string) {
+/**
+ * Значение ячейки для числового поля: «720 мм» → «720», «720,5» → «720.5».
+ * Размеры не округляем (как при ручном вводе), количество — до целого.
+ */
+export function gridCellValue(cell: string, column: NumberColumn = "width") {
   const value = parseLength(cell);
-  return value === null || value <= 0 ? null : String(Math.round(value));
+  if (value === null || value <= 0) return null;
+  if (column === "quantity") return String(Math.max(1, Math.round(value)));
+  // Убираем хвосты вроде 723.0000000001 после перевода см → мм.
+  return String(Math.round(value * 100) / 100);
 }

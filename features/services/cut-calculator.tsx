@@ -2334,7 +2334,7 @@ export function CutCalculator({
         const patch: Partial<DetailRow> = {};
         cells.forEach((cell, offset) => {
           const field = NUMBER_COLUMNS[startColumn + offset];
-          const value = gridCellValue(cell);
+          const value = field ? gridCellValue(cell, field) : null;
           if (field && value) patch[field] = value;
         });
         next[index] = { ...next[index], ...patch };
