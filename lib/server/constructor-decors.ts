@@ -87,3 +87,50 @@ export async function getConstructorDecors(): Promise<ConstructorDecor[]> {
     ];
   });
 }
+
+// Товар фурнитуры для подбора к списку конструктора.
+export type ConstructorFittingProduct = {
+  slug: string;
+  name: string;
+  // Название категории: по нему тоже ищем («Петли» у товара «Hettich Sensys»).
+  category: string;
+  price: number | null;
+  imageUrl: string | null;
+};
+
+export async function getConstructorFittingProducts(): Promise<
+  ConstructorFittingProduct[]
+> {
+  if (!hasDatabaseUrl()) return [];
+  try {
+    const rows = await getDb().product.findMany({
+      where: {
+        status: ProductStatus.ACTIVE,
+        category: { kind: CategoryKind.FITTINGS },
+      },
+      orderBy: [{ isFeatured: "desc" }, { name: "asc" }],
+      take: 1500,
+      select: {
+        slug: true,
+        name: true,
+        price: true,
+        category: { select: { name: true } },
+        images: {
+          orderBy: { sortOrder: "asc" },
+          take: 1,
+          select: { url: true },
+        },
+      },
+    });
+    return rows.map((row) => ({
+      slug: row.slug,
+      name: row.name,
+      category: row.category.name,
+      price: row.price,
+      imageUrl: row.images[0]?.url ?? null,
+    }));
+  } catch (error) {
+    console.error("[constructor-decors] fittings", error);
+    return [];
+  }
+}

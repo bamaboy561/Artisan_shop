@@ -2,7 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { DoorOpen, DoorClosed, Scissors, Search } from "lucide-react";
+import {
+  DoorOpen,
+  DoorClosed,
+  ListOrdered,
+  Scissors,
+  Search,
+  Tag,
+} from "lucide-react";
 
 import { guessDecorColor } from "@/features/bazis/decor-color";
 import {
@@ -20,16 +27,25 @@ import {
 import { Field, inputClass } from "@/features/services/cabinet-builder-dialog";
 import { hardwareHoles } from "@/features/services/drilling-hardware";
 import { cn } from "@/lib/utils";
-import type { ConstructorDecor } from "@/lib/server/constructor-decors";
+import type {
+  ConstructorDecor,
+  ConstructorFittingProduct,
+} from "@/lib/server/constructor-decors";
 
+import { cabinetAssembly, cabinetFittings, partKind } from "./assembly";
+import {
+  AssemblyStepCard,
+  FittingsPanel,
+  instructionHtml,
+} from "./assembly-panel";
 import {
   buildCabinetModel,
-  countCabinetFittings,
+  edgeDescription,
   TONE_BACK,
   TONE_BODY,
   TONE_FACADE,
 } from "./cabinet-model";
-import type { SceneTone } from "./furniture-scene";
+import type { FurnitureSceneApi, SceneTone } from "./furniture-scene";
 
 // three.js тяжёлый: грузим только на странице конструктора и без SSR.
 const FurnitureScene = dynamic(
@@ -173,6 +189,12 @@ function DecorPicker({
   );
 }
 
+// Подпись детали с большой буквы: «Боковина левая», «Дно».
+export function partLabel(title: string) {
+  const kind = partKind(title);
+  return kind.charAt(0).toUpperCase() + kind.slice(1);
+}
+
 function partsToDraftRows(parts: CabinetPart[]) {
   const stamp = Date.now().toString(36);
   return parts.map((part, index) => ({
@@ -223,8 +245,10 @@ function sendToCalculator(
 
 export function FurnitureConstructor({
   decors,
+  fittingProducts,
 }: {
   decors: ConstructorDecor[];
+  fittingProducts: ConstructorFittingProduct[];
 }) {
   const [spec, setSpec] = useState<CabinetSpec>({
     kind: "wardrobe",
@@ -291,7 +315,36 @@ export function FurnitureConstructor({
     list[TONE_BACK] = { color: BACK_COLOR };
     return list;
   }, [bodyDecor, facadeDecor]);
-  const fittings = useMemo(() => countCabinetFittings(result), [result]);
+  const fittings = useMemo(
+    () => cabinetFittings(spec, result, thickness),
+    [spec, result, thickness],
+  );
+  const steps = useMemo(
+    () => cabinetAssembly(spec, result, fittings),
+    [spec, result, fittings],
+  );
+  // Шаг инструкции сборки; null — обычный просмотр.
+  const [step, setStep] = useState<number | null>(null);
+  const [labels, setLabels] = useState(true);
+  const sceneApi = useRef<FurnitureSceneApi | null>(null);
+  const currentStep = step !== null ? steps[step] : null;
+  const stepView = useMemo(() => {
+    if (!currentStep) return { boxes, highlight: undefined };
+    const shown = boxes.filter((box) =>
+      currentStep.shown.includes(partKind(box.info?.name ?? "")),
+    );
+    return {
+      boxes: shown,
+      highlight: shown.map((box) =>
+        currentStep.added.includes(partKind(box.info?.name ?? "")),
+      ),
+    };
+  }, [boxes, currentStep]);
+  const goToStep = (next: number | null) => {
+    setStep(next);
+    const target = next !== null ? steps[next] : null;
+    setDoorsOpen(Boolean(target?.doorsOpen));
+  };
   const holes = result.parts.reduce(
     (sum, part) =>
       sum +
@@ -311,7 +364,7 @@ export function FurnitureConstructor({
       ? `${spec.name || "Корпус"}, задняя стенка: ХДФ ${sizeFormatter.format(result.back.length)} × ${sizeFormatter.format(result.back.width)} мм, 1 шт. (накладная, отдельный материал).`
       : "";
     const fittingsNote = fittings.length
-      ? `Фурнитура: ${fittings.map((item) => `${item.label.toLowerCase()} — ${item.count} шт.`).join(", ")}.`
+      ? `Фурнитура: ${fittings.map((item) => `${item.label.toLowerCase()} ${item.note} — ${item.count} шт.`).join(", ")}.`
       : "";
     const facadeNote =
       which === "body" && facadeDecor
@@ -347,12 +400,79 @@ export function FurnitureConstructor({
     }
   };
 
+  // Печатная инструкция: проходим шаги, снимаем макет и открываем
+  // страницу для печати. Вкладку открываем сразу по нажатию, иначе
+  // браузер её заблокирует.
+  const [printing, setPrinting] = useState(false);
+  const printInstruction = async () => {
+    const tab = window.open("", "_blank");
+    if (!tab) {
+      setError("Браузер не дал открыть вкладку. Разрешите всплывающие окна.");
+      return;
+    }
+    tab.document.write(
+      "<p style='font-family:sans-serif'>Готовим инструкцию…</p>",
+    );
+    setPrinting(true);
+    const wait = (ms: number) => new Promise((done) => setTimeout(done, ms));
+    const images: Array<string | null> = [];
+    const before = step;
+    for (let index = 0; index < steps.length; index += 1) {
+      goToStep(index);
+      await wait(steps[index].doorsOpen ? 900 : 350);
+      images.push(sceneApi.current?.snapshot() ?? null);
+    }
+    goToStep(before);
+    setPrinting(false);
+    const html = instructionHtml({
+      title: cabinetGroupLabel(spec),
+      subtitle: [
+        `Корпус: ${bodyDecor?.label ?? `ЛДСП ${thickness} мм`}`,
+        spec.doors > 0 && facadeDecor && !sameDecor
+          ? `Фасады: ${facadeDecor.label}`
+          : "",
+      ]
+        .filter(Boolean)
+        .join(" · "),
+      steps,
+      images,
+      fittings,
+      parts: [
+        ...result.parts.map((part) => ({
+          name: partLabel(part.title),
+          size: `${sizeFormatter.format(part.length)} × ${sizeFormatter.format(part.width)} мм, кромка: ${edgeDescription(part.edgedSides)}`,
+          count: part.quantity,
+        })),
+        ...(result.back
+          ? [
+              {
+                name: "Задняя стенка (ХДФ)",
+                size: `${sizeFormatter.format(result.back.length)} × ${sizeFormatter.format(result.back.width)} мм`,
+                count: 1,
+              },
+            ]
+          : []),
+      ],
+    });
+    tab.document.open();
+    tab.document.write(html);
+    tab.document.close();
+  };
+
   return (
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(360px,1fr)]">
       <div className="min-w-0 lg:sticky lg:top-24 lg:self-start">
         <div className="overflow-hidden rounded-2xl border border-[color:var(--line)] bg-[var(--surface-strong)]">
           <FurnitureScene
-            boxes={boxes}
+            boxes={stepView.boxes}
+            highlight={stepView.highlight}
+            labels={labels}
+            apiRef={sceneApi}
+            hint={
+              printing
+                ? "Готовим картинки шагов…"
+                : "Крутите пальцем или мышью · нажмите на деталь"
+            }
             tones={tones}
             handleTone={TONE_FACADE}
             handlePlacement={
@@ -379,7 +499,41 @@ export function FurnitureConstructor({
             )}
             {doorsOpen ? "Закрыть двери" : "Открыть двери"}
           </button>
+          <button
+            type="button"
+            onClick={() => setLabels((current) => !current)}
+            className={cn(
+              "inline-flex h-9 items-center gap-2 rounded-full border px-4 text-[13px] font-medium",
+              labels
+                ? "border-[var(--foreground)]"
+                : "border-[color:var(--line)]",
+            )}
+          >
+            <Tag className="size-4" />
+            {labels ? "Скрыть подписи" : "Подписи деталей"}
+          </button>
+          {step === null ? (
+            <button
+              type="button"
+              onClick={() => goToStep(0)}
+              className="inline-flex h-9 items-center gap-2 rounded-full bg-[var(--accent)] px-4 text-[13px] font-semibold text-[var(--accent-ink)]"
+            >
+              <ListOrdered className="size-4" />
+              Инструкция по сборке
+            </button>
+          ) : null}
         </div>
+        {step !== null ? (
+          <div className="mt-3">
+            <AssemblyStepCard
+              steps={steps}
+              step={Math.min(step, steps.length - 1)}
+              onStep={goToStep}
+              onClose={() => goToStep(null)}
+              onPrint={() => void printInstruction()}
+            />
+          </div>
+        ) : null}
       </div>
 
       <div className="grid min-w-0 content-start gap-4">
@@ -515,6 +669,7 @@ export function FurnitureConstructor({
               <tr>
                 <th className="py-1 font-normal">Деталь</th>
                 <th className="py-1 font-normal">Размер, мм</th>
+                <th className="py-1 font-normal">Кромка</th>
                 <th className="py-1 text-right font-normal">Шт.</th>
               </tr>
             </thead>
@@ -525,7 +680,7 @@ export function FurnitureConstructor({
                   className="border-t border-[color:var(--line)]"
                 >
                   <td className="py-1.5 pr-2">
-                    {part.title.replace(/^[^:]*: /, "")}
+                    {partLabel(part.title)}
                     {isDoor(part) && !sameDecor ? (
                       <span className="text-[var(--muted)]"> · фасад</span>
                     ) : null}
@@ -534,6 +689,9 @@ export function FurnitureConstructor({
                     {sizeFormatter.format(part.length)} ×{" "}
                     {sizeFormatter.format(part.width)}
                   </td>
+                  <td className="py-1.5 pr-2 text-[12px] leading-4">
+                    {edgeDescription(part.edgedSides)}
+                  </td>
                   <td className="py-1.5 text-right tabular-nums">
                     {part.quantity}
                   </td>
@@ -541,38 +699,26 @@ export function FurnitureConstructor({
               ))}
               {result.back ? (
                 <tr className="border-t border-[color:var(--line)] text-[var(--muted)]">
-                  <td className="py-1.5 pr-2">задняя стенка, ХДФ</td>
+                  <td className="py-1.5 pr-2">Задняя стенка, ХДФ</td>
                   <td className="py-1.5 whitespace-nowrap tabular-nums">
                     {sizeFormatter.format(result.back.length)} ×{" "}
                     {sizeFormatter.format(result.back.width)}
                   </td>
+                  <td className="py-1.5 pr-2 text-[12px]">без кромки</td>
                   <td className="py-1.5 text-right">1</td>
                 </tr>
               ) : null}
             </tbody>
           </table>
           <p className="mt-2 text-[12px] leading-5 text-[var(--muted)]">
-            Кромка по переднему торцу корпуса и полок, двери по кругу. Присадка
-            уже стоит: минификсы, полкодержатели, петли и планки петель.
+            Размер: длина (вдоль текстуры) × ширина. Кромка уже стоит в раскрое.
+            Присадка тоже готова: минификсы, шканты, евровинты цоколя,
+            полкодержатели, петли и планки петель.
           </p>
         </details>
 
         {fittings.length > 0 ? (
-          <div className="rounded-xl border border-[color:var(--line)] p-3">
-            <p className="text-sm font-semibold">Фурнитура на этот корпус</p>
-            <ul className="mt-2 grid gap-1 text-[13px]">
-              {fittings.map((item) => (
-                <li key={item.key} className="flex justify-between gap-3">
-                  <span>{item.label}</span>
-                  <span className="tabular-nums">{item.count} шт.</span>
-                </li>
-              ))}
-            </ul>
-            <p className="mt-2 text-[12px] leading-5 text-[var(--muted)]">
-              Скоро здесь можно будет выбрать фурнитуру из каталога и сразу
-              положить в корзину. Пока список уйдёт менеджеру вместе с заявкой.
-            </p>
-          </div>
+          <FittingsPanel lines={fittings} products={fittingProducts} />
         ) : null}
 
         {error ? (

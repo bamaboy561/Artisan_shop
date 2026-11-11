@@ -35,11 +35,16 @@ export type CabinetModelOptions = {
 
 const round = (value: number) => Math.round(value * 10) / 10;
 
-function edgesLabel(part: CabinetPart) {
-  const sides = part.edgedSides;
+// Кромка словами для таблицы деталей и инструкции. У деталей корпуса
+// сторона top — передний (лицевой) торец.
+export function edgeDescription(sides: CabinetPart["edgedSides"]) {
+  if (sides.length === 0) return "без кромки";
+  if (sides.length === 4) return "по кругу";
   const alongLength = sides.filter((s) => s === "top" || s === "bottom").length;
   const alongWidth = sides.filter((s) => s === "left" || s === "right").length;
-  if (!alongLength && !alongWidth) return "без кромки";
+  if (alongLength === 1 && alongWidth === 0 && sides[0] === "top") {
+    return "по длине 1 (лицевой торец)";
+  }
   return [
     alongLength ? `по длине ${alongLength}` : "",
     alongWidth ? `по ширине ${alongWidth}` : "",
@@ -104,7 +109,7 @@ export function buildCabinetModel(
       length: part.length,
       width: part.width,
       thickness: t,
-      edges: edgesLabel(part),
+      edges: edgeDescription(part.edgedSides),
       textured: part.fixedGrain,
       holes:
         hardwareHoles(part.hardware, part.length, part.width, t).length ||
@@ -244,44 +249,4 @@ export function buildCabinetModel(
   });
 
   return boxes;
-}
-
-// Сколько фурнитуры нужно на корпус: показываем клиенту списком, чтобы он
-// докупил её вместе с распилом.
-export type CabinetFittings = Array<{
-  key: string;
-  label: string;
-  count: number;
-}>;
-
-export function countCabinetFittings(result: CabinetResult): CabinetFittings {
-  const totals = new Map<string, number>();
-  const add = (key: string, count: number) =>
-    totals.set(key, (totals.get(key) ?? 0) + count);
-
-  for (const part of result.parts) {
-    for (const item of part.hardware ?? []) {
-      const sides = item.mirror ? 2 : 1;
-      const count = (item.count ?? 1) * sides * part.quantity;
-      if (item.kind === "hinge") add("hinge", count);
-      if (item.kind === "minifix") add("minifix", count);
-      if (item.kind === "shelfPins") add("shelfPin", count);
-    }
-  }
-  const doors = result.parts.filter((part) =>
-    /: дверь/.test(part.title),
-  ).length;
-  if (doors > 0) add("handle", doors);
-
-  const labels: Record<string, string> = {
-    hinge: "Петли накладные с планками",
-    minifix: "Эксцентрики (минификс) со стяжками",
-    shelfPin: "Полкодержатели",
-    handle: "Ручки",
-  };
-  return [...totals.entries()].map(([key, count]) => ({
-    key,
-    label: labels[key] ?? key,
-    count,
-  }));
 }

@@ -22,6 +22,11 @@ export type SceneTone = {
 
 export type HandlePlacement = "top" | "middle" | "bottom";
 
+// Снимок макета для печатной инструкции.
+export type FurnitureSceneApi = { snapshot: () => string | null };
+
+const HIGHLIGHT = 0xf0a070;
+
 const MM = 0.001;
 const BACKGROUND = 0xf3f0ea;
 const HANDLE_LENGTH = 160;
@@ -150,7 +155,17 @@ export function FurnitureScene({
   handleTone,
   handlePlacement,
   className,
+  highlight,
+  labels = false,
+  apiRef,
+  hint = "Крутите пальцем или мышью · нажмите на деталь",
 }: {
+  // Детали текущего шага сборки подсвечиваются.
+  highlight?: boolean[];
+  // Подписи деталей поверх макета.
+  labels?: boolean;
+  apiRef?: { current: FurnitureSceneApi | null };
+  hint?: string;
   boxes: BazisViewerBox[];
   tones: SceneTone[];
   // Номер материала дверей: на них ставим ручки. null — без ручек.
@@ -159,6 +174,7 @@ export function FurnitureScene({
   className?: string;
 }) {
   const hostRef = useRef<HTMLDivElement | null>(null);
+  const labelsRef = useRef<HTMLDivElement | null>(null);
   const stateRef = useRef<{
     renderer: THREE.WebGLRenderer;
     scene: THREE.Scene;
@@ -173,6 +189,12 @@ export function FurnitureScene({
     signature: string;
     fitted: string;
     render: () => void;
+    labelPoints: () => Array<{
+      x: number;
+      y: number;
+      visible: boolean;
+      text: string;
+    }>;
   } | null>(null);
   const [selected, setSelected] = useState<Selected>(null);
   const [expanded, setExpanded] = useState(false);
@@ -247,6 +269,46 @@ export function FurnitureScene({
     controls.minDistance = 0.3;
     controls.maxDistance = 12;
 
+    // Подпись стоит в середине детали; у дверей — на лицевой стороне.
+    const labelPoints = () => {
+      const state = stateRef.current;
+      if (!state) return [];
+      const rect = renderer.domElement.getBoundingClientRect();
+      const ray = new THREE.Raycaster();
+      return state.meshes.map((mesh) => {
+        const center = new THREE.Vector3().setFromMatrixPosition(
+          mesh.matrixWorld,
+        );
+        // Подпись видна, только если деталь не закрыта другими: луч из
+        // камеры к её середине первой встречает её саму.
+        const direction = center.clone().sub(camera.position).normalize();
+        ray.set(camera.position, direction);
+        const first = ray.intersectObjects(state.meshes, false)[0];
+        const point = center.clone().project(camera);
+        return {
+          x: ((point.x + 1) / 2) * rect.width,
+          y: ((1 - point.y) / 2) * rect.height,
+          visible: point.z < 1 && first?.object === mesh,
+          text: String(mesh.userData.label ?? ""),
+        };
+      });
+    };
+    const placeLabels = () => {
+      const layer = labelsRef.current;
+      if (!layer) return;
+      const points = labelPoints();
+      Array.from(layer.children).forEach((child, index) => {
+        const element = child as HTMLElement;
+        const point = points[index];
+        if (!point || !point.visible) {
+          element.style.display = "none";
+          return;
+        }
+        element.style.display = "";
+        element.style.transform = `translate(${point.x}px, ${point.y}px) translate(-50%, -50%)`;
+      });
+    };
+
     let frame = 0;
     const render = () => {
       if (frame) return;
@@ -254,6 +316,7 @@ export function FurnitureScene({
         frame = 0;
         const moving = controls.update();
         renderer.render(scene, camera);
+        placeLabels();
         if (moving) render();
       });
     };
@@ -295,7 +358,7 @@ export function FurnitureScene({
       const info = hit?.object.userData.info as BazisViewerBox["info"];
       for (const mesh of state.meshes) {
         const material = mesh.material as THREE.MeshStandardMaterial;
-        material.emissive?.setHex(0x000000);
+        material.emissive?.setHex(0);
       }
       if (hit && info) {
         const material = (hit.object as THREE.Mesh)
@@ -332,6 +395,7 @@ export function FurnitureScene({
       signature: "",
       fitted: "",
       render,
+      labelPoints,
     };
 
     return () => {
@@ -435,6 +499,8 @@ export function FurnitureScene({
         mesh.receiveShadow = true;
         mesh.matrixAutoUpdate = false;
         mesh.userData.info = box.info;
+        const kind = (box.info?.name ?? "").replace(/^[^:]*: /, "");
+        mesh.userData.label = kind.charAt(0).toUpperCase() + kind.slice(1);
         state.furniture.add(mesh);
         state.meshes.push(mesh);
 
@@ -455,6 +521,18 @@ export function FurnitureScene({
         }
       }
       state.signature = signature;
+      const layer = labelsRef.current;
+      if (layer) {
+        layer.replaceChildren(
+          ...state.meshes.map((mesh) => {
+            const element = document.createElement("span");
+            element.textContent = String(mesh.userData.label ?? "");
+            element.className =
+              "absolute top-0 left-0 whitespace-nowrap rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-medium text-[#2b241d] shadow-sm";
+            return element;
+          }),
+        );
+      }
     }
 
     // Положение деталей и ручек.
@@ -467,6 +545,18 @@ export function FurnitureScene({
       if (!mesh) return;
       mesh.matrix.copy(boxMatrix(box));
       mesh.matrixWorldNeedsUpdate = true;
+      const material = mesh.material as THREE.MeshStandardMaterial;
+      // Детали шага окрашиваем в тёплый оттенок: на белой плите подсветка
+      // свечением почти не видна.
+      const marked = Boolean(highlight?.[index]);
+      mesh.userData.highlight = marked;
+      if (!mesh.userData.baseColor) {
+        mesh.userData.baseColor = material.color.getHex();
+      }
+      if (material.map) mesh.userData.baseColor = 0xffffff;
+      material.color.setHex(
+        marked ? HIGHLIGHT : (mesh.userData.baseColor as number),
+      );
       if (handleTone !== null && box.tone === handleTone) {
         const handle = handles[handleIndex];
         handleIndex += 1;
@@ -505,7 +595,59 @@ export function FurnitureScene({
       }
     }
     state.render();
-  }, [boxes, tones, handleTone, handlePlacement]);
+  }, [boxes, tones, handleTone, handlePlacement, highlight]);
+
+  useEffect(() => {
+    if (!apiRef) return;
+    apiRef.current = {
+      snapshot: () => {
+        const state = stateRef.current;
+        if (!state) return null;
+        state.controls.update();
+        state.renderer.render(state.scene, state.camera);
+        const source = state.renderer.domElement;
+        const canvas = document.createElement("canvas");
+        canvas.width = source.width;
+        canvas.height = source.height;
+        const context = canvas.getContext("2d");
+        if (!context) return source.toDataURL("image/jpeg", 0.86);
+        context.drawImage(source, 0, 0);
+        // Подписи деталей рисуем прямо на картинке шага.
+        const scale = source.width / source.getBoundingClientRect().width;
+        context.font = `600 ${Math.round(17 * scale)}px sans-serif`;
+        context.textAlign = "center";
+        context.textBaseline = "middle";
+        const seen = new Set<string>();
+        for (const point of state.labelPoints()) {
+          if (!point.visible || !point.text) continue;
+          // Одинаковые полки подписываем один раз.
+          const key = `${point.text}|${Math.round(point.x / 40)}|${Math.round(point.y / 40)}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          const x = point.x * scale;
+          const y = point.y * scale;
+          const width = context.measureText(point.text).width + 14 * scale;
+          const height = 26 * scale;
+          context.fillStyle = "rgba(255,255,255,0.92)";
+          context.beginPath();
+          context.roundRect(
+            x - width / 2,
+            y - height / 2,
+            width,
+            height,
+            height / 2,
+          );
+          context.fill();
+          context.fillStyle = "#2b241d";
+          context.fillText(point.text, x, y);
+        }
+        return canvas.toDataURL("image/jpeg", 0.86);
+      },
+    };
+    return () => {
+      apiRef.current = null;
+    };
+  }, [apiRef]);
 
   const view = (direction: "front" | "angle") => {
     const state = stateRef.current;
@@ -534,6 +676,14 @@ export function FurnitureScene({
       )}
     >
       <div ref={hostRef} className="absolute inset-0" />
+      <div
+        ref={labelsRef}
+        aria-hidden
+        className={cn(
+          "pointer-events-none absolute inset-0 overflow-hidden",
+          !labels && "hidden",
+        )}
+      />
       {failed ? (
         <p className="absolute inset-0 flex items-center justify-center p-6 text-center text-sm text-[var(--muted)]">
           Браузер не показывает 3D. Размеры и детали ниже посчитаны верно.
@@ -577,7 +727,7 @@ export function FurnitureScene({
         </div>
       ) : (
         <p className="pointer-events-none absolute bottom-3 left-3 rounded-full bg-white/80 px-3 py-1 text-[12px] text-[var(--muted)]">
-          Крутите пальцем или мышью · нажмите на деталь
+          {hint}
         </p>
       )}
     </div>

@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 
 import { FurnitureConstructor } from "@/features/constructor/furniture-constructor";
-import { getConstructorDecors } from "@/lib/server/constructor-decors";
+import {
+  getConstructorDecors,
+  getConstructorFittingProducts,
+} from "@/lib/server/constructor-decors";
 import { createSeoMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = createSeoMetadata({
@@ -12,7 +15,10 @@ export const metadata: Metadata = createSeoMetadata({
 });
 
 export default async function ConstructorPage() {
-  const decors = await getConstructorDecors();
+  const [decors, fittingProducts] = await Promise.all([
+    getConstructorDecors(),
+    getConstructorFittingProducts(),
+  ]);
 
   return (
     <div className="bg-[var(--surface)]">
@@ -29,7 +35,10 @@ export default async function ConstructorPage() {
           присадкой уходят в калькулятор распила одной кнопкой.
         </p>
         <div className="mt-6">
-          <FurnitureConstructor decors={decors} />
+          <FurnitureConstructor
+            decors={decors}
+            fittingProducts={fittingProducts}
+          />
         </div>
       </section>
     </div>

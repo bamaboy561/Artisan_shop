@@ -51,7 +51,10 @@ test("minifix holes on the roof line up with bolt holes in the sides", () => {
     bolts.map((hole) => (hole.kind === "face" ? hole.y : 0)),
     [50, 530],
   );
-  const channels = roofHoles.filter((hole) => hole.kind === "edge");
+  // Каналы под шток (Ø8 глубиной 34); шканты в торце — Ø8 глубиной 20.
+  const channels = roofHoles.filter(
+    (hole) => hole.kind === "edge" && hole.depth === 34,
+  );
   assert.deepEqual(
     channels.map((hole) =>
       hole.kind === "edge" ? [hole.side, hole.position] : null,

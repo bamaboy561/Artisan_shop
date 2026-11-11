@@ -1,7 +1,8 @@
 // Конструктор корпуса: шкаф, тумба или навесной шкаф по габаритам.
 // Собирает детали с кромкой и присадкой для калькулятора распила.
 //
-// Корпус: боковины на всю высоту, крыша и дно между боковинами, дно над
+// Корпус: боковины на всю высоту, крыша и дно между боковинами на
+// эксцентриках и шкантах, цоколь на евровинтах, дно над
 // цоколем, полки на полкодержателях, накладные двери, задняя стенка ХДФ
 // накладная (другой материал — отдельной строкой).
 //
@@ -78,6 +79,7 @@ const PIN_BELOW_SHELF = 8; // центр полкодержателя под п�
 const MINIFIX_OFFSET = 50; // от переднего и заднего торца, мм
 const BACK_OVERLAP_GAP = 2; // ХДФ меньше корпуса с каждой стороны, мм
 const HINGE_OFFSET = 100; // петля от верха и низа двери, мм
+const DOWEL_OFFSET = 130; // шкант от переднего и заднего торца, мм
 
 export type CabinetPart = ImportedDetail & { hardware?: HardwareItem[] };
 
@@ -131,6 +133,11 @@ export function buildCabinet(
   const innerWidth = W - 2 * t;
   const parts: CabinetPart[] = [];
 
+  // Шканты: два на стык (между эксцентриками), в неглубоком корпусе —
+  // один посередине.
+  const dowelPlaces =
+    D >= 400 ? { count: 2, offset: DOWEL_OFFSET } : { count: 1, offset: 0 };
+
   // Боковины: болты минификса крыши (у верхнего торца) и дна (над цоколем).
   const sideHardware = (): HardwareItem[] => {
     const toTop = {
@@ -145,7 +152,34 @@ export function buildCabinet(
       offset: MINIFIX_OFFSET,
       holes: [{ diameter: 5, depth: 12 }],
     };
-    return [toTop, toBottom];
+    // Шканты между болтами: держат крышу и дно ровно, пока затягивают
+    // эксцентрики.
+    const dowelsTop = {
+      ...createHardware("faceRow", "right"),
+      ...dowelPlaces,
+      indent: round(t / 2),
+      holes: [{ diameter: 8, depth: 12 }],
+    };
+    const dowelsBottom = {
+      ...createHardware("faceRow", "left"),
+      ...dowelPlaces,
+      indent: round(plinth + t / 2),
+      holes: [{ diameter: 8, depth: 12 }],
+    };
+    // Цоколь крепится евровинтом насквозь через боковину у переднего края.
+    const plinthScrew =
+      plinth > 0
+        ? [
+            {
+              ...createHardware("faceRow", "left"),
+              count: 1,
+              offset: round(D - t / 2),
+              indent: round(plinth / 2),
+              holes: [{ diameter: 7, depth: 0 }],
+            },
+          ]
+        : [];
+    return [toTop, toBottom, dowelsTop, dowelsBottom, ...plinthScrew];
   };
 
   // Полки ровно делят пространство между дном и крышей.
@@ -203,6 +237,12 @@ export function buildCabinet(
     mirror: true,
     offset: MINIFIX_OFFSET,
   });
+  const dowels = () => ({
+    ...createHardware("dowelEdge", "left"),
+    ...dowelPlaces,
+    mirror: true,
+    holes: [{ diameter: 8, depth: 20 }],
+  });
   parts.push({
     title: `${name}: крыша`,
     length: innerWidth,
@@ -210,7 +250,7 @@ export function buildCabinet(
     quantity: 1,
     edgedSides: ["top"],
     fixedGrain: true,
-    hardware: [minifix()],
+    hardware: [minifix(), dowels()],
   });
   parts.push({
     title: `${name}: дно`,
@@ -219,7 +259,7 @@ export function buildCabinet(
     quantity: 1,
     edgedSides: ["top"],
     fixedGrain: true,
-    hardware: [minifix()],
+    hardware: [minifix(), dowels()],
   });
 
   if (shelves > 0) {
@@ -241,6 +281,14 @@ export function buildCabinet(
       quantity: 1,
       edgedSides: ["top"],
       fixedGrain: true,
+      hardware: [
+        {
+          ...createHardware("confirmatEdge", "left"),
+          count: 1,
+          offset: 0,
+          mirror: true,
+        },
+      ],
     });
   }
 
