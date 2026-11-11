@@ -2528,6 +2528,16 @@ export function CutCalculator({
         parsePositive(row.width) > 0 &&
         parsePositive(row.height) > 0,
     ) ?? null;
+  // Детали, у которых можно открыть присадку: для ◀ ▶ и «Копировать на…».
+  const drillableRows = details.filter(
+    (row) =>
+      !row.group &&
+      parsePositive(row.width) > 0 &&
+      parsePositive(row.height) > 0,
+  );
+  const drillingIndex = drillingRow
+    ? drillableRows.findIndex((row) => row.id === drillingRow.id)
+    : -1;
   const drillingLabels = Object.fromEntries(
     calculation.rows.map((row) => {
       const holes = Object.values(row.drill ?? {}).reduce(
@@ -3290,6 +3300,66 @@ export function CutCalculator({
 
             {drillingRow ? (
               <DrillingEditor
+                // Другая деталь — свежий редактор (сторона, выбор, копирование).
+                key={drillingRow.id}
+                position={
+                  drillingIndex >= 0
+                    ? { index: drillingIndex, total: drillableRows.length }
+                    : undefined
+                }
+                onPrev={
+                  drillingIndex > 0
+                    ? () =>
+                        setDrillingRowId(drillableRows[drillingIndex - 1].id)
+                    : undefined
+                }
+                onNext={
+                  drillingIndex >= 0 && drillingIndex < drillableRows.length - 1
+                    ? () =>
+                        setDrillingRowId(drillableRows[drillingIndex + 1].id)
+                    : undefined
+                }
+                copyTargets={drillableRows
+                  .filter((row) => row.id !== drillingRow.id)
+                  .map((row) => ({
+                    id: row.id,
+                    title: row.title,
+                    size: `${row.width} × ${row.height}`,
+                    // Только точное совпадение: у повёрнутой детали те же
+                    // стороны оказались бы на других краях.
+                    sameSize:
+                      parsePositive(row.width) ===
+                        parsePositive(drillingRow.width) &&
+                      parsePositive(row.height) ===
+                        parsePositive(drillingRow.height),
+                    holes: Math.round(
+                      Object.values(
+                        calculation.rows.find((item) => item.id === row.id)
+                          ?.drill ?? {},
+                      ).reduce((sum, count) => sum + count, 0),
+                    ),
+                  }))}
+                onCopyTo={(ids) => {
+                  const source = drillingRow.hardware ?? [];
+                  setDetails((current) =>
+                    current.map((row) =>
+                      ids.includes(row.id)
+                        ? {
+                            ...row,
+                            hardware: source.length
+                              ? source.map((item) => ({
+                                  ...item,
+                                  id: `hw-${Math.random().toString(36).slice(2, 9)}`,
+                                  holes: item.holes.map((hole) => ({
+                                    ...hole,
+                                  })),
+                                }))
+                              : undefined,
+                          }
+                        : row,
+                    ),
+                  );
+                }}
                 title={drillingRow.title}
                 length={parsePositive(drillingRow.width)}
                 width={parsePositive(drillingRow.height)}
