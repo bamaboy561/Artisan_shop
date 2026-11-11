@@ -58,6 +58,7 @@ import {
   requestStatusLabels,
 } from "@/features/admin/operations-filters";
 import { cuttingStageLabels } from "@/features/cutting/progress";
+import { cuttingExtrasFromForm } from "@/features/cutting/quote";
 import { getProductionTransition } from "@/features/production/workflow";
 import { requireAdminSession } from "@/lib/auth/dal";
 import {
@@ -4459,9 +4460,15 @@ export async function createAdminCuttingRequestAction(
   const deadline = formatAdminCuttingDeadline(deadlineValue);
   const comment = getOptionalString(formData, "comment");
   const files = getFileList(formData, "files");
+  // Присадка и фрезеровка — в «Итог» заявки (без них — из проекта Базиса).
+  const extrasInput = cuttingExtrasFromForm(formData);
 
   if (material.length < 2) {
     return { message: "Укажите материал для распила." };
+  }
+
+  if (!extrasInput.ok) {
+    return { message: extrasInput.message };
   }
 
   if (
@@ -4592,6 +4599,7 @@ export async function createAdminCuttingRequestAction(
         estimatedBudget: null,
         userId: linkedCustomer?.id ?? null,
         uploadedFiles: files,
+        cuttingExtras: extrasInput.extras,
       },
       {
         skipDuplicateCheck: true,

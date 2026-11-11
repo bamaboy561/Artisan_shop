@@ -51,7 +51,13 @@ import {
 } from "@/features/admin/workflow";
 import { cn } from "@/lib/utils";
 import { cuttingStageSteps } from "@/features/cutting/progress";
-import { getCuttingPrice } from "@/lib/server/cutting-pricing";
+import {
+  getCuttingPrice,
+  getCuttingRequestQuote,
+} from "@/lib/server/cutting-pricing";
+import { bazisExtrasFromRequestFiles } from "@/lib/server/cutting-bazis-extras";
+import { CuttingExtrasFields } from "@/components/cutting/cutting-extras-fields";
+import { CuttingQuoteLines } from "@/components/cutting/cutting-quote-lines";
 import { repriceCuttingRequestAction } from "@/app/admin/cutting/pricing/actions";
 
 type AdminRequestDetailPageProps = {
@@ -176,6 +182,16 @@ export default async function AdminRequestDetailPage({
   const laborPrice =
     request.type === RequestType.CUTTING_SERVICE
       ? await getCuttingPrice(id)
+      : null;
+  const requestQuote =
+    request.type === RequestType.CUTTING_SERVICE
+      ? await getCuttingRequestQuote(request)
+      : null;
+  // Присадки ещё нет в заявке — подставляем отверстия из проекта Базиса.
+  const extrasForForm =
+    request.type === RequestType.CUTTING_SERVICE
+      ? (requestQuote?.extras ??
+        (await bazisExtrasFromRequestFiles(request.files).catch(() => null)))
       : null;
   const { pricingError } = await searchParams;
   const canDeleteRequest = canDeleteRequests(session.roleCode);
@@ -569,7 +585,9 @@ export default async function AdminRequestDetailPage({
                     Прайс работ
                   </Link>
                 </div>
-                {laborPrice ? (
+                {requestQuote?.quote ? (
+                  <CuttingQuoteLines quote={requestQuote.quote} />
+                ) : laborPrice ? (
                   <p className="text-sm text-[var(--muted)]">
                     Распил: {laborPrice.sheetRate} сом/лист · Кромление:{" "}
                     {laborPrice.edgeRate} сом/м
@@ -580,8 +598,27 @@ export default async function AdminRequestDetailPage({
                     {pricingError}
                   </p>
                 ) : null}
-                <form action={repriceCuttingRequestAction}>
+                <form
+                  action={repriceCuttingRequestAction}
+                  className="grid gap-3"
+                >
                   <input type="hidden" name="requestId" value={request.id} />
+                  <input type="hidden" name="extrasForm" value="1" />
+                  <details
+                    open={!requestQuote?.extras}
+                    className="border border-[color:var(--line)] p-3"
+                  >
+                    <summary className="cursor-pointer text-sm font-semibold">
+                      Присадка и фрезеровка
+                      {extrasForForm?.source === "bazis" &&
+                      !requestQuote?.extras
+                        ? " — из проекта Базиса, проверьте"
+                        : ""}
+                    </summary>
+                    <div className="mt-3">
+                      <CuttingExtrasFields extras={extrasForForm} />
+                    </div>
+                  </details>
                   <AdminSubmitButton
                     type="submit"
                     variant="secondary"

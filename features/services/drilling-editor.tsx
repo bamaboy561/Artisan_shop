@@ -1,7 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Trash2, X } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Copy as CopyIcon,
+  Plus,
+  Trash2,
+  X,
+} from "lucide-react";
 
 import { useSiteCuttingPrices } from "@/features/cutting/site-prices-context";
 import { formatPrice } from "@/lib/commerce";
@@ -15,6 +22,7 @@ import {
   createHardware,
   hardwareHoles,
   holesToDrillCounts,
+  type HardwareField,
   type HardwareItem,
   type HardwareKind,
   type PartHole,
@@ -39,10 +47,12 @@ const inputClass =
 
 function NumberField({
   label,
+  title,
   value,
   onChange,
 }: {
   label: string;
+  title?: string;
   value: number;
   onChange: (value: number) => void;
 }) {
@@ -56,7 +66,7 @@ function NumberField({
   }
 
   return (
-    <label className="grid gap-1 text-[11px] text-[var(--muted)]">
+    <label className="grid gap-1 text-[11px] text-[var(--muted)]" title={title}>
       {label}
       <input
         className={inputClass}
@@ -270,6 +280,29 @@ function PartDrawing({
   );
 }
 
+// Короткие подписи для компактной строки фурнитуры.
+const SHORT_FIELD_LABELS: Record<HardwareField, string> = {
+  count: "Шт.",
+  offset: "Отступ",
+  indent: "От края",
+  spacing: "Шаг",
+};
+
+const SHORT_KIND_LABELS: Partial<Record<HardwareKind, string>> = {
+  minifix: "Эксцентрик",
+  faceRow: "Шток / конфирмат в пласть",
+  hingePlate: "Планка петли",
+};
+
+export type DrillingCopyTarget = {
+  id: string;
+  title: string;
+  size: string;
+  /** Тот же размер, что у открытой детали: обычно парная деталь. */
+  sameSize: boolean;
+  holes: number;
+};
+
 export function DrillingEditor({
   title,
   length,
@@ -281,6 +314,11 @@ export function DrillingEditor({
   milling,
   onMillingChange,
   onClose,
+  position,
+  onPrev,
+  onNext,
+  copyTargets = [],
+  onCopyTo,
 }: {
   title: string;
   length: number;
@@ -292,10 +330,25 @@ export function DrillingEditor({
   milling?: PartMilling;
   onMillingChange: (milling: PartMilling | undefined) => void;
   onClose: () => void;
+  /** «3 из 8» — какая это деталь в списке. */
+  position?: { index: number; total: number };
+  onPrev?: () => void;
+  onNext?: () => void;
+  copyTargets?: DrillingCopyTarget[];
+  onCopyTo?: (ids: string[]) => void;
 }) {
   const prices = useSiteCuttingPrices();
   const [side, setSide] = useState<PartSide>("left");
   const [selected, setSelected] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
+  const [copyOpen, setCopyOpen] = useState(false);
+  const [copyIds, setCopyIds] = useState<Set<string>>(
+    () =>
+      new Set(
+        copyTargets.filter((item) => item.sameSize).map((item) => item.id),
+      ),
+  );
+  const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -343,7 +396,33 @@ export function DrillingEditor({
     const item = createHardware(kind, side);
     onChange([...value, item]);
     setSelected(item.id);
+    setNotice(null);
   };
+  const toggleExpanded = (id: string) =>
+    setExpanded((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const toggleCopyId = (id: string) =>
+    setCopyIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const applyCopy = () => {
+    if (!onCopyTo || copyIds.size === 0) return;
+    onCopyTo([...copyIds]);
+    setNotice(
+      `Присадку скопировали на ${copyIds.size} ${copyIds.size === 1 ? "деталь" : copyIds.size < 5 ? "детали" : "деталей"}.`,
+    );
+    setCopyOpen(false);
+  };
+
+  const navButtonClass =
+    "flex size-9 shrink-0 items-center justify-center rounded-lg border border-[color:var(--line)] text-[var(--foreground)] hover:border-[var(--foreground)] disabled:opacity-30 disabled:hover:border-[color:var(--line)]";
 
   return (
     <div
@@ -354,19 +433,48 @@ export function DrillingEditor({
       onClick={onClose}
     >
       <div
-        className="flex max-h-[94vh] w-full max-w-5xl flex-col overflow-hidden rounded-t-2xl bg-[var(--surface-strong)] shadow-xl sm:rounded-2xl"
+        className="flex h-[94dvh] w-full max-w-5xl flex-col overflow-hidden rounded-t-2xl bg-[var(--surface-strong)] shadow-xl sm:h-auto sm:max-h-[94vh] sm:rounded-2xl"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex items-start justify-between gap-3 border-b border-[color:var(--line)] px-4 py-3">
-          <div className="min-w-0">
-            <p className="truncate text-base font-semibold text-[var(--foreground)]">
-              Присадка: {title || "деталь"}
+        <div className="flex items-center justify-between gap-2 border-b border-[color:var(--line)] px-3 py-2 sm:px-4">
+          {position ? (
+            <button
+              type="button"
+              onClick={onPrev}
+              disabled={!onPrev}
+              aria-label="Предыдущая деталь"
+              title="Предыдущая деталь"
+              className={navButtonClass}
+            >
+              <ChevronLeft className="size-4" />
+            </button>
+          ) : null}
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[15px] font-semibold text-[var(--foreground)]">
+              {position ? (
+                <span className="font-normal text-[var(--muted)]">
+                  {position.index + 1}/{position.total} ·{" "}
+                </span>
+              ) : null}
+              {title || "Деталь"}
             </p>
-            <p className="text-xs text-[var(--muted)]">
-              {length} × {width} × {thickness} мм · {quantity} шт. Вид на
-              лицевую сторону. Нажмите на край детали, чтобы выбрать сторону.
+            <p className="truncate text-xs text-[var(--muted)]">
+              {length} × {width} × {thickness} мм · {quantity} шт. · вид на
+              лицевую сторону
             </p>
           </div>
+          {position ? (
+            <button
+              type="button"
+              onClick={onNext}
+              disabled={!onNext}
+              aria-label="Следующая деталь"
+              title="Следующая деталь"
+              className={navButtonClass}
+            >
+              <ChevronRight className="size-4" />
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={onClose}
@@ -377,57 +485,273 @@ export function DrillingEditor({
           </button>
         </div>
 
-        <div className="grid min-h-0 flex-1 gap-4 overflow-x-hidden overflow-y-auto p-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
-          <div className="grid min-w-0 content-start gap-3">
-            <PartDrawing
-              length={length}
-              width={width}
-              holes={holes}
-              highlighted={highlighted}
-              side={side}
-              onSide={setSide}
-              milling={milling}
-            />
-            <div className="flex flex-wrap items-center gap-2 text-sm">
-              <span className="text-[var(--muted)]">Сторона:</span>
+        <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto lg:grid lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:overflow-hidden">
+          {/* Чертёж всегда на виду: на телефоне прилипает к верху окна,
+              на компьютере стоит слева, а листается только список. */}
+          <div className="sticky top-0 z-10 grid content-start gap-2 border-b border-[color:var(--line)] bg-[var(--surface-strong)] px-3 pt-2 pb-2.5 sm:px-4 lg:static lg:overflow-y-auto lg:border-r lg:border-b-0 lg:py-4">
+            <div className="flex justify-center [&>svg]:max-h-[26dvh] lg:[&>svg]:max-h-[52vh]">
+              <PartDrawing
+                length={length}
+                width={width}
+                holes={holes}
+                highlighted={highlighted}
+                side={side}
+                onSide={setSide}
+                milling={milling}
+              />
+            </div>
+            <div className="flex items-center gap-1 overflow-x-auto text-[12px] [scrollbar-width:none]">
+              <span className="shrink-0 pr-1 text-[var(--muted)]">
+                Сторона:
+              </span>
               {SIDES.map((item) => (
                 <button
                   key={item}
                   type="button"
                   onClick={() => setSide(item)}
                   className={cn(
-                    "rounded-full border px-3 py-1 text-[13px]",
+                    "shrink-0 rounded-full border px-2.5 py-1 whitespace-nowrap",
                     item === side
                       ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-ink)]"
                       : "border-[color:var(--line)] hover:border-[var(--foreground)]",
                   )}
                 >
-                  {SIDE_LABELS[item]}
+                  {SIDE_LABELS[item].replace(" край", "")}
                 </button>
               ))}
             </div>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="flex gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:thin] lg:flex-wrap lg:overflow-visible">
               {HARDWARE_KINDS.map((kind) => (
                 <button
                   key={kind}
                   type="button"
                   onClick={() => add(kind)}
                   title={HARDWARE[kind].hint}
-                  className="flex min-h-10 items-center gap-1.5 rounded-lg border border-[color:var(--line)] px-2.5 py-1.5 text-left text-[13px] leading-tight hover:border-[var(--accent)]"
+                  className="flex shrink-0 items-center gap-1 rounded-full border border-[color:var(--line)] px-2.5 py-1.5 text-[12px] leading-none whitespace-nowrap hover:border-[var(--accent)]"
                 >
                   <Plus className="size-3.5 shrink-0 text-[var(--accent)]" />
-                  {HARDWARE[kind].label}
+                  {SHORT_KIND_LABELS[kind] ?? HARDWARE[kind].label}
                 </button>
               ))}
             </div>
           </div>
 
-          <div className="grid min-w-0 content-start gap-3">
+          <div className="grid min-w-0 content-start gap-2 p-3 sm:p-4 lg:overflow-y-auto">
+            {notice ? (
+              <p
+                role="status"
+                className="rounded-lg bg-[var(--surface)] px-3 py-2 text-[13px] text-[var(--foreground)]"
+              >
+                {notice}
+              </p>
+            ) : null}
+
+            {copyOpen ? (
+              <div className="grid gap-2 rounded-xl border border-[var(--accent)] p-3">
+                <p className="text-sm font-semibold">
+                  Скопировать присадку на детали
+                </p>
+                <p className="text-[12px] leading-5 text-[var(--muted)]">
+                  Фурнитура на выбранных деталях заменится этой. Детали того же
+                  размера отмечены сразу.
+                </p>
+                <div className="grid max-h-60 gap-1 overflow-y-auto">
+                  {copyTargets.map((target) => (
+                    <label
+                      key={target.id}
+                      className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-[13px] hover:bg-[var(--surface)]"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={copyIds.has(target.id)}
+                        onChange={() => toggleCopyId(target.id)}
+                      />
+                      <span className="min-w-0 flex-1 truncate">
+                        {target.title || "Деталь"}{" "}
+                        <span className="text-[var(--muted)]">
+                          {target.size}
+                          {target.holes > 0
+                            ? ` · уже ${target.holes} отв.`
+                            : ""}
+                        </span>
+                      </span>
+                      {target.sameSize ? (
+                        <span className="shrink-0 text-[11px] text-[var(--accent)]">
+                          тот же размер
+                        </span>
+                      ) : null}
+                    </label>
+                  ))}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={applyCopy}
+                    disabled={copyIds.size === 0}
+                    className="inline-flex h-9 items-center rounded-full bg-[var(--accent)] px-4 text-[13px] font-semibold text-[var(--accent-ink)] disabled:opacity-40"
+                  >
+                    Скопировать ({copyIds.size})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCopyOpen(false)}
+                    className="inline-flex h-9 items-center rounded-full border border-[color:var(--line)] px-4 text-[13px]"
+                  >
+                    Отмена
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
+            {value.length === 0 ? (
+              <p className="rounded-xl bg-[var(--surface)] p-3 text-[13px] leading-5 text-[var(--muted)]">
+                Нажмите на край детали на чертеже (или выберите сторону) и
+                добавьте фурнитуру кнопками «+». Отступы, диаметры и глубину
+                можно поменять — у каждого цеха свои.
+              </p>
+            ) : null}
+            {value.map((item) => {
+              const definition = HARDWARE[item.kind];
+              const count = byItem.get(item.id)?.length ?? 0;
+              const open = expanded.has(item.id);
+              return (
+                <div
+                  key={item.id}
+                  onFocus={() => setSelected(item.id)}
+                  onMouseEnter={() => setSelected(item.id)}
+                  className={cn(
+                    "grid gap-2 rounded-xl border px-3 py-2",
+                    selected === item.id
+                      ? "border-[var(--accent)]"
+                      : "border-[color:var(--line)]",
+                  )}
+                >
+                  <div className="flex items-center gap-2">
+                    <p className="min-w-0 flex-1 truncate text-[13px] font-semibold">
+                      {SHORT_KIND_LABELS[item.kind] ?? definition.label}
+                      <span className="ml-1.5 font-normal text-[var(--muted)]">
+                        {count} отв.
+                      </span>
+                    </p>
+                    <select
+                      aria-label="Сторона"
+                      className={cn(inputClass, "h-8 w-auto text-[12px]")}
+                      value={item.side}
+                      onChange={(event) =>
+                        update(item.id, {
+                          side: event.target.value as PartSide,
+                        })
+                      }
+                    >
+                      {SIDES.map((option) => (
+                        <option key={option} value={option}>
+                          {SIDE_LABELS[option]}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onChange(value.filter((other) => other.id !== item.id))
+                      }
+                      aria-label="Убрать фурнитуру"
+                      className="flex size-8 shrink-0 items-center justify-center rounded-lg text-[var(--muted)] hover:bg-[var(--surface)] hover:text-[var(--accent)]"
+                    >
+                      <Trash2 className="size-4" />
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {definition.fields.map((field) => (
+                      <NumberField
+                        key={field}
+                        label={SHORT_FIELD_LABELS[field]}
+                        title={FIELD_LABELS[field]}
+                        value={item[field]}
+                        onChange={(next) => update(item.id, { [field]: next })}
+                      />
+                    ))}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px]">
+                    <button
+                      type="button"
+                      onClick={() => toggleExpanded(item.id)}
+                      aria-expanded={open}
+                      className="text-[var(--muted)] underline underline-offset-2 hover:text-[var(--foreground)]"
+                    >
+                      {open
+                        ? "Скрыть Ø и глубину"
+                        : `Ø ${item.holes.map((hole) => `${hole.diameter}×${hole.depth || "скв."}`).join(", ")}`}
+                    </button>
+                    <label className="flex items-center gap-1.5">
+                      <input
+                        type="checkbox"
+                        checked={item.mirror}
+                        onChange={(event) =>
+                          update(item.id, { mirror: event.target.checked })
+                        }
+                      />
+                      Зеркально
+                    </label>
+                    {item.kind === "hole" ? (
+                      <label className="flex items-center gap-1.5">
+                        <input
+                          type="checkbox"
+                          checked={item.edge}
+                          onChange={(event) =>
+                            update(item.id, { edge: event.target.checked })
+                          }
+                        />
+                        В торец
+                      </label>
+                    ) : null}
+                  </div>
+                  {open
+                    ? item.holes.map((hole, index) => (
+                        <div
+                          key={index}
+                          className="grid grid-cols-[minmax(0,1fr)_72px_72px] items-end gap-1.5"
+                        >
+                          <span className="pb-2 text-[12px] leading-tight font-medium">
+                            {definition.holeLabels[index]}
+                          </span>
+                          <NumberField
+                            label="Ø, мм"
+                            value={hole.diameter}
+                            onChange={(next) =>
+                              update(item.id, {
+                                holes: item.holes.map((spec, specIndex) =>
+                                  specIndex === index
+                                    ? { ...spec, diameter: next }
+                                    : spec,
+                                ),
+                              })
+                            }
+                          />
+                          <NumberField
+                            label="Глубина"
+                            value={hole.depth}
+                            onChange={(next) =>
+                              update(item.id, {
+                                holes: item.holes.map((spec, specIndex) =>
+                                  specIndex === index
+                                    ? { ...spec, depth: next }
+                                    : spec,
+                                ),
+                              })
+                            }
+                          />
+                        </div>
+                      ))
+                    : null}
+                </div>
+              );
+            })}
+
             <details
               open={hasMilling(milling)}
-              className="rounded-xl border border-[color:var(--line)] p-3"
+              className="rounded-xl border border-[color:var(--line)] px-3 py-2"
             >
-              <summary className="cursor-pointer text-sm font-semibold">
+              <summary className="cursor-pointer text-[13px] font-semibold">
                 Фрезеровка: скругления углов и скосы торцов
               </summary>
               <div className="mt-3 grid gap-3">
@@ -494,142 +818,11 @@ export function DrillingEditor({
                 </p>
               </div>
             </details>
-            {value.length === 0 ? (
-              <p className="rounded-xl bg-[var(--surface)] p-4 text-sm leading-6 text-[var(--muted)]">
-                Выберите сторону детали и добавьте фурнитуру кнопками слева.
-                Отступы, диаметры и глубину можно поменять — у каждого цеха
-                свои.
-              </p>
-            ) : null}
-            {value.map((item) => {
-              const definition = HARDWARE[item.kind];
-              const count = byItem.get(item.id)?.length ?? 0;
-              return (
-                <div
-                  key={item.id}
-                  onFocus={() => setSelected(item.id)}
-                  onMouseEnter={() => setSelected(item.id)}
-                  className={cn(
-                    "grid gap-2 rounded-xl border p-3",
-                    selected === item.id
-                      ? "border-[var(--accent)]"
-                      : "border-[color:var(--line)]",
-                  )}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-semibold">
-                      {definition.label}
-                      <span className="ml-2 font-normal text-[var(--muted)]">
-                        {count} отв.
-                      </span>
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        onChange(value.filter((other) => other.id !== item.id))
-                      }
-                      aria-label="Убрать фурнитуру"
-                      className="flex size-8 items-center justify-center rounded-lg text-[var(--muted)] hover:bg-[var(--surface)] hover:text-[var(--accent)]"
-                    >
-                      <Trash2 className="size-4" />
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                    <label className="grid gap-1 text-[11px] text-[var(--muted)]">
-                      Сторона
-                      <select
-                        className={inputClass}
-                        value={item.side}
-                        onChange={(event) =>
-                          update(item.id, {
-                            side: event.target.value as PartSide,
-                          })
-                        }
-                      >
-                        {SIDES.map((option) => (
-                          <option key={option} value={option}>
-                            {SIDE_LABELS[option]}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    {definition.fields.map((field) => (
-                      <NumberField
-                        key={field}
-                        label={FIELD_LABELS[field]}
-                        value={item[field]}
-                        onChange={(next) => update(item.id, { [field]: next })}
-                      />
-                    ))}
-                    {item.holes.map((hole, index) => (
-                      <div
-                        key={index}
-                        className="col-span-2 grid grid-cols-2 gap-2 sm:col-span-3 sm:grid-cols-[minmax(0,1fr)_90px_90px] sm:items-end"
-                      >
-                        <span className="col-span-2 text-[12px] font-medium sm:col-span-1 sm:pb-2">
-                          {definition.holeLabels[index]}
-                        </span>
-                        <NumberField
-                          label="Ø, мм"
-                          value={hole.diameter}
-                          onChange={(next) =>
-                            update(item.id, {
-                              holes: item.holes.map((spec, specIndex) =>
-                                specIndex === index
-                                  ? { ...spec, diameter: next }
-                                  : spec,
-                              ),
-                            })
-                          }
-                        />
-                        <NumberField
-                          label="Глубина, мм"
-                          value={hole.depth}
-                          onChange={(next) =>
-                            update(item.id, {
-                              holes: item.holes.map((spec, specIndex) =>
-                                specIndex === index
-                                  ? { ...spec, depth: next }
-                                  : spec,
-                              ),
-                            })
-                          }
-                        />
-                      </div>
-                    ))}
-                  </div>
-                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-[13px]">
-                    <label className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={item.mirror}
-                        onChange={(event) =>
-                          update(item.id, { mirror: event.target.checked })
-                        }
-                      />
-                      Зеркально у противоположного края
-                    </label>
-                    {item.kind === "hole" ? (
-                      <label className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={item.edge}
-                          onChange={(event) =>
-                            update(item.id, { edge: event.target.checked })
-                          }
-                        />
-                        В торец
-                      </label>
-                    ) : null}
-                  </div>
-                </div>
-              );
-            })}
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[color:var(--line)] px-4 py-3">
-          <p className="text-sm text-[var(--foreground)]">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[color:var(--line)] px-3 py-2.5 sm:px-4">
+          <p className="min-w-0 flex-1 text-[13px] text-[var(--foreground)]">
             {price.holes > 0 ? (
               <>
                 {price.holes} отв. на {quantity} шт. —{" "}
@@ -637,19 +830,37 @@ export function DrillingEditor({
                 {price.unpricedHoles > 0
                   ? ` (ещё ${price.unpricedHoles} отв. без цены, посчитает менеджер)`
                   : ""}
-                . Глубина 0 — сквозное.
               </>
             ) : (
-              "Отверстий пока нет. Глубина 0 — сквозное отверстие."
+              "Отверстий пока нет. Глубина 0 — сквозное."
             )}
           </p>
-          <button
-            type="button"
-            onClick={onClose}
-            className="inline-flex h-10 items-center rounded-full bg-[var(--foreground)] px-5 text-sm font-semibold text-[var(--background)]"
-          >
-            Готово
-          </button>
+          <div className="flex gap-2">
+            {onCopyTo && copyTargets.length > 0 ? (
+              <button
+                type="button"
+                onClick={() => setCopyOpen((current) => !current)}
+                disabled={value.length === 0}
+                title={
+                  value.length === 0
+                    ? "Сначала добавьте фурнитуру"
+                    : "Та же присадка на другие детали"
+                }
+                className="inline-flex h-10 items-center gap-1.5 rounded-full border border-[color:var(--line)] px-4 text-sm font-semibold text-[var(--foreground)] hover:border-[var(--foreground)] disabled:opacity-40"
+              >
+                <CopyIcon className="size-4" />
+                <span className="hidden sm:inline">Копировать на…</span>
+                <span className="sm:hidden">Копировать</span>
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={onClose}
+              className="inline-flex h-10 items-center rounded-full bg-[var(--foreground)] px-5 text-sm font-semibold text-[var(--background)]"
+            >
+              Готово
+            </button>
+          </div>
         </div>
       </div>
     </div>

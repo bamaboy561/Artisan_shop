@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Maximize2, Minimize2, Minus, Plus, RotateCcw } from "lucide-react";
 
 import type { BazisHole } from "@/lib/bazis-b3d";
 
@@ -90,7 +91,27 @@ const TAP_SLOP = 6;
 // Инерция поворота: за кадр скорость падает на столько, остановка ниже порога.
 const SPIN_DECAY = 0.93;
 const SPIN_STOP = 0.0004;
-const DEFAULT_VIEW = { yaw: -0.5, pitch: 0.3, zoom: 1 };
+// panX / panY — сдвиг изделия на экране в пикселях (правая кнопка мыши,
+// Shift или два пальца).
+const DEFAULT_VIEW = { yaw: -0.5, pitch: 0.3, zoom: 1, panX: 0, panY: 0 };
+type ViewState = typeof DEFAULT_VIEW;
+const MIN_ZOOM = 0.3;
+const MAX_ZOOM = 40;
+const DOUBLE_TAP_MS = 320;
+
+// Масштаб в factor раз так, чтобы точка (x, y) от центра окна осталась на
+// месте: под курсором, между пальцами.
+function zoomAround(view: ViewState, factor: number, x: number, y: number) {
+  const zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, view.zoom * factor));
+  const applied = zoom / view.zoom;
+
+  return {
+    ...view,
+    zoom,
+    panX: x * (1 - applied) + view.panX * applied,
+    panY: y * (1 - applied) + view.panY * applied,
+  };
+}
 
 const numberFormatter = new Intl.NumberFormat("ru-RU", {
   maximumFractionDigits: 1,
@@ -547,6 +568,124 @@ function insidePolygon(x: number, y: number, polygon: number[][]) {
   return inside;
 }
 
+// Порядок рисования деталей «от дальней к ближней». Сортировка граней по
+// средней глубине ошибается на длинных деталях: полка просвечивала сквозь
+// боковину. Детали не пересекаются, поэтому две детали, которые на экране
+// накрывают друг друга, почти всегда разделены по одной из осей модели —
+// по ней и видно, какая ближе. Остальные пары — по средней глубине.
+type PaintFace = {
+  box: number;
+  depth: number;
+  points: number[][];
+  placed: number[][];
+};
+
+export function paintOrder(faces: PaintFace[], toViewer: number[]) {
+  type Bounds = {
+    box: number;
+    min: number[];
+    max: number[];
+    screenMin: number[];
+    screenMax: number[];
+    depth: number;
+    faces: number;
+  };
+  const byBox = new Map<number, Bounds>();
+  for (const face of faces) {
+    let item = byBox.get(face.box);
+    if (!item) {
+      item = {
+        box: face.box,
+        min: [Infinity, Infinity, Infinity],
+        max: [-Infinity, -Infinity, -Infinity],
+        screenMin: [Infinity, Infinity],
+        screenMax: [-Infinity, -Infinity],
+        depth: 0,
+        faces: 0,
+      };
+      byBox.set(face.box, item);
+    }
+    for (const point of face.placed) {
+      for (let axis = 0; axis < 3; axis += 1) {
+        item.min[axis] = Math.min(item.min[axis], point[axis]);
+        item.max[axis] = Math.max(item.max[axis], point[axis]);
+      }
+    }
+    for (const point of face.points) {
+      for (let axis = 0; axis < 2; axis += 1) {
+        item.screenMin[axis] = Math.min(item.screenMin[axis], point[axis]);
+        item.screenMax[axis] = Math.max(item.screenMax[axis], point[axis]);
+      }
+    }
+    item.depth += face.depth;
+    item.faces += 1;
+  }
+  const items = [...byBox.values()];
+  for (const item of items) item.depth /= item.faces;
+
+  // 1 — a ближе b, -1 — дальше, 0 — не понять по осям.
+  const compare = (a: Bounds, b: Bounds) => {
+    let best = 0;
+    let bestWeight = 0.05;
+    for (let axis = 0; axis < 3; axis += 1) {
+      const weight = Math.abs(toViewer[axis]);
+      if (weight <= bestWeight) continue;
+      const eps = 0.5;
+      if (a.min[axis] >= b.max[axis] - eps) {
+        best = toViewer[axis] > 0 ? 1 : -1;
+        bestWeight = weight;
+      } else if (a.max[axis] <= b.min[axis] + eps) {
+        best = toViewer[axis] > 0 ? -1 : 1;
+        bestWeight = weight;
+      }
+    }
+    return best;
+  };
+
+  // Ребро «far → near» для пар, которые накрывают друг друга на экране.
+  const count = items.length;
+  const after: number[][] = items.map(() => []);
+  const incoming = new Array<number>(count).fill(0);
+  for (let i = 0; i < count; i += 1) {
+    const a = items[i];
+    for (let j = i + 1; j < count; j += 1) {
+      const b = items[j];
+      if (
+        a.screenMax[0] < b.screenMin[0] ||
+        b.screenMax[0] < a.screenMin[0] ||
+        a.screenMax[1] < b.screenMin[1] ||
+        b.screenMax[1] < a.screenMin[1]
+      ) {
+        continue;
+      }
+      const order = compare(a, b) || Math.sign(a.depth - b.depth);
+      if (order > 0) {
+        after[j].push(i);
+        incoming[i] += 1;
+      } else if (order < 0) {
+        after[i].push(j);
+        incoming[j] += 1;
+      }
+    }
+  }
+
+  // Топологическая сортировка; из готовых первой берём самую дальнюю.
+  // Если попался цикл, разрываем его самой дальней из оставшихся.
+  const order = new Map<number, number>();
+  const done = new Array<boolean>(count).fill(false);
+  const byDepth = items
+    .map((_, index) => index)
+    .sort((left, right) => items[left].depth - items[right].depth);
+  for (let placed = 0; placed < count; placed += 1) {
+    let next = byDepth.find((index) => !done[index] && incoming[index] === 0);
+    if (next === undefined) next = byDepth.find((index) => !done[index])!;
+    done[next] = true;
+    order.set(items[next].box, placed);
+    for (const near of after[next]) incoming[near] -= 1;
+  }
+  return order;
+}
+
 export function BazisViewer({
   boxes,
   joints,
@@ -581,7 +720,11 @@ export function BazisViewer({
   defaultExploded?: boolean;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [view, setView] = useState(DEFAULT_VIEW);
+  const [view, setView] = useState<ViewState>(DEFAULT_VIEW);
+  // Окно на весь экран (своим слоем: Fullscreen API нет в Safari на iPhone).
+  const [expanded, setExpanded] = useState(false);
+  const panning = useRef(false);
+  const lastTap = useRef<{ at: number; x: number; y: number } | null>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const scene = useMemo(() => buildScene(boxes, joints), [boxes, joints]);
@@ -1048,6 +1191,67 @@ export function BazisViewer({
     };
   }, [animationKey, focused, showing]);
 
+  // Колесо мыши: свой обработчик с passive: false, иначе страница
+  // прокручивается вместе с приближением. Приближаем к точке под курсором.
+  const stopForWheel = useRef(() => {});
+  useEffect(() => {
+    stopForWheel.current = () => {
+      stopAnimation();
+      stopSpin();
+    };
+  });
+  useEffect(() => {
+    const canvas = canvasRef.current;
+
+    if (!canvas) {
+      return;
+    }
+
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      stopForWheel.current();
+      const rect = canvas.getBoundingClientRect();
+      // Тачпад присылает мелкие шаги: масштаб плавно по величине прокрутки.
+      const factor = Math.exp(
+        -Math.max(-120, Math.min(120, event.deltaY)) / 600,
+      );
+
+      setView((current) =>
+        zoomAround(
+          current,
+          factor,
+          event.clientX - rect.left - rect.width / 2,
+          event.clientY - rect.top - rect.height / 2,
+        ),
+      );
+    };
+
+    canvas.addEventListener("wheel", onWheel, { passive: false });
+    return () => canvas.removeEventListener("wheel", onWheel);
+  }, []);
+
+  // Во весь экран: Esc сворачивает, страница под окном не прокручивается.
+  useEffect(() => {
+    if (!expanded) {
+      return;
+    }
+
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setExpanded(false);
+      }
+    };
+    const overflow = document.body.style.overflow;
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKey);
+
+    return () => {
+      document.body.style.overflow = overflow;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [expanded]);
+
   useEffect(() => {
     const canvas = canvasRef.current;
 
@@ -1159,8 +1363,8 @@ export function BazisViewer({
         )) *
       shown.zoom;
     const toScreen = (point: number[]) => [
-      width / 2 + point[0] * scale,
-      size.height / 2 - point[1] * scale,
+      width / 2 + view.panX + point[0] * scale,
+      size.height / 2 + view.panY - point[1] * scale,
     ];
     const light = [0.35, 0.55, 0.76];
     const stepOrder = new Map<number, number>();
@@ -1235,17 +1439,16 @@ export function BazisViewer({
         const marked =
           (markedBoxes?.has(face.box) ?? false) || face.box === selectedBox;
         const factor = markedBoxes?.has(face.box) ? grow : 1;
-        const points = face.points.map((point) =>
-          rotate(
-            point.map(
-              (value, axis) =>
-                face.pivot[axis] +
-                (value - face.pivot[axis]) * factor +
-                offset[axis] -
-                center[axis],
-            ),
+        const placed = face.points.map((point) =>
+          point.map(
+            (value, axis) =>
+              face.pivot[axis] +
+              (value - face.pivot[axis]) * factor +
+              offset[axis] -
+              center[axis],
           ),
         );
+        const points = placed.map(rotate);
         const depth =
           points.reduce((sum, point) => sum + point[2], 0) / points.length;
         const shade =
@@ -1260,6 +1463,7 @@ export function BazisViewer({
 
         return {
           points,
+          placed,
           depth,
           shade,
           tone: face.tone,
@@ -1268,14 +1472,19 @@ export function BazisViewer({
           appear,
         };
       })
-      .filter((face) => face !== null)
-      // Выделенные детали рисуем последними, чтобы их было видно сквозь
-      // остальные.
-      .sort(
-        (left, right) =>
-          Number(left.marked) - Number(right.marked) ||
-          left.depth - right.depth,
-      );
+      .filter((face) => face !== null);
+    // Направление на зрителя в координатах модели: чем больше проекция
+    // точки на него, тем ближе точка.
+    const toViewer = [-sinYaw * cosPitch, sinPitch, cosYaw * cosPitch];
+    const boxOrder = paintOrder(drawn, toViewer);
+    // Выделенные детали рисуем последними, чтобы их было видно сквозь
+    // остальные.
+    drawn.sort(
+      (left, right) =>
+        Number(left.marked) - Number(right.marked) ||
+        (boxOrder.get(left.box) ?? 0) - (boxOrder.get(right.box) ?? 0) ||
+        left.depth - right.depth,
+    );
 
     context.lineJoin = "round";
     context.lineWidth = 0.6;
@@ -1669,9 +1878,31 @@ export function BazisViewer({
   const buttonClassName =
     "border border-[color:var(--line)] bg-[var(--surface-strong)] px-3 py-1.5 text-xs font-medium text-[var(--foreground)] transition hover:border-[color:var(--line-strong)] disabled:cursor-default disabled:opacity-40 disabled:hover:border-[color:var(--line)]";
 
+  // Кнопки масштаба поверх окна макета.
+  const zoomBy = (factor: number) => {
+    stopAnimation();
+    stopSpin();
+    setView((current) => zoomAround(current, factor, 0, 0));
+  };
+  const overlayButtonClassName =
+    "flex size-10 items-center justify-center rounded-full border border-[color:var(--line)] bg-[var(--surface-strong)]/95 text-[var(--foreground)] shadow-sm transition hover:border-[color:var(--line-strong)] sm:size-9";
+  const canvasCenter = () => {
+    const rect = canvasRef.current?.getBoundingClientRect();
+    return rect
+      ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
+      : { x: 0, y: 0 };
+  };
+
   return (
-    <div className="grid gap-2">
-      <div className="flex flex-wrap items-center gap-2">
+    <div
+      className={
+        expanded
+          ? "fixed inset-0 z-[85] flex flex-col gap-2 bg-[var(--surface-strong)] p-2 sm:p-4"
+          : "grid gap-2"
+      }
+    >
+      {/* На телефоне кнопки в одну строку с прокруткой, а не в 3–4 ряда. */}
+      <div className="-mx-1 flex items-center gap-2 overflow-x-auto px-1 pb-0.5 whitespace-nowrap [scrollbar-width:none] sm:flex-wrap sm:overflow-visible">
         {views.map((item) => (
           <button
             key={item.label}
@@ -1680,39 +1911,13 @@ export function BazisViewer({
               stopAnimation();
               stopSpin();
               setFocused(false);
-              setView({ yaw: item.yaw, pitch: item.pitch, zoom: 1 });
+              setView({ ...DEFAULT_VIEW, yaw: item.yaw, pitch: item.pitch });
             }}
             className={buttonClassName}
           >
             {item.label}
           </button>
         ))}
-        <button
-          type="button"
-          onClick={() =>
-            setView((current) => ({ ...current, zoom: current.zoom * 1.3 }))
-          }
-          aria-label="Приблизить"
-          className={buttonClassName}
-        >
-          +
-        </button>
-        <button
-          type="button"
-          onClick={() =>
-            setView((current) => ({
-              ...current,
-              zoom: Math.max(0.3, current.zoom / 1.3),
-            }))
-          }
-          aria-label="Отдалить"
-          className={buttonClassName}
-        >
-          −
-        </button>
-        <button type="button" onClick={resetView} className={buttonClassName}>
-          Сбросить вид
-        </button>
         <button
           type="button"
           onClick={() => animateExplode(explode > 0.5 ? 0 : 1)}
@@ -1735,7 +1940,7 @@ export function BazisViewer({
         >
           {step === null ? "Сборка по шагам" : "Выйти из сборки по шагам"}
         </button>
-        <label className="flex min-w-48 flex-1 items-center gap-2 text-xs text-[var(--muted)] sm:max-w-72">
+        <label className="flex min-w-44 shrink-0 items-center gap-2 text-xs text-[var(--muted)] sm:max-w-72 sm:min-w-48 sm:flex-1 sm:shrink">
           <span className="whitespace-nowrap">Разнести детали</span>
           <input
             type="range"
@@ -1813,133 +2018,244 @@ export function BazisViewer({
           </button>
         </div>
       ) : null}
-      <div className="relative grid gap-2">
-        <canvas
-          ref={canvasRef}
-          role="img"
-          aria-label="Объёмный вид проекта. Поворачивайте мышью или пальцем."
-          className={`${heightClassName} w-full cursor-grab touch-none border border-[color:var(--line)] bg-[#f6f4f0] active:cursor-grabbing`}
-          onPointerDown={(event) => {
-            stopAnimation();
-            stopSpin();
-            tapStart.current =
-              pointers.current.size === 0
-                ? { x: event.clientX, y: event.clientY }
-                : null;
-            event.currentTarget.setPointerCapture(event.pointerId);
-            pointers.current.set(event.pointerId, {
-              x: event.clientX,
-              y: event.clientY,
-            });
-          }}
-          onPointerMove={(event) => {
-            const previous = pointers.current.get(event.pointerId);
+      <div
+        className={expanded ? "relative min-h-0 flex-1" : "relative grid gap-2"}
+      >
+        {/* Свой блок для окна и кнопок: карточка детали на телефоне идёт
+            ниже и не сдвигает кнопки с макета. */}
+        <div className={expanded ? "relative h-full" : "relative"}>
+          <canvas
+            ref={canvasRef}
+            role="img"
+            aria-label="Объёмный вид проекта. Вращайте мышью или пальцем, двигайте правой кнопкой или двумя пальцами."
+            className={`${expanded ? "h-full" : heightClassName} block w-full cursor-grab touch-none border border-[color:var(--line)] bg-[#f6f4f0] active:cursor-grabbing`}
+            onContextMenu={(event) => event.preventDefault()}
+            onPointerDown={(event) => {
+              stopAnimation();
+              stopSpin();
+              // Правая или средняя кнопка мыши, или Shift — сдвиг, а не поворот.
+              if (
+                pointers.current.size === 0 &&
+                event.pointerType === "mouse" &&
+                (event.button === 1 || event.button === 2 || event.shiftKey)
+              ) {
+                panning.current = true;
+              }
+              tapStart.current =
+                pointers.current.size === 0
+                  ? { x: event.clientX, y: event.clientY }
+                  : null;
+              event.currentTarget.setPointerCapture(event.pointerId);
+              pointers.current.set(event.pointerId, {
+                x: event.clientX,
+                y: event.clientY,
+              });
+            }}
+            onPointerMove={(event) => {
+              const previous = pointers.current.get(event.pointerId);
 
-            if (!previous) {
-              // Мышь без нажатия: подсвечиваем деталь под ней.
-              if (event.pointerType === "mouse") {
+              if (!previous) {
+                // Мышь без нажатия: подсвечиваем деталь под ней.
+                if (event.pointerType === "mouse") {
+                  const box = boxAt(event.clientX, event.clientY);
+
+                  if (box !== hovered) setHovered(box);
+                }
+
+                return;
+              }
+
+              const next = { x: event.clientX, y: event.clientY };
+
+              if (
+                tapStart.current &&
+                Math.hypot(
+                  next.x - tapStart.current.x,
+                  next.y - tapStart.current.y,
+                ) > TAP_SLOP
+              ) {
+                tapStart.current = null;
+              }
+
+              if (pointers.current.size === 2) {
+                // Два пальца: меняем масштаб по изменению расстояния.
+                const other = [...pointers.current.entries()].find(
+                  ([id]) => id !== event.pointerId,
+                )?.[1];
+
+                // Два пальца: щипок приближает к точке между пальцами,
+                // движение обоих пальцев сдвигает изделие.
+                panning.current = true;
+
+                if (other) {
+                  const before = Math.hypot(
+                    previous.x - other.x,
+                    previous.y - other.y,
+                  );
+                  const after = Math.hypot(next.x - other.x, next.y - other.y);
+                  const center = canvasCenter();
+                  // Масштаб вокруг прежней середины между пальцами, затем
+                  // сдвиг на то, насколько середина ушла: палец, который
+                  // не двигался, остаётся на той же точке изделия.
+                  const midX = (previous.x + other.x) / 2 - center.x;
+                  const midY = (previous.y + other.y) / 2 - center.y;
+
+                  setView((current) => {
+                    const zoomed =
+                      before > 0
+                        ? zoomAround(current, after / before, midX, midY)
+                        : current;
+
+                    return {
+                      ...zoomed,
+                      panX: zoomed.panX + (next.x - previous.x) / 2,
+                      panY: zoomed.panY + (next.y - previous.y) / 2,
+                    };
+                  });
+                }
+              } else if (panning.current) {
+                setView((current) => ({
+                  ...current,
+                  panX: current.panX + next.x - previous.x,
+                  panY: current.panY + next.y - previous.y,
+                }));
+              } else {
+                const yaw = (next.x - previous.x) * 0.008;
+                const pitch = (next.y - previous.y) * 0.008;
+
+                spin.current = { yaw, pitch, at: performance.now() };
+                setView((current) => ({
+                  ...current,
+                  yaw: current.yaw + yaw,
+                  pitch: Math.min(
+                    Math.PI / 2,
+                    Math.max(-Math.PI / 2, current.pitch + pitch),
+                  ),
+                }));
+              }
+
+              pointers.current.set(event.pointerId, next);
+            }}
+            onPointerUp={(event) => {
+              pointers.current.delete(event.pointerId);
+              const wasPanning = panning.current;
+
+              if (pointers.current.size === 0) {
+                panning.current = false;
+              }
+
+              const now = performance.now();
+              const previousTap = lastTap.current;
+              const doubleTap =
+                tapStart.current !== null &&
+                previousTap !== null &&
+                now - previousTap.at < DOUBLE_TAP_MS &&
+                Math.hypot(
+                  event.clientX - previousTap.x,
+                  event.clientY - previousTap.y,
+                ) < 30;
+
+              if (doubleTap) {
+                // Двойное нажатие: приближаем в 2 раза к этому месту, деталь
+                // под пальцем остаётся выбранной.
+                const center = canvasCenter();
                 const box = boxAt(event.clientX, event.clientY);
 
-                if (box !== hovered) setHovered(box);
-              }
-
-              return;
-            }
-
-            const next = { x: event.clientX, y: event.clientY };
-
-            if (
-              tapStart.current &&
-              Math.hypot(
-                next.x - tapStart.current.x,
-                next.y - tapStart.current.y,
-              ) > TAP_SLOP
-            ) {
-              tapStart.current = null;
-            }
-
-            if (pointers.current.size === 2) {
-              // Два пальца: меняем масштаб по изменению расстояния.
-              const other = [...pointers.current.entries()].find(
-                ([id]) => id !== event.pointerId,
-              )?.[1];
-
-              if (other) {
-                const before = Math.hypot(
-                  previous.x - other.x,
-                  previous.y - other.y,
+                lastTap.current = null;
+                tapStart.current = null;
+                setView((current) =>
+                  zoomAround(
+                    current,
+                    2,
+                    event.clientX - center.x,
+                    event.clientY - center.y,
+                  ),
                 );
-                const after = Math.hypot(next.x - other.x, next.y - other.y);
-
-                if (before > 0) {
-                  setView((current) => ({
-                    ...current,
-                    zoom: Math.min(
-                      40,
-                      Math.max(0.3, current.zoom * (after / before)),
-                    ),
-                  }));
+                if (step === null && box !== null) {
+                  setSelected(box);
                 }
-              }
-            } else {
-              const yaw = (next.x - previous.x) * 0.008;
-              const pitch = (next.y - previous.y) * 0.008;
+              } else if (tapStart.current) {
+                // Нажатие без поворота выбирает деталь, нажатие мимо — снимает выбор.
+                const box = boxAt(event.clientX, event.clientY);
 
-              spin.current = { yaw, pitch, at: performance.now() };
-              setView((current) => ({
-                ...current,
-                yaw: current.yaw + yaw,
-                pitch: Math.min(
-                  Math.PI / 2,
-                  Math.max(-Math.PI / 2, current.pitch + pitch),
-                ),
-              }));
-            }
+                lastTap.current = {
+                  at: now,
+                  x: event.clientX,
+                  y: event.clientY,
+                };
 
-            pointers.current.set(event.pointerId, next);
-          }}
-          onPointerUp={(event) => {
-            pointers.current.delete(event.pointerId);
-
-            // Нажатие без поворота выбирает деталь, нажатие мимо — снимает выбор.
-            if (tapStart.current) {
-              const box = boxAt(event.clientX, event.clientY);
-
-              if (step !== null) {
-                // В пошаговой сборке нажатие на поставленную деталь
-                // переходит к её шагу.
-                if (box !== null) {
-                  goToStep(scene.buildOrder.indexOf(box) + 1);
+                if (step !== null) {
+                  // В пошаговой сборке нажатие на поставленную деталь
+                  // переходит к её шагу.
+                  if (box !== null) {
+                    goToStep(scene.buildOrder.indexOf(box) + 1);
+                  }
+                } else {
+                  setSelected(box === selectedBox ? null : box);
                 }
-              } else {
-                setSelected(box === selectedBox ? null : box);
-              }
 
+                tapStart.current = null;
+              } else if (pointers.current.size === 0 && !wasPanning) {
+                startSpin();
+              }
+            }}
+            onPointerCancel={(event) => {
+              pointers.current.delete(event.pointerId);
               tapStart.current = null;
-            } else if (pointers.current.size === 0) {
-              startSpin();
-            }
-          }}
-          onPointerCancel={(event) => {
-            pointers.current.delete(event.pointerId);
-            tapStart.current = null;
-          }}
-          onPointerLeave={() => setHovered(null)}
-          onWheel={(event) => {
-            stopAnimation();
-            const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
-
-            setView((current) => ({
-              ...current,
-              zoom: Math.min(40, Math.max(0.3, current.zoom * factor)),
-            }));
-          }}
-          style={{ cursor: hovered !== null ? "pointer" : undefined }}
-        />
+              if (pointers.current.size === 0) {
+                panning.current = false;
+              }
+            }}
+            onPointerLeave={() => setHovered(null)}
+            style={{ cursor: hovered !== null ? "pointer" : undefined }}
+          />
+          <div className="absolute bottom-2 left-2 flex gap-1.5">
+            <button
+              type="button"
+              onClick={() => zoomBy(1.4)}
+              aria-label="Приблизить"
+              title="Приблизить"
+              className={overlayButtonClassName}
+            >
+              <Plus className="size-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => zoomBy(1 / 1.4)}
+              aria-label="Отдалить"
+              title="Отдалить"
+              className={overlayButtonClassName}
+            >
+              <Minus className="size-4" />
+            </button>
+            <button
+              type="button"
+              onClick={resetView}
+              aria-label="Сбросить вид"
+              title="Сбросить вид: весь макет по центру"
+              className={overlayButtonClassName}
+            >
+              <RotateCcw className="size-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setExpanded((current) => !current)}
+              aria-label={expanded ? "Свернуть" : "Во весь экран"}
+              title={expanded ? "Свернуть (Esc)" : "Во весь экран"}
+              className={overlayButtonClassName}
+            >
+              {expanded ? (
+                <Minimize2 className="size-4" />
+              ) : (
+                <Maximize2 className="size-4" />
+              )}
+            </button>
+          </div>
+        </div>
         {selectedBox !== null ? (
           <aside
             aria-live="polite"
-            className="grid gap-2 border border-[color:var(--line)] bg-[var(--surface-strong)]/95 p-3 text-sm shadow-sm sm:absolute sm:top-3 sm:right-3 sm:w-80"
+            className={`grid gap-2 border border-[color:var(--line)] bg-[var(--surface-strong)]/95 p-3 text-sm shadow-sm sm:absolute sm:top-3 sm:right-3 sm:w-80 ${expanded ? "absolute top-2 right-2 left-2 max-h-[45%] overflow-y-auto sm:left-auto" : ""}`}
           >
             <div className="flex items-start justify-between gap-3">
               <p className="font-semibold break-words text-[var(--foreground)]">
@@ -1993,8 +2309,17 @@ export function BazisViewer({
           </aside>
         ) : null}
       </div>
-      <p className="text-xs text-[var(--muted)]">
-        Поворачивайте мышью или пальцем, приближайте колесом или двумя пальцами.
+      <p
+        className={`text-xs leading-5 text-[var(--muted)] ${expanded ? "hidden sm:block" : ""}`}
+      >
+        <span className="hidden sm:inline">
+          Вращать — левой кнопкой мыши, двигать — правой кнопкой или с Shift,
+          приближать — колесом или двойным щелчком.
+        </span>
+        <span className="sm:hidden">
+          Вращать — одним пальцем, двигать и приближать — двумя пальцами,
+          двойное нажатие — приблизить.
+        </span>{" "}
         Нажмите на деталь, чтобы увидеть её размер, материал, присадку и место в
         изделии. Показаны детали из плитных материалов; фурнитура и профили не
         рисуются.

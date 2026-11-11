@@ -11,8 +11,19 @@ import {
 import { getDemoAdminSession } from "@/lib/auth/demo-access";
 import { getDb, hasDatabaseUrl, isDemoModeEnabled } from "@/lib/db";
 import type { AdminRequestItem } from "@/features/admin/operations-filters";
-import { calculateCuttingLaborTotal } from "@/features/cutting/labor-price";
-import { readCuttingPrice, saveCuttingPriceSnapshot } from "@/lib/server/cutting-pricing";
+import {
+  buildCuttingQuote,
+  hasCuttingExtras,
+  parseCuttingExtras,
+  type CuttingExtras,
+} from "@/features/cutting/quote";
+import {
+  readCuttingExtras,
+  readCuttingQuotePrice,
+  saveCuttingExtras,
+  saveCuttingPriceSnapshot,
+} from "@/lib/server/cutting-pricing";
+import { bazisExtrasFromUploads } from "@/lib/server/cutting-bazis-extras";
 
 type DemoRequestRecord = Omit<
   AdminRequestItem,
@@ -83,6 +94,8 @@ export type CuttingRequestSubmission = {
   addressText?: string | null;
   userId?: string | null;
   uploadedFiles?: File[];
+  // Присадка и фрезеровка из калькулятора: входят в «Итог» заявки.
+  cuttingExtras?: CuttingExtras | null;
 };
 
 export type CreateCuttingRequestOptions = {
@@ -695,39 +708,52 @@ export async function createCuttingRequest(
       existingNumbers.flatMap((item) => (item.number ? [item.number] : [])),
     );
 
+    // Присадка: из калькулятора, иначе из приложенного проекта Базиса.
+    const submittedExtras = parseCuttingExtras(input.cuttingExtras);
+    const extras = hasCuttingExtras(submittedExtras)
+      ? submittedExtras
+      : await bazisExtrasFromUploads(uploadedFiles).catch((error) => {
+          console.error("[cutting:bazis-extras]", error);
+          return null;
+        });
+
     const createdRequest = await db.$transaction(async (tx) => {
-      const price = await readCuttingPrice(tx);
+      const price = await readCuttingQuotePrice(tx);
       const created = await tx.request.create({
-      data: {
-        number,
-        type: RequestType.CUTTING_SERVICE,
-        status: options.status ?? RequestStatus.NEW,
-        subject: input.subject,
-        message: input.message,
-        userId: input.userId ?? null,
-        managerId: options.managerId ?? null,
-        contactName: input.contactName,
-        contactPhone: input.contactPhone,
-        contactEmail: input.contactEmail ?? null,
-        messengerType: resolveMessengerType(input.messengerType),
-        messengerHandle: input.messengerHandle ?? null,
-        material: input.material,
-        cuttingSheetCount: input.cuttingSheetCount ?? null,
-        cuttingEdgeMeters: input.cuttingEdgeMeters ?? null,
-        edgeOption: input.edgeOption ?? null,
-        deliveryNeeded: input.deliveryNeeded ?? false,
-        addressText: input.addressText ?? null,
-        estimatedBudget: input.estimatedBudget,
-        quotedTotal: price ? calculateCuttingLaborTotal(price, input.cuttingSheetCount, input.cuttingEdgeMeters, input.edgeOption) : null,
-        cuttingStage: options.cuttingStage ?? null,
-        cuttingStageUpdatedAt: options.cuttingStage ? new Date() : null,
-      },
-      select: {
-        id: true,
-        number: true,
-      },
+        data: {
+          number,
+          type: RequestType.CUTTING_SERVICE,
+          status: options.status ?? RequestStatus.NEW,
+          subject: input.subject,
+          message: input.message,
+          userId: input.userId ?? null,
+          managerId: options.managerId ?? null,
+          contactName: input.contactName,
+          contactPhone: input.contactPhone,
+          contactEmail: input.contactEmail ?? null,
+          messengerType: resolveMessengerType(input.messengerType),
+          messengerHandle: input.messengerHandle ?? null,
+          material: input.material,
+          cuttingSheetCount: input.cuttingSheetCount ?? null,
+          cuttingEdgeMeters: input.cuttingEdgeMeters ?? null,
+          edgeOption: input.edgeOption ?? null,
+          deliveryNeeded: input.deliveryNeeded ?? false,
+          addressText: input.addressText ?? null,
+          estimatedBudget: input.estimatedBudget,
+          quotedTotal: price
+            ? (buildCuttingQuote(price, input, extras)?.total ?? null)
+            : null,
+          cuttingStage: options.cuttingStage ?? null,
+          cuttingStageUpdatedAt: options.cuttingStage ? new Date() : null,
+        },
+        select: {
+          id: true,
+          number: true,
+        },
       });
       if (price) await saveCuttingPriceSnapshot(tx, created.id, price);
+      if (extras && hasCuttingExtras(extras))
+        await saveCuttingExtras(tx, created.id, extras);
       return created;
     });
 
@@ -988,26 +1014,35 @@ export async function updateRequestCuttingDetails(input: {
   edgeOption: string | null;
 }) {
   if (hasDatabaseUrl()) {
-    return getDb().$transaction(async (tx) => {
-      const price = await readCuttingPrice(tx, input.id);
-      return tx.request.update({
-      where: { id: input.id },
-      data: {
-        material: input.material,
-        cuttingSheetCount: input.cuttingSheetCount,
-        cuttingEdgeMeters: input.cuttingEdgeMeters,
-        edgeOption: input.edgeOption,
-        ...(price ? { quotedTotal: calculateCuttingLaborTotal(price, input.cuttingSheetCount, input.cuttingEdgeMeters, input.edgeOption) } : {}),
+    return getDb().$transaction(
+      async (tx) => {
+        const price = await readCuttingQuotePrice(tx, input.id);
+        const extras = price ? await readCuttingExtras(tx, input.id) : null;
+        return tx.request.update({
+          where: { id: input.id },
+          data: {
+            material: input.material,
+            cuttingSheetCount: input.cuttingSheetCount,
+            cuttingEdgeMeters: input.cuttingEdgeMeters,
+            edgeOption: input.edgeOption,
+            ...(price
+              ? {
+                  quotedTotal:
+                    buildCuttingQuote(price, input, extras)?.total ?? null,
+                }
+              : {}),
+          },
+          select: {
+            id: true,
+            material: true,
+            cuttingSheetCount: true,
+            cuttingEdgeMeters: true,
+            edgeOption: true,
+          },
+        });
       },
-      select: {
-        id: true,
-        material: true,
-        cuttingSheetCount: true,
-        cuttingEdgeMeters: true,
-        edgeOption: true,
-      },
-      });
-    }, { isolationLevel: "Serializable" });
+      { isolationLevel: "Serializable" },
+    );
   }
 
   if (!isDemoModeEnabled()) {
