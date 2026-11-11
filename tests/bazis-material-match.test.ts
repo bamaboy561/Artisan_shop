@@ -107,3 +107,23 @@ test("в списке выбора остаются только подходя�
   assert.ok(!ids.includes("kashemir-18"));
   assert.ok(!ids.includes("hpl-white-4"));
 });
+
+test("МДФ и ДВП по-русски не подменяются на ЛДСП", () => {
+  assert.deepEqual(matchMaterialToPreset("МДФ 16 мм", 16, presets), {
+    presetId: "manual:mdf-16:2800x2070",
+    confidence: "thickness",
+  });
+  assert.equal(
+    matchMaterialToPreset("ДВП белая", 6, [
+      preset("manual:mdf-6:2800x2070", "МДФ 6 мм", "mdf-6", 6),
+    ]).presetId,
+    null,
+  );
+});
+
+test("в таблице без колонки толщины толщина берётся из названия", () => {
+  assert.deepEqual(
+    matchMaterialToPreset("ЛДСП Кашемир U6933 18 мм", 0, presets),
+    { presetId: "kashemir-18", confidence: "code" },
+  );
+});

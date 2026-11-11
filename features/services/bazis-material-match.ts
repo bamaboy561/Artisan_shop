@@ -35,10 +35,15 @@ function detectKind(text: string): MaterialKind | null {
   const value = normalize(text);
 
   if (/столеш/.test(value)) return "countertop";
-  if (/\b(двп|хдф|hdf|оргалит)/u.test(value)) return "dvp";
-  if (/\bhpl\b|пластик/u.test(value)) return "hpl";
-  if (/\b(мдф|mdf)\b/u.test(value)) return "mdf";
-  if (/\b(лдсп|ldsp|дсп)\b/u.test(value)) return "ldsp";
+  // \b в JS не считает кириллицу буквами, поэтому границы слов свои.
+  if (/(?<![\p{L}\p{N}])(двп|хдф|hdf|оргалит)/u.test(value)) return "dvp";
+  if (/(?<![\p{L}\p{N}])hpl(?![\p{L}\p{N}])|пластик/u.test(value)) {
+    return "hpl";
+  }
+  if (/(?<![\p{L}\p{N}])(мдф|mdf)(?![\p{L}\p{N}])/u.test(value)) return "mdf";
+  if (/(?<![\p{L}\p{N}])(лдсп|ldsp|дсп)(?![\p{L}\p{N}])/u.test(value)) {
+    return "ldsp";
+  }
 
   return null;
 }
@@ -119,12 +124,23 @@ function kindFits(preset: MatchablePreset, kind: MaterialKind | null): boolean {
   return presetKind === kind || (presetKind === null && kind !== "dvp");
 }
 
+// В таблицах толщины нет отдельной колонкой: берём её из названия.
+function thicknessFromName(material: string) {
+  const match = normalize(material).match(
+    /(?<![\p{L}\p{N}.])(\d{1,2}(?:\.\d)?)\s*(?:мм|mm)(?![\p{L}\p{N}])/u,
+  );
+  const value = match ? Number(match[1]) : 0;
+  return value >= 2 && value <= 60 ? value : 0;
+}
+
 // Материалы сайта, подходящие по толщине и виду, лучшие первыми.
 export function rankPresetsForMaterial<T extends MatchablePreset>(
   material: string,
-  thickness: number,
+  fileThickness: number,
   presets: T[],
 ): Array<{ preset: T; score: number; codeHit: boolean }> {
+  const thickness =
+    fileThickness > 0 ? fileThickness : thicknessFromName(material);
   const kind =
     detectKind(material) ?? (thickness > 0 && thickness <= 5 ? "dvp" : null);
   const codes = decorCodes(material);
