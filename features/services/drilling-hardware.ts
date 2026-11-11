@@ -17,6 +17,7 @@ export type HardwareKind =
   | "dowelEdge"
   | "shelfPins"
   | "hinge"
+  | "hingePlate"
   | "handle"
   | "hole";
 
@@ -146,7 +147,7 @@ export const HARDWARE: Record<HardwareKind, HardwareDefinition> = {
   },
   hinge: {
     label: "Петля",
-    hint: "Чашка петли Ø35 у края фасада.",
+    hint: "Чашка петли Ø35 у края фасада. Ответную планку на боковину — пунктом «Планка петли».",
     holeLabels: ["Чашка"],
     defaults: {
       count: 2,
@@ -158,6 +159,24 @@ export const HARDWARE: Record<HardwareKind, HardwareDefinition> = {
       holes: [{ diameter: 35, depth: 13 }],
     },
     fields: ["count", "offset", "indent"],
+  },
+  // Ответная (монтажная) планка петли на боковине: система 32 — два
+  // кернения Ø3 под саморезы на 37 мм от переднего края, ±16 мм от оси петли.
+  // Места ставятся так же, как петли на фасаде (тот же отступ и количество).
+  hingePlate: {
+    label: "Планка петли (на боковину)",
+    hint: "Два кернения Ø3 под саморезы ответной планки петли: 37 мм от переднего края, шаг 32 мм. Отступ и количество — как у петель на фасаде.",
+    holeLabels: ["Кернение"],
+    defaults: {
+      count: 2,
+      offset: 100,
+      indent: 37,
+      spacing: 32,
+      mirror: false,
+      edge: false,
+      holes: [{ diameter: 3, depth: 5 }],
+    },
+    fields: ["count", "offset", "indent", "spacing"],
   },
   handle: {
     label: "Ручка",
@@ -313,6 +332,7 @@ function holesForSide(
         edge(position, first);
         break;
       case "handle":
+      case "hingePlate":
         face(position - item.spacing / 2, first);
         face(position + item.spacing / 2, first);
         break;

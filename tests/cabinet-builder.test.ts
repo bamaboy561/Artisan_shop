@@ -51,7 +51,10 @@ test("minifix holes on the roof line up with bolt holes in the sides", () => {
     bolts.map((hole) => (hole.kind === "face" ? hole.y : 0)),
     [50, 530],
   );
-  const channels = roofHoles.filter((hole) => hole.kind === "edge");
+  // Каналы под шток (Ø8 глубиной 34); шканты в торце — Ø8 глубиной 20.
+  const channels = roofHoles.filter(
+    (hole) => hole.kind === "edge" && hole.depth === 34,
+  );
   assert.deepEqual(
     channels.map((hole) =>
       hole.kind === "edge" ? [hole.side, hole.position] : null,
@@ -63,7 +66,7 @@ test("minifix holes on the roof line up with bolt holes in the sides", () => {
       ["right", 530],
     ],
   );
-  // 4 полки × 2 ряда полкодержателей.
+  // 4 болта, 4 полки × 2 ряда полкодержателей (кернения планок — Ø3).
   assert.equal(
     sideHoles.filter((hole) => hole.kind === "face" && hole.diameter === 5)
       .length,
@@ -80,4 +83,46 @@ test("small or oversize cabinets are flagged", () => {
     buildCabinet({ ...wardrobe, height: 2900 }, 16).problems.length,
     1,
   );
+});
+
+test("hinge plates on the side match hinge heights on the door", () => {
+  const result = buildCabinet(wardrobe, 16);
+  const [left, right] = result.parts;
+  const door = result.parts.find((part) => part.title.endsWith("дверь левая"))!;
+  const cups = hardwareHoles(door.hardware, door.length, door.width, 16)
+    .filter((hole) => hole.kind === "face" && hole.diameter === 35)
+    .map((hole) => (hole.kind === "face" ? hole.x : 0));
+  assert.equal(cups.length, 5);
+
+  for (const side of [left, right]) {
+    const plateItems = side.hardware?.filter(
+      (item) => item.kind === "hingePlate",
+    );
+    const plates = hardwareHoles(plateItems, side.length, side.width, 16).map(
+      (hole) => {
+        assert.equal(hole.kind === "face" && hole.y, side.width - 37);
+        return hole.kind === "face" ? hole.x : 0;
+      },
+    );
+    // Дверь начинается над цоколем с зазором 3 мм; на каждую петлю —
+    // два отверстия ±16 мм от её оси.
+    const expected = cups.flatMap((x) => [70 + 3 + x - 16, 70 + 3 + x + 16]);
+    assert.deepEqual(
+      plates.map((x) => Math.round(x * 10) / 10),
+      expected.map((x) => Math.round(x * 10) / 10),
+    );
+  }
+});
+
+test("one door gets plates only on the left side, no doors — none", () => {
+  const plateCount = (doors: 0 | 1 | 2) =>
+    buildCabinet({ ...wardrobe, doors }, 16)
+      .parts.slice(0, 2)
+      .map(
+        (side) =>
+          side.hardware?.filter((item) => item.kind === "hingePlate").length ??
+          0,
+      );
+  assert.deepEqual(plateCount(1), [5, 0]);
+  assert.deepEqual(plateCount(0), [0, 0]);
 });

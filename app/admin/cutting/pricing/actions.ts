@@ -7,6 +7,7 @@ import { requireAdminSession } from "@/lib/auth/dal";
 import { canAccessRequestType } from "@/lib/auth/roles";
 import { getDb, hasDatabaseUrl } from "@/lib/db";
 import { parseCuttingLaborPrice } from "@/features/cutting/labor-price";
+import { cuttingExtrasFromForm } from "@/features/cutting/quote";
 import {
   defaultSiteCuttingPrices,
   drillingDiameters,
@@ -121,8 +122,26 @@ export async function repriceCuttingRequestAction(form: FormData) {
   const actor = await requireAdminSession("/login", `/admin/requests/${id}`);
   if (!canAccessRequestType(actor.roleCode, RequestType.CUTTING_SERVICE))
     throw new Error("Нет доступа.");
+  const errorRedirect = (message: string) =>
+    redirect(
+      `/admin/requests/${encodeURIComponent(id)}?pricingError=${encodeURIComponent(message)}`,
+    );
+  // Присадка и фрезеровка из формы менеджера; пустая форма — «без присадки».
+  const parsed = cuttingExtrasFromForm(form);
+  if (!parsed.ok) errorRedirect(parsed.message);
+  const fromForm = parsed.ok ? parsed.extras : null;
+  const extras =
+    fromForm ??
+    (form.get("extrasForm")
+      ? {
+          drilling: {},
+          curveMeters: 0,
+          bevelMeters: 0,
+          source: "manager" as const,
+        }
+      : null);
   try {
-    await repriceCuttingRequest(id, actor.userId);
+    await repriceCuttingRequest(id, actor.userId, extras);
   } catch (error) {
     const knownErrors = [
       "База данных не подключена.",

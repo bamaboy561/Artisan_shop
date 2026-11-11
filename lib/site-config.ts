@@ -8,6 +8,7 @@ export const siteDescription =
 export const primaryNavigation: NavItem[] = [
   { href: "/catalog", label: "Каталог" },
   { href: "/calculator", label: "Калькулятор" },
+  { href: "/konstruktor", label: "Конструктор" },
   { href: "/services", label: "Услуги" },
   { href: "/brands", label: "Бренды" },
   { href: "/about", label: "О компании" },

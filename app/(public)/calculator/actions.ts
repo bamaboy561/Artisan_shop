@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
+import { parseCuttingExtras } from "@/features/cutting/quote";
 import { getOptionalSession } from "@/lib/auth/dal";
 import { handleCuttingRequestCreated } from "@/lib/server/commercial-integrations";
 import {
@@ -64,6 +65,11 @@ export async function submitCuttingRequestAction(
   const contactEmail = normalizeOptionalText(input.contactEmail);
   const cuttingSheetCount = input.cuttingSheetCount ?? null;
   const cuttingEdgeMeters = input.cuttingEdgeMeters ?? null;
+  // Присадка и фрезеровка из калькулятора; цены сервер берёт из прайса.
+  const parsedExtras = parseCuttingExtras(input.cuttingExtras);
+  const cuttingExtras = parsedExtras
+    ? { ...parsedExtras, source: "calculator" as const }
+    : null;
 
   if (!subject || !message || !contactName || !contactPhone || !material) {
     return {
@@ -139,6 +145,7 @@ export async function submitCuttingRequestAction(
       deliveryNeeded: input.deliveryNeeded ?? false,
       userId: session?.userId ?? null,
       uploadedFiles: files,
+      cuttingExtras,
     });
 
     if (!createdRequest.duplicate) {

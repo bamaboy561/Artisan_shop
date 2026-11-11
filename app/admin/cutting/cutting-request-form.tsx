@@ -15,6 +15,7 @@ import {
   type AdminCuttingRequestFormState,
 } from "@/app/admin/actions";
 import { BazisFilePreview } from "@/components/bazis/bazis-file-preview";
+import { CuttingExtrasFields } from "@/components/cutting/cutting-extras-fields";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -410,6 +411,21 @@ export function CuttingRequestForm({ customers }: CuttingRequestFormProps) {
               Общий метраж кромки по заявке.
             </span>
           </label>
+          <details className="border border-[color:var(--line)] p-3">
+            <summary className="cursor-pointer text-sm font-medium">
+              Присадка и фрезеровка
+              <span className="ml-2 text-xs font-normal text-[var(--muted)]">
+                входят в счёт клиента
+              </span>
+            </summary>
+            <p className="mt-2 text-xs text-[var(--muted)]">
+              Если приложен проект Базиса (.b3d), отверстия посчитаются из него
+              сами — поля можно не заполнять.
+            </p>
+            <div className="mt-3">
+              <CuttingExtrasFields />
+            </div>
+          </details>
           <label className="grid gap-2 text-sm font-medium">
             Плановая готовность
             <Input name="deadline" type="date" />

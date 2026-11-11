@@ -8,6 +8,7 @@ import {
   readBazisGibLabSource,
 } from "../lib/bazis-b3d";
 import { buildGibLabProject } from "../lib/bazis-giblab";
+import { bazisDrillingExtras } from "../lib/server/cutting-bazis-extras";
 
 // Собираем маленький проект в том же двоичном виде, что пишет Базис:
 // словарь имён, затем узлы (ключ, число детей, тип, значение).
@@ -321,9 +322,17 @@ test("counts drilling from furniture holes like the GibLab export", () => {
     object("Objs", [panel("Фронтальная1", 100, 30, [])]),
   ]);
 
-  const parsed = parseBazisProject(
-    project([panel("Дверь", 500, 300, []), fastener, leg], [furniture]),
+  const bytes = project(
+    [panel("Дверь", 500, 300, []), fastener, leg],
+    [furniture],
   );
+  const parsed = parseBazisProject(bytes);
+  // Те же отверстия идут в счёт заявки на распил.
+  assert.deepEqual(bazisDrillingExtras([bytes])?.drilling, {
+    35: 1,
+    5: 1,
+    4: 1,
+  });
 
   assert.deepEqual(
     parsed.panels.map((item) => item.name),
