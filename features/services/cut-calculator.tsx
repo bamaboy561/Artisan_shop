@@ -42,7 +42,14 @@ import {
   gridCellValue,
   type NumberColumn,
 } from "@/features/services/cut-table-input";
-import { CutListImportPanel } from "@/features/services/cut-list-import-panel";
+import {
+  CutListImportPanel,
+  type ImportMaterialMatching,
+} from "@/features/services/cut-list-import-panel";
+import {
+  matchMaterialToPreset,
+  rankPresetsForMaterial,
+} from "@/features/services/bazis-material-match";
 import { optimizeCutting } from "@/features/services/cut-optimizer";
 import type { DetailGroup } from "@/features/services/cut-list-import";
 import { CabinetBuilderDialog } from "@/features/services/cabinet-builder-dialog";
@@ -1836,6 +1843,44 @@ export function CutCalculator({
   );
 
   const lockedPreset = findPresetByContext(presets, productContext);
+  const importMaterialMatching = useMemo<
+    Omit<ImportMaterialMatching, "onSelect" | "suggest"> & {
+      matchable: Array<CalculatorPreset & { thicknessMm: number | null }>;
+    }
+  >(() => {
+    const materialById = new Map(materials.map((item) => [item.id, item]));
+    const sheetById = new Map(sheets.map((item) => [item.id, item]));
+    const matchable = presets.map((preset) => ({
+      ...preset,
+      thicknessMm: materialById.get(preset.materialId)?.thicknessMm ?? null,
+    }));
+    const labelById = new Map(
+      presets.map((preset) => {
+        const sheetLabel = sheetById.get(preset.sheetPresetId)?.label ?? "";
+        const label = preset.label.replace(/^Материал:\s*/, "");
+        return [
+          preset.id,
+          sheetLabel && !label.includes(sheetLabel)
+            ? `${label} · ${sheetLabel}`
+            : label,
+        ];
+      }),
+    );
+    const toOption = (preset: CalculatorPreset) => ({
+      id: preset.id,
+      label: labelById.get(preset.id) ?? preset.label,
+      sheetLabel: sheetById.get(preset.sheetPresetId)?.label ?? "",
+    });
+
+    return {
+      matchable,
+      all: presets.map(toOption),
+      ranked: (group) =>
+        rankPresetsForMaterial(group.material, group.thickness, matchable).map(
+          (item) => toOption(item.preset),
+        ),
+    };
+  }, [materials, presets, sheets]);
   const activePreset =
     lockedPreset ??
     (manualPresetId ? findPresetById(presets, manualPresetId) : null);
@@ -2386,10 +2431,21 @@ export function CutCalculator({
     setRestoredDraftAt(null);
   };
 
+  const applyImportedPreset = (presetId: string) => {
+    if (lockedPreset || !findPresetById(presets, presetId)) return;
+
+    setMaterialPresetScope("all");
+    setMaterialSearch("");
+    handlePresetChange(presetId);
+  };
+
   const importDetails = (
     imported: ImportedDetail[],
     mode: "append" | "replace",
+    presetId?: string | null,
   ) => {
+    if (presetId) applyImportedPreset(presetId);
+
     setDetails((current) => {
       const keepCurrent =
         mode === "append" &&
@@ -3207,6 +3263,21 @@ export function CutCalculator({
 
             <CutListImportPanel
               onImport={importDetails}
+              materialMatching={
+                lockedPreset
+                  ? undefined
+                  : {
+                      ...importMaterialMatching,
+                      suggest: (group) =>
+                        matchMaterialToPreset(
+                          group.material,
+                          group.thickness,
+                          importMaterialMatching.matchable,
+                          manualPresetId,
+                        ),
+                      onSelect: applyImportedPreset,
+                    }
+              }
               onProjectFile={(file) => {
                 // Проект Базиса уходит менеджеру вместе с заявкой.
                 if (!attachments.some((item) => item.name === file.name)) {
