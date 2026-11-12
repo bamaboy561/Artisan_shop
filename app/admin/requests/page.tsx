@@ -21,20 +21,22 @@ import { requireAdminSession } from "@/lib/auth/dal";
 import { canDeleteRequests } from "@/lib/auth/roles";
 import { hasDatabaseUrl, isDemoModeEnabled } from "@/lib/db";
 import { getAdminManagers } from "@/lib/server/operations-admin";
-import { getRequestInbox } from "@/lib/server/request-inbox";
+import { PageLinks } from "@/components/admin/page-links";
+import { clampPage, listAdminRequests } from "@/lib/server/request-list";
 import {
-  activeRequestStatuses,
   adminRequestSortOptions,
   buildAdminRequestsHref,
-  filterAdminRequests,
   getManagerDisplayName,
   parseAdminRequestSearchParams,
   requestStatusLabels,
   requestTypeLabels,
   sanitizeAdminRequestFilterState,
-  sortAdminRequests,
   type AdminRequestFilterState,
 } from "@/features/admin/operations-filters";
+import {
+  isSiteRequest,
+  needsSiteAttention,
+} from "@/features/admin/request-origin";
 
 export const dynamic = "force-dynamic";
 
@@ -120,31 +122,20 @@ export default async function AdminRequestsPage({
   );
   const canDeleteRequest = canDeleteRequests(session.roleCode);
 
-  const [requests, managers, resolvedSearchParams] = await Promise.all([
-    getRequestInbox(),
+  const [managers, resolvedSearchParams] = await Promise.all([
     getAdminManagers(),
     searchParams,
   ]);
 
   const parsedState = parseAdminRequestSearchParams(resolvedSearchParams);
   const state = sanitizeAdminRequestFilterState(parsedState, managers);
-  const filteredRequests = sortAdminRequests(
-    filterAdminRequests(requests, state),
-    state.sort,
+  const pageParam = resolvedSearchParams.page;
+  const list = await listAdminRequests(
+    state,
+    clampPage(Array.isArray(pageParam) ? pageParam[0] : pageParam),
   );
-
-  const activeRequests = requests.filter((request) =>
-    activeRequestStatuses.has(request.status),
-  );
-  const unassignedRequests = activeRequests.filter(
-    (request) => !request.managerId,
-  );
-  const requestsWithFiles = requests.filter(
-    (request) => request._count.files > 0,
-  );
-  const cuttingRequests = requests.filter(
-    (request) => request.type === RequestType.CUTTING_SERVICE,
-  );
+  const filteredRequests = list.items;
+  const { metrics } = list;
 
   const activeFilters = [
     state.q
@@ -191,6 +182,13 @@ export default async function AdminRequestsPage({
           href: getStateHref(state, { assignment: "all" }),
         }
       : null,
+    state.origin !== "all"
+      ? {
+          key: "origin",
+          label: "Только с сайта",
+          href: getStateHref(state, { origin: "all" }),
+        }
+      : null,
     state.files !== "all"
       ? {
           key: "files",
@@ -224,6 +222,19 @@ export default async function AdminRequestsPage({
         <p className="text-xs text-[var(--muted)]">
           {formatDate(request.createdAt)} · {requestTypeLabels[request.type]}
         </p>
+        {isSiteRequest(request) ? (
+          <p
+            className={
+              needsSiteAttention(request)
+                ? "inline-flex rounded-full bg-red-600 px-2 py-0.5 text-[11px] font-semibold text-white"
+                : "inline-flex rounded-full border border-red-300 px-2 py-0.5 text-[11px] font-semibold text-red-700"
+            }
+          >
+            {needsSiteAttention(request)
+              ? "С сайта · не обработана"
+              : "С сайта"}
+          </p>
+        ) : null}
       </div>
     ),
     client: (
@@ -345,26 +356,61 @@ export default async function AdminRequestsPage({
         </Link>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <Link
+          href={getStateHref(state, {
+            origin: "site",
+            status: RequestStatus.NEW,
+          })}
+          className={
+            metrics.siteNew > 0
+              ? "min-w-0 rounded-[20px] border-2 border-red-500 bg-red-50 p-3.5 transition hover:bg-red-100 sm:p-4"
+              : "min-w-0 rounded-[20px] border border-[color:var(--line)] bg-white p-3.5 transition hover:border-[color:var(--line-strong)] sm:p-4"
+          }
+        >
+          <p
+            className={
+              metrics.siteNew > 0
+                ? "text-xs font-semibold text-red-700"
+                : "text-xs font-medium text-[var(--muted)]"
+            }
+          >
+            Новые с сайта
+          </p>
+          <p
+            className={
+              metrics.siteNew > 0
+                ? "mt-3 text-2xl leading-none font-semibold text-red-700 sm:mt-4 sm:text-[1.95rem]"
+                : "mt-3 text-2xl leading-none font-semibold text-[var(--foreground)] sm:mt-4 sm:text-[1.95rem]"
+            }
+          >
+            {metrics.siteNew}
+          </p>
+          <p className="mt-2 text-xs leading-5 text-[var(--muted)]">
+            {metrics.siteNew > 0
+              ? "Ждут менеджера — нажмите, чтобы открыть"
+              : "Все заявки с сайта разобраны"}
+          </p>
+        </Link>
         <MetricCard
           label="Всего заявок"
-          value={requests.length}
-          detail={`${filteredRequests.length} видно по текущему срезу`}
+          value={metrics.total}
+          detail={`${list.filteredTotal} видно по текущему срезу`}
         />
         <MetricCard
           label="Активные"
-          value={activeRequests.length}
+          value={metrics.active}
           detail="Заявки, требующие ответа, расчета или сопровождения"
         />
         <MetricCard
           label="Без менеджера"
-          value={unassignedRequests.length}
+          value={metrics.unassigned}
           detail="Активные обращения, еще не распределенные в команде"
         />
         <MetricCard
           label="Распил и файлы"
-          value={cuttingRequests.length}
-          detail={`${requestsWithFiles.length} заявок уже содержат файлы`}
+          value={metrics.cutting}
+          detail={`${metrics.withFiles} заявок уже содержат файлы`}
         />
       </section>
 
@@ -384,6 +430,12 @@ export default async function AdminRequestsPage({
           </div>
 
           <div className="flex flex-wrap gap-2">
+            <Link
+              href={getStateHref(state, { origin: "site" })}
+              className="rounded-full border border-red-300 bg-red-50 px-3 py-1.5 text-[11px] font-semibold tracking-[0.14em] text-red-700 uppercase transition hover:border-red-500"
+            >
+              С сайта
+            </Link>
             <Link
               href={getStateHref(state, { assignment: "unassigned" })}
               className="rounded-full border border-[color:var(--line)] bg-[var(--surface)] px-3 py-1.5 text-[11px] font-semibold tracking-[0.14em] text-[var(--muted)] uppercase transition hover:border-[color:var(--line-strong)]"
@@ -482,6 +534,14 @@ export default async function AdminRequestsPage({
           </label>
 
           <label className="grid gap-2">
+            <span className="text-sm text-[var(--foreground)]">Откуда</span>
+            <Select name="origin" defaultValue={state.origin}>
+              <option value="all">Все заявки</option>
+              <option value="site">Только с сайта</option>
+            </Select>
+          </label>
+
+          <label className="grid gap-2">
             <span className="text-sm text-[var(--foreground)]">Сортировка</span>
             <Select name="sort" defaultValue={state.sort}>
               {adminRequestSortOptions.map((option) => (
@@ -506,7 +566,10 @@ export default async function AdminRequestsPage({
               Сбросить всё
             </Link>
             <span className="text-sm text-[var(--muted)]">
-              Найдено {filteredRequests.length} из {requests.length} заявок
+              Найдено {list.filteredTotal} из {metrics.total} заявок
+              {list.pageCount > 1
+                ? ` · страница ${list.page} из ${list.pageCount}`
+                : ""}
             </span>
           </div>
         </Form>
@@ -587,8 +650,16 @@ export default async function AdminRequestsPage({
             { key: "manage", label: "Быстрое управление" },
           ]}
           rows={rows}
+          rowTones={filteredRequests.map((request) =>
+            needsSiteAttention(request) ? "alert" : undefined,
+          )}
           caption="Таблица заявок"
           emptyMessage="По текущим фильтрам ничего не найдено. Измените срез или сбросьте параметры."
+        />
+        <PageLinks
+          baseHref={getStateHref(state, {})}
+          page={list.page}
+          pageCount={list.pageCount}
         />
       </section>
     </div>
