@@ -37,29 +37,52 @@ const siteOriginWhere: Prisma.RequestWhereInput = {
   ],
 };
 
-function searchWhere(query: string): Prisma.RequestWhereInput | null {
-  const q = query.trim();
-  if (!q) return null;
-  const variants = Array.from(new Set([q, q.replaceAll("ё", "е")]));
-  const contains = (value: string) => ({
-    contains: value,
-    mode: Prisma.QueryMode.insensitive,
-  });
+// Поиск как раньше: без учёта регистра, «ё», скобок, дефисов и пробелов —
+// «996 555 123 456» находит «+996 (555) 123-456», «Артем» — «Артём».
+function normalizeSearchValue(value: string) {
+  return value
+    .trim()
+    .toLocaleLowerCase("ru-RU")
+    .replaceAll("ё", "е")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
-  return {
-    OR: variants.flatMap((value) => [
-      { number: contains(value) },
-      { subject: contains(value) },
-      { message: contains(value) },
-      { contactName: contains(value) },
-      { contactPhone: contains(value) },
-      { contactEmail: contains(value) },
-      { material: contains(value) },
-      { edgeOption: contains(value) },
-      { product: { is: { name: contains(value) } } },
-      { product: { is: { sku: contains(value) } } },
-    ]),
-  };
+async function searchWhere(
+  query: string,
+): Promise<Prisma.RequestWhereInput | null> {
+  const needle = normalizeSearchValue(query);
+  if (!needle) return null;
+  // Текст заявки бывает длинным (списки деталей), разбирать его по буквам
+  // в базе дорого: ищем ILIKE, а «е»/«ё» в запросе заменяем на «_»
+  // (любая буква). Телефоны, имена, номера и материалы — с полным разбором.
+  const messageNeedle = query
+    .trim()
+    .replace(/[\\%_]/g, "\\$&")
+    .replace(/[еёЕЁ]/g, "_");
+
+  // Регистр и «ё» приводим вручную: lower() и [:alnum:] в Postgres зависят
+  // от локали базы, а явные списки букв работают везде.
+  const rows = await getDb().$queryRaw<Array<{ id: string }>>`
+    SELECT r."id"
+    FROM "Request" r
+    LEFT JOIN "Product" p ON p."id" = r."productId"
+    WHERE regexp_replace(
+      translate(
+        lower(concat_ws(' ',
+          r."number", r."subject", r."contactName",
+          r."contactPhone", r."contactEmail", r."material", r."edgeOption",
+          r."cuttingSheetCount"::text, r."cuttingEdgeMeters"::text,
+          p."name", p."sku")),
+        'АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯҢӨҮё',
+        'абвгдеежзийклмнопрстуфхцчшщъыьэюяңөүе'),
+      '[^0-9a-zа-яңөү]+', ' ', 'g'
+    ) LIKE ${`%${needle}%`}
+    OR r."message" ILIKE ${`%${messageNeedle}%`}
+  `;
+
+  return { id: { in: rows.map((row) => row.id) } };
 }
 
 export function clampPage(value: string | undefined | null) {
@@ -79,9 +102,9 @@ function pageWindow(total: number, page: number) {
 
 // ——— «Запросы на расчёт» (/admin/requests) ———
 
-function requestFilterWhere(
+async function requestFilterWhere(
   state: AdminRequestFilterState,
-): Prisma.RequestWhereInput {
+): Promise<Prisma.RequestWhereInput> {
   const and: Prisma.RequestWhereInput[] = [];
 
   if (state.status !== "all") and.push({ status: state.status });
@@ -93,7 +116,7 @@ function requestFilterWhere(
   if (state.files === "without-files") and.push({ files: { none: {} } });
   if (state.origin === "site") and.push(siteOriginWhere);
 
-  const search = searchWhere(state.q);
+  const search = await searchWhere(state.q);
   if (search) and.push(search);
 
   return and.length > 0 ? { AND: and } : {};
@@ -171,7 +194,7 @@ export async function listAdminRequests(
   }
 
   const db = getDb();
-  const where = requestFilterWhere(state);
+  const where = await requestFilterWhere(state);
 
   const [
     filteredTotal,
@@ -233,7 +256,9 @@ function bishkekNextDayStart(day: string) {
   return new Date(start.getTime() + 24 * 60 * 60 * 1000);
 }
 
-function cuttingWhere(filter: AdminCuttingFilter): Prisma.RequestWhereInput {
+async function cuttingWhere(
+  filter: AdminCuttingFilter,
+): Promise<Prisma.RequestWhereInput> {
   const and: Prisma.RequestWhereInput[] = [
     { type: RequestType.CUTTING_SERVICE },
   ];
@@ -242,7 +267,7 @@ function cuttingWhere(filter: AdminCuttingFilter): Prisma.RequestWhereInput {
     and.push({ createdAt: { gte: bishkekDayStart(filter.dateFrom) } });
   if (filter.dateTo)
     and.push({ createdAt: { lt: bishkekNextDayStart(filter.dateTo) } });
-  const search = searchWhere(filter.q);
+  const search = await searchWhere(filter.q);
   if (search) and.push(search);
   return { AND: and };
 }
@@ -323,7 +348,7 @@ export async function listAdminCuttingRequests(
   }
 
   const db = getDb();
-  const where = cuttingWhere(filter);
+  const where = await cuttingWhere(filter);
   const cutting = { type: RequestType.CUTTING_SERVICE };
 
   const [filteredTotal, total, active, withFiles, inProduction, siteNew] =
