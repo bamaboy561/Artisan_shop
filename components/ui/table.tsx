@@ -13,6 +13,8 @@ type DataTableProps = {
   caption?: string;
   emptyMessage?: string;
   variant?: "card" | "embedded";
+  // "alert" — строка подсвечивается красным (например, новая заявка с сайта).
+  rowTones?: Array<"alert" | undefined>;
 };
 
 export function DataTable({
@@ -21,6 +23,7 @@ export function DataTable({
   caption,
   emptyMessage = "Данные появятся здесь после первых операций.",
   variant = "card",
+  rowTones,
 }: DataTableProps) {
   const isEmbedded = variant === "embedded";
 
@@ -37,7 +40,11 @@ export function DataTable({
           {rows.map((row, rowIndex) => (
             <article
               key={`card-row-${rowIndex}`}
-              className="rounded-[18px] border border-[color:var(--line)] bg-[#fbfaf8] p-3.5 text-sm text-[var(--foreground)]"
+              className={
+                rowTones?.[rowIndex] === "alert"
+                  ? "rounded-[18px] border-2 border-red-500 bg-red-50 p-3.5 text-sm text-[var(--foreground)]"
+                  : "rounded-[18px] border border-[color:var(--line)] bg-[#fbfaf8] p-3.5 text-sm text-[var(--foreground)]"
+              }
             >
               <div className="grid gap-3">
                 {columns.map((column) => (
@@ -82,7 +89,11 @@ export function DataTable({
               rows.map((row, rowIndex) => (
                 <tr
                   key={`row-${rowIndex}`}
-                  className="border-b border-[color:var(--line)] text-[var(--foreground)] transition last:border-0 hover:bg-[#faf8f5]"
+                  className={
+                    rowTones?.[rowIndex] === "alert"
+                      ? "border-b border-l-4 border-[color:var(--line)] border-l-red-600 bg-red-50 text-[var(--foreground)] transition last:border-b-0 hover:bg-red-100"
+                      : "border-b border-[color:var(--line)] text-[var(--foreground)] transition last:border-0 hover:bg-[#faf8f5]"
+                  }
                 >
                   {columns.map((column) => (
                     <td

@@ -3,7 +3,7 @@ import Form from "next/form";
 import Link from "next/link";
 import { Plus, Printer, RotateCcw, Search } from "lucide-react";
 
-import { RequestStatus, RequestType } from "@/generated/prisma";
+import { RequestStatus } from "@/generated/prisma";
 import { updateRequestAction } from "@/app/admin/actions";
 import { AdminSubmitButton } from "@/components/admin/admin-submit-button";
 import { DeleteRequestButton } from "@/components/admin/delete-request-button";
@@ -23,7 +23,12 @@ import { cuttingStageLabels } from "@/features/cutting/progress";
 import { requireAdminSession } from "@/lib/auth/dal";
 import { canDeleteRequests } from "@/lib/auth/roles";
 import { hasDatabaseUrl, isDemoModeEnabled } from "@/lib/db";
-import { getRequestInbox } from "@/lib/server/request-inbox";
+import { PageLinks } from "@/components/admin/page-links";
+import {
+  isSiteRequest,
+  needsSiteAttention,
+} from "@/features/admin/request-origin";
+import { clampPage, listAdminCuttingRequests } from "@/lib/server/request-list";
 
 export const dynamic = "force-dynamic";
 
@@ -32,13 +37,6 @@ type AdminCuttingPageProps = {
 };
 
 type CuttingDateSort = "date-asc" | "date-desc";
-
-const cuttingDateKeyFormatter = new Intl.DateTimeFormat("en-US", {
-  timeZone: "Asia/Bishkek",
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-});
 
 function getFirstSearchValue(
   searchParams: Record<string, string | string[] | undefined>,
@@ -77,15 +75,6 @@ function isValidDateInput(value: string) {
     parsedDate.getUTCMonth() === Number(month) - 1 &&
     parsedDate.getUTCDate() === Number(day)
   );
-}
-
-function getCuttingDateKey(date: Date) {
-  const parts = cuttingDateKeyFormatter.formatToParts(date);
-  const year = parts.find((part) => part.type === "year")?.value;
-  const month = parts.find((part) => part.type === "month")?.value;
-  const day = parts.find((part) => part.type === "day")?.value;
-
-  return `${year}-${month}-${day}`;
 }
 
 function formatBudget(value: number | null) {
@@ -136,15 +125,10 @@ export default async function AdminCuttingPage({
   );
   const canDeleteRequest = canDeleteRequests(session.roleCode);
 
-  const [requests, resolvedSearchParams] = await Promise.all([
-    getRequestInbox(),
-    searchParams,
-  ]);
+  const resolvedSearchParams = await searchParams;
 
   const statusParam = getFirstSearchValue(resolvedSearchParams, "status");
-  const query = getFirstSearchValue(resolvedSearchParams, "q")
-    .trim()
-    .toLocaleLowerCase("ru-RU");
+  const query = getFirstSearchValue(resolvedSearchParams, "q").trim();
   const dateFromParam = getFirstSearchValue(resolvedSearchParams, "dateFrom");
   const dateToParam = getFirstSearchValue(resolvedSearchParams, "dateTo");
   const sortParam = getFirstSearchValue(resolvedSearchParams, "sort");
@@ -157,67 +141,35 @@ export default async function AdminCuttingPage({
     validDateFrom && validDateTo && validDateFrom > validDateTo
       ? [validDateTo, validDateFrom]
       : [validDateFrom, validDateTo];
+  // По умолчанию сверху самые новые заявки.
   const dateSort: CuttingDateSort =
-    sortParam === "date-desc" ? "date-desc" : "date-asc";
+    sortParam === "date-asc" ? "date-asc" : "date-desc";
 
-  const cuttingRequests = requests.filter(
-    (request) => request.type === RequestType.CUTTING_SERVICE,
+  const list = await listAdminCuttingRequests(
+    {
+      q: query,
+      status: statusFilter,
+      dateFrom,
+      dateTo,
+      sort: dateSort,
+    },
+    clampPage(getFirstSearchValue(resolvedSearchParams, "page")),
   );
-  const activeStatuses = new Set<RequestStatus>([
-    RequestStatus.NEW,
-    RequestStatus.IN_REVIEW,
-    RequestStatus.QUOTE_SENT,
-    RequestStatus.WAITING_FOR_CLIENT,
-    RequestStatus.IN_PROGRESS,
-  ]);
-  const filteredRequests = cuttingRequests
-    .filter((request) => {
-      const matchesStatus =
-        statusFilter === "all" || request.status === statusFilter;
-      const requestDate = getCuttingDateKey(request.createdAt);
-      const matchesDateFrom = !dateFrom || requestDate >= dateFrom;
-      const matchesDateTo = !dateTo || requestDate <= dateTo;
-      const haystack = [
-        request.number,
-        request.subject,
-        request.contactName,
-        request.contactPhone,
-        request.material,
-        request.product?.name,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLocaleLowerCase("ru-RU");
-
-      return (
-        matchesStatus &&
-        matchesDateFrom &&
-        matchesDateTo &&
-        (!query || haystack.includes(query))
-      );
-    })
-    .sort((left, right) => {
-      const difference = left.createdAt.getTime() - right.createdAt.getTime();
-
-      if (difference !== 0) {
-        return dateSort === "date-asc" ? difference : -difference;
-      }
-
-      return left.id.localeCompare(right.id);
-    });
-  const activeRequests = cuttingRequests.filter((request) =>
-    activeStatuses.has(request.status),
-  );
-  const withFiles = cuttingRequests.filter(
-    (request) => request._count.files > 0,
-  );
-  const inProduction = cuttingRequests.filter(
-    (request) => request.status === RequestStatus.IN_PROGRESS,
-  );
+  const filteredRequests = list.items;
+  const { metrics } = list;
+  const baseParams = new URLSearchParams();
+  if (query) baseParams.set("q", query);
+  if (statusFilter !== "all") baseParams.set("status", statusFilter);
+  if (dateFrom) baseParams.set("dateFrom", dateFrom);
+  if (dateTo) baseParams.set("dateTo", dateTo);
+  if (dateSort !== "date-desc") baseParams.set("sort", dateSort);
+  const baseHref = baseParams.size
+    ? `/admin/cutting?${baseParams.toString()}`
+    : "/admin/cutting";
   const hasActiveFilters =
     Boolean(query || dateFrom || dateTo) ||
     statusFilter !== "all" ||
-    dateSort !== "date-asc";
+    dateSort !== "date-desc";
 
   const rows = filteredRequests.map((request) => ({
     request: (
@@ -229,6 +181,19 @@ export default async function AdminCuttingPage({
           {request.number ?? request.id.slice(0, 8)}
         </Link>
         <p className="text-xs text-[var(--muted)]">{request.contactName}</p>
+        {isSiteRequest(request) ? (
+          <p
+            className={
+              needsSiteAttention(request)
+                ? "inline-flex rounded-full bg-red-600 px-2 py-0.5 text-[11px] font-semibold text-white"
+                : "inline-flex rounded-full border border-red-300 px-2 py-0.5 text-[11px] font-semibold text-red-700"
+            }
+          >
+            {needsSiteAttention(request)
+              ? "С сайта · не обработана"
+              : "С сайта"}
+          </p>
+        ) : null}
       </div>
     ),
     date: (
@@ -359,25 +324,38 @@ export default async function AdminCuttingPage({
         </div>
       </section>
 
+      {metrics.siteNew > 0 ? (
+        <Link
+          href="/admin/cutting?status=NEW"
+          className="flex items-center justify-between gap-3 rounded-[20px] border-2 border-red-500 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 transition hover:bg-red-100"
+        >
+          <span>
+            Новых заявок с сайта: {metrics.siteNew} — их ещё никто не взял в
+            работу
+          </span>
+          <span aria-hidden="true">→</span>
+        </Link>
+      ) : null}
+
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard
           label="Всего заявок"
-          value={cuttingRequests.length}
+          value={metrics.total}
           detail="Все заявки на распил"
         />
         <MetricCard
           label="Активные"
-          value={activeRequests.length}
+          value={metrics.active}
           detail="Требуют расчета или производства"
         />
         <MetricCard
           label="С файлами"
-          value={withFiles.length}
+          value={metrics.withFiles}
           detail="Есть Excel/PDF/DXF/DWG или архив"
         />
         <MetricCard
           label="В производстве"
-          value={inProduction.length}
+          value={metrics.inProduction}
           detail="Переданы в цех"
         />
       </section>
@@ -437,8 +415,8 @@ export default async function AdminCuttingPage({
               Порядок
             </span>
             <Select name="sort" defaultValue={dateSort}>
-              <option value="date-asc">Сначала ранние</option>
               <option value="date-desc">Сначала новые</option>
+              <option value="date-asc">Сначала ранние</option>
             </Select>
           </label>
           <div className="flex items-center gap-2">
@@ -462,8 +440,11 @@ export default async function AdminCuttingPage({
           </div>
         </Form>
         <p className="text-xs text-[var(--muted)]">
-          Показано {filteredRequests.length} из {cuttingRequests.length} заявок.
-          Сортировка выполняется по дате создания заявки.
+          Найдено {list.filteredTotal} из {metrics.total} заявок
+          {list.pageCount > 1
+            ? ` · страница ${list.page} из ${list.pageCount}`
+            : ""}
+          . Сортировка по дате создания заявки.
         </p>
       </section>
 
@@ -479,8 +460,16 @@ export default async function AdminCuttingPage({
           { key: "manage", label: "Быстро" },
         ]}
         rows={rows}
+        rowTones={filteredRequests.map((request) =>
+          needsSiteAttention(request) ? "alert" : undefined,
+        )}
         caption="Очередь распила по дате создания"
         emptyMessage="По текущим фильтрам заявок на распил нет."
+      />
+      <PageLinks
+        baseHref={baseHref}
+        page={list.page}
+        pageCount={list.pageCount}
       />
     </div>
   );
