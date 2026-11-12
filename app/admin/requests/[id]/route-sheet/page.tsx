@@ -20,6 +20,8 @@ import {
   productionPlanningAvailable,
 } from "@/lib/server/production-planning";
 import { getRequestDetailById } from "@/lib/server/request-inbox";
+import { getCuttingRequestQuote } from "@/lib/server/cutting-pricing";
+import { formatPrice } from "@/lib/commerce";
 
 type RouteSheetPageProps = {
   params: Promise<{ id: string }>;
@@ -149,6 +151,8 @@ export default async function RouteSheetPage({ params }: RouteSheetPageProps) {
     ? (await getProductionPlans([id])).get(id)
     : undefined;
   const parsedMessage = parseRouteMessage(request.message);
+  // Тот же счёт по строкам, что в карточке заявки: за что платит клиент.
+  const quote = (await getCuttingRequestQuote(request))?.quote ?? null;
   // Флажок «Срочно» из производства; без него смотрим на текст заявки.
   const workflow = (await getCuttingWorkflows([id])).get(id);
   const isUrgent = workflow
@@ -262,6 +266,54 @@ export default async function RouteSheetPage({ params }: RouteSheetPageProps) {
             value={request.cuttingPickupCell || "Назначается при готовности"}
           />
         </section>
+
+        {quote && quote.lines.length > 0 ? (
+          <section className="mt-[7mm] break-inside-avoid">
+            <h2 className="text-[11px] font-bold tracking-[0.14em] uppercase">
+              Стоимость работ по строкам
+            </h2>
+            <table className="mt-3 w-full border-collapse border border-[#bdb9b1] text-[10px] leading-[1.4]">
+              <tbody>
+                {quote.lines.map((line) => (
+                  <tr key={line.key}>
+                    <td className="border border-[#d7d4ce] px-2 py-1">
+                      <span className="font-semibold">{line.label}</span>
+                      {line.detail ? (
+                        <span className="ml-2 text-[#625f59]">
+                          {line.detail}
+                        </span>
+                      ) : null}
+                    </td>
+                    <td className="w-[32mm] border border-[#d7d4ce] px-2 py-1 text-right font-semibold whitespace-nowrap">
+                      {line.amount === null ? "—" : formatPrice(line.amount)}
+                    </td>
+                  </tr>
+                ))}
+                <tr className="bg-[#f0eeea]">
+                  <td className="border border-[#bdb9b1] px-2 py-1 font-bold">
+                    Итого за работы
+                  </td>
+                  <td className="border border-[#bdb9b1] px-2 py-1 text-right font-bold whitespace-nowrap">
+                    {formatPrice(quote.total)}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            {request.quotedTotal != null &&
+            request.quotedTotal !== quote.total ? (
+              <p className="mt-1 text-[9px] text-[#625f59]">
+                Сумма в заявке изменена менеджером:{" "}
+                {formatPrice(request.quotedTotal)}.
+              </p>
+            ) : null}
+            {quote.unpricedHoles > 0 ? (
+              <p className="mt-1 text-[9px] text-[#625f59]">
+                Отверстий без цены: {quote.unpricedHoles}, стоимость уточняет
+                менеджер.
+              </p>
+            ) : null}
+          </section>
+        ) : null}
 
         <section className="mt-[7mm]">
           <h2 className="text-[11px] font-bold tracking-[0.14em] uppercase">
