@@ -144,3 +144,68 @@ test("assembly steps cover every part and the fittings", () => {
       used.set(item.label, (used.get(item.label) ?? 0) + item.count);
   for (const line of fittings) assert.equal(used.get(line.label), line.count);
 });
+
+test("confirmat joint: through holes in the sides match the roof edges", () => {
+  for (const joint of ["confirmat", "confirmatDowel"] as const) {
+    const spec = { ...wardrobe, joint };
+    const result = buildCabinet(spec, 16);
+    const [side, , roof] = result.parts;
+    const through = hardwareHoles(side.hardware, side.length, side.width, 16)
+      .filter(
+        (hole) =>
+          hole.kind === "face" && hole.diameter === 7 && hole.depth === 16,
+      )
+      .map((hole) => (hole.kind === "face" ? [hole.x, hole.y] : []));
+    // Глубина 580: по два конфирмата на крышу и дно + евровинт цоколя.
+    assert.deepEqual(through.slice(0, 2), [
+      [2092, 50],
+      [2092, 530],
+    ]);
+    assert.equal(
+      hardwareHoles(side.hardware, side.length, side.width, 16).some(
+        (hole) =>
+          hole.kind === "face" && hole.diameter === 5 && hole.x === 2092,
+      ),
+      false,
+    );
+    const roofEdges = hardwareHoles(roof.hardware, roof.length, roof.width, 16)
+      .filter((hole) => hole.kind === "edge" && hole.diameter === 5)
+      .map((hole) => (hole.kind === "edge" ? [hole.side, hole.position] : []));
+    assert.deepEqual(roofEdges, [
+      ["left", 50],
+      ["left", 530],
+      ["right", 50],
+      ["right", 530],
+    ]);
+
+    const fittings = Object.fromEntries(
+      cabinetFittings(spec, result, 16).map((line) => [line.key, line.count]),
+    );
+    assert.equal(fittings.minifix, undefined);
+    assert.equal(fittings.minifixStem, undefined);
+    // 8 в корпус + 2 в цоколь.
+    assert.equal(fittings.confirmat, 10);
+    assert.equal(fittings.dowel, joint === "confirmat" ? undefined : 8);
+
+    const lines = cabinetFittings(spec, result, 16);
+    const steps = cabinetAssembly(spec, result, lines);
+    const added = new Set(steps.flatMap((step) => step.added));
+    for (const part of result.parts) assert.ok(added.has(partKind(part.title)));
+    const used = new Map<string, number>();
+    for (const step of steps)
+      for (const item of step.fittings)
+        used.set(item.label, (used.get(item.label) ?? 0) + item.count);
+    for (const line of lines) assert.equal(used.get(line.label), line.count);
+  }
+});
+
+test("deep cabinet gets three confirmats per joint", () => {
+  const spec = { ...wardrobe, depth: 650, joint: "confirmat" as const };
+  const fittings = Object.fromEntries(
+    cabinetFittings(spec, buildCabinet(spec, 16), 16).map((line) => [
+      line.key,
+      line.count,
+    ]),
+  );
+  assert.equal(fittings.confirmat, 14);
+});

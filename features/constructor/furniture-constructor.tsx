@@ -17,9 +17,11 @@ import {
   CALCULATOR_PRESET_HANDOFF_KEY,
 } from "@/features/bazis/project-view";
 import {
+  CABINET_JOINTS,
   CABINET_KINDS,
   buildCabinet,
   cabinetGroupLabel,
+  type CabinetJoint,
   type CabinetKind,
   type CabinetPart,
   type CabinetSpec,
@@ -542,7 +544,13 @@ export function FurnitureConstructor({
             <button
               key={kind}
               type="button"
-              onClick={() => setSpec({ kind, ...CABINET_KINDS[kind].defaults })}
+              onClick={() =>
+                setSpec((current) => ({
+                  kind,
+                  ...CABINET_KINDS[kind].defaults,
+                  joint: current.joint,
+                }))
+              }
               className={cn(
                 "rounded-full border px-4 py-2 text-[14px]",
                 spec.kind === kind
@@ -604,6 +612,25 @@ export function FurnitureConstructor({
             </select>
           </label>
         </div>
+        <label className="grid gap-1 text-[12px] text-[var(--muted)]">
+          Соединение корпуса
+          <select
+            className={inputClass}
+            value={spec.joint ?? "minifix"}
+            onChange={(event) =>
+              set({ joint: event.target.value as CabinetJoint })
+            }
+          >
+            {(Object.keys(CABINET_JOINTS) as CabinetJoint[]).map((joint) => (
+              <option key={joint} value={joint}>
+                {CABINET_JOINTS[joint].label}
+              </option>
+            ))}
+          </select>
+          <span className="text-[11px] leading-4">
+            {CABINET_JOINTS[spec.joint ?? "minifix"].hint}
+          </span>
+        </label>
 
         {decors.length > 0 ? (
           <>
@@ -712,7 +739,7 @@ export function FurnitureConstructor({
           </table>
           <p className="mt-2 text-[12px] leading-5 text-[var(--muted)]">
             Размер: длина (вдоль текстуры) × ширина. Кромка уже стоит в раскрое.
-            Присадка тоже готова: минификсы, шканты, евровинты цоколя,
+            Присадка тоже готова: крепёж корпуса, евровинты цоколя,
             полкодержатели, петли и планки петель.
           </p>
         </details>

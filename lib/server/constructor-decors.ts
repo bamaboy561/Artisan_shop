@@ -32,6 +32,7 @@ async function loadImages(slugs: string[]) {
       select: {
         slug: true,
         category: { select: { name: true } },
+        brand: { select: { name: true } },
         images: {
           orderBy: { sortOrder: "asc" },
           take: 1,
@@ -94,6 +95,9 @@ export type ConstructorFittingProduct = {
   name: string;
   // Название категории: по нему тоже ищем («Петли» у товара «Hettich Sensys»).
   category: string;
+  // Бренд из карточки товара: по нему клиент выбирает фурнитуру
+  // (Hettich, Italiana Ferramenta…).
+  brand: string | null;
   price: number | null;
   imageUrl: string | null;
 };
@@ -115,6 +119,7 @@ export async function getConstructorFittingProducts(): Promise<
         name: true,
         price: true,
         category: { select: { name: true } },
+        brand: { select: { name: true } },
         images: {
           orderBy: { sortOrder: "asc" },
           take: 1,
@@ -126,6 +131,7 @@ export async function getConstructorFittingProducts(): Promise<
       slug: row.slug,
       name: row.name,
       category: row.category.name,
+      brand: row.brand?.name.trim() || null,
       price: row.price,
       imageUrl: row.images[0]?.url ?? null,
     }));

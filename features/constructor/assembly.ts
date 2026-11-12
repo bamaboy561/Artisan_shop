@@ -196,41 +196,73 @@ export function cabinetAssembly(
   const steps: AssemblyStep[] = [];
   const body = ["боковина левая", "дно", "крыша"];
 
-  steps.push({
-    title: "Подготовьте боковины",
-    text: "Положите боковины внутренней стороной вверх. Вкрутите штоки минификса в отверстия Ø5 у верхнего и нижнего края и вставьте шканты в отверстия Ø8. Шканты лучше посадить на клей ПВА.",
-    shown: ["боковина левая"],
-    added: ["боковина левая"],
-    fittings: [
-      ...item("minifixStem", count("minifixStem")),
-      ...item("dowel", count("dowel")),
-    ],
-  });
-  steps.push({
-    title: "Вставьте эксцентрики в крышу и дно",
-    text: "Вставьте эксцентрики в отверстия Ø15 крыши и дна стрелкой к торцу. Поставьте крышу и дно на шканты и штоки левой боковины и поверните эксцентрики по часовой стрелке до упора.",
-    shown: body,
-    added: ["дно", "крыша"],
-    fittings: item("minifix", count("minifix") / 2),
-  });
+  const joint = spec.joint ?? "minifix";
+  const dowelCount = count("dowel");
+  const glue = dowelCount > 0 ? " Шканты лучше посадить на клей ПВА." : "";
+  // Конфирматы цоколя: по одному с каждой стороны, остальные — корпус.
+  const plinthScrews = hasPlinth ? 2 : 0;
+  const bodyScrews = count("confirmat") - plinthScrews;
+  const closed = [...body, ...(hasPlinth ? ["цоколь"] : []), "боковина правая"];
+
+  if (joint === "minifix") {
+    steps.push({
+      title: "Подготовьте боковины",
+      text: `Положите боковины внутренней стороной вверх. Вкрутите штоки минификса в отверстия Ø5 у верхнего и нижнего края${dowelCount > 0 ? " и вставьте шканты в отверстия Ø8" : ""}.${glue}`,
+      shown: ["боковина левая"],
+      added: ["боковина левая"],
+      fittings: [
+        ...item("minifixStem", count("minifixStem")),
+        ...item("dowel", dowelCount),
+      ],
+    });
+    steps.push({
+      title: "Вставьте эксцентрики в крышу и дно",
+      text: "Вставьте эксцентрики в отверстия Ø15 крыши и дна стрелкой к торцу. Поставьте крышу и дно на шканты и штоки левой боковины и поверните эксцентрики по часовой стрелке до упора.",
+      shown: body,
+      added: ["дно", "крыша"],
+      fittings: item("minifix", count("minifix") / 2),
+    });
+  } else {
+    if (dowelCount > 0) {
+      steps.push({
+        title: "Вставьте шканты",
+        text: `Вставьте шканты в оба торца крыши и дна, в отверстия Ø8 между отверстиями под конфирматы.${glue}`,
+        shown: ["дно", "крыша"],
+        added: ["дно", "крыша"],
+        fittings: item("dowel", dowelCount),
+      });
+    }
+    steps.push({
+      title: "Прикрутите крышу и дно к левой боковине",
+      text: `Положите левую боковину внутренней стороной вверх, поставьте на неё крышу и дно${dowelCount > 0 ? " шкантами в отверстия Ø8" : ""}. Совместите сквозные отверстия Ø7 боковины с отверстиями Ø5 в торцах и закрутите конфирматы шестигранником 4 мм.`,
+      shown: body,
+      added: dowelCount > 0 ? ["боковина левая"] : body,
+      fittings: item("confirmat", bodyScrews / 2),
+    });
+  }
   if (hasPlinth) {
     steps.push({
       title: "Прикрутите цоколь",
       text: "Поставьте цоколь под дно у переднего края и притяните его к левой боковине евровинтом через отверстие Ø7.",
       shown: [...body, "цоколь"],
       added: ["цоколь"],
-      fittings: item("confirmat", count("confirmat") / 2),
+      fittings: item("confirmat", plinthScrews / 2),
     });
   }
-  const closed = [...body, ...(hasPlinth ? ["цоколь"] : []), "боковина правая"];
   steps.push({
     title: "Наденьте правую боковину",
-    text: `Наденьте правую боковину на шканты и штоки, затяните эксцентрики${hasPlinth ? " и евровинт цоколя" : ""}.`,
+    text:
+      joint === "minifix"
+        ? `Наденьте правую боковину на шканты и штоки, затяните эксцентрики${hasPlinth ? " и евровинт цоколя" : ""}.`
+        : `Поставьте правую боковину${dowelCount > 0 ? " на шканты" : ""} и закрутите конфирматы в крышу и дно${hasPlinth ? " и евровинт цоколя" : ""}.`,
     shown: closed,
     added: ["боковина правая"],
     fittings: [
-      ...item("minifix", count("minifix") / 2),
-      ...(hasPlinth ? item("confirmat", count("confirmat") / 2) : []),
+      ...(joint === "minifix" ? item("minifix", count("minifix") / 2) : []),
+      ...item(
+        "confirmat",
+        (joint === "minifix" ? 0 : bodyScrews / 2) + plinthScrews / 2,
+      ),
     ],
   });
   if (result.back) {
