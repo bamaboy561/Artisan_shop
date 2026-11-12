@@ -34,8 +34,11 @@ import {
   CORNER_LABELS,
   cornerRadius,
   emptyMilling,
+  grooveRect,
   hasMilling,
+  LED_GROOVE,
   millingMeters,
+  type PartGroove,
   type PartMilling,
 } from "./part-milling";
 import { formatSitePrice } from "@/features/cutting/site-prices";
@@ -154,6 +157,22 @@ function PartDrawing({
         stroke="#b9a991"
         strokeWidth={stroke}
       />
+      {(milling?.grooves ?? []).map((groove, index) => {
+        const rect = grooveRect(groove, length, width);
+        return (
+          <rect
+            key={`groove-${index}`}
+            x={rect.x}
+            y={flip(rect.y + rect.h)}
+            width={rect.w}
+            height={rect.h}
+            fill="rgba(37,43,41,0.28)"
+            stroke="#252b29"
+            strokeWidth={stroke / 2}
+            strokeDasharray={`${stroke * 3} ${stroke * 2}`}
+          />
+        );
+      })}
       {SIDES.filter((item) => (milling?.bevels[item] ?? 0) > 0).map((item) => {
         const band = Math.max(length, width) / 60;
         const [x1, y1, x2, y2] = edgeLine[item];
@@ -376,9 +395,27 @@ export function DrillingEditor({
   const millingCost = useMemo(() => {
     const meters = millingMeters(length, width, milling);
     return (
-      (meters.curve * prices.milling + meters.bevel * prices.bevel) * quantity
+      (meters.curve * prices.milling +
+        meters.bevel * prices.bevel +
+        meters.groove * prices.groove) *
+      quantity
     );
-  }, [length, milling, prices.bevel, prices.milling, quantity, width]);
+  }, [
+    length,
+    milling,
+    prices.bevel,
+    prices.groove,
+    prices.milling,
+    quantity,
+    width,
+  ]);
+  const setGrooves = (grooves: PartGroove[]) => {
+    const base = milling ?? emptyMilling();
+    const updated: PartMilling = { ...base, grooves };
+    if (grooves.length === 0) delete updated.grooves;
+    onMillingChange(hasMilling(updated) ? updated : undefined);
+  };
+  const grooves = milling?.grooves ?? [];
   const price = useMemo(
     () =>
       priceDrilling(
@@ -752,9 +789,89 @@ export function DrillingEditor({
               className="rounded-xl border border-[color:var(--line)] px-3 py-2"
             >
               <summary className="cursor-pointer text-[13px] font-semibold">
-                Фрезеровка: скругления углов и скосы торцов
+                Фрезеровка: скругления, скосы, пазы
               </summary>
               <div className="mt-3 grid gap-3">
+                <div className="grid gap-2">
+                  {grooves.map((groove, index) => {
+                    const change = (patch: Partial<PartGroove>) =>
+                      setGrooves(
+                        grooves.map((item, itemIndex) =>
+                          itemIndex === index ? { ...item, ...patch } : item,
+                        ),
+                      );
+                    return (
+                      <div
+                        key={index}
+                        className="grid gap-2 rounded-lg bg-[var(--surface)] p-2"
+                      >
+                        <div className="flex items-center justify-between gap-2 text-[12px] font-semibold">
+                          Паз {index + 1}: вдоль края
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setGrooves(
+                                grooves.filter(
+                                  (_, itemIndex) => itemIndex !== index,
+                                ),
+                              )
+                            }
+                            className="text-[12px] font-normal text-[var(--muted)] underline underline-offset-2"
+                          >
+                            Убрать
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                          <label className="grid gap-1 text-[11px] text-[var(--muted)]">
+                            Край
+                            <select
+                              className={inputClass}
+                              value={groove.side}
+                              onChange={(event) =>
+                                change({
+                                  side: event.target.value as PartSide,
+                                })
+                              }
+                            >
+                              {SIDES.map((item) => (
+                                <option key={item} value={item}>
+                                  {SIDE_LABELS[item]}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <NumberField
+                            label="От края, мм"
+                            value={groove.indent}
+                            onChange={(indent) => change({ indent })}
+                          />
+                          <NumberField
+                            label="Ширина, мм"
+                            value={groove.width}
+                            onChange={(next) => change({ width: next })}
+                          />
+                          <NumberField
+                            label="Глубина, мм"
+                            value={groove.depth}
+                            onChange={(depth) => change({ depth })}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setGrooves([
+                        ...grooves,
+                        { side, indent: 20, ...LED_GROOVE },
+                      ])
+                    }
+                    className="justify-self-start rounded-full border border-[color:var(--line)] px-3 py-1.5 text-[13px] font-medium"
+                  >
+                    + Паз под LED-профиль 10×10
+                  </button>
+                </div>
                 <div className="grid grid-cols-2 gap-2">
                   {CORNERS.map((corner) => (
                     <NumberField
@@ -810,11 +927,12 @@ export function DrillingEditor({
                   ))}
                 </div>
                 <p className="text-[12px] leading-5 text-[var(--muted)]">
-                  Скругление уходит в файл GibLab фрезеровкой контура, скос — в
-                  заявку и в название детали.{" "}
+                  Скругление и паз уходят в файл GibLab фрезеровкой, скос — в
+                  заявку и в название детали. Паз идёт по лицевой пласти на всю
+                  длину края.{" "}
                   {millingCost > 0
-                    ? `На ${quantity} шт.: ${formatPrice(Math.round(millingCost))} по прайсу за метр (скругления ${formatSitePrice(prices.milling)} сом/м, скосы ${formatSitePrice(prices.bevel)} сом/м).`
-                    : `Цена за метр: скругления ${formatSitePrice(prices.milling)} сом, скосы ${formatSitePrice(prices.bevel)} сом.`}
+                    ? `На ${quantity} шт.: ${formatPrice(Math.round(millingCost))} по прайсу за метр (скругления ${formatSitePrice(prices.milling)} сом/м, скосы ${formatSitePrice(prices.bevel)} сом/м, пазы ${formatSitePrice(prices.groove)} сом/м).`
+                    : `Цена за метр: скругления ${formatSitePrice(prices.milling)} сом, скосы ${formatSitePrice(prices.bevel)} сом, пазы ${formatSitePrice(prices.groove)} сом.`}
                 </p>
               </div>
             </details>

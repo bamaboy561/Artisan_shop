@@ -15,6 +15,8 @@ export type SiteCuttingPrices = {
   // (скосы торцов), сом за погонный метр.
   milling: number;
   bevel: number;
+  // Паз в пласти (под LED-профиль и т. п.), сом за погонный метр.
+  groove: number;
 };
 
 // Ø5 — как отверстие под полкодержатель, Ø8 — как отверстие D8.
@@ -40,6 +42,7 @@ export const defaultSiteCuttingPrices: SiteCuttingPrices = {
   },
   milling: 200,
   bevel: 250,
+  groove: 200,
 };
 
 export function isValidSitePrice(value: unknown): value is number {
@@ -66,7 +69,8 @@ export function parseSiteCuttingPrices(value: unknown): SiteCuttingPrices {
       | "sheetRegular"
       | "edgeRegular"
       | "milling"
-      | "bevel",
+      | "bevel"
+      | "groove",
   ) => {
     const price = saved[key];
     return isValidSitePrice(price) ? price : defaultSiteCuttingPrices[key];
@@ -92,6 +96,7 @@ export function parseSiteCuttingPrices(value: unknown): SiteCuttingPrices {
     drilling,
     milling: pick("milling"),
     bevel: pick("bevel"),
+    groove: pick("groove"),
   };
 }
 

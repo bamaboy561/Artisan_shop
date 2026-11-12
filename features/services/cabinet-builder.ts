@@ -16,11 +16,34 @@
 
 import type { ImportedDetail } from "./cut-list-import";
 import { createHardware, type HardwareItem } from "./drilling-hardware";
+import { LED_GROOVE, type PartMilling } from "./part-milling";
 
 export type CabinetKind = "wardrobe" | "base" | "wall";
 
 // Как крыша и дно крепятся к боковинам.
 export type CabinetJoint = "minifix" | "confirmat" | "confirmatDowel";
+
+// Подсветка: паз под LED-профиль 10 × 10.
+export type CabinetLed = "none" | "sides" | "shelves";
+
+export const CABINET_LEDS: Record<CabinetLed, { label: string; hint: string }> =
+  {
+    none: { label: "Без подсветки", hint: "" },
+    sides: {
+      label: "В боковинах, вертикально",
+      hint: "Паз 10×10 на всю высоту боковины изнутри, за планками петель.",
+    },
+    shelves: {
+      label: "Под полками",
+      hint: "Паз 10×10 вдоль переднего края каждой полки. Полку ставят пазом вниз.",
+    },
+  };
+
+// Паз под профиль: от переднего торца. В боковине при дверях — за
+// монтажными планками петель (они на 37 мм от края).
+const LED_SIDE_INDENT = 20;
+const LED_SIDE_INDENT_DOORS = 70;
+const LED_SHELF_INDENT = 30;
 
 export const CABINET_JOINTS: Record<
   CabinetJoint,
@@ -51,6 +74,7 @@ export type CabinetSpec = {
   doors: 0 | 1 | 2;
   // По умолчанию — минификс со шкантами.
   joint?: CabinetJoint;
+  led?: CabinetLed;
 };
 
 export const CABINET_KINDS: Record<
@@ -105,7 +129,20 @@ const BACK_OVERLAP_GAP = 2; // ХДФ меньше корпуса с каждо�
 const HINGE_OFFSET = 100; // петля от верха и низа двери, мм
 const DOWEL_OFFSET = 130; // шкант от переднего и заднего торца, мм
 
-export type CabinetPart = ImportedDetail & { hardware?: HardwareItem[] };
+export type CabinetPart = ImportedDetail & {
+  hardware?: HardwareItem[];
+  milling?: PartMilling;
+};
+
+// Фрезеровка детали с одним пазом под LED-профиль вдоль переднего торца
+// (сторона top).
+function ledMilling(indent: number): PartMilling {
+  return {
+    corners: { topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0 },
+    bevels: { top: 0, right: 0, bottom: 0, left: 0 },
+    grooves: [{ side: "top", indent, ...LED_GROOVE }],
+  };
+}
 
 // Один шкаф — одна группа: в калькуляторе клиент видит его габариты,
 // а детали — только менеджер.
@@ -163,6 +200,14 @@ export function buildCabinet(
     D >= 400 ? { count: 2, offset: DOWEL_OFFSET } : { count: 1, offset: 0 };
 
   const joint: CabinetJoint = spec.joint ?? "minifix";
+  // Паз 10 мм глубиной режем в плите от 14 мм: под пазом остаётся 4 мм.
+  const ledFits = t >= LED_GROOVE.depth + 4;
+  const led: CabinetLed = ledFits ? (spec.led ?? "none") : "none";
+  if (!ledFits && (spec.led ?? "none") !== "none") {
+    problems.push(
+      `Паз ${LED_GROOVE.width}×${LED_GROOVE.depth} под подсветку не сделать в плите ${t} мм: нужна толщина от ${LED_GROOVE.depth + 4} мм.`,
+    );
+  }
   const withDowels = joint !== "confirmat";
   // Конфирматов на стык: два, в глубоком корпусе — три.
   const confirmatPlaces =
@@ -263,6 +308,13 @@ export function buildCabinet(
       edgedSides: ["top"],
       fixedGrain: true,
       hardware: [...sideHardware(), ...pins, ...platesOn(label)],
+      ...(led === "sides"
+        ? {
+            milling: ledMilling(
+              doors > 0 ? LED_SIDE_INDENT_DOORS : LED_SIDE_INDENT,
+            ),
+          }
+        : {}),
     });
   }
 
@@ -314,6 +366,7 @@ export function buildCabinet(
       quantity: shelves,
       edgedSides: ["top"],
       fixedGrain: true,
+      ...(led === "shelves" ? { milling: ledMilling(LED_SHELF_INDENT) } : {}),
     });
   }
 

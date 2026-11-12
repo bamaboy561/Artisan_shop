@@ -215,6 +215,12 @@ function SitePricesForm({
           value={prices.bevel}
           disabled={!canEdit}
         />
+        <PriceField
+          label="Паз в пласти (под LED-профиль), сом за метр"
+          name="siteGroove"
+          value={prices.groove}
+          disabled={!canEdit}
+        />
       </div>
       {canEdit ? (
         <AdminSubmitButton

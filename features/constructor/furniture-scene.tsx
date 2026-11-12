@@ -18,6 +18,8 @@ export type SceneTone = {
   imageUrl?: string | null;
   // Металл (ручки) или плита.
   metal?: boolean;
+  // Светится сам (LED-лента в профиле).
+  glow?: boolean;
 };
 
 export type HandlePlacement = "top" | "middle" | "bottom";
@@ -358,7 +360,9 @@ export function FurnitureScene({
       const info = hit?.object.userData.info as BazisViewerBox["info"];
       for (const mesh of state.meshes) {
         const material = mesh.material as THREE.MeshStandardMaterial;
-        material.emissive?.setHex(0);
+        material.emissive?.setHex(
+          (material.userData.glow as number | undefined) ?? 0,
+        );
       }
       if (hit && info) {
         const material = (hit.object as THREE.Mesh)
@@ -432,7 +436,7 @@ export function FurnitureScene({
       const tone = tones[box.tone] ?? { color: [200, 200, 200] };
       // У каждой детали своя копия материала: выделенная деталь
       // подсвечивается одна.
-      const key = `${box.tone}|${tone.imageUrl ?? ""}|${tone.color.join(",")}|${tone.metal ? 1 : 0}`;
+      const key = `${box.tone}|${tone.imageUrl ?? ""}|${tone.color.join(",")}|${tone.metal ? 1 : 0}|${tone.glow ? 1 : 0}`;
       let material = state.materials.get(key);
       if (material) return material.clone();
       material = new THREE.MeshStandardMaterial({
@@ -440,6 +444,12 @@ export function FurnitureScene({
         roughness: tone.metal ? 0.3 : 0.62,
         metalness: tone.metal ? 0.9 : 0,
       });
+      if (tone.glow) {
+        const glow = rgb(tone.color).getHex();
+        material.emissive.setHex(glow);
+        material.emissiveIntensity = 1.4;
+        material.userData.glow = glow;
+      }
       if (tone.imageUrl) {
         const url = textureUrl(tone.imageUrl);
         material.userData.textureUrl = url;

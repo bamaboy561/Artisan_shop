@@ -18,6 +18,9 @@ import { hardwareHoles } from "../services/drilling-hardware";
 export const TONE_BODY = 0;
 export const TONE_FACADE = 1;
 export const TONE_BACK = 2;
+export const TONE_LED = 3;
+// LED-лента в профиле выступает из паза на столько, мм.
+const LED_PROUD = 3;
 
 export const BACK_THICKNESS = 3;
 const BACK_GAP = 2;
@@ -184,6 +187,62 @@ export function buildCabinetModel(
       );
     }
   }
+  // Подсветка: светящаяся полоса в пазу под LED-профиль.
+  const ledInfo = (length: number): BazisViewerBox["info"] => ({
+    name: `${spec.name || "Корпус"}: подсветка`,
+    material: "Профиль и лента — фурнитура",
+    length: Math.round(length),
+    width: 10,
+    thickness: 10,
+  });
+  const grooveOf = (part: CabinetPart | undefined) =>
+    part?.milling?.grooves?.find((groove) => groove.side === "top");
+  const sideGroove = grooveOf(byTitle("боковина левая"));
+  if (sideGroove) {
+    const z = D - sideGroove.indent - sideGroove.width;
+    const y = plinth + t;
+    const height = H - t - y;
+    boxes.push(
+      brick(
+        t,
+        y,
+        z,
+        LED_PROUD,
+        height,
+        sideGroove.width,
+        TONE_LED,
+        ledInfo(height),
+      ),
+      brick(
+        W - t - LED_PROUD,
+        y,
+        z,
+        LED_PROUD,
+        height,
+        sideGroove.width,
+        TONE_LED,
+        ledInfo(height),
+      ),
+    );
+  }
+  const shelfGroove = grooveOf(shelf);
+  if (shelf && shelfGroove) {
+    for (const at of result.shelvesAt) {
+      boxes.push(
+        brick(
+          t + SHELF_CLEARANCE,
+          at - LED_PROUD,
+          shelf.width - shelfGroove.indent - shelfGroove.width,
+          shelf.length,
+          LED_PROUD,
+          shelfGroove.width,
+          TONE_LED,
+          ledInfo(shelf.length),
+        ),
+      );
+    }
+  }
+
   // Цоколь спереди под дном.
   const plinthPart = byTitle("цоколь");
   if (plinthPart && plinth > 0) {

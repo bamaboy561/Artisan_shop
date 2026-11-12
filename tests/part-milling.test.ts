@@ -75,3 +75,51 @@ test("milling is measured in metres for the price list", async () => {
   assert.equal(Math.round(meters.curve * 1000), Math.round(Math.PI * 100));
   assert.equal(meters.bevel, 0.7);
 });
+
+test("LED groove becomes a straight milling pass and is priced per metre", async () => {
+  const { grooveMillingProgram, millingMeters, grooveRect } =
+    await import("../features/services/part-milling");
+  const milling = emptyMilling();
+  milling.grooves = [{ side: "top", indent: 20, width: 10, depth: 10 }];
+  // Паз у верхнего края: от y = 400 − 20 − 10 до 400 − 20.
+  assert.deepEqual(grooveRect(milling.grooves[0], 700, 400), {
+    x: 0,
+    y: 370,
+    w: 700,
+    h: 10,
+    along: true,
+  });
+  assert.equal(
+    grooveMillingProgram(700, 400, 16, milling),
+    '<?xml version="1.0" encoding="UTF-8"?><program dx="700.00" dy="400.00" dz="16.00"><tool name="Mill10" d="10" /><ms x="0" y="375" dp="10" name="Mill10" c="0"/><ml x="700" y="375"/></program>',
+  );
+  assert.equal(millingMeters(700, 400, milling).groove, 0.7);
+  assert.equal(describeMilling(milling), "паз 10×10 в 20 мм от верхнего края");
+  // Поворот детали: паз переходит на правый край.
+  assert.equal(rotateMilling(milling).grooves?.[0].side, "right");
+  assert.deepEqual(
+    sanitizeMilling({
+      grooves: [
+        { side: "left", indent: 5, width: 10, depth: 10 },
+        { side: "x" },
+      ],
+    })?.grooves,
+    [{ side: "left", indent: 5, width: 10, depth: 10 }],
+  );
+  // Паз шире фрезы — два прохода, глубина не больше толщины − 2 мм.
+  milling.grooves = [{ side: "left", indent: 0, width: 18, depth: 20 }];
+  const wide = grooveMillingProgram(700, 400, 16, milling)!;
+  assert.match(
+    wide,
+    /<ms x="5" y="0" dp="14"[^>]*\/><ml x="5" y="400"\/><ms x="13" y="0"/,
+  );
+});
+
+test("unfinished groove (zero width) is neither milled nor billed", async () => {
+  const { grooveMillingProgram, millingMeters } =
+    await import("../features/services/part-milling");
+  const milling = emptyMilling();
+  milling.grooves = [{ side: "top", indent: 20, width: 0, depth: 10 }];
+  assert.equal(grooveMillingProgram(700, 400, 16, milling), null);
+  assert.equal(millingMeters(700, 400, milling).groove, 0);
+});

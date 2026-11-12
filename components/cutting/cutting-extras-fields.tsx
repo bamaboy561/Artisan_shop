@@ -65,6 +65,19 @@ export function CuttingExtrasFields({
             className="h-9 px-2 sm:h-9 sm:px-2"
           />
         </label>
+        <label className="grid gap-1 text-xs font-medium text-[var(--foreground)]">
+          Паз в пласти, м
+          <Input
+            name="grooveMeters"
+            type="number"
+            min={0}
+            step={0.01}
+            inputMode="decimal"
+            defaultValue={extras?.grooveMeters || ""}
+            placeholder="0"
+            className="h-9 px-2 sm:h-9 sm:px-2"
+          />
+        </label>
       </div>
     </div>
   );

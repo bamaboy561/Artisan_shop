@@ -72,6 +72,7 @@ export async function saveSiteCuttingPricesAction(form: FormData) {
     form.get(field) === null ? fallback : readRate(form, field);
   const milling = optionalRate("siteMilling", defaultSiteCuttingPrices.milling);
   const bevel = optionalRate("siteBevel", defaultSiteCuttingPrices.bevel);
+  const groove = optionalRate("siteGroove", defaultSiteCuttingPrices.groove);
   const drilling: Record<number, number> = {};
   let drillingValid = true;
   for (const diameter of drillingDiameters) {
@@ -86,6 +87,7 @@ export async function saveSiteCuttingPricesAction(form: FormData) {
     edgeRegular === null ||
     milling === null ||
     bevel === null ||
+    groove === null ||
     !drillingValid ||
     !hasDatabaseUrl()
   )
@@ -98,6 +100,7 @@ export async function saveSiteCuttingPricesAction(form: FormData) {
     drilling,
     milling,
     bevel,
+    groove,
   };
   await getDb().siteSetting.upsert({
     where: { key: siteCuttingPricesKey },

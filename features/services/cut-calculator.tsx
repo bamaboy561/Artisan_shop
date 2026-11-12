@@ -67,6 +67,7 @@ import {
 } from "@/features/services/drilling-hardware";
 import {
   contourMillingProgram,
+  grooveMillingProgram,
   describeMilling,
   hasMilling,
   mergePrograms,
@@ -428,11 +429,19 @@ function buildGibLabProjectXml({
             thickness,
           )
         : null,
-      contourMillingProgram(
-        geometry.length,
-        geometry.width,
-        thickness,
-        milling,
+      mergePrograms(
+        contourMillingProgram(
+          geometry.length,
+          geometry.width,
+          thickness,
+          milling,
+        ),
+        grooveMillingProgram(
+          geometry.length,
+          geometry.width,
+          thickness,
+          milling,
+        ),
       ),
     );
     // Скос торца станок не делает: он виден в названии детали.
@@ -1614,7 +1623,7 @@ function buildCuttingRequestMessage({
   estimate: {
     totalEstimate: number;
     drilling: ReturnType<typeof priceDrilling>;
-    milling: { curve: number; bevel: number };
+    milling: { curve: number; bevel: number; groove: number };
     millingCost: number;
   };
   workshopRows: WorkshopRow[];
@@ -1656,6 +1665,9 @@ function buildCuttingRequestMessage({
               : "",
             estimate.milling.bevel > 0
               ? `скосы ${estimate.milling.bevel.toFixed(2)} м`
+              : "",
+            estimate.milling.groove > 0
+              ? `пазы ${estimate.milling.groove.toFixed(2)} м`
               : "",
           ]
             .filter(Boolean)
@@ -2029,12 +2041,15 @@ export function CutCalculator({
         return {
           curve: sum.curve + meters.curve * row.quantity,
           bevel: sum.bevel + meters.bevel * row.quantity,
+          groove: sum.groove + meters.groove * row.quantity,
         };
       },
-      { curve: 0, bevel: 0 },
+      { curve: 0, bevel: 0, groove: 0 },
     );
     const millingCost =
-      milling.curve * sitePrices.milling + milling.bevel * sitePrices.bevel;
+      milling.curve * sitePrices.milling +
+      milling.bevel * sitePrices.bevel +
+      milling.groove * sitePrices.groove;
 
     return {
       sheetCount,
@@ -2265,6 +2280,7 @@ export function CutCalculator({
         ),
         curveMeters: Math.round(estimate.milling.curve * 100) / 100,
         bevelMeters: Math.round(estimate.milling.bevel * 100) / 100,
+        grooveMeters: Math.round(estimate.milling.groove * 100) / 100,
         source: "calculator",
       },
     }),
@@ -4282,7 +4298,11 @@ export function CutCalculator({
               <div className="flex items-center justify-between gap-3 text-sm text-[var(--muted)]">
                 <span>
                   Фрезеровка,{" "}
-                  {(estimate.milling.curve + estimate.milling.bevel)
+                  {(
+                    estimate.milling.curve +
+                    estimate.milling.bevel +
+                    estimate.milling.groove
+                  )
                     .toFixed(2)
                     .replace(".", ",")}{" "}
                   м

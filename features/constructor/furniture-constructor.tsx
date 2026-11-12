@@ -19,14 +19,17 @@ import {
 import {
   CABINET_JOINTS,
   CABINET_KINDS,
+  CABINET_LEDS,
   buildCabinet,
   cabinetGroupLabel,
   type CabinetJoint,
   type CabinetKind,
+  type CabinetLed,
   type CabinetPart,
   type CabinetSpec,
 } from "@/features/services/cabinet-builder";
 import { Field, inputClass } from "@/features/services/cabinet-builder-dialog";
+
 import { hardwareHoles } from "@/features/services/drilling-hardware";
 import { cn } from "@/lib/utils";
 import type {
@@ -46,6 +49,7 @@ import {
   TONE_BACK,
   TONE_BODY,
   TONE_FACADE,
+  TONE_LED,
 } from "./cabinet-model";
 import type { FurnitureSceneApi, SceneTone } from "./furniture-scene";
 
@@ -191,6 +195,16 @@ function DecorPicker({
   );
 }
 
+// Пазы деталей конструктора всегда вдоль переднего (лицевого) торца.
+function grooveNote(part: CabinetPart) {
+  return (part.milling?.grooves ?? [])
+    .map(
+      (groove) =>
+        `паз ${groove.width}×${groove.depth} в ${groove.indent} мм от лицевого торца`,
+    )
+    .join(", ");
+}
+
 // Подпись детали с большой буквы: «Боковина левая», «Дно».
 export function partLabel(title: string) {
   const kind = partKind(title);
@@ -210,6 +224,7 @@ function partsToDraftRows(parts: CabinetPart[]) {
     ),
     orientationMode: part.fixedGrain ? "fixed" : "free",
     ...(part.hardware?.length ? { hardware: part.hardware } : {}),
+    ...(part.milling ? { milling: part.milling } : {}),
     ...(part.group ? { group: part.group } : {}),
   }));
 }
@@ -315,6 +330,7 @@ export function FurnitureConstructor({
       imageUrl: facadeDecor?.imageUrl,
     };
     list[TONE_BACK] = { color: BACK_COLOR };
+    list[TONE_LED] = { color: [255, 190, 80], glow: true };
     return list;
   }, [bodyDecor, facadeDecor]);
   const fittings = useMemo(
@@ -442,7 +458,7 @@ export function FurnitureConstructor({
       parts: [
         ...result.parts.map((part) => ({
           name: partLabel(part.title),
-          size: `${sizeFormatter.format(part.length)} × ${sizeFormatter.format(part.width)} мм, кромка: ${edgeDescription(part.edgedSides)}`,
+          size: `${sizeFormatter.format(part.length)} × ${sizeFormatter.format(part.width)} мм, кромка: ${edgeDescription(part.edgedSides)}${part.milling ? `, ${grooveNote(part)}` : ""}`,
           count: part.quantity,
         })),
         ...(result.back
@@ -549,6 +565,7 @@ export function FurnitureConstructor({
                   kind,
                   ...CABINET_KINDS[kind].defaults,
                   joint: current.joint,
+                  led: current.led,
                 }))
               }
               className={cn(
@@ -631,6 +648,25 @@ export function FurnitureConstructor({
             {CABINET_JOINTS[spec.joint ?? "minifix"].hint}
           </span>
         </label>
+        <label className="grid gap-1 text-[12px] text-[var(--muted)]">
+          Подсветка (паз под LED-профиль 10×10)
+          <select
+            className={inputClass}
+            value={spec.led ?? "none"}
+            onChange={(event) => set({ led: event.target.value as CabinetLed })}
+          >
+            {(Object.keys(CABINET_LEDS) as CabinetLed[]).map((led) => (
+              <option key={led} value={led}>
+                {CABINET_LEDS[led].label}
+              </option>
+            ))}
+          </select>
+          {CABINET_LEDS[spec.led ?? "none"].hint ? (
+            <span className="text-[11px] leading-4">
+              {CABINET_LEDS[spec.led ?? "none"].hint}
+            </span>
+          ) : null}
+        </label>
 
         {decors.length > 0 ? (
           <>
@@ -711,6 +747,11 @@ export function FurnitureConstructor({
                     {isDoor(part) && !sameDecor ? (
                       <span className="text-[var(--muted)]"> · фасад</span>
                     ) : null}
+                    {part.milling ? (
+                      <span className="block text-[11px] text-[var(--muted)]">
+                        {grooveNote(part)}
+                      </span>
+                    ) : null}
                   </td>
                   <td className="py-1.5 whitespace-nowrap tabular-nums">
                     {sizeFormatter.format(part.length)} ×{" "}
@@ -740,7 +781,8 @@ export function FurnitureConstructor({
           <p className="mt-2 text-[12px] leading-5 text-[var(--muted)]">
             Размер: длина (вдоль текстуры) × ширина. Кромка уже стоит в раскрое.
             Присадка тоже готова: крепёж корпуса, евровинты цоколя,
-            полкодержатели, петли и планки петель.
+            полкодержатели, петли и планки петель. Пазы под подсветку уходят в
+            программу станка фрезеровкой.
           </p>
         </details>
 
