@@ -11,9 +11,14 @@ import {
   productionBoardPath,
   productionTimeZone,
 } from "@/features/production/queue";
+import {
+  buildDailyReportMessage,
+  eveningReportHour,
+} from "@/features/production/daily-report";
 import { getDb, hasDatabaseUrl } from "@/lib/db";
 import { getSiteUrl } from "@/lib/seo";
 import { sendStaffNotice } from "@/lib/server/commercial-integrations";
+import { getProductionDailyReport } from "@/lib/server/production-daily-report";
 import { getProductionBoard } from "@/lib/server/production-workspace";
 import { sendTelegramDirectMessage } from "@/lib/server/telegram-bot";
 
@@ -186,4 +191,60 @@ export async function runProductionDeadlineAlerts(now = new Date()) {
     dueToday: plan.dueToday.length,
     dueTomorrow: plan.dueTomorrow.length,
   };
+}
+
+// Вечерний итог дня по доске распила: один раз в день, с первого запуска
+// после 19:00 по Бишкеку. Уходит в тему «Распил» рабочего чата и лично
+// начальникам производства, у кого подключён Telegram.
+export async function runProductionDailyReport(now = new Date()) {
+  if (!hasDatabaseUrl()) return { status: "no-database" };
+  const hour = bishkekHour(now);
+  if (hour < eveningReportHour || hour >= 23) return { status: "not-yet" };
+
+  await ensureAlertTable();
+  const board = await getProductionBoard();
+  const key = `daily-report:${board.today}`;
+  // Запись «отправлено сегодня» ставим заранее, чтобы два вызова подряд не
+  // прислали отчёт дважды; при ошибке снимаем, и следующий вызов повторит.
+  if (!(await claim(key, 24 * 60))) return { status: "already-sent" };
+
+  try {
+    const report = await getProductionDailyReport(board, board.today);
+    const message = buildDailyReportMessage(report, board.today);
+    const boardUrl = `${getSiteUrl()}${productionBoardPath}#daily-report`;
+    const topic = await sendStaffNotice({
+      ...message,
+      threadKey: "cutting",
+      actions: [{ label: "Открыть отчёт", url: boardUrl }],
+    });
+    const managers = await getDb().user.findMany({
+      where: {
+        isActive: true,
+        telegramChatId: { not: null },
+        role: { code: RoleCode.PRODUCTION_MANAGER },
+      },
+      select: { id: true },
+    });
+    let personal = 0;
+    for (const manager of managers) {
+      try {
+        const sent = await sendTelegramDirectMessage(manager.id, {
+          ...message,
+          category: "requests",
+          actions: [{ text: "Открыть отчёт", url: boardUrl }],
+        });
+        if (sent) personal += 1;
+      } catch (error) {
+        console.error("[production-daily-report] direct message failed", error);
+      }
+    }
+    if (!topic.ok && personal === 0) throw new Error(topic.message);
+    return { status: "sent", topic: topic.ok, personal };
+  } catch (error) {
+    await getDb().$executeRawUnsafe(
+      `DELETE FROM "ProductionDeadlineAlert" WHERE "key" = $1`,
+      key,
+    );
+    throw error;
+  }
 }

@@ -236,3 +236,129 @@
     overflow-x: visible;
   }
 }
+.report {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 2px solid #dce2dd;
+}
+.reportHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.reportHead h2,
+.reportSubtitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 18px;
+  font-weight: 650;
+}
+.reportSubtitle {
+  margin: 20px 0 10px;
+}
+.reportNav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.reportNav a {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid #b8c2bc;
+  background: #fff;
+  font-size: 13px;
+  font-weight: 600;
+}
+.reportNav a:hover {
+  border-color: #1d2420;
+}
+.summary div[data-tone="good"] {
+  border-color: #a7d7bd;
+  background: #ecf8f1;
+}
+.reportTable {
+  overflow-x: auto;
+  border: 1px solid #dce2dd;
+  background: #fff;
+}
+.reportTable table {
+  width: 100%;
+  min-width: 460px;
+  border-collapse: collapse;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.reportTable th,
+.reportTable td {
+  padding: 8px 10px;
+  border-bottom: 1px solid #eef1ef;
+  text-align: left;
+}
+.reportTable thead th {
+  font-size: 12px;
+  font-weight: 600;
+  color: #5f6a64;
+}
+.reportTable tbody th {
+  font-weight: 600;
+}
+.reportTable td[data-tone="bad"] {
+  background: #fdf0f0;
+  color: #9b1c1c;
+  font-weight: 650;
+}
+.reportTable td[data-tone="warn"] {
+  background: #fff8e6;
+  color: #8a5a00;
+  font-weight: 650;
+}
+.reportLists {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+.reportList {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid #dce2dd;
+  background: #fff;
+}
+.reportLists .reportList {
+  margin-top: 0;
+}
+.reportList h3 {
+  display: flex;
+  justify-content: space-between;
+  margin: 0 0 6px;
+  font-size: 14px;
+  font-weight: 650;
+}
+.reportList ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.reportList li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  padding: 5px 0;
+  border-top: 1px solid #eef1ef;
+  font-size: 13px;
+}
+.reportList li a {
+  font-weight: 650;
+  text-decoration: underline;
+}
+.reportList li span {
+  color: #5f6a64;
+}
