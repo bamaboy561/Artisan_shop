@@ -21,7 +21,13 @@ export type FittingKey =
   | "ledStrip"
   | "slide"
   | "slideScrew"
-  | "frontScrew";
+  | "frontScrew"
+  | "topTrack"
+  | "bottomTrack"
+  | "kupeRoller"
+  | "rod"
+  | "rodHolder"
+  | "rodScrew";
 
 export type FittingLine = {
   key: FittingKey;
@@ -111,6 +117,36 @@ const FITTING_INFO: Record<
     note: "4×30 мм",
     search: /саморез.*4[×x*х]\s?[34]\d|4[×x*х][34]\d.*саморез/i,
   },
+  topTrack: {
+    label: "Верхний профиль TopLine L, двойной",
+    note: "по ширине шкафа",
+    search: /top\s?line.*верх|верх.*top\s?line/i,
+  },
+  bottomTrack: {
+    label: "Нижний профиль TopLine L, двойной",
+    note: "по ширине шкафа",
+    search: /top\s?line.*ниж|ниж.*top\s?line/i,
+  },
+  kupeRoller: {
+    label: "Комплект роликов TopLine L на дверь",
+    note: "верхние и нижние, со стопорами",
+    search: /top\s?line.*(ролик|комплект)|(ролик|комплект).*top\s?line/i,
+  },
+  rod: {
+    label: "Штанга для одежды",
+    note: "Ø25 мм",
+    search: /штанга/i,
+  },
+  rodHolder: {
+    label: "Штангодержатель",
+    note: "Ø25 мм, пара на штангу",
+    search: /штангодерж|держател\S* штанг/i,
+  },
+  rodScrew: {
+    label: "Саморез для штангодержателей",
+    note: "3,5×16 мм",
+    search: /саморез/i,
+  },
   ledProfile: {
     label: "Профиль для LED-ленты",
     note: "врезной 10×10 мм, с рассеивателем",
@@ -125,7 +161,9 @@ const FITTING_INFO: Record<
   },
 };
 
-const isDoor = (title: string) => /: дверь/.test(title);
+// Распашные двери: на петлях и с ручкой. Двери-купе — отдельно.
+const isDoor = (title: string) => /: дверь(?! купе)/.test(title);
+const isPartition = (title: string) => /: перегородка/.test(title);
 const isDrawerFront = (title: string) => /: фасад ящика/.test(title);
 
 export function cabinetFittings(
@@ -195,6 +233,19 @@ export function cabinetFittings(
   }
   if (spec.kind === "wall") add("hanger", 2);
 
+  // Купе: двойные профили по ширине шкафа, ролики на каждую дверь,
+  // штанга с парой держателей (по 2 самореза) в секциях со штангой.
+  const kupe = result.kupe;
+  if (kupe) {
+    add("topTrack", 1);
+    add("bottomTrack", 1);
+    add("kupeRoller", kupe.doors.count);
+    const rods = kupe.sections.filter((section) => section.rodAt !== null);
+    add("rod", rods.length);
+    add("rodHolder", rods.length * 2);
+    add("rodScrew", rods.length * 4);
+  }
+
   // Подсветка: длина пазов под профиль, с запасом до целого метра.
   let ledLength = 0;
   for (const part of result.parts) {
@@ -225,6 +276,12 @@ export function cabinetFittings(
     "frontScrew",
     "handle",
     "handleScrew",
+    "topTrack",
+    "bottomTrack",
+    "kupeRoller",
+    "rod",
+    "rodHolder",
+    "rodScrew",
     "hanger",
     "backNail",
     "ledProfile",
@@ -233,12 +290,22 @@ export function cabinetFittings(
   const slideNote = result.drawers
     ? `${result.drawers.slide} мм, полного выдвижения, пара на ящик`
     : "";
+  const notes: Partial<Record<FittingKey, string>> = {
+    ...(slideNote ? { slide: slideNote } : {}),
+    ...(kupe
+      ? {
+          topTrack: `${spec.width} мм`,
+          bottomTrack: `${spec.width} мм`,
+          rod: `Ø25 мм, отрезать по ${kupe.rodLength} мм`,
+        }
+      : {}),
+  };
   return order
     .filter((key) => counts.has(key))
     .map((key) => ({
       key,
       ...FITTING_INFO[key],
-      ...(key === "slide" ? { note: slideNote } : {}),
+      ...(notes[key] ? { note: notes[key] } : {}),
       count: counts.get(key)!,
     }));
 }
@@ -301,7 +368,22 @@ export function cabinetAssembly(
             BACK_NAIL_STEP,
         )
       : 0;
-  const bodyScrews = count("confirmat") - plinthScrews - drawerScrews;
+  // Перегородки купе: конфирматы через крышу и дно.
+  const partitions = result.parts.filter((part) => isPartition(part.title));
+  const partitionKinds = partitions.map((part) => partKind(part.title));
+  const partitionScrews = partitions.reduce(
+    (sum, part) =>
+      sum +
+      hardwareHoles(
+        part.hardware?.filter((entry) => entry.kind === "confirmatEdge"),
+        part.length,
+        part.width,
+        16,
+      ).length,
+    0,
+  );
+  const bodyScrews =
+    count("confirmat") - plinthScrews - drawerScrews - partitionScrews;
   const closed = [...body, ...(hasPlinth ? ["цоколь"] : []), "боковина правая"];
 
   if (joint === "minifix") {
@@ -365,31 +447,62 @@ export function cabinetAssembly(
       ),
     ],
   });
+  if (partitions.length > 0) {
+    steps.push({
+      title:
+        partitions.length === 1
+          ? "Поставьте перегородку"
+          : "Поставьте перегородки",
+      text: `Положите корпус на заднюю кромку. Вставьте ${partitions.length === 1 ? "перегородку" : "перегородки"} между дном и крышей по отверстиям Ø7 и закрутите конфирматы через крышу и дно. Проверьте, что ${partitions.length === 1 ? "перегородка стоит" : "перегородки стоят"} ровно по передней кромке.`,
+      shown: [...closed, ...partitionKinds],
+      added: partitionKinds,
+      fittings: item("confirmat", partitionScrews),
+    });
+  }
+  const framed = [...closed, ...partitionKinds];
   if (result.back) {
     steps.push({
       title: "Прибейте заднюю стенку",
       text: `Положите корпус на переднюю кромку и проверьте диагонали — они должны быть равны, тогда корпус ровный. Прибейте ХДФ ${result.back.length} × ${result.back.width} мм гладкой стороной внутрь, шаг ${BACK_NAIL_STEP} мм.`,
-      shown: [...closed, "задняя стенка"],
+      shown: [...framed, "задняя стенка"],
       added: ["задняя стенка"],
       fittings: item("backNail", count("backNail") - drawerNails),
     });
   }
-  const withBack = [...closed, ...(result.back ? ["задняя стенка"] : [])];
-  const fixedShelf = has("полка над ящиками");
+  const withBack = [...framed, ...(result.back ? ["задняя стенка"] : [])];
+  const fixedShelfPart = result.parts.find(
+    (part) => partKind(part.title) === "полка над ящиками",
+  );
+  const fixedShelf = Boolean(fixedShelfPart);
   const shelfKinds = [
     ...(fixedShelf ? ["полка над ящиками"] : []),
     ...(shelves ? ["полка"] : []),
   ];
   if (shelfKinds.length > 0) {
-    const total = (shelves?.quantity ?? 0) + (fixedShelf ? 1 : 0);
+    const total = (shelves?.quantity ?? 0) + (fixedShelfPart?.quantity ?? 0);
     steps.push({
       title: "Поставьте полки",
-      text: `Поставьте корпус. Вставьте полкодержатели в отверстия Ø5 — по 4 на полку — и уложите ${total} ${total === 1 ? "полку" : total < 5 ? "полки" : "полок"}${shelves?.milling?.grooves?.length ? " пазом вниз" : ""}.${fixedShelf ? " Нижняя полка отделяет ящики от отделения за дверями." : ""}`,
+      text: `Поставьте корпус. Вставьте полкодержатели в отверстия Ø5 — по 4 на полку — и уложите ${total} ${total === 1 ? "полку" : total < 5 ? "полки" : "полок"}${shelves?.milling?.grooves?.length ? " пазом вниз" : ""}.${fixedShelf ? (result.kupe ? " Полка над ящиками закрывает их сверху." : " Нижняя полка отделяет ящики от отделения за дверями.") : ""}`,
       shown: [...withBack, ...shelfKinds],
       added: shelfKinds,
       fittings: item("shelfPin", count("shelfPin")),
     });
   }
+  const kupe = result.kupe;
+  if (kupe && count("rod") > 0) {
+    steps.push({
+      title: "Повесьте штангу",
+      text: `Прикрутите штангодержатели к боковинам секции под шляпной полкой, на ${Math.round(kupe.sections.find((section) => section.rodAt !== null)?.rodAt ?? 0)} мм от пола, по 2 самореза. Отрежьте штангу по ${kupe.rodLength} мм и вставьте в держатели.`,
+      shown: [...withBack, ...shelfKinds, "штанга"],
+      added: ["штанга"],
+      fittings: [
+        ...item("rod", count("rod")),
+        ...item("rodHolder", count("rodHolder")),
+        ...item("rodScrew", count("rodScrew")),
+      ],
+    });
+  }
+  const withRod = kupe && count("rod") > 0 ? ["штанга"] : [];
   const drawers = result.drawers;
   const drawerKinds = [
     "ящик боковина",
@@ -397,7 +510,7 @@ export function cabinetAssembly(
     "дно ящика",
     "фасад ящика",
   ];
-  const withShelves = [...withBack, ...shelfKinds];
+  const withShelves = [...withBack, ...shelfKinds, ...withRod];
   if (drawers && drawers.slide > 0 && has("ящик боковина")) {
     steps.push({
       title: "Соберите короба ящиков",
@@ -411,7 +524,7 @@ export function cabinetAssembly(
     });
     steps.push({
       title: "Поставьте ящики на направляющие",
-      text: `Разделите направляющие ${drawers.slide} мм на половины. Узкие прикрутите к боковинам коробов по центру высоты, широкие — к боковинам корпуса по разметке: низ направляющей на ${Math.round(drawers.boxesAt[0])} мм от пола у первого ящика и с шагом ${Math.round(drawers.frontHeight + 3)} мм выше. Вставьте короба до щелчка.`,
+      text: `Разделите направляющие ${drawers.slide} мм на половины. Узкие прикрутите к боковинам коробов по центру высоты, широкие — к ${kupe ? "боковинам и перегородкам" : "боковинам корпуса"} по разметке: низ направляющей на ${Math.round(drawers.boxesAt[0])} мм от пола у первого ящика и с шагом ${Math.round(drawers.frontHeight + 3)} мм выше. Вставьте короба до щелчка.`,
       shown: [...withShelves, "ящик боковина", "ящик стенка", "дно ящика"],
       added: ["ящик боковина", "ящик стенка", "дно ящика"],
       fittings: [
@@ -421,7 +534,7 @@ export function cabinetAssembly(
     });
     steps.push({
       title: "Прикрутите фасады ящиков",
-      text: "Приложите фасад к коробу с зазором 3 мм между фасадами, прикрутите изнутри короба четырьмя саморезами. Поставьте ручки: разметьте по шаблону, просверлите Ø5 насквозь и прикрутите винтами изнутри.",
+      text: `${drawers.inset ? "Фасады вкладные: приложите фасад внутри секции с зазором 2 мм до стенок и 3 мм между фасадами" : "Приложите фасад к коробу с зазором 3 мм между фасадами"}, прикрутите изнутри короба четырьмя саморезами. Поставьте ручки: разметьте по шаблону, просверлите Ø5 насквозь и прикрутите винтами изнутри.`,
       shown: [...withShelves, ...drawerKinds],
       added: ["фасад ящика"],
       fittings: [
@@ -474,6 +587,22 @@ export function cabinetAssembly(
       fittings: [
         ...item("handle", doors.length),
         ...item("handleScrew", doors.length * 2),
+      ],
+    });
+  }
+  if (kupe) {
+    const door = result.parts.find(
+      (part) => partKind(part.title) === "дверь купе",
+    );
+    steps.push({
+      title: "Поставьте двери-купе",
+      text: `Прикрутите верхний профиль TopLine L под крышу или к потолку, нижний — к полу или к дну по передней кромке, оба на ${spec.width} мм. Прикрутите ролики к дверям по инструкции к комплекту. Поставьте ${kupe.doors.count} двери ${door ? `${door.length} × ${door.width} мм` : ""}: ${kupe.doors.count === 2 ? "левую в заднюю дорожку, правую в переднюю" : "крайние в заднюю дорожку, среднюю в переднюю"}. Отрегулируйте ролики, чтобы двери закрывались без щели, перехлёст ${kupe.doors.overlap} мм.`,
+      shown: [...inside, "дверь купе"],
+      added: ["дверь купе"],
+      fittings: [
+        ...item("topTrack", count("topTrack")),
+        ...item("bottomTrack", count("bottomTrack")),
+        ...item("kupeRoller", count("kupeRoller")),
       ],
     });
   }

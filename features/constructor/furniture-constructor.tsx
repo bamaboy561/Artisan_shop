@@ -20,13 +20,17 @@ import {
   CABINET_JOINTS,
   CABINET_KINDS,
   CABINET_LEDS,
+  KUPE_HEIGHT_DEDUCTION,
+  KUPE_OVERLAP,
   buildCabinet,
+  kupeSections,
   cabinetGroupLabel,
   type CabinetJoint,
   type CabinetKind,
   type CabinetLed,
   type CabinetPart,
   type CabinetSpec,
+  type KupeSection,
 } from "@/features/services/cabinet-builder";
 import { Field, inputClass } from "@/features/services/cabinet-builder-dialog";
 
@@ -50,6 +54,8 @@ import {
   TONE_BODY,
   TONE_FACADE,
   TONE_LED,
+  TONE_ROD,
+  TONE_SLIDING,
 } from "./cabinet-model";
 import type { FurnitureSceneApi, SceneTone } from "./furniture-scene";
 
@@ -302,8 +308,11 @@ export function FurnitureConstructor({
   const facadeDecor =
     decors.find((decor) => decor.id === facadeId) ?? bodyDecor;
   // Без дверей и ящиков фасадов нет: всё уходит одной заявкой.
+  const isKupe = spec.kind === "kupe";
   const hasFronts =
-    spec.doors > 0 || (spec.kind !== "wall" && (spec.drawers ?? 0) > 0);
+    isKupe ||
+    spec.doors > 0 ||
+    (spec.kind !== "wall" && (spec.drawers ?? 0) > 0);
   const sameDecor =
     !hasFronts || !facadeDecor || facadeDecor.id === bodyDecor?.id;
   const thickness = bodyDecor?.thickness ?? 16;
@@ -333,6 +342,8 @@ export function FurnitureConstructor({
     };
     list[TONE_BACK] = { color: BACK_COLOR };
     list[TONE_LED] = { color: [255, 190, 80], glow: true };
+    list[TONE_SLIDING] = list[TONE_FACADE];
+    list[TONE_ROD] = { color: [200, 202, 206], metal: true };
     return list;
   }, [bodyDecor, facadeDecor]);
   const fittings = useMemo(
@@ -376,6 +387,13 @@ export function FurnitureConstructor({
 
   const set = (patch: Partial<CabinetSpec>) =>
     setSpec((current) => ({ ...current, ...patch }));
+  const sections = kupeSections(spec);
+  const setSection = (index: number, patch: Partial<KupeSection>) =>
+    set({
+      sections: sections.map((section, at) =>
+        at === index ? { ...section, ...patch } : section,
+      ),
+    });
 
   // Фасады: двери и фасады ящиков — из декора фасадов.
   const isDoor = (part: CabinetPart) =>
@@ -583,7 +601,7 @@ export function FurnitureConstructor({
                   kind,
                   ...CABINET_KINDS[kind].defaults,
                   joint: current.joint,
-                  led: current.led,
+                  led: kind === "kupe" ? "none" : current.led,
                 }))
               }
               className={cn(
@@ -627,45 +645,129 @@ export function FurnitureConstructor({
             value={spec.plinth}
             onChange={(plinth) => set({ plinth })}
           />
-          <Field
-            label="Полок, шт."
-            value={spec.shelves}
-            onChange={(shelves) => set({ shelves })}
-          />
-          <label className="grid gap-1 text-[12px] text-[var(--muted)]">
-            Дверей
-            <select
-              className={inputClass}
-              value={spec.doors}
-              onChange={(event) =>
-                set({ doors: Number(event.target.value) as 0 | 1 | 2 })
-              }
-            >
-              <option value={0}>без дверей</option>
-              <option value={1}>1</option>
-              <option value={2}>2</option>
-            </select>
-          </label>
-          {spec.kind !== "wall" ? (
+          {isKupe ? (
             <label className="grid gap-1 text-[12px] text-[var(--muted)]">
-              Ящиков
+              Дверей-купе
               <select
                 className={inputClass}
-                value={spec.drawers ?? 0}
+                value={sections.length}
                 onChange={(event) =>
-                  set({ drawers: Number(event.target.value) })
+                  set({
+                    slidingDoors: Number(event.target.value) as 2 | 3,
+                    sections,
+                  })
                 }
               >
-                {[0, 1, 2, 3, 4, 5].map((count) => (
-                  <option key={count} value={count}>
-                    {count === 0 ? "без ящиков" : count}
-                  </option>
-                ))}
+                <option value={2}>2</option>
+                <option value={3}>3</option>
               </select>
             </label>
           ) : null}
+          {isKupe ? null : (
+            <>
+              <Field
+                label="Полок, шт."
+                value={spec.shelves}
+                onChange={(shelves) => set({ shelves })}
+              />
+              <label className="grid gap-1 text-[12px] text-[var(--muted)]">
+                Дверей
+                <select
+                  className={inputClass}
+                  value={spec.doors}
+                  onChange={(event) =>
+                    set({ doors: Number(event.target.value) as 0 | 1 | 2 })
+                  }
+                >
+                  <option value={0}>без дверей</option>
+                  <option value={1}>1</option>
+                  <option value={2}>2</option>
+                </select>
+              </label>
+              {spec.kind !== "wall" ? (
+                <label className="grid gap-1 text-[12px] text-[var(--muted)]">
+                  Ящиков
+                  <select
+                    className={inputClass}
+                    value={spec.drawers ?? 0}
+                    onChange={(event) =>
+                      set({ drawers: Number(event.target.value) })
+                    }
+                  >
+                    {[0, 1, 2, 3, 4, 5].map((count) => (
+                      <option key={count} value={count}>
+                        {count === 0 ? "без ящиков" : count}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+            </>
+          )}
         </div>
-        {(spec.drawers ?? 0) > 0 && spec.kind !== "wall" ? (
+        {isKupe ? (
+          <div className="grid gap-2">
+            {sections.map((section, index) => (
+              <div
+                key={index}
+                className="grid grid-cols-3 items-end gap-2 rounded-xl border border-[color:var(--line)] p-2"
+              >
+                <label className="grid gap-1 text-[12px] text-[var(--muted)]">
+                  Секция {index + 1}
+                  <select
+                    className={inputClass}
+                    value={section.rod ? "rod" : "shelves"}
+                    onChange={(event) =>
+                      setSection(index, { rod: event.target.value === "rod" })
+                    }
+                  >
+                    <option value="shelves">Полки</option>
+                    <option value="rod">Штанга</option>
+                  </select>
+                </label>
+                {section.rod ? (
+                  <p className="pb-2 text-[11px] leading-4 text-[var(--muted)]">
+                    Шляпная полка и штанга под ней
+                  </p>
+                ) : (
+                  <Field
+                    label="Полок, шт."
+                    value={section.shelves}
+                    onChange={(shelves) => setSection(index, { shelves })}
+                  />
+                )}
+                <label className="grid gap-1 text-[12px] text-[var(--muted)]">
+                  Ящиков
+                  <select
+                    className={inputClass}
+                    value={section.drawers}
+                    onChange={(event) =>
+                      setSection(index, {
+                        drawers: Number(event.target.value),
+                      })
+                    }
+                  >
+                    {[0, 1, 2, 3, 4].map((count) => (
+                      <option key={count} value={count}>
+                        {count === 0 ? "без ящиков" : count}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            ))}
+            <p className="text-[11px] leading-4 text-[var(--muted)]">
+              Двери-купе Hettich TopLine L перед корпусом:{" "}
+              {result.kupe
+                ? `${sizeFormatter.format(result.kupe.doors.height)} × ${sizeFormatter.format(result.kupe.doors.width)} мм`
+                : ""}
+              , перехлёст {KUPE_OVERLAP} мм, ниже корпуса над цоколем на{" "}
+              {KUPE_HEIGHT_DEDUCTION} мм. Ящики с вкладными фасадами,
+              направляющие {result.drawers?.slide || "—"} мм.
+            </p>
+          </div>
+        ) : null}
+        {(spec.drawers ?? 0) > 0 && spec.kind !== "wall" && !isKupe ? (
           <p className="-mt-2 text-[11px] leading-4 text-[var(--muted)]">
             {spec.kind === "base" && spec.doors === 0
               ? "Фасады ящиков на всю высоту тумбы."
@@ -692,25 +794,29 @@ export function FurnitureConstructor({
             {CABINET_JOINTS[spec.joint ?? "minifix"].hint}
           </span>
         </label>
-        <label className="grid gap-1 text-[12px] text-[var(--muted)]">
-          Подсветка (паз под LED-профиль 10×10)
-          <select
-            className={inputClass}
-            value={spec.led ?? "none"}
-            onChange={(event) => set({ led: event.target.value as CabinetLed })}
-          >
-            {(Object.keys(CABINET_LEDS) as CabinetLed[]).map((led) => (
-              <option key={led} value={led}>
-                {CABINET_LEDS[led].label}
-              </option>
-            ))}
-          </select>
-          {CABINET_LEDS[spec.led ?? "none"].hint ? (
-            <span className="text-[11px] leading-4">
-              {CABINET_LEDS[spec.led ?? "none"].hint}
-            </span>
-          ) : null}
-        </label>
+        {isKupe ? null : (
+          <label className="grid gap-1 text-[12px] text-[var(--muted)]">
+            Подсветка (паз под LED-профиль 10×10)
+            <select
+              className={inputClass}
+              value={spec.led ?? "none"}
+              onChange={(event) =>
+                set({ led: event.target.value as CabinetLed })
+              }
+            >
+              {(Object.keys(CABINET_LEDS) as CabinetLed[]).map((led) => (
+                <option key={led} value={led}>
+                  {CABINET_LEDS[led].label}
+                </option>
+              ))}
+            </select>
+            {CABINET_LEDS[spec.led ?? "none"].hint ? (
+              <span className="text-[11px] leading-4">
+                {CABINET_LEDS[spec.led ?? "none"].hint}
+              </span>
+            ) : null}
+          </label>
+        )}
 
         {decors.length > 0 ? (
           <>
