@@ -351,8 +351,7 @@ export function buildCabinet(
   const hinges = hingeCount(doorHeight);
   const hingeHeights = Array.from({ length: hinges }, (_, index) =>
     round(
-      plinth +
-        DOOR_GAP +
+      doorBottom +
         HINGE_OFFSET +
         ((doorHeight - 2 * HINGE_OFFSET) * index) / (hinges - 1),
     ),

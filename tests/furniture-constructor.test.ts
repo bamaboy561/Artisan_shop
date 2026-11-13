@@ -330,3 +330,13 @@ test("base cabinet without doors: drawer fronts fill the height", () => {
       used.set(item.label, (used.get(item.label) ?? 0) + item.count);
   for (const line of lines) assert.equal(used.get(line.label), line.count);
 });
+
+test("drawers under doors: hinge plates move up with the doors", () => {
+  const spec = { ...wardrobe, drawers: 2 };
+  const result = buildCabinet(spec, 16);
+  const side = result.parts.find((part) => /боковина левая/.test(part.title))!;
+  const plates = side.hardware!.filter((item) => item.kind === "hingePlate");
+  const doorBottom = 2100 - result.doorHeight;
+  assert.equal(plates[0].offset, doorBottom + 100);
+  assert.equal(plates[plates.length - 1].offset, 2100 - 100);
+});
