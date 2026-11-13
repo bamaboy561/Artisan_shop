@@ -260,3 +260,255 @@ test("LED groove is refused on a board thinner than 14 mm", () => {
   assert.match(result.problems.join(" "), /не сделать в плите 10 мм/);
   assert.equal(buildCabinet(spec, 16).problems.length, 0);
 });
+
+test("wardrobe drawers: fronts under the doors, boxes on 550 mm slides", () => {
+  const spec = { ...wardrobe, drawers: 2 };
+  const result = buildCabinet(spec, 16);
+  const drawers = result.drawers!;
+  assert.equal(drawers.slide, 550);
+  assert.equal(drawers.frontHeight, 180);
+  assert.deepEqual(drawers.frontsAt, [73, 256]);
+  assert.equal(drawers.boxWidth, 768 - 26);
+  assert.equal(drawers.boxHeight, 130);
+  // Двери начинаются над ящиками и доходят до верха.
+  assert.equal(result.doorHeight, 2100 - 439);
+  assert.equal(drawers.shelfAt, 423);
+  const byKind = Object.fromEntries(
+    result.parts.map((part) => [partKind(part.title), part]),
+  );
+  assert.equal(byKind["ящик боковина"].quantity, 4);
+  assert.equal(byKind["ящик стенка"].length, 742 - 32);
+  assert.equal(byKind["фасад ящика"].width, 794);
+  assert.ok(byKind["полка над ящиками"]);
+  const lines = cabinetFittings(spec, result, 16);
+  const fit = Object.fromEntries(lines.map((line) => [line.key, line.count]));
+  assert.equal(fit.slide, 2);
+  assert.equal(fit.handle, 4);
+  // 8 в корпус + 2 цоколь — это минификс; у коробов по 8 конфирматов.
+  assert.equal(fit.confirmat, 2 + 16);
+  // Все детали и вся фурнитура попадают в инструкцию.
+  const steps = cabinetAssembly(spec, result, lines);
+  const added = new Set(steps.flatMap((step) => step.added));
+  for (const part of result.parts) assert.ok(added.has(partKind(part.title)));
+  const used = new Map<string, number>();
+  for (const step of steps)
+    for (const item of step.fittings)
+      used.set(item.label, (used.get(item.label) ?? 0) + item.count);
+  for (const line of lines) assert.equal(used.get(line.label), line.count);
+  const model = buildCabinetModel(spec, 16, result, options);
+  assert.equal(
+    model.filter((box) => box.info?.name.endsWith(": фасад ящика")).length,
+    2,
+  );
+});
+
+test("base cabinet without doors: drawer fronts fill the height", () => {
+  const base = {
+    kind: "base" as const,
+    ...CABINET_KINDS.base.defaults,
+    doors: 0 as const,
+    drawers: 3,
+  };
+  const result = buildCabinet(base, 16);
+  const drawers = result.drawers!;
+  assert.equal(drawers.shelfAt, null);
+  assert.equal(drawers.frontHeight, 237);
+  // Верх последнего фасада — верх тумбы.
+  assert.equal(
+    drawers.frontsAt[2] + drawers.frontHeight,
+    CABINET_KINDS.base.defaults.height,
+  );
+  assert.equal(
+    result.parts.some((part) => /полка/.test(part.title)),
+    false,
+  );
+  const lines = cabinetFittings(base, result, 16);
+  const steps = cabinetAssembly(base, result, lines);
+  const used = new Map<string, number>();
+  for (const step of steps)
+    for (const item of step.fittings)
+      used.set(item.label, (used.get(item.label) ?? 0) + item.count);
+  for (const line of lines) assert.equal(used.get(line.label), line.count);
+});
+
+test("drawers under doors: hinge plates move up with the doors", () => {
+  const spec = { ...wardrobe, drawers: 2 };
+  const result = buildCabinet(spec, 16);
+  const side = result.parts.find((part) => /боковина левая/.test(part.title))!;
+  const plates = side.hardware!.filter((item) => item.kind === "hingePlate");
+  const doorBottom = 2100 - result.doorHeight;
+  assert.equal(plates[0].offset, doorBottom + 100);
+  assert.equal(plates[plates.length - 1].offset, 2100 - 100);
+});
+
+test("kupe: antresol, two rods, drawers between spacers", () => {
+  const kupe = { kind: "kupe" as const, ...CABINET_KINDS.kupe.defaults };
+  const result = buildCabinet(kupe, 16);
+  assert.deepEqual(result.problems, []);
+  const part = (kind: string) =>
+    result.parts.find((entry) => partKind(entry.title) === kind);
+  // 1800 − 2·16 − 16 = 1752 → две секции по 876, перегородка с 892.
+  assert.deepEqual(result.kupe?.partitions, [892]);
+  assert.equal(part("перегородка 1")?.length, 2400 - 70 - 32);
+  // Двери: (1800 + 25) / 2, высота 2400 − 70 − 40, без присадки.
+  assert.equal(part("дверь купе")?.quantity, 2);
+  assert.equal(part("дверь купе")?.width, 912.5);
+  assert.equal(part("дверь купе")?.length, 2290);
+  assert.equal(part("дверь купе")?.hardware, undefined);
+  // Секция 1: 2 ящика, полка над ними, 3 полки, антресоль.
+  assert.equal(part("полка над ящиками, секция 1")?.quantity, 1);
+  assert.equal(part("полка, секция 1")?.quantity, 3);
+  assert.equal(part("полка антресоли, секция 1")?.length, 874);
+  // Секция 2: антресоль на 400 мм ниже крыши, средняя полка, 2 штанги.
+  const second = result.kupe!.sections[1];
+  assert.equal(second.fill, "twoRods");
+  assert.deepEqual(
+    second.shelves.map((shelf) => shelf.at),
+    [1019, 2400 - 16 - 400 - 16],
+  );
+  assert.deepEqual(second.rods, [1898, 949]);
+  // Проём левой двери до 887,5, секция до 892: проставка справа 16 мм.
+  const box = result.kupe!.sections[0].drawer!;
+  assert.equal(box.spacerLeft, 0);
+  assert.equal(box.spacerRight, 16);
+  assert.equal(part("фасад ящика, секция 1")?.width, 856);
+  assert.ok(box.frontLeft + box.frontWidth <= 887.5 - 5);
+  assert.equal(part("проставка ящиков, секция 1")?.quantity, 1);
+  assert.equal(result.drawers?.slide, 500);
+  // Крыша: сквозные Ø7 под конфирматы перегородки по центру её толщины.
+  const roof = part("крыша")!;
+  const roofHoles = hardwareHoles(roof.hardware, roof.length, roof.width, 16);
+  assert.equal(
+    roofHoles.filter(
+      (hole) => hole.kind === "face" && hole.diameter === 7 && hole.x === 884,
+    ).length,
+    3,
+  );
+  // Перегородка: полкодержатели сквозные, общая высота антресоли — одна.
+  const wall = part("перегородка 1")!;
+  const pins = hardwareHoles(wall.hardware, wall.length, wall.width, 16).filter(
+    (hole) => hole.kind === "face" && hole.diameter === 5,
+  );
+  assert.equal(pins.length, 6 * 2);
+
+  const fittings = cabinetFittings(kupe, result, 16);
+  const count = (key: string) =>
+    fittings.find((line) => line.key === key)?.count ?? 0;
+  assert.equal(count("kupeRoller"), 2);
+  assert.equal(count("topTrack"), 1);
+  assert.equal(count("rod"), 2);
+  assert.equal(count("rodHolder"), 4);
+  assert.equal(count("shelfPin"), (1 + 3 + 1 + 1 + 1) * 4);
+  assert.equal(count("spacerScrew"), 4);
+  // Ручки только на фасадах ящиков, у дверей-купе их нет.
+  assert.equal(count("handle"), 2);
+  assert.equal(count("hinge"), 0);
+
+  const steps = cabinetAssembly(kupe, result, fittings);
+  const used = new Map<string, number>();
+  for (const step of steps)
+    for (const item of step.fittings)
+      used.set(item.label, (used.get(item.label) ?? 0) + item.count);
+  for (const line of fittings) assert.equal(used.get(line.label), line.count);
+  const added = new Set(steps.flatMap((step) => step.added));
+  for (const entry of result.parts)
+    assert.ok(added.has(partKind(entry.title)), partKind(entry.title));
+
+  const boxes = buildCabinetModel(kupe, 16, result, options);
+  for (const entry of boxes)
+    assert.ok(
+      added.has(partKind(entry.info?.name ?? "")) ||
+        partKind(entry.info?.name ?? "") === "задняя стенка",
+      entry.info?.name,
+    );
+  const pieces = result.parts.reduce((sum, entry) => sum + entry.quantity, 0);
+  // + задняя стенка, 2 дна ящиков, 2 штанги.
+  assert.equal(boxes.length, pieces + 1 + 2 + 2);
+  const { min, max } = bounds(boxes);
+  assert.equal(min[0], 0);
+  assert.equal(max[0], 1800);
+});
+
+test("kupe: own section widths, rod with trousers, shoes, four doors", () => {
+  const kupe = {
+    kind: "kupe" as const,
+    ...CABINET_KINDS.kupe.defaults,
+    width: 2800,
+    slidingDoors: 4 as const,
+    sections: [
+      {
+        width: 564,
+        fill: "rodShelves" as const,
+        shelves: 2,
+        drawers: 0,
+        shoes: true,
+      },
+      { width: 764, fill: "twoRods" as const, shelves: 0, drawers: 0 },
+      { fill: "rodTrousers" as const, shelves: 0, drawers: 3 },
+      { width: 564, fill: "shelves" as const, shelves: 5, drawers: 0 },
+    ],
+  };
+  const result = buildCabinet(kupe, 16);
+  const sections = result.kupe!.sections;
+  assert.deepEqual(
+    sections.map((section) => section.width),
+    [564, 764, 2800 - 32 - 48 - 564 - 764 - 564, 564],
+  );
+  assert.equal(sections[0].shelves[0].kind, "полка для обуви");
+  assert.equal(sections[2].trousersAt !== null, true);
+  const door = result.parts.find((part) => /дверь купе/.test(part.title))!;
+  assert.equal(door.quantity, 4);
+  assert.ok(Math.abs(4 * door.width - 3 * 25 - 2800) < 0.5);
+  const fittings = cabinetFittings(kupe, result, 16);
+  assert.equal(fittings.find((line) => line.key === "trousers")?.count, 1);
+  const steps = cabinetAssembly(kupe, result, fittings);
+  const added = new Set(steps.flatMap((step) => step.added));
+  for (const entry of result.parts)
+    assert.ok(added.has(partKind(entry.title)), partKind(entry.title));
+  // Ящики третьей секции проходят в проём своей двери.
+  const box = sections[2].drawer!;
+  const doorWidth = door.width;
+  const windows = [0, 1, 2, 3].map((j) => [
+    j * (doorWidth - 25) + (j > 0 ? 25 : 0),
+    j * (doorWidth - 25) + doorWidth - (j < 3 ? 25 : 0),
+  ]);
+  assert.ok(
+    windows.some(
+      ([from, to]) =>
+        box.frontLeft >= from && box.frontLeft + box.frontWidth <= to,
+    ),
+  );
+});
+
+test("kupe with three doors keeps the doors inside the width", () => {
+  const kupe = {
+    kind: "kupe" as const,
+    ...CABINET_KINDS.kupe.defaults,
+    width: 2400,
+    slidingDoors: 3 as const,
+    sections: undefined,
+  };
+  const result = buildCabinet(kupe, 16);
+  assert.equal(result.kupe?.sections.length, 3);
+  assert.equal(result.kupe?.partitions.length, 2);
+  const door = result.parts.find((part) => /дверь купе/.test(part.title))!;
+  assert.equal(door.quantity, 3);
+  assert.ok(Math.abs(3 * door.width - 2 * 25 - 2400) < 0.5);
+});
+
+test("kupe shelf pins: four per shelf even when partition holes are shared", () => {
+  const kupe = {
+    kind: "kupe" as const,
+    ...CABINET_KINDS.kupe.defaults,
+    antresol: false,
+    sections: [
+      { fill: "shelves" as const, shelves: 4, drawers: 0 },
+      { fill: "shelves" as const, shelves: 4, drawers: 0 },
+    ],
+  };
+  const result = buildCabinet(kupe, 16);
+  const fittings = cabinetFittings(kupe, result, 16);
+  assert.equal(fittings.find((line) => line.key === "shelfPin")?.count, 8 * 4);
+  assert.equal(result.drawers, null);
+  assert.ok(!result.parts.some((part) => /проставка/.test(part.title)));
+});
