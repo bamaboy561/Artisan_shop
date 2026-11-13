@@ -301,9 +301,11 @@ export function FurnitureConstructor({
   const bodyDecor = decors.find((decor) => decor.id === bodyId);
   const facadeDecor =
     decors.find((decor) => decor.id === facadeId) ?? bodyDecor;
-  // Без дверей фасадов нет: всё уходит одной заявкой.
+  // Без дверей и ящиков фасадов нет: всё уходит одной заявкой.
+  const hasFronts =
+    spec.doors > 0 || (spec.kind !== "wall" && (spec.drawers ?? 0) > 0);
   const sameDecor =
-    spec.doors === 0 || !facadeDecor || facadeDecor.id === bodyDecor?.id;
+    !hasFronts || !facadeDecor || facadeDecor.id === bodyDecor?.id;
   const thickness = bodyDecor?.thickness ?? 16;
 
   const result = useMemo(
@@ -375,14 +377,20 @@ export function FurnitureConstructor({
   const set = (patch: Partial<CabinetSpec>) =>
     setSpec((current) => ({ ...current, ...patch }));
 
-  const isDoor = (part: CabinetPart) => /: дверь/.test(part.title);
+  // Фасады: двери и фасады ящиков — из декора фасадов.
+  const isDoor = (part: CabinetPart) =>
+    /: (дверь|фасад ящика)/.test(part.title);
+  const drawerBottom = result.drawers?.slide ? result.drawers : null;
   const send = (which: "all" | "body" | "facade") => {
     const label = cabinetGroupLabel(spec);
     const backNote = result.back
       ? `${spec.name || "Корпус"}, задняя стенка: ХДФ ${sizeFormatter.format(result.back.length)} × ${sizeFormatter.format(result.back.width)} мм, 1 шт. (накладная, отдельный материал).`
       : "";
+    const drawerNote = drawerBottom
+      ? `Дно ящиков: ХДФ ${sizeFormatter.format(drawerBottom.bottom.length)} × ${sizeFormatter.format(drawerBottom.bottom.width)} мм, ${drawerBottom.count} шт.`
+      : "";
     const fittingsNote = fittings.length
-      ? `Фурнитура: ${fittings.map((item) => `${item.label.toLowerCase()} ${item.note} — ${item.count} шт.`).join(", ")}.`
+      ? `Фурнитура: ${fittings.map((item) => `${item.label.toLowerCase()} ${item.note} — ${item.count} ${item.unit ?? "шт."}`).join(", ")}.`
       : "";
     const facadeNote =
       which === "body" && facadeDecor
@@ -393,6 +401,7 @@ export function FurnitureConstructor({
       label: which === "facade" ? `${label}, фасады` : label,
       note: [
         which === "facade" ? "" : backNote,
+        which === "facade" ? "" : drawerNote,
         facadeNote,
         which === "facade" ? "" : fittingsNote,
       ]
@@ -446,7 +455,7 @@ export function FurnitureConstructor({
       title: cabinetGroupLabel(spec),
       subtitle: [
         `Корпус: ${bodyDecor?.label ?? `ЛДСП ${thickness} мм`}`,
-        spec.doors > 0 && facadeDecor && !sameDecor
+        hasFronts && facadeDecor && !sameDecor
           ? `Фасады: ${facadeDecor.label}`
           : "",
       ]
@@ -467,6 +476,15 @@ export function FurnitureConstructor({
                 name: "Задняя стенка (ХДФ)",
                 size: `${sizeFormatter.format(result.back.length)} × ${sizeFormatter.format(result.back.width)} мм`,
                 count: 1,
+              },
+            ]
+          : []),
+        ...(drawerBottom
+          ? [
+              {
+                name: "Дно ящика (ХДФ)",
+                size: `${sizeFormatter.format(drawerBottom.bottom.length)} × ${sizeFormatter.format(drawerBottom.bottom.width)} мм`,
+                count: drawerBottom.count,
               },
             ]
           : []),
@@ -507,7 +525,7 @@ export function FurnitureConstructor({
           <button
             type="button"
             onClick={() => setDoorsOpen((current) => !current)}
-            disabled={spec.doors === 0}
+            disabled={!hasFronts}
             className="inline-flex h-9 items-center gap-2 rounded-full border border-[color:var(--line)] px-4 text-[13px] font-medium disabled:opacity-40"
           >
             {doorsOpen ? (
@@ -628,7 +646,33 @@ export function FurnitureConstructor({
               <option value={2}>2</option>
             </select>
           </label>
+          {spec.kind !== "wall" ? (
+            <label className="grid gap-1 text-[12px] text-[var(--muted)]">
+              Ящиков
+              <select
+                className={inputClass}
+                value={spec.drawers ?? 0}
+                onChange={(event) =>
+                  set({ drawers: Number(event.target.value) })
+                }
+              >
+                {[0, 1, 2, 3, 4, 5].map((count) => (
+                  <option key={count} value={count}>
+                    {count === 0 ? "без ящиков" : count}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
         </div>
+        {(spec.drawers ?? 0) > 0 && spec.kind !== "wall" ? (
+          <p className="-mt-2 text-[11px] leading-4 text-[var(--muted)]">
+            {spec.kind === "base" && spec.doors === 0
+              ? "Фасады ящиков на всю высоту тумбы."
+              : "Ящики внизу под накладными фасадами по 180 мм, над ними полка и двери."}{" "}
+            Направляющие шариковые {result.drawers?.slide || "—"} мм.
+          </p>
+        ) : null}
         <label className="grid gap-1 text-[12px] text-[var(--muted)]">
           Соединение корпуса
           <select
@@ -684,9 +728,9 @@ export function FurnitureConstructor({
                 setBodyId(id);
               }}
             />
-            {spec.doors > 0 ? (
+            {hasFronts ? (
               <DecorPicker
-                title="Декор фасадов (дверей)"
+                title="Декор фасадов (двери и ящики)"
                 decors={decors.filter((decor) => decor.thickness === thickness)}
                 value={facadeDecor?.id ?? ""}
                 onChange={setFacadeId}
@@ -776,13 +820,24 @@ export function FurnitureConstructor({
                   <td className="py-1.5 text-right">1</td>
                 </tr>
               ) : null}
+              {drawerBottom ? (
+                <tr className="border-t border-[color:var(--line)] text-[var(--muted)]">
+                  <td className="py-1.5 pr-2">Дно ящика, ХДФ</td>
+                  <td className="py-1.5 whitespace-nowrap tabular-nums">
+                    {sizeFormatter.format(drawerBottom.bottom.length)} ×{" "}
+                    {sizeFormatter.format(drawerBottom.bottom.width)}
+                  </td>
+                  <td className="py-1.5 pr-2 text-[12px]">без кромки</td>
+                  <td className="py-1.5 text-right">{drawerBottom.count}</td>
+                </tr>
+              ) : null}
             </tbody>
           </table>
           <p className="mt-2 text-[12px] leading-5 text-[var(--muted)]">
             Размер: длина (вдоль текстуры) × ширина. Кромка уже стоит в раскрое.
-            Присадка тоже готова: крепёж корпуса, евровинты цоколя,
-            полкодержатели, петли и планки петель. Пазы под подсветку уходят в
-            программу станка фрезеровкой.
+            Присадка тоже готова: крепёж корпуса и коробов ящиков, евровинты
+            цоколя, полкодержатели, петли и планки петель. Пазы под подсветку
+            уходят в программу станка фрезеровкой.
           </p>
         </details>
 

@@ -187,6 +187,113 @@ export function buildCabinetModel(
       );
     }
   }
+  // Полка над ящиками.
+  const drawerShelf = byTitle("полка над ящиками");
+  if (drawerShelf && result.drawers?.shelfAt != null) {
+    boxes.push(
+      brick(
+        t + SHELF_CLEARANCE,
+        result.drawers.shelfAt,
+        0,
+        drawerShelf.length,
+        t,
+        drawerShelf.width,
+        TONE_BODY,
+        info(drawerShelf, "Полка над ящиками", body),
+      ),
+    );
+  }
+
+  // Ящики: фасад и короб выезжают вместе, когда открыты двери.
+  const drawers = result.drawers;
+  if (drawers) {
+    const front = byTitle("фасад ящика");
+    const boxSide = byTitle("ящик боковина");
+    const boxWall = byTitle("ящик стенка");
+    const out =
+      Math.max(0, Math.min(1, options.doorOpen)) * drawers.slide * 0.75;
+    const left = t + (W - 2 * t - drawers.boxWidth) / 2;
+    drawers.frontsAt.forEach((at, index) => {
+      const z = D + out;
+      if (front) {
+        boxes.push(
+          brick(
+            DOOR_GAP,
+            at,
+            z,
+            drawers.frontWidth,
+            drawers.frontHeight,
+            t,
+            TONE_FACADE,
+            info(front, "Фасад ящика", facade),
+          ),
+        );
+      }
+      if (!boxSide || !boxWall) return;
+      const y = drawers.boxesAt[index];
+      const h = drawers.boxHeight;
+      const back = z - drawers.slide;
+      boxes.push(
+        brick(
+          left,
+          y,
+          back,
+          t,
+          h,
+          drawers.slide,
+          TONE_BODY,
+          info(boxSide, "Ящик", body),
+        ),
+        brick(
+          left + drawers.boxWidth - t,
+          y,
+          back,
+          t,
+          h,
+          drawers.slide,
+          TONE_BODY,
+          info(boxSide, "Ящик", body),
+        ),
+        brick(
+          left + t,
+          y,
+          z - t,
+          drawers.boxWidth - 2 * t,
+          h,
+          t,
+          TONE_BODY,
+          info(boxWall, "Ящик", body),
+        ),
+        brick(
+          left + t,
+          y,
+          back,
+          drawers.boxWidth - 2 * t,
+          h,
+          t,
+          TONE_BODY,
+          info(boxWall, "Ящик", body),
+        ),
+        brick(
+          left,
+          y - BACK_THICKNESS,
+          back,
+          drawers.boxWidth,
+          BACK_THICKNESS,
+          drawers.slide,
+          TONE_BACK,
+          {
+            name: `${spec.name || "Корпус"}: дно ящика`,
+            material: "ХДФ (считает менеджер)",
+            length: drawers.bottom.length,
+            width: drawers.bottom.width,
+            thickness: BACK_THICKNESS,
+          },
+        ),
+      );
+    });
+  }
+
   // Подсветка: светящаяся полоса в пазу под LED-профиль.
   const ledInfo = (length: number): BazisViewerBox["info"] => ({
     name: `${spec.name || "Корпус"}: подсветка`,

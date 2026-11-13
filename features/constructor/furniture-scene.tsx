@@ -88,6 +88,8 @@ function handleMatrix(box: BazisViewerBox, placement: HandlePlacement) {
       : placement === "bottom"
         ? HANDLE_FROM_END + HANDLE_LENGTH / 2
         : Math.min(box.sizeY / 2, 1000);
+  // Фасад ящика (шире, чем выше): ручка лёжа по центру.
+  const drawerFront = box.sizeX > box.sizeY * 1.2;
   const m = box.matrix;
   const placementMatrix = new THREE.Matrix4().set(
     m[0],
@@ -107,6 +109,17 @@ function handleMatrix(box: BazisViewerBox, placement: HandlePlacement) {
     0,
     1,
   );
+  if (drawerFront) {
+    return placementMatrix
+      .multiply(
+        new THREE.Matrix4().makeTranslation(
+          (box.x + box.sizeX / 2) * MM,
+          (box.y + box.sizeY / 2) * MM,
+          box.thickness * MM,
+        ),
+      )
+      .multiply(new THREE.Matrix4().makeRotationZ(Math.PI / 2));
+  }
   return placementMatrix.multiply(
     new THREE.Matrix4().makeTranslation(x * MM, y * MM, box.thickness * MM),
   );

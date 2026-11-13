@@ -75,6 +75,9 @@ export type CabinetSpec = {
   // По умолчанию — минификс со шкантами.
   joint?: CabinetJoint;
   led?: CabinetLed;
+  // Ящики внизу корпуса под накладными фасадами. У тумбы без дверей
+  // фасады ящиков занимают всю высоту.
+  drawers?: number;
 };
 
 export const CABINET_KINDS: Record<
@@ -128,6 +131,31 @@ const MINIFIX_OFFSET = 50; // от переднего и заднего торц
 const BACK_OVERLAP_GAP = 2; // ХДФ меньше корпуса с каждой стороны, мм
 const HINGE_OFFSET = 100; // петля от верха и низа двери, мм
 const DOWEL_OFFSET = 130; // шкант от переднего и заднего торца, мм
+const DRAWER_FRONT = 180; // фасад ящика под дверями, мм
+const DRAWER_SLIDE_GAP = 13; // зазор под шариковую направляющую с каждой стороны
+const DRAWER_LIFT = 10; // короб над нижним краем проёма, мм
+const DRAWER_TOP_GAP = 30; // над коробом до следующего ящика, мм
+const DRAWER_CONFIRMAT_OFFSET = 30; // конфирмат короба от верха и низа
+// Шариковые направляющие продаются этими длинами.
+export const DRAWER_SLIDE_LENGTHS = [250, 300, 350, 400, 450, 500, 550, 600];
+
+export type CabinetDrawers = {
+  count: number;
+  // Фасад ящика: ширина и высота, низы фасадов от пола.
+  frontWidth: number;
+  frontHeight: number;
+  frontsAt: number[];
+  // Короб: длина боковин (= длина направляющей), высота, ширина снаружи;
+  // низы коробов от пола.
+  slide: number;
+  boxHeight: number;
+  boxWidth: number;
+  boxesAt: number[];
+  // Дно ящика из ХДФ, прибивается снизу короба.
+  bottom: { length: number; width: number };
+  // Полка над ящиками отделяет их от отделения за дверями (мм от пола).
+  shelfAt: number | null;
+};
 
 export type CabinetPart = ImportedDetail & {
   hardware?: HardwareItem[];
@@ -159,6 +187,7 @@ export type CabinetResult = {
   shelvesAt: number[];
   doorWidth: number;
   doorHeight: number;
+  drawers: CabinetDrawers | null;
 };
 
 export function hingeCount(doorHeight: number) {
@@ -262,23 +291,62 @@ export function buildCabinet(
     ];
   };
 
-  // Полки ровно делят пространство между дном и крышей.
+  // Ящики: накладные фасады снизу вверх от цоколя с зазором DOOR_GAP.
+  // У тумбы без дверей фасады делят всю высоту, иначе — по DRAWER_FRONT,
+  // а над ними полка и двери.
+  const drawerCount =
+    spec.kind === "wall"
+      ? 0
+      : Math.max(0, Math.min(6, Math.round(spec.drawers ?? 0)));
+  const fill = drawerCount > 0 && doors === 0 && spec.kind === "base";
+  const frontHeight =
+    drawerCount === 0
+      ? 0
+      : fill
+        ? round((H - plinth) / drawerCount - DOOR_GAP)
+        : DRAWER_FRONT;
+  const drawerBlock = drawerCount * (frontHeight + DOOR_GAP);
   const bottomTop = plinth + t;
   const roofBottom = H - t;
-  const step = (roofBottom - bottomTop - shelves * t) / (shelves + 1);
-  const shelvesAt = Array.from({ length: shelves }, (_, index) =>
-    round(bottomTop + step * (index + 1) + t * index),
+  const fixedShelfAt =
+    drawerCount > 0 && !fill
+      ? round(plinth + DOOR_GAP + drawerBlock - t)
+      : null;
+  if (drawerCount > 0 && !fill && H - plinth - drawerBlock < 300) {
+    problems.push("Ящики занимают почти всю высоту: уменьшите число ящиков.");
+  }
+  if (drawerCount > 0 && led === "sides") {
+    problems.push(
+      "Направляющие ящиков закроют паз подсветки в боковинах: выберите подсветку под полками.",
+    );
+  }
+  if (drawerCount > 0 && frontHeight < 100) {
+    problems.push("Фасад ящика ниже 100 мм: уменьшите число ящиков.");
+  }
+
+  // Полки ровно делят пространство между дном (или полкой над ящиками) и
+  // крышей. В тумбе, где ящики на всю высоту, полок нет.
+  const shelfCount = fill ? 0 : shelves;
+  const shelvesFrom = fixedShelfAt !== null ? fixedShelfAt + t : bottomTop;
+  const step = (roofBottom - shelvesFrom - shelfCount * t) / (shelfCount + 1);
+  const shelvesAt = Array.from({ length: shelfCount }, (_, index) =>
+    round(shelvesFrom + step * (index + 1) + t * index),
   );
-  const pins = shelvesAt.map((shelf) => ({
+  const pins = [
+    ...(fixedShelfAt !== null ? [fixedShelfAt] : []),
+    ...shelvesAt,
+  ].map((shelf) => ({
     ...createHardware("shelfPins", "top"),
     count: 1,
     offset: round(shelf - PIN_BELOW_SHELF),
   }));
 
-  // Двери накладные: от верха корпуса до цоколя с зазором. Петли на
-  // фасаде стоят на отступе HINGE_OFFSET от концов двери, ответные планки —
-  // на тех же высотах на боковине, к которой навешена дверь.
-  const doorHeight = round(H - plinth - DOOR_GAP);
+  // Двери накладные: от верха ящиков (или цоколя) до верха корпуса с
+  // зазором. Петли на фасаде стоят на отступе HINGE_OFFSET от концов двери,
+  // ответные планки — на тех же высотах на боковине, к которой навешена
+  // дверь.
+  const doorBottom = round(plinth + DOOR_GAP + drawerBlock);
+  const doorHeight = round(H - doorBottom);
   const doorWidth = doors > 0 ? round((W - DOOR_GAP * (doors + 1)) / doors) : 0;
   const hinges = hingeCount(doorHeight);
   const hingeHeights = Array.from({ length: hinges }, (_, index) =>
@@ -358,12 +426,23 @@ export function buildCabinet(
     hardware: roofHardware(),
   });
 
-  if (shelves > 0) {
+  if (fixedShelfAt !== null) {
+    parts.push({
+      title: `${name}: полка над ящиками`,
+      length: innerWidth - 2 * SHELF_CLEARANCE,
+      width: D - SHELF_SETBACK,
+      quantity: 1,
+      edgedSides: ["top"],
+      fixedGrain: true,
+    });
+  }
+
+  if (shelfCount > 0) {
     parts.push({
       title: `${name}: полка`,
       length: innerWidth - 2 * SHELF_CLEARANCE,
       width: D - SHELF_SETBACK,
-      quantity: shelves,
+      quantity: shelfCount,
       edgedSides: ["top"],
       fixedGrain: true,
       ...(led === "shelves" ? { milling: ledMilling(LED_SHELF_INDENT) } : {}),
@@ -417,10 +496,93 @@ export function buildCabinet(
     }
   }
 
+  // Ящики: короб из боковин и двух стенок между ними на конфирматах,
+  // дно ХДФ снизу, фасад накладной на саморезах изнутри.
+  let drawers: CabinetDrawers | null = null;
+  if (drawerCount > 0) {
+    const slide =
+      [...DRAWER_SLIDE_LENGTHS].reverse().find((length) => length <= D - 30) ??
+      0;
+    const boxHeight = Math.floor((frontHeight - t - DRAWER_TOP_GAP) / 10) * 10;
+    const boxWidth = round(innerWidth - 2 * DRAWER_SLIDE_GAP);
+    if (slide === 0) problems.push("Корпус слишком мелкий для ящиков.");
+    if (boxHeight < 60) problems.push("Фасад ящика слишком низкий для короба.");
+    const frontsAt = Array.from({ length: drawerCount }, (_, index) =>
+      round(plinth + DOOR_GAP + index * (frontHeight + DOOR_GAP)),
+    );
+    const boxesAt = frontsAt.map((at, index) =>
+      round(Math.max(at, index === 0 ? bottomTop : at) + DRAWER_LIFT),
+    );
+    drawers = {
+      count: drawerCount,
+      frontWidth: round(W - 2 * DOOR_GAP),
+      frontHeight,
+      frontsAt,
+      slide,
+      boxHeight,
+      boxWidth,
+      boxesAt,
+      bottom: { length: slide, width: boxWidth },
+      shelfAt: fixedShelfAt,
+    };
+    if (slide > 0 && boxHeight >= 60) {
+      // Боковина короба: длина — направляющая, ширина — высота короба.
+      // Конфирматы насквозь у обоих концов, в стенки — в торец.
+      const boxScrews = (side: "left" | "right") => ({
+        ...createHardware("faceRow", side),
+        count: 2,
+        offset: DRAWER_CONFIRMAT_OFFSET,
+        indent: round(t / 2),
+        holes: [{ diameter: 7, depth: 0 }],
+      });
+      parts.push({
+        title: `${name}: ящик боковина`,
+        length: slide,
+        width: boxHeight,
+        quantity: 2 * drawerCount,
+        edgedSides: ["top"],
+        fixedGrain: true,
+        hardware: [boxScrews("left"), boxScrews("right")],
+      });
+      parts.push({
+        title: `${name}: ящик стенка`,
+        length: round(boxWidth - 2 * t),
+        width: boxHeight,
+        quantity: 2 * drawerCount,
+        edgedSides: ["top"],
+        fixedGrain: true,
+        hardware: [
+          {
+            ...createHardware("confirmatEdge", "left"),
+            count: 2,
+            offset: DRAWER_CONFIRMAT_OFFSET,
+            mirror: true,
+          },
+        ],
+      });
+    }
+    parts.push({
+      title: `${name}: фасад ящика`,
+      length: frontHeight,
+      width: drawers.frontWidth,
+      quantity: drawerCount,
+      edgedSides: ["top", "right", "bottom", "left"],
+      fixedGrain: true,
+    });
+  }
+
   const back = {
     length: round(H - plinth - 2 * BACK_OVERLAP_GAP),
     width: round(W - 2 * BACK_OVERLAP_GAP),
   };
 
-  return { parts, back, problems, shelvesAt, doorWidth, doorHeight };
+  return {
+    parts,
+    back,
+    problems,
+    shelvesAt,
+    doorWidth,
+    doorHeight,
+    drawers,
+  };
 }

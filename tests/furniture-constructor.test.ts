@@ -260,3 +260,73 @@ test("LED groove is refused on a board thinner than 14 mm", () => {
   assert.match(result.problems.join(" "), /не сделать в плите 10 мм/);
   assert.equal(buildCabinet(spec, 16).problems.length, 0);
 });
+
+test("wardrobe drawers: fronts under the doors, boxes on 550 mm slides", () => {
+  const spec = { ...wardrobe, drawers: 2 };
+  const result = buildCabinet(spec, 16);
+  const drawers = result.drawers!;
+  assert.equal(drawers.slide, 550);
+  assert.equal(drawers.frontHeight, 180);
+  assert.deepEqual(drawers.frontsAt, [73, 256]);
+  assert.equal(drawers.boxWidth, 768 - 26);
+  assert.equal(drawers.boxHeight, 130);
+  // Двери начинаются над ящиками и доходят до верха.
+  assert.equal(result.doorHeight, 2100 - 439);
+  assert.equal(drawers.shelfAt, 423);
+  const byKind = Object.fromEntries(
+    result.parts.map((part) => [partKind(part.title), part]),
+  );
+  assert.equal(byKind["ящик боковина"].quantity, 4);
+  assert.equal(byKind["ящик стенка"].length, 742 - 32);
+  assert.equal(byKind["фасад ящика"].width, 794);
+  assert.ok(byKind["полка над ящиками"]);
+  const lines = cabinetFittings(spec, result, 16);
+  const fit = Object.fromEntries(lines.map((line) => [line.key, line.count]));
+  assert.equal(fit.slide, 2);
+  assert.equal(fit.handle, 4);
+  // 8 в корпус + 2 цоколь — это минификс; у коробов по 8 конфирматов.
+  assert.equal(fit.confirmat, 2 + 16);
+  // Все детали и вся фурнитура попадают в инструкцию.
+  const steps = cabinetAssembly(spec, result, lines);
+  const added = new Set(steps.flatMap((step) => step.added));
+  for (const part of result.parts) assert.ok(added.has(partKind(part.title)));
+  const used = new Map<string, number>();
+  for (const step of steps)
+    for (const item of step.fittings)
+      used.set(item.label, (used.get(item.label) ?? 0) + item.count);
+  for (const line of lines) assert.equal(used.get(line.label), line.count);
+  const model = buildCabinetModel(spec, 16, result, options);
+  assert.equal(
+    model.filter((box) => box.info?.name.endsWith(": фасад ящика")).length,
+    2,
+  );
+});
+
+test("base cabinet without doors: drawer fronts fill the height", () => {
+  const base = {
+    kind: "base" as const,
+    ...CABINET_KINDS.base.defaults,
+    doors: 0 as const,
+    drawers: 3,
+  };
+  const result = buildCabinet(base, 16);
+  const drawers = result.drawers!;
+  assert.equal(drawers.shelfAt, null);
+  assert.equal(drawers.frontHeight, 237);
+  // Верх последнего фасада — верх тумбы.
+  assert.equal(
+    drawers.frontsAt[2] + drawers.frontHeight,
+    CABINET_KINDS.base.defaults.height,
+  );
+  assert.equal(
+    result.parts.some((part) => /полка/.test(part.title)),
+    false,
+  );
+  const lines = cabinetFittings(base, result, 16);
+  const steps = cabinetAssembly(base, result, lines);
+  const used = new Map<string, number>();
+  for (const step of steps)
+    for (const item of step.fittings)
+      used.set(item.label, (used.get(item.label) ?? 0) + item.count);
+  for (const line of lines) assert.equal(used.get(line.label), line.count);
+});

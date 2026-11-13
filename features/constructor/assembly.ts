@@ -18,7 +18,10 @@ export type FittingKey =
   | "backNail"
   | "hanger"
   | "ledProfile"
-  | "ledStrip";
+  | "ledStrip"
+  | "slide"
+  | "slideScrew"
+  | "frontScrew";
 
 export type FittingLine = {
   key: FittingKey;
@@ -93,6 +96,21 @@ const FITTING_INFO: Record<
     note: "левый и правый",
     search: /навес|подвес/i,
   },
+  slide: {
+    label: "Направляющие шариковые",
+    note: "полного выдвижения, пара на ящик",
+    search: /направляющ/i,
+  },
+  slideScrew: {
+    label: "Саморез для направляющих",
+    note: "3,5×16 мм",
+    search: /саморез/i,
+  },
+  frontScrew: {
+    label: "Саморез для фасада ящика",
+    note: "4×30 мм",
+    search: /саморез.*4[×x*х]\s?[34]\d|4[×x*х][34]\d.*саморез/i,
+  },
   ledProfile: {
     label: "Профиль для LED-ленты",
     note: "врезной 10×10 мм, с рассеивателем",
@@ -108,6 +126,7 @@ const FITTING_INFO: Record<
 };
 
 const isDoor = (title: string) => /: дверь/.test(title);
+const isDrawerFront = (title: string) => /: фасад ящика/.test(title);
 
 export function cabinetFittings(
   spec: CabinetSpec,
@@ -150,10 +169,24 @@ export function cabinetFittings(
           break;
       }
     }
-    if (isDoor(part.title)) {
+    if (isDoor(part.title) || isDrawerFront(part.title)) {
       add("handle", part.quantity);
       add("handleScrew", part.quantity * 2);
     }
+  }
+
+  // Ящики: пара направляющих (по 6 саморезов на каждую половину, 4
+  // половины на пару), фасад на 4 самореза изнутри, дно ХДФ на гвоздях.
+  if (result.drawers && result.drawers.slide > 0) {
+    const { count: drawers, bottom } = result.drawers;
+    add("slide", drawers);
+    add("slideScrew", drawers * 12);
+    add("frontScrew", drawers * 4);
+    add(
+      "backNail",
+      drawers *
+        Math.ceil((2 * (bottom.length + bottom.width)) / BACK_NAIL_STEP),
+    );
   }
 
   if (result.back) {
@@ -187,6 +220,9 @@ export function cabinetFittings(
     "shelfPin",
     "hinge",
     "hingeScrew",
+    "slide",
+    "slideScrew",
+    "frontScrew",
     "handle",
     "handleScrew",
     "hanger",
@@ -194,9 +230,17 @@ export function cabinetFittings(
     "ledProfile",
     "ledStrip",
   ];
+  const slideNote = result.drawers
+    ? `${result.drawers.slide} мм, полного выдвижения, пара на ящик`
+    : "";
   return order
     .filter((key) => counts.has(key))
-    .map((key) => ({ key, ...FITTING_INFO[key], count: counts.get(key)! }));
+    .map((key) => ({
+      key,
+      ...FITTING_INFO[key],
+      ...(key === "slide" ? { note: slideNote } : {}),
+      count: counts.get(key)!,
+    }));
 }
 
 export type AssemblyStep = {
@@ -244,7 +288,20 @@ export function cabinetAssembly(
   const glue = dowelCount > 0 ? " Шканты лучше посадить на клей ПВА." : "";
   // Конфирматы цоколя: по одному с каждой стороны, остальные — корпус.
   const plinthScrews = hasPlinth ? 2 : 0;
-  const bodyScrews = count("confirmat") - plinthScrews;
+  // Конфирматы коробов ящиков: по 2 на каждый из 4 углов.
+  const drawerScrews =
+    result.drawers && result.drawers.slide > 0 && has("ящик стенка")
+      ? result.drawers.count * 8
+      : 0;
+  const drawerNails =
+    drawerScrews > 0 && result.drawers
+      ? result.drawers.count *
+        Math.ceil(
+          (2 * (result.drawers.bottom.length + result.drawers.bottom.width)) /
+            BACK_NAIL_STEP,
+        )
+      : 0;
+  const bodyScrews = count("confirmat") - plinthScrews - drawerScrews;
   const closed = [...body, ...(hasPlinth ? ["цоколь"] : []), "боковина правая"];
 
   if (joint === "minifix") {
@@ -314,24 +371,71 @@ export function cabinetAssembly(
       text: `Положите корпус на переднюю кромку и проверьте диагонали — они должны быть равны, тогда корпус ровный. Прибейте ХДФ ${result.back.length} × ${result.back.width} мм гладкой стороной внутрь, шаг ${BACK_NAIL_STEP} мм.`,
       shown: [...closed, "задняя стенка"],
       added: ["задняя стенка"],
-      fittings: item("backNail", count("backNail")),
+      fittings: item("backNail", count("backNail") - drawerNails),
     });
   }
   const withBack = [...closed, ...(result.back ? ["задняя стенка"] : [])];
-  if (shelves) {
+  const fixedShelf = has("полка над ящиками");
+  const shelfKinds = [
+    ...(fixedShelf ? ["полка над ящиками"] : []),
+    ...(shelves ? ["полка"] : []),
+  ];
+  if (shelfKinds.length > 0) {
+    const total = (shelves?.quantity ?? 0) + (fixedShelf ? 1 : 0);
     steps.push({
       title: "Поставьте полки",
-      text: `Поставьте корпус. Вставьте полкодержатели в отверстия Ø5 — по 4 на полку — и уложите ${shelves.quantity} ${shelves.quantity === 1 ? "полку" : shelves.quantity < 5 ? "полки" : "полок"}${shelves.milling?.grooves?.length ? " пазом вниз" : ""}.`,
-      shown: [...withBack, "полка"],
-      added: ["полка"],
+      text: `Поставьте корпус. Вставьте полкодержатели в отверстия Ø5 — по 4 на полку — и уложите ${total} ${total === 1 ? "полку" : total < 5 ? "полки" : "полок"}${shelves?.milling?.grooves?.length ? " пазом вниз" : ""}.${fixedShelf ? " Нижняя полка отделяет ящики от отделения за дверями." : ""}`,
+      shown: [...withBack, ...shelfKinds],
+      added: shelfKinds,
       fittings: item("shelfPin", count("shelfPin")),
+    });
+  }
+  const drawers = result.drawers;
+  const drawerKinds = [
+    "ящик боковина",
+    "ящик стенка",
+    "дно ящика",
+    "фасад ящика",
+  ];
+  const withShelves = [...withBack, ...shelfKinds];
+  if (drawers && drawers.slide > 0 && has("ящик боковина")) {
+    steps.push({
+      title: "Соберите короба ящиков",
+      text: `Соберите ${drawers.count} ${drawers.count === 1 ? "короб" : drawers.count < 5 ? "короба" : "коробов"}: стенки между боковинами на конфирматах через отверстия Ø7. Проверьте диагонали и прибейте снизу дно ХДФ ${drawers.bottom.length} × ${drawers.bottom.width} мм.`,
+      shown: ["ящик боковина", "ящик стенка", "дно ящика"],
+      added: ["ящик боковина", "ящик стенка", "дно ящика"],
+      fittings: [
+        ...item("confirmat", drawerScrews),
+        ...item("backNail", drawerNails),
+      ],
+    });
+    steps.push({
+      title: "Поставьте ящики на направляющие",
+      text: `Разделите направляющие ${drawers.slide} мм на половины. Узкие прикрутите к боковинам коробов по центру высоты, широкие — к боковинам корпуса по разметке: низ направляющей на ${Math.round(drawers.boxesAt[0])} мм от пола у первого ящика и с шагом ${Math.round(drawers.frontHeight + 3)} мм выше. Вставьте короба до щелчка.`,
+      shown: [...withShelves, "ящик боковина", "ящик стенка", "дно ящика"],
+      added: ["ящик боковина", "ящик стенка", "дно ящика"],
+      fittings: [
+        ...item("slide", count("slide")),
+        ...item("slideScrew", count("slideScrew")),
+      ],
+    });
+    steps.push({
+      title: "Прикрутите фасады ящиков",
+      text: "Приложите фасад к коробу с зазором 3 мм между фасадами, прикрутите изнутри короба четырьмя саморезами. Поставьте ручки: разметьте по шаблону, просверлите Ø5 насквозь и прикрутите винтами изнутри.",
+      shown: [...withShelves, ...drawerKinds],
+      added: ["фасад ящика"],
+      fittings: [
+        ...item("frontScrew", count("frontScrew")),
+        ...item("handle", drawers.count),
+        ...item("handleScrew", drawers.count * 2),
+      ],
     });
   }
   const led = spec.led ?? "none";
   const hasLed = count("ledProfile") > 0;
   const inside = [
-    ...withBack,
-    ...(shelves ? ["полка"] : []),
+    ...withShelves,
+    ...(drawers ? drawerKinds : []),
     ...(hasLed ? ["подсветка"] : []),
   ];
   if (hasLed) {
@@ -368,8 +472,8 @@ export function cabinetAssembly(
       shown: [...inside, ...doorKinds],
       added: [],
       fittings: [
-        ...item("handle", count("handle")),
-        ...item("handleScrew", count("handleScrew")),
+        ...item("handle", doors.length),
+        ...item("handleScrew", doors.length * 2),
       ],
     });
   }
