@@ -7,10 +7,11 @@
 // без поворота, кроме открытых дверей: они повёрнуты на петлях.
 
 import type { BazisViewerBox } from "@/components/bazis/bazis-viewer";
-import type {
-  CabinetPart,
-  CabinetResult,
-  CabinetSpec,
+import {
+  sectionSuffix,
+  type CabinetPart,
+  type CabinetResult,
+  type CabinetSpec,
 } from "@/features/services/cabinet-builder";
 import { hardwareHoles } from "../services/drilling-hardware";
 
@@ -19,6 +20,9 @@ export const TONE_BODY = 0;
 export const TONE_FACADE = 1;
 export const TONE_BACK = 2;
 export const TONE_LED = 3;
+// Двери-купе: декор фасадов, но без ручки.
+export const TONE_SLIDING = 4;
+export const TONE_ROD = 5;
 // LED-лента в профиле выступает из паза на столько, мм.
 const LED_PROUD = 3;
 
@@ -97,6 +101,7 @@ export function buildCabinetModel(
   const boxes: BazisViewerBox[] = [];
   const byTitle = (suffix: string) =>
     result.parts.find((part) => part.title.endsWith(`: ${suffix}`));
+  const kupe = result.kupe;
 
   const info = (
     part: CabinetPart | undefined,
@@ -171,7 +176,7 @@ export function buildCabinetModel(
   );
   // Полки короче глубины: стоят от задней стенки.
   const shelf = byTitle("полка");
-  if (shelf) {
+  if (shelf && !kupe) {
     for (const at of result.shelvesAt) {
       boxes.push(
         brick(
@@ -189,7 +194,7 @@ export function buildCabinetModel(
   }
   // Полка над ящиками.
   const drawerShelf = byTitle("полка над ящиками");
-  if (drawerShelf && result.drawers?.shelfAt != null) {
+  if (drawerShelf && !kupe && result.drawers?.shelfAt != null) {
     boxes.push(
       brick(
         t + SHELF_CLEARANCE,
@@ -205,7 +210,7 @@ export function buildCabinetModel(
   }
 
   // Ящики: фасад и короб выезжают вместе, когда открыты двери.
-  const drawers = result.drawers;
+  const drawers = kupe ? null : result.drawers;
   if (drawers) {
     const front = byTitle("фасад ящика");
     const boxSide = byTitle("ящик боковина");
@@ -292,6 +297,10 @@ export function buildCabinetModel(
         ),
       );
     });
+  }
+
+  if (kupe) {
+    boxes.push(...kupeInterior(spec, t, result, options, info, byTitle));
   }
 
   // Подсветка: светящаяся полоса в пазу под LED-профиль.
@@ -390,7 +399,9 @@ export function buildCabinetModel(
 
   // Двери накладные, на петлях с краю. Открытая дверь повёрнута вокруг
   // вертикальной оси петель наружу.
-  const doors = result.parts.filter((part) => /: дверь/.test(part.title));
+  const doors = kupe
+    ? []
+    : result.parts.filter((part) => /: дверь/.test(part.title));
   const doorBottom = round(H - result.doorHeight);
   const angle =
     (Math.max(0, Math.min(1, options.doorOpen)) * OPEN_DOOR_ANGLE * Math.PI) /
@@ -414,5 +425,246 @@ export function buildCabinetModel(
     });
   });
 
+  return boxes;
+}
+
+type PartInfo = (
+  part: CabinetPart | undefined,
+  fallbackName: string,
+  material: string,
+) => BazisViewerBox["info"];
+
+// Начинка шкафа-купе: перегородки, полки, штанги, брючницы, ящики с
+// вкладными фасадами между проставками и двери-купе на двух дорожках.
+// Открытые двери: двери передней дорожки уезжают влево на ширину двери
+// без перехлёста, ящики секций за ними выдвигаются.
+function kupeInterior(
+  spec: CabinetSpec,
+  t: number,
+  result: CabinetResult,
+  options: CabinetModelOptions,
+  info: PartInfo,
+  byTitle: (suffix: string) => CabinetPart | undefined,
+): BazisViewerBox[] {
+  const kupe = result.kupe!;
+  const D = spec.depth;
+  const plinth = Math.max(0, spec.plinth);
+  const body = options.bodyMaterial;
+  const facade = options.facadeMaterial;
+  const open = Math.max(0, Math.min(1, options.doorOpen));
+  const boxes: BazisViewerBox[] = [];
+  const bottomTop = plinth + t;
+  const name = spec.name || "Шкаф-купе";
+  const { doors } = kupe;
+  const shift = open * (doors.width - doors.overlap);
+
+  kupe.partitions.forEach((left, index) => {
+    boxes.push(
+      brick(
+        left,
+        bottomTop,
+        0,
+        t,
+        spec.height - t - bottomTop,
+        D,
+        TONE_BODY,
+        info(byTitle(`перегородка ${index + 1}`), "Перегородка", body),
+      ),
+    );
+  });
+
+  // Какие участки по ширине открыты: там, где сейчас нет ни одной двери.
+  const doorSpans = Array.from({ length: doors.count }, (_, index) => {
+    const x =
+      index * (doors.width - doors.overlap) - (index % 2 === 1 ? shift : 0);
+    return [x, x + doors.width];
+  });
+  const isOpen = (from: number, to: number) =>
+    doorSpans.every(([x0, x1]) => x1 <= from + 1 || x0 >= to - 1);
+
+  const drawers = result.drawers;
+  for (const section of kupe.sections) {
+    const suffix = sectionSuffix(section.index);
+    for (const shelf of section.shelves) {
+      const part = byTitle(`${shelf.kind}${suffix}`);
+      if (!part) continue;
+      boxes.push(
+        brick(
+          section.left + SHELF_CLEARANCE,
+          shelf.at,
+          0,
+          part.length,
+          t,
+          part.width,
+          TONE_BODY,
+          info(part, "Полка", body),
+        ),
+      );
+    }
+    const rodLength = section.width - 4;
+    for (const at of section.rods) {
+      boxes.push(
+        brick(
+          section.left + 2,
+          at - 12,
+          D / 2 - 12,
+          rodLength,
+          24,
+          24,
+          TONE_ROD,
+          {
+            name: `${name}: штанга${suffix}`,
+            material: "Фурнитура",
+            length: Math.round(rodLength),
+            width: 25,
+            thickness: 25,
+          },
+        ),
+      );
+    }
+    if (section.trousersAt !== null) {
+      // Брючница: рамка с перекладинами под полкой.
+      const frame = Math.min(section.width - 20, 560);
+      const x = section.left + (section.width - frame) / 2;
+      boxes.push(
+        brick(x, section.trousersAt - 40, 40, frame, 30, D - 120, TONE_ROD, {
+          name: `${name}: брючница${suffix}`,
+          material: "Фурнитура",
+          length: Math.round(D - 120),
+          width: Math.round(frame),
+          thickness: 30,
+        }),
+      );
+    }
+
+    const box = section.drawer;
+    if (!drawers || !box || section.drawers === 0) continue;
+    const out = isOpen(box.frontLeft, box.frontLeft + box.frontWidth)
+      ? open * drawers.slide * 0.75
+      : 0;
+    const blockHeight =
+      section.drawers * (drawers.frontHeight + DOOR_GAP) - DOOR_GAP;
+    const spacerPart = byTitle(`проставка ящиков${suffix}`);
+    const spacerZ = D - (drawers.inset ?? 0) - drawers.slide;
+    for (const [x, width] of [
+      [section.left, box.spacerLeft],
+      [section.left + section.width - box.spacerRight, box.spacerRight],
+    ]) {
+      if (width <= 0 || !spacerPart) continue;
+      boxes.push(
+        brick(
+          x,
+          drawers.frontsAt[0],
+          spacerZ,
+          width,
+          blockHeight,
+          drawers.slide,
+          TONE_BODY,
+          info(spacerPart, "Проставка", body),
+        ),
+      );
+    }
+    const front = byTitle(`фасад ящика${suffix}`);
+    const boxSide = byTitle(`ящик боковина${suffix}`);
+    const boxWall = byTitle(`ящик стенка${suffix}`);
+    for (let index = 0; index < section.drawers; index += 1) {
+      const at = drawers.frontsAt[index];
+      const z = D - t - (drawers.inset ?? 0) + out;
+      if (front) {
+        boxes.push(
+          brick(
+            box.frontLeft,
+            at,
+            z,
+            box.frontWidth,
+            drawers.frontHeight,
+            t,
+            TONE_FACADE,
+            info(front, "Фасад ящика", facade),
+          ),
+        );
+      }
+      if (!boxSide || !boxWall) continue;
+      const y = drawers.boxesAt[index];
+      const h = drawers.boxHeight;
+      const back = z - drawers.slide;
+      const left = box.boxLeft;
+      boxes.push(
+        brick(
+          left,
+          y,
+          back,
+          t,
+          h,
+          drawers.slide,
+          TONE_BODY,
+          info(boxSide, "Ящик", body),
+        ),
+        brick(
+          left + box.boxWidth - t,
+          y,
+          back,
+          t,
+          h,
+          drawers.slide,
+          TONE_BODY,
+          info(boxSide, "Ящик", body),
+        ),
+        brick(
+          left + t,
+          y,
+          z - t,
+          box.boxWidth - 2 * t,
+          h,
+          t,
+          TONE_BODY,
+          info(boxWall, "Ящик", body),
+        ),
+        brick(
+          left + t,
+          y,
+          back,
+          box.boxWidth - 2 * t,
+          h,
+          t,
+          TONE_BODY,
+          info(boxWall, "Ящик", body),
+        ),
+        brick(
+          left,
+          y - BACK_THICKNESS,
+          back,
+          box.boxWidth,
+          BACK_THICKNESS,
+          drawers.slide,
+          TONE_BACK,
+          {
+            name: `${name}: дно ящика${suffix}`,
+            material: "ХДФ (считает менеджер)",
+            length: drawers.slide,
+            width: box.boxWidth,
+            thickness: BACK_THICKNESS,
+          },
+        ),
+      );
+    }
+  }
+
+  // Двери-купе: чётные на задней дорожке, нечётные — на передней.
+  const door = byTitle("дверь купе");
+  doorSpans.forEach(([x], index) => {
+    boxes.push(
+      brick(
+        x,
+        doors.bottom,
+        D + doors.tracks[index],
+        doors.width,
+        doors.height,
+        t,
+        TONE_SLIDING,
+        info(door, "Дверь купе", facade),
+      ),
+    );
+  });
   return boxes;
 }

@@ -255,23 +255,26 @@ export function CabinetBuilderDialog({
         <div className="grid min-h-0 flex-1 gap-4 overflow-x-hidden overflow-y-auto p-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
           <div className="grid min-w-0 content-start gap-3">
             <div className="flex flex-wrap gap-2">
-              {(Object.keys(CABINET_KINDS) as CabinetKind[]).map((kind) => (
-                <button
-                  key={kind}
-                  type="button"
-                  onClick={() =>
-                    setSpec({ kind, ...CABINET_KINDS[kind].defaults })
-                  }
-                  className={cn(
-                    "rounded-full border px-3.5 py-1.5 text-[13px]",
-                    spec.kind === kind
-                      ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-ink)]"
-                      : "border-[color:var(--line)] hover:border-[var(--foreground)]",
-                  )}
-                >
-                  {CABINET_KINDS[kind].label}
-                </button>
-              ))}
+              {(Object.keys(CABINET_KINDS) as CabinetKind[])
+                // Купе собирают в конструкторе: там секции и двери.
+                .filter((kind) => kind !== "kupe")
+                .map((kind) => (
+                  <button
+                    key={kind}
+                    type="button"
+                    onClick={() =>
+                      setSpec({ kind, ...CABINET_KINDS[kind].defaults })
+                    }
+                    className={cn(
+                      "rounded-full border px-3.5 py-1.5 text-[13px]",
+                      spec.kind === kind
+                        ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-ink)]"
+                        : "border-[color:var(--line)] hover:border-[var(--foreground)]",
+                    )}
+                  >
+                    {CABINET_KINDS[kind].label}
+                  </button>
+                ))}
             </div>
             <label className="grid gap-1 text-[12px] text-[var(--muted)]">
               Название
