@@ -161,6 +161,8 @@ const KUPE_HANGING_MIN = 900;
 const KUPE_FRONT_GAP = 2; // вкладной фасад ящика от боковин секции, мм
 const KUPE_DRAWER_FRONT = 180;
 const KUPE_FRONT_SETBACK = 30;
+// Зазор ящика до кромки двери-купе в открытом проёме, мм.
+const KUPE_DOOR_CLEARANCE = 5;
 
 const DEFAULT_SECTION: KupeSection = { shelves: 4, rod: false, drawers: 0 };
 
@@ -213,6 +215,9 @@ export type CabinetDrawers = {
   // Вкладные фасады внутри секции купе: на сколько мм утоплены от
   // передней кромки, чтобы ручки не задевали двери.
   inset?: number;
+  // Проставки из той же плиты у стенок секции купе, мм с каждой стороны:
+  // ящик выходит в проём между дверями, не задевая их.
+  spacer?: number;
 };
 
 // Секция купе: внутренний проём от left шириной width, мм.
@@ -738,14 +743,41 @@ function buildKupe(spec: CabinetSpec, t: number): CabinetResult {
     round(t + (index + 1) * sectionWidth + index * t),
   );
 
-  // Ящики во всех секциях одного размера: вкладной фасад по ширине секции.
+  // Двери-купе: n дверей перекрывают ширину шкафа с перехлёстом.
+  const doorWidth = round((W + (n - 1) * KUPE_OVERLAP) / n);
+  const doorHeight = round(H - plinth - KUPE_HEIGHT_DEDUCTION);
+
+  // Проём секции k, когда соседние двери сдвинуты: дверь k без
+  // перехлёстов с соседними. Если проём уже секции, ящик упрётся в дверь —
+  // ставим проставки из плиты у стенок секции (одинаково во всех секциях
+  // с ящиками, чтобы ящики были одного размера).
+  const spacerLayers = Math.max(
+    0,
+    ...config.map((_, index) => {
+      const left = t + index * (sectionWidth + t);
+      const openFrom =
+        index * (doorWidth - KUPE_OVERLAP) + (index > 0 ? KUPE_OVERLAP : 0);
+      const openTo =
+        index * (doorWidth - KUPE_OVERLAP) +
+        doorWidth -
+        (index < n - 1 ? KUPE_OVERLAP : 0);
+      const intrusion = Math.max(openFrom - left, left + sectionWidth - openTo);
+      return intrusion > -KUPE_DOOR_CLEARANCE
+        ? Math.ceil((intrusion + KUPE_DOOR_CLEARANCE) / t)
+        : 0;
+    }),
+  );
+  const spacer = spacerLayers * t;
+  const drawerWidth = sectionWidth - 2 * spacer;
+
+  // Ящики во всех секциях одного размера: вкладной фасад между проставками.
   const slide =
     [...DRAWER_SLIDE_LENGTHS]
       .reverse()
       .find((length) => length <= D - t - KUPE_FRONT_SETBACK - 30) ?? 0;
   const frontHeight = KUPE_DRAWER_FRONT;
   const boxHeight = Math.floor((frontHeight - 40) / 10) * 10;
-  const boxWidth = round(sectionWidth - 2 * DRAWER_SLIDE_GAP);
+  const boxWidth = round(drawerWidth - 2 * DRAWER_SLIDE_GAP);
   const maxDrawers = Math.max(...config.map((section) => section.drawers));
   const frontsAt = Array.from({ length: maxDrawers }, (_, index) =>
     round(bottomTop + DOOR_GAP + index * (frontHeight + DOOR_GAP)),
@@ -922,7 +954,7 @@ function buildKupe(spec: CabinetSpec, t: number): CabinetResult {
     if (slide === 0) problems.push("Корпус слишком мелкий для ящиков.");
     drawers = {
       count: drawerCount,
-      frontWidth: round(sectionWidth - 2 * KUPE_FRONT_GAP),
+      frontWidth: round(drawerWidth - 2 * KUPE_FRONT_GAP),
       frontHeight,
       frontsAt,
       slide,
@@ -932,7 +964,28 @@ function buildKupe(spec: CabinetSpec, t: number): CabinetResult {
       bottom: { length: slide, width: boxWidth },
       shelfAt: null,
       inset: KUPE_FRONT_SETBACK,
+      spacer,
     };
+    // Проставки: по высоте блока ящиков, на глубину направляющей; на
+    // каждую сторону секции по spacerLayers слоёв.
+    if (spacer > 0) {
+      const byCount = new Map<number, number>();
+      for (const section of sections) {
+        if (section.drawers > 0) {
+          byCount.set(section.drawers, (byCount.get(section.drawers) ?? 0) + 1);
+        }
+      }
+      for (const [count, sectionsWith] of byCount) {
+        parts.push({
+          title: `${name}: проставка ящиков${byCount.size > 1 ? ` (${count} ящ.)` : ""}`,
+          length: slide,
+          width: round(count * (frontHeight + DOOR_GAP) - DOOR_GAP),
+          quantity: 2 * spacerLayers * sectionsWith,
+          edgedSides: ["left"],
+          fixedGrain: true,
+        });
+      }
+    }
     if (slide > 0) {
       parts.push(
         ...drawerBoxParts(name, slide, boxHeight, boxWidth, t, drawerCount),
@@ -948,9 +1001,6 @@ function buildKupe(spec: CabinetSpec, t: number): CabinetResult {
     });
   }
 
-  // Двери-купе: n дверей перекрывают ширину шкафа с перехлёстом.
-  const doorWidth = round((W + (n - 1) * KUPE_OVERLAP) / n);
-  const doorHeight = round(H - plinth - KUPE_HEIGHT_DEDUCTION);
   parts.push({
     title: `${name}: дверь купе`,
     length: doorHeight,

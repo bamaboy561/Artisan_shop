@@ -350,7 +350,11 @@ test("kupe: sections, partition, TopLine L doors and rod", () => {
   assert.equal(part("полка над ящиками")?.quantity, 1);
   assert.equal(part("полка")?.quantity, 5);
   assert.equal(part("полка")?.length, 874);
-  assert.equal(part("фасад ящика")?.width, 872);
+  // Проём левой секции при сдвинутых дверях: до 887,5 мм, а секция до
+  // 892 — проставка 16 мм у стенок, фасад 876 − 32 − 4.
+  assert.equal(result.drawers?.spacer, 16);
+  assert.equal(part("проставка ящиков")?.quantity, 2);
+  assert.equal(part("фасад ящика")?.width, 840);
   assert.equal(result.drawers?.slide, 500);
   assert.equal(result.kupe?.sections[1].rodAt, 2400 - 16 - 400 - 16 - 70);
   // Крыша: сквозные Ø7 под конфирматы перегородки по центру её толщины.
@@ -422,4 +426,20 @@ test("drawers under doors: hinge plates move up with the doors", () => {
   const doorBottom = 2100 - result.doorHeight;
   assert.equal(plates[0].offset, doorBottom + 100);
   assert.equal(plates[plates.length - 1].offset, 2100 - 100);
+});
+
+test("kupe shelf pins: four per shelf even when partition holes are shared", () => {
+  const kupe = {
+    kind: "kupe" as const,
+    ...CABINET_KINDS.kupe.defaults,
+    sections: [
+      { shelves: 4, rod: false, drawers: 0 },
+      { shelves: 4, rod: false, drawers: 0 },
+    ],
+  };
+  const result = buildCabinet(kupe, 16);
+  const fittings = cabinetFittings(kupe, result, 16);
+  assert.equal(fittings.find((line) => line.key === "shelfPin")?.count, 8 * 4);
+  assert.equal(result.drawers, null);
+  assert.ok(!result.parts.some((part) => /проставка/.test(part.title)));
 });

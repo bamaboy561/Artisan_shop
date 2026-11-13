@@ -13,6 +13,7 @@ import type {
   CabinetSpec,
 } from "@/features/services/cabinet-builder";
 import { hardwareHoles } from "../services/drilling-hardware";
+import { partKind } from "./assembly";
 
 // Номера материалов для цвета на макете.
 export const TONE_BODY = 0;
@@ -532,14 +533,41 @@ function kupeInterior(
     // Открываются секции за дверями передней дорожки: эти двери уезжают.
     const sectionOpen = sectionIndex % 2 === 1 ? open : 0;
     const out = sectionOpen * drawers.slide * 0.75;
+    const spacer = drawers.spacer ?? 0;
     const left = section.left + (section.width - drawers.boxWidth) / 2;
+    // Проставки у стенок секции на высоту блока ящиков.
+    const spacerPart = result.parts.find(
+      (part) =>
+        partKind(part.title).startsWith("проставка ящиков") &&
+        Math.abs(
+          part.width -
+            (section.drawers * (drawers.frontHeight + DOOR_GAP) - DOOR_GAP),
+        ) < 0.2,
+    );
+    if (spacer > 0 && spacerPart) {
+      const fromZ = D - (drawers.inset ?? 0) - spacerPart.length;
+      for (const x of [section.left, section.left + section.width - spacer]) {
+        boxes.push(
+          brick(
+            x,
+            drawers.frontsAt[0],
+            fromZ,
+            spacer,
+            spacerPart.width,
+            spacerPart.length,
+            TONE_BODY,
+            info(spacerPart, "Проставка", body),
+          ),
+        );
+      }
+    }
     for (let index = 0; index < section.drawers; index += 1) {
       const at = drawers.frontsAt[index];
       const z = D - t - (drawers.inset ?? 0) + out;
       if (front) {
         boxes.push(
           brick(
-            section.left + 2,
+            section.left + spacer + 2,
             at,
             z,
             drawers.frontWidth,

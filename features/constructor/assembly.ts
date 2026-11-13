@@ -27,7 +27,8 @@ export type FittingKey =
   | "kupeRoller"
   | "rod"
   | "rodHolder"
-  | "rodScrew";
+  | "rodScrew"
+  | "spacerScrew";
 
 export type FittingLine = {
   key: FittingKey;
@@ -142,6 +143,11 @@ const FITTING_INFO: Record<
     note: "Ø25 мм, пара на штангу",
     search: /штангодерж|держател\S* штанг/i,
   },
+  spacerScrew: {
+    label: "Саморез для проставок",
+    note: "4×30 мм",
+    search: /саморез.*4[×x*х]\s?[34]\d|4[×x*х][34]\d.*саморез/i,
+  },
   rodScrew: {
     label: "Саморез для штангодержателей",
     note: "3,5×16 мм",
@@ -198,7 +204,8 @@ export function cabinetFittings(
           add("confirmat", total);
           break;
         case "shelfPins":
-          add("shelfPin", total);
+          // Полкодержатели считаем по полкам ниже: в перегородке купе одно
+          // сквозное отверстие держит полки с обеих сторон.
           break;
         case "hinge":
           add("hinge", total);
@@ -232,6 +239,18 @@ export function cabinetFittings(
     add("backNail", Math.ceil(perimeter / BACK_NAIL_STEP));
   }
   if (spec.kind === "wall") add("hanger", 2);
+
+  // По 4 полкодержателя на каждую съёмную полку.
+  for (const part of result.parts) {
+    const kind = partKind(part.title);
+    if (kind === "полка" || kind === "полка над ящиками") {
+      add("shelfPin", part.quantity * 4);
+    }
+    // Проставка ящиков: 4 самореза к стенке секции.
+    if (kind.startsWith("проставка ящиков")) {
+      add("spacerScrew", part.quantity * 4);
+    }
+  }
 
   // Купе: двойные профили по ширине шкафа, ролики на каждую дверь,
   // штанга с парой держателей (по 2 самореза) в секциях со штангой.
@@ -273,6 +292,7 @@ export function cabinetFittings(
     "hingeScrew",
     "slide",
     "slideScrew",
+    "spacerScrew",
     "frontScrew",
     "handle",
     "handleScrew",
@@ -503,6 +523,13 @@ export function cabinetAssembly(
     });
   }
   const withRod = kupe && count("rod") > 0 ? ["штанга"] : [];
+  const spacerKinds = [
+    ...new Set(
+      result.parts
+        .map((part) => partKind(part.title))
+        .filter((kind) => kind.startsWith("проставка ящиков")),
+    ),
+  ];
   const drawers = result.drawers;
   const drawerKinds = [
     "ящик боковина",
@@ -522,12 +549,27 @@ export function cabinetAssembly(
         ...item("backNail", drawerNails),
       ],
     });
+    if (spacerKinds.length > 0) {
+      steps.push({
+        title: "Прикрутите проставки",
+        text: `Ящики должны выходить в проём между дверями-купе, не задевая их. Прикрутите проставки к боковинам и перегородкам в секциях с ящиками, по ${drawers.spacer} мм с каждой стороны, заподлицо с низом проёма, по 4 самореза.`,
+        shown: [...withShelves, ...spacerKinds],
+        added: spacerKinds,
+        fittings: item("spacerScrew", count("spacerScrew")),
+      });
+    }
     steps.push({
       title: "Поставьте ящики на направляющие",
-      text: `Разделите направляющие ${drawers.slide} мм на половины. Узкие прикрутите к боковинам коробов по центру высоты, широкие — к ${kupe ? "боковинам и перегородкам" : "боковинам корпуса"} по разметке, центр направляющей от пола: ${drawers.boxesAt
+      text: `Разделите направляющие ${drawers.slide} мм на половины. Узкие прикрутите к боковинам коробов по центру высоты, широкие — к ${spacerKinds.length > 0 ? "проставкам" : kupe ? "боковинам и перегородкам" : "боковинам корпуса"} по разметке, центр направляющей от пола: ${drawers.boxesAt
         .map((at) => Math.round(at + drawers.boxHeight / 2))
         .join(", ")} мм (снизу вверх). Вставьте короба до щелчка.`,
-      shown: [...withShelves, "ящик боковина", "ящик стенка", "дно ящика"],
+      shown: [
+        ...withShelves,
+        ...spacerKinds,
+        "ящик боковина",
+        "ящик стенка",
+        "дно ящика",
+      ],
       added: ["ящик боковина", "ящик стенка", "дно ящика"],
       fittings: [
         ...item("slide", count("slide")),
@@ -537,7 +579,7 @@ export function cabinetAssembly(
     steps.push({
       title: "Прикрутите фасады ящиков",
       text: `${drawers.inset ? "Фасады вкладные: приложите фасад внутри секции с зазором 2 мм до стенок и 3 мм между фасадами" : "Приложите фасад к коробу с зазором 3 мм между фасадами"}, прикрутите изнутри короба четырьмя саморезами. Поставьте ручки: разметьте по шаблону, просверлите Ø5 насквозь и прикрутите винтами изнутри.`,
-      shown: [...withShelves, ...drawerKinds],
+      shown: [...withShelves, ...spacerKinds, ...drawerKinds],
       added: ["фасад ящика"],
       fittings: [
         ...item("frontScrew", count("frontScrew")),
@@ -550,7 +592,7 @@ export function cabinetAssembly(
   const hasLed = count("ledProfile") > 0;
   const inside = [
     ...withShelves,
-    ...(drawers ? drawerKinds : []),
+    ...(drawers ? [...spacerKinds, ...drawerKinds] : []),
     ...(hasLed ? ["подсветка"] : []),
   ];
   if (hasLed) {
