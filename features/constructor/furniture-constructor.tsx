@@ -25,6 +25,7 @@ import {
   buildCabinet,
   kupeDoorCount,
   kupeSections,
+  slideKupeDoor,
   KUPE_FILLS,
   cabinetGroupLabel,
   type CabinetJoint,
@@ -324,14 +325,94 @@ export function FurnitureConstructor({
     () => buildCabinet(spec, thickness),
     [spec, thickness],
   );
+
+  // Открытый шаг инструкции по сборке.
+  const [step, setStep] = useState<number | null>(null);
+
+  // Двери-купе: каждая сдвигается по нажатию на неё, кнопка «Открыть
+  // двери» сдвигает передние. Сдвиги сбрасываются, если поменялись
+  // число или ширина дверей.
+  const kupeDoors = result.kupe?.doors;
+  const kupeKey = kupeDoors ? `${kupeDoors.count}:${kupeDoors.width}` : "";
+  const [kupeState, setKupeState] = useState({
+    key: "",
+    shifts: [] as number[],
+  });
+  const kupeTarget = useMemo(
+    () =>
+      kupeState.key === kupeKey
+        ? kupeState.shifts
+        : Array.from({ length: kupeDoors?.count ?? 0 }, () => 0),
+    [kupeState, kupeKey, kupeDoors?.count],
+  );
+  const [kupeShown, setKupeShown] = useState<number[]>([]);
+  const kupeShownNow = useRef<{ key: string; shifts: number[] }>({
+    key: "",
+    shifts: [],
+  });
+  const kupeFrame = useRef(0);
+  useEffect(() => {
+    const from =
+      kupeShownNow.current.key === kupeKey
+        ? kupeShownNow.current.shifts
+        : kupeTarget;
+    const startedAt = performance.now();
+    const tick = (now: number) => {
+      const progress = Math.min(1, (now - startedAt) / DOOR_ANIMATION_MS);
+      const eased = 1 - (1 - progress) ** 3;
+      const shifts = kupeTarget.map(
+        (target, index) =>
+          (from[index] ?? 0) + (target - (from[index] ?? 0)) * eased,
+      );
+      kupeShownNow.current = { key: kupeKey, shifts };
+      setKupeShown(shifts);
+      if (progress < 1) kupeFrame.current = requestAnimationFrame(tick);
+    };
+    kupeFrame.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(kupeFrame.current);
+  }, [kupeTarget, kupeKey]);
+  const kupeOpen = kupeTarget.some((shift) => shift !== 0);
+  const slideDoor = (index: number) => {
+    if (!kupeDoors) return;
+    setKupeState({
+      key: kupeKey,
+      shifts: slideKupeDoor(kupeDoors, kupeTarget, index),
+    });
+  };
+  const toggleKupeDoors = () => {
+    if (!kupeDoors) return;
+    let shifts = kupeTarget.map(() => 0);
+    if (!kupeOpen) {
+      for (let index = 1; index < kupeDoors.count; index += 2) {
+        shifts = slideKupeDoor(kupeDoors, shifts, index);
+      }
+    }
+    setKupeState({ key: kupeKey, shifts });
+  };
   const boxes = useMemo(
     () =>
       buildCabinetModel(spec, thickness, result, {
         doorOpen,
+        // В шагах сборки двери-купе открываются кнопкой шага.
+        kupeShift:
+          isKupe && step === null && kupeShown.length === kupeDoors?.count
+            ? kupeShown
+            : undefined,
         bodyMaterial: bodyDecor?.label ?? `ЛДСП ${thickness} мм`,
         facadeMaterial: facadeDecor?.label ?? `ЛДСП ${thickness} мм`,
       }),
-    [spec, thickness, result, doorOpen, bodyDecor, facadeDecor],
+    [
+      spec,
+      thickness,
+      result,
+      doorOpen,
+      isKupe,
+      step,
+      kupeShown,
+      kupeDoors?.count,
+      bodyDecor,
+      facadeDecor,
+    ],
   );
   const tones = useMemo(() => {
     const list: SceneTone[] = [];
@@ -358,7 +439,6 @@ export function FurnitureConstructor({
     [spec, result, fittings],
   );
   // Шаг инструкции сборки; null — обычный просмотр.
-  const [step, setStep] = useState<number | null>(null);
   const [labels, setLabels] = useState(true);
   const sceneApi = useRef<FurnitureSceneApi | null>(null);
   const currentStep = step !== null ? steps[step] : null;
@@ -374,6 +454,17 @@ export function FurnitureConstructor({
       ),
     };
   }, [boxes, currentStep]);
+  const shownOpen = isKupe && step === null ? kupeOpen : doorsOpen;
+  // Нажатие на дверь-купе в макете сдвигает её. Двери-купе — детали
+  // TONE_SLIDING, по порядку слева направо.
+  const clickBox = (index: number) => {
+    const box = stepView.boxes[index];
+    if (box?.tone !== TONE_SLIDING) return;
+    const door = stepView.boxes
+      .slice(0, index)
+      .filter((item) => item.tone === TONE_SLIDING).length;
+    slideDoor(door);
+  };
   const goToStep = (next: number | null) => {
     setStep(next);
     const target = next !== null ? steps[next] : null;
@@ -526,10 +617,13 @@ export function FurnitureConstructor({
             highlight={stepView.highlight}
             labels={labels}
             apiRef={sceneApi}
+            onBoxClick={step === null && isKupe ? clickBox : undefined}
             hint={
               printing
                 ? "Готовим картинки шагов…"
-                : "Крутите пальцем или мышью · нажмите на деталь"
+                : isKupe && step === null
+                  ? "Крутите пальцем или мышью · нажмите на дверь, чтобы сдвинуть её"
+                  : "Крутите пальцем или мышью · нажмите на деталь"
             }
             tones={tones}
             handleTone={TONE_FACADE}
@@ -546,16 +640,20 @@ export function FurnitureConstructor({
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={() => setDoorsOpen((current) => !current)}
+            onClick={() =>
+              isKupe && step === null
+                ? toggleKupeDoors()
+                : setDoorsOpen((current) => !current)
+            }
             disabled={!hasFronts}
             className="inline-flex h-9 items-center gap-2 rounded-full border border-[color:var(--line)] px-4 text-[13px] font-medium disabled:opacity-40"
           >
-            {doorsOpen ? (
+            {shownOpen ? (
               <DoorClosed className="size-4" />
             ) : (
               <DoorOpen className="size-4" />
             )}
-            {doorsOpen ? "Закрыть двери" : "Открыть двери"}
+            {shownOpen ? "Закрыть двери" : "Открыть двери"}
           </button>
           <button
             type="button"

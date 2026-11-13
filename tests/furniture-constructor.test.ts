@@ -10,6 +10,7 @@ import {
 import {
   CABINET_KINDS,
   buildCabinet,
+  slideKupeDoor,
 } from "../features/services/cabinet-builder";
 import { hardwareHoles } from "../features/services/drilling-hardware";
 import {
@@ -511,4 +512,51 @@ test("kupe shelf pins: four per shelf even when partition holes are shared", () 
   assert.equal(fittings.find((line) => line.key === "shelfPin")?.count, 8 * 4);
   assert.equal(result.drawers, null);
   assert.ok(!result.parts.some((part) => /проставка/.test(part.title)));
+});
+
+test("двери-купе сдвигаются по своим дорожкам и не проходят друг через друга", () => {
+  // Две двери 912 мм с перехлёстом 25: передняя (правая) уезжает влево,
+  // задняя (левая) — вправо за переднюю.
+  const two = { count: 2, width: 912, overlap: 25 };
+  assert.deepEqual(slideKupeDoor(two, [0, 0], 1), [0, -887]);
+  assert.deepEqual(slideKupeDoor(two, [0, 0], 0), [887, 0]);
+  assert.deepEqual(slideKupeDoor(two, [887, 0], 0), [0, 0]);
+  // Левая открыта, сдвигаем правую: левая сначала встаёт на место.
+  assert.deepEqual(slideKupeDoor(two, [887, 0], 1), [0, -887]);
+
+  // Три двери: средняя передняя едет влево, крайние задние — к середине,
+  // но за среднюю, не налезая друг на друга.
+  const three = { count: 3, width: 800, overlap: 25 };
+  assert.deepEqual(slideKupeDoor(three, [0, 0, 0], 1), [0, -775, 0]);
+  // Задние упираются друг в друга: проехать могут 750 мм из 775.
+  assert.deepEqual(slideKupeDoor(three, [0, 0, 0], 2), [0, 0, -750]);
+  assert.deepEqual(slideKupeDoor(three, [0, 0, 0], 0), [750, 0, 0]);
+  // Правая задняя уже сдвинута влево: левой ехать некуда.
+  assert.deepEqual(slideKupeDoor(three, [0, 0, -750], 0), [0, 0, -750]);
+
+  // Четыре двери: открыть все передние, затем закрыть дверь 2, на место
+  // которой заехала дверь 0, — дверь 0 тоже возвращается.
+  const four = { count: 4, width: 600, overlap: 25 };
+  let shifts = slideKupeDoor(four, [0, 0, 0, 0], 1);
+  shifts = slideKupeDoor(four, shifts, 3);
+  assert.deepEqual(shifts, [0, -575, 0, -575]);
+  shifts = slideKupeDoor(four, [0, 0, 0, 0], 2);
+  shifts = slideKupeDoor(four, shifts, 0);
+  assert.deepEqual(shifts, [575, 0, 575, 0]);
+  assert.deepEqual(slideKupeDoor(four, shifts, 2), [0, 0, 0, 0]);
+});
+
+test("купе: двери вне пределов Hettich TopLine L — предупреждение", () => {
+  const narrow = buildCabinet(
+    {
+      ...CABINET_KINDS.kupe.defaults,
+      kind: "kupe",
+      width: 1000,
+      slidingDoors: 3,
+    },
+    16,
+  );
+  assert.ok(narrow.problems.some((text) => /от 500 до 1500/.test(text)));
+  const ok = buildCabinet({ ...CABINET_KINDS.kupe.defaults, kind: "kupe" }, 16);
+  assert.ok(!ok.problems.some((text) => /TopLine/.test(text)));
 });
