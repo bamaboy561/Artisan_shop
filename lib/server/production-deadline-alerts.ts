@@ -22,8 +22,9 @@ import { getProductionDailyReport } from "@/lib/server/production-daily-report";
 import { getProductionBoard } from "@/lib/server/production-workspace";
 import { sendTelegramDirectMessage } from "@/lib/server/telegram-bot";
 
-// Какие оповещения уже ушли: таблица создаётся сама, как и другие таблицы
-// цеха (на продакшене prisma db push не запускается).
+// Какие оповещения уже ушли: таблица создаётся сама при первом обращении.
+// Она же описана в prisma/schema.prisma (ProductionDeadlineAlert), иначе
+// prisma db push при сборке хочет её удалить и сборка падает.
 let tableReady = false;
 
 async function ensureAlertTable() {

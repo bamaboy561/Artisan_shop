@@ -542,6 +542,15 @@ model ProductionPlan {
   @@index([dueDate])
 }
 
+// Какие оповещения начальнику производства о сроках уже ушли (ключ —
+// заявка и вид оповещения). Таблицу создаёт и lib/server/production-
+// deadline-alerts.ts; модель здесь, чтобы prisma db push её не удалял.
+model ProductionDeadlineAlert {
+  key     String   @id
+  sentAt  DateTime
+  payload String?
+}
+
 // Срочность и «Проблема» по заявке на распил. На продакшене таблица
 // создаётся при первом обращении (lib/server/cutting-workflow.ts).
 model CuttingWorkflow {
