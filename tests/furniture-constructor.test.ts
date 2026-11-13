@@ -413,3 +413,13 @@ test("kupe with three doors keeps the doors inside the width", () => {
   assert.equal(door.quantity, 3);
   assert.ok(Math.abs(3 * door.width - 2 * 25 - 2400) < 0.5);
 });
+
+test("drawers under doors: hinge plates move up with the doors", () => {
+  const spec = { ...wardrobe, drawers: 2 };
+  const result = buildCabinet(spec, 16);
+  const side = result.parts.find((part) => /боковина левая/.test(part.title))!;
+  const plates = side.hardware!.filter((item) => item.kind === "hingePlate");
+  const doorBottom = 2100 - result.doorHeight;
+  assert.equal(plates[0].offset, doorBottom + 100);
+  assert.equal(plates[plates.length - 1].offset, 2100 - 100);
+});
