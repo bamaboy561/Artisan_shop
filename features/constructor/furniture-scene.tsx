@@ -174,7 +174,10 @@ export function FurnitureScene({
   labels = false,
   apiRef,
   hint = "Крутите пальцем или мышью · нажмите на деталь",
+  onBoxClick,
 }: {
+  // Нажатие на деталь: номер детали в boxes (например, сдвинуть дверь).
+  onBoxClick?: (index: number) => void;
   // Детали текущего шага сборки подсвечиваются.
   highlight?: boolean[];
   // Подписи деталей поверх макета.
@@ -189,6 +192,10 @@ export function FurnitureScene({
   className?: string;
 }) {
   const hostRef = useRef<HTMLDivElement | null>(null);
+  const onBoxClickRef = useRef(onBoxClick);
+  useEffect(() => {
+    onBoxClickRef.current = onBoxClick;
+  }, [onBoxClick]);
   const labelsRef = useRef<HTMLDivElement | null>(null);
   const stateRef = useRef<{
     renderer: THREE.WebGLRenderer;
@@ -377,6 +384,8 @@ export function FurnitureScene({
           (material.userData.glow as number | undefined) ?? 0,
         );
       }
+      const index = hit?.object.userData.index as number | undefined;
+      if (index !== undefined) onBoxClickRef.current?.(index);
       if (hit && info) {
         const material = (hit.object as THREE.Mesh)
           .material as THREE.MeshStandardMaterial;
@@ -522,6 +531,7 @@ export function FurnitureScene({
         mesh.receiveShadow = true;
         mesh.matrixAutoUpdate = false;
         mesh.userData.info = box.info;
+        mesh.userData.index = state.meshes.length;
         const kind = (box.info?.name ?? "").replace(/^[^:]*: /, "");
         mesh.userData.label = kind.charAt(0).toUpperCase() + kind.slice(1);
         state.furniture.add(mesh);

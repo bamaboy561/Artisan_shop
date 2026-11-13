@@ -179,6 +179,9 @@ export const CABINET_KINDS: Record<
 export const KUPE_OVERLAP = 25;
 export const KUPE_HEIGHT_DEDUCTION = 40;
 const KUPE_DOOR_LIFT = 15;
+const KUPE_DOOR_MIN_WIDTH = 500;
+const KUPE_DOOR_MAX_WIDTH = 1500;
+const KUPE_DOOR_MAX_HEIGHT = 2600;
 // Двери на двух дорожках: задняя у корпуса, передняя перед ней.
 const KUPE_TRACK_GAP = 5;
 const KUPE_TRACK_STEP = 12;
@@ -308,6 +311,55 @@ export type KupeLayout = {
     tracks: number[];
   };
 };
+
+// Сдвинуть или вернуть на место дверь-купе index. shifts — насколько
+// каждая дверь сейчас сдвинута от своего места, мм (минус — влево).
+// Дверь едет по своей дорожке: передняя проходит перед соседней задней,
+// задняя — за передней. Двери одной дорожки друг через друга не проходят,
+// и дверь не выходит за края шкафа. Сдвигаемая дверь закрывает соседнюю
+// с перехлёстом целиком, если ей хватает места; едет туда, где места
+// больше (передняя при равенстве влево, задняя вправо). Закрытая дверь
+// возвращается на место и отодвигает назад двери своей дорожки, которые
+// заехали на её место.
+export function slideKupeDoor(
+  doors: Pick<KupeLayout["doors"], "count" | "width" | "overlap">,
+  shifts: number[],
+  index: number,
+): number[] {
+  const { count, width: w, overlap: o } = doors;
+  const step = w - o;
+  const total = count * w - (count - 1) * o;
+  const next = Array.from({ length: count }, (_, j) => shifts[j] ?? 0);
+  const at = (j: number) => j * step + next[j];
+  if (index < 0 || index >= count) return next;
+
+  const close = (j: number) => {
+    next[j] = 0;
+    if (j >= 2 && at(j - 2) + w > at(j)) close(j - 2);
+    if (j + 2 < count && at(j + 2) < at(j) + w) close(j + 2);
+  };
+  if (next[index] !== 0) {
+    close(index);
+    return next.map((shift) => round(shift));
+  }
+
+  // Соседние двери другой дорожки сначала встают на место: иначе дверь
+  // уедет за них или перед ними, и проём останется закрытым.
+  for (const side of [index - 1, index + 1]) {
+    if (side >= 0 && side < count && next[side] !== 0) close(side);
+  }
+  const x = at(index);
+  const leftLimit = index >= 2 ? at(index - 2) + w : 0;
+  const rightLimit = index + 2 < count ? at(index + 2) : total;
+  const left = index > 0 ? Math.max(0, Math.min(step, x - leftLimit)) : 0;
+  const right =
+    index < count - 1 ? Math.max(0, Math.min(step, rightLimit - (x + w))) : 0;
+  const front = index % 2 === 1;
+  if (left === 0 && right === 0) return next;
+  const goLeft = left > right || (left === right && front);
+  next[index] = round(goLeft ? -left : right);
+  return next;
+}
 
 // Части названия детали купе: «полка, секция 2».
 export function sectionSuffix(index: number) {
@@ -836,6 +888,17 @@ function buildKupe(spec: CabinetSpec, t: number): CabinetResult {
   // Двери-купе: n дверей перекрывают ширину шкафа с перехлёстом.
   const doorWidth = round((W + (n - 1) * KUPE_OVERLAP) / n);
   const doorHeight = round(H - plinth - KUPE_HEIGHT_DEDUCTION);
+  // Пределы Hettich TopLine L: ширина двери 500–1500 мм, высота до 2600 мм.
+  if (doorWidth < KUPE_DOOR_MIN_WIDTH || doorWidth > KUPE_DOOR_MAX_WIDTH) {
+    problems.push(
+      `Дверь-купе шириной ${doorWidth} мм: система Hettich TopLine L держит двери от ${KUPE_DOOR_MIN_WIDTH} до ${KUPE_DOOR_MAX_WIDTH} мм — ${doorWidth < KUPE_DOOR_MIN_WIDTH ? "уменьшите" : "увеличьте"} число дверей.`,
+    );
+  }
+  if (doorHeight > KUPE_DOOR_MAX_HEIGHT) {
+    problems.push(
+      `Дверь-купе высотой ${doorHeight} мм: Hettich TopLine L — до ${KUPE_DOOR_MAX_HEIGHT} мм.`,
+    );
+  }
   // Проём двери j, когда соседние сдвинуты: дверь без перехлёстов.
   const windows = Array.from({ length: n }, (_, j) => {
     const from = j * (doorWidth - KUPE_OVERLAP);

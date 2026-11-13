@@ -36,6 +36,9 @@ const OPEN_DOOR_ANGLE = 100;
 export type CabinetModelOptions = {
   // Насколько открыты двери: 0 — закрыты, 1 — открыты полностью.
   doorOpen: number;
+  // Шкаф-купе: насколько сдвинута каждая дверь, мм (минус — влево).
+  // Без него при doorOpen передние двери уезжают влево.
+  kupeShift?: number[];
   bodyMaterial: string;
   facadeMaterial: string;
 };
@@ -436,8 +439,8 @@ type PartInfo = (
 
 // Начинка шкафа-купе: перегородки, полки, штанги, брючницы, ящики с
 // вкладными фасадами между проставками и двери-купе на двух дорожках.
-// Открытые двери: двери передней дорожки уезжают влево на ширину двери
-// без перехлёста, ящики секций за ними выдвигаются.
+// Каждая дверь сдвигается по своей дорожке (slideKupeDoor), ящики
+// открытых секций выдвигаются.
 function kupeInterior(
   spec: CabinetSpec,
   t: number,
@@ -456,7 +459,18 @@ function kupeInterior(
   const bottomTop = plinth + t;
   const name = spec.name || "Шкаф-купе";
   const { doors } = kupe;
-  const shift = open * (doors.width - doors.overlap);
+  const step = doors.width - doors.overlap;
+  const shifts =
+    options.kupeShift ??
+    Array.from({ length: doors.count }, (_, index) =>
+      index % 2 === 1 ? -open * step : 0,
+    );
+  // Ящики выдвигаются вслед за дверью: насколько уехала самая
+  // сдвинутая дверь.
+  const moved = Math.min(
+    1,
+    Math.max(0, ...shifts.map((shift) => Math.abs(shift ?? 0))) / step,
+  );
 
   kupe.partitions.forEach((left, index) => {
     boxes.push(
@@ -475,8 +489,7 @@ function kupeInterior(
 
   // Какие участки по ширине открыты: там, где сейчас нет ни одной двери.
   const doorSpans = Array.from({ length: doors.count }, (_, index) => {
-    const x =
-      index * (doors.width - doors.overlap) - (index % 2 === 1 ? shift : 0);
+    const x = index * step + (shifts[index] ?? 0);
     return [x, x + doors.width];
   });
   const isOpen = (from: number, to: number) =>
@@ -540,7 +553,7 @@ function kupeInterior(
     const box = section.drawer;
     if (!drawers || !box || section.drawers === 0) continue;
     const out = isOpen(box.frontLeft, box.frontLeft + box.frontWidth)
-      ? open * drawers.slide * 0.75
+      ? moved * drawers.slide * 0.75
       : 0;
     const blockHeight =
       section.drawers * (drawers.frontHeight + DOOR_GAP) - DOOR_GAP;
