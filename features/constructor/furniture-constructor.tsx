@@ -23,13 +23,16 @@ import {
   KUPE_HEIGHT_DEDUCTION,
   KUPE_OVERLAP,
   buildCabinet,
+  kupeDoorCount,
   kupeSections,
+  KUPE_FILLS,
   cabinetGroupLabel,
   type CabinetJoint,
   type CabinetKind,
   type CabinetLed,
   type CabinetPart,
   type CabinetSpec,
+  type KupeFill,
   type KupeSection,
 } from "@/features/services/cabinet-builder";
 import { Field, inputClass } from "@/features/services/cabinet-builder-dialog";
@@ -398,14 +401,19 @@ export function FurnitureConstructor({
   // Фасады: двери и фасады ящиков — из декора фасадов.
   const isDoor = (part: CabinetPart) =>
     /: (дверь|фасад ящика)/.test(part.title);
-  const drawerBottom = result.drawers?.slide ? result.drawers : null;
+  // Днища ящиков ХДФ: у купе — по секциям, они могут быть разной ширины.
+  const drawerBottoms = result.drawers?.slide
+    ? (result.drawers.bottoms ?? [
+        { ...result.drawers.bottom, count: result.drawers.count },
+      ])
+    : [];
   const send = (which: "all" | "body" | "facade") => {
     const label = cabinetGroupLabel(spec);
     const backNote = result.back
       ? `${spec.name || "Корпус"}, задняя стенка: ХДФ ${sizeFormatter.format(result.back.length)} × ${sizeFormatter.format(result.back.width)} мм, 1 шт. (накладная, отдельный материал).`
       : "";
-    const drawerNote = drawerBottom
-      ? `Дно ящиков: ХДФ ${sizeFormatter.format(drawerBottom.bottom.length)} × ${sizeFormatter.format(drawerBottom.bottom.width)} мм, ${drawerBottom.count} шт.`
+    const drawerNote = drawerBottoms.length
+      ? `Дно ящиков: ХДФ ${drawerBottoms.map((bottom) => `${sizeFormatter.format(bottom.length)} × ${sizeFormatter.format(bottom.width)} мм, ${bottom.count} шт.`).join("; ")}`
       : "";
     const fittingsNote = fittings.length
       ? `Фурнитура: ${fittings.map((item) => `${item.label.toLowerCase()} ${item.note} — ${item.count} ${item.unit ?? "шт."}`).join(", ")}.`
@@ -497,15 +505,11 @@ export function FurnitureConstructor({
               },
             ]
           : []),
-        ...(drawerBottom
-          ? [
-              {
-                name: "Дно ящика (ХДФ)",
-                size: `${sizeFormatter.format(drawerBottom.bottom.length)} × ${sizeFormatter.format(drawerBottom.bottom.width)} мм`,
-                count: drawerBottom.count,
-              },
-            ]
-          : []),
+        ...drawerBottoms.map((bottom) => ({
+          name: "Дно ящика (ХДФ)",
+          size: `${sizeFormatter.format(bottom.length)} × ${sizeFormatter.format(bottom.width)} мм`,
+          count: bottom.count,
+        })),
       ],
     });
     tab.document.open();
@@ -650,16 +654,46 @@ export function FurnitureConstructor({
               Дверей-купе
               <select
                 className={inputClass}
-                value={sections.length}
+                value={kupeDoorCount(spec)}
                 onChange={(event) =>
                   set({
-                    slidingDoors: Number(event.target.value) as 2 | 3,
+                    slidingDoors: Number(event.target.value) as 2 | 3 | 4,
                     sections,
                   })
                 }
               >
                 <option value={2}>2</option>
                 <option value={3}>3</option>
+                <option value={4}>4</option>
+              </select>
+            </label>
+          ) : null}
+          {isKupe ? (
+            <label className="grid gap-1 text-[12px] text-[var(--muted)]">
+              Секций
+              <select
+                className={inputClass}
+                value={sections.length}
+                onChange={(event) => {
+                  const count = Number(event.target.value);
+                  set({
+                    sections: Array.from(
+                      { length: count },
+                      (_, index) =>
+                        sections[index] ?? {
+                          fill: "shelves" as const,
+                          shelves: 4,
+                          drawers: 0,
+                        },
+                    ),
+                  });
+                }}
+              >
+                {[1, 2, 3, 4, 5].map((count) => (
+                  <option key={count} value={count}>
+                    {count}
+                  </option>
+                ))}
               </select>
             </label>
           ) : null}
@@ -707,55 +741,89 @@ export function FurnitureConstructor({
         </div>
         {isKupe ? (
           <div className="grid gap-2">
-            {sections.map((section, index) => (
-              <div
-                key={index}
-                className="grid grid-cols-3 items-end gap-2 rounded-xl border border-[color:var(--line)] p-2"
-              >
-                <label className="grid gap-1 text-[12px] text-[var(--muted)]">
-                  Секция {index + 1}
-                  <select
-                    className={inputClass}
-                    value={section.rod ? "rod" : "shelves"}
-                    onChange={(event) =>
-                      setSection(index, { rod: event.target.value === "rod" })
-                    }
-                  >
-                    <option value="shelves">Полки</option>
-                    <option value="rod">Штанга</option>
-                  </select>
-                </label>
-                {section.rod ? (
-                  <p className="pb-2 text-[11px] leading-4 text-[var(--muted)]">
-                    Шляпная полка и штанга под ней
-                  </p>
-                ) : (
+            <label className="flex items-center gap-2 text-[13px]">
+              <input
+                type="checkbox"
+                checked={spec.antresol ?? true}
+                onChange={(event) => set({ antresol: event.target.checked })}
+              />
+              Антресоль: полка на 400 мм ниже крыши во всех секциях
+            </label>
+            {sections.map((section, index) => {
+              const fill = section.fill ?? "shelves";
+              const withShelves = fill === "shelves" || fill === "rodShelves";
+              return (
+                <div
+                  key={index}
+                  className="grid grid-cols-3 items-end gap-2 rounded-xl border border-[color:var(--line)] p-2"
+                >
+                  <label className="col-span-2 grid gap-1 text-[12px] text-[var(--muted)]">
+                    Секция {index + 1}
+                    <select
+                      className={inputClass}
+                      value={fill}
+                      onChange={(event) =>
+                        setSection(index, {
+                          fill: event.target.value as KupeFill,
+                        })
+                      }
+                    >
+                      {(Object.keys(KUPE_FILLS) as KupeFill[]).map((key) => (
+                        <option key={key} value={key}>
+                          {KUPE_FILLS[key]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                   <Field
-                    label="Полок, шт."
-                    value={section.shelves}
-                    onChange={(shelves) => setSection(index, { shelves })}
+                    label={`Ширина${section.width ? "" : ` (${Math.round(result.kupe?.sections[index]?.width ?? 0)})`}`}
+                    value={section.width ?? 0}
+                    onChange={(width) => setSection(index, { width })}
                   />
-                )}
-                <label className="grid gap-1 text-[12px] text-[var(--muted)]">
-                  Ящиков
-                  <select
-                    className={inputClass}
-                    value={section.drawers}
-                    onChange={(event) =>
-                      setSection(index, {
-                        drawers: Number(event.target.value),
-                      })
-                    }
-                  >
-                    {[0, 1, 2, 3, 4].map((count) => (
-                      <option key={count} value={count}>
-                        {count === 0 ? "без ящиков" : count}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-            ))}
+                  {withShelves ? (
+                    <Field
+                      label="Полок, шт."
+                      value={section.shelves}
+                      onChange={(shelves) => setSection(index, { shelves })}
+                    />
+                  ) : (
+                    <span />
+                  )}
+                  <label className="grid gap-1 text-[12px] text-[var(--muted)]">
+                    Ящиков внизу
+                    <select
+                      className={inputClass}
+                      value={section.drawers}
+                      onChange={(event) =>
+                        setSection(index, {
+                          drawers: Number(event.target.value),
+                        })
+                      }
+                    >
+                      {[0, 1, 2, 3, 4, 5].map((count) => (
+                        <option key={count} value={count}>
+                          {count === 0 ? "без ящиков" : count}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="flex items-center gap-2 pb-2 text-[12px] text-[var(--muted)]">
+                    <input
+                      type="checkbox"
+                      disabled={section.drawers > 0}
+                      checked={Boolean(section.shoes) && section.drawers === 0}
+                      onChange={(event) =>
+                        setSection(index, { shoes: event.target.checked })
+                      }
+                    />
+                    Полка для обуви
+                  </label>
+                </div>
+              );
+            })}
+            <p className="text-[11px] leading-4 text-[var(--muted)]">
+              Ширина 0 — секции делят остаток поровну.
+            </p>
             <p className="text-[11px] leading-4 text-[var(--muted)]">
               Двери-купе Hettich TopLine L перед корпусом:{" "}
               {result.kupe
@@ -926,17 +994,20 @@ export function FurnitureConstructor({
                   <td className="py-1.5 text-right">1</td>
                 </tr>
               ) : null}
-              {drawerBottom ? (
-                <tr className="border-t border-[color:var(--line)] text-[var(--muted)]">
+              {drawerBottoms.map((bottom, index) => (
+                <tr
+                  key={`bottom-${index}`}
+                  className="border-t border-[color:var(--line)] text-[var(--muted)]"
+                >
                   <td className="py-1.5 pr-2">Дно ящика, ХДФ</td>
                   <td className="py-1.5 whitespace-nowrap tabular-nums">
-                    {sizeFormatter.format(drawerBottom.bottom.length)} ×{" "}
-                    {sizeFormatter.format(drawerBottom.bottom.width)}
+                    {sizeFormatter.format(bottom.length)} ×{" "}
+                    {sizeFormatter.format(bottom.width)}
                   </td>
                   <td className="py-1.5 pr-2 text-[12px]">без кромки</td>
-                  <td className="py-1.5 text-right">{drawerBottom.count}</td>
+                  <td className="py-1.5 text-right">{bottom.count}</td>
                 </tr>
-              ) : null}
+              ))}
             </tbody>
           </table>
           <p className="mt-2 text-[12px] leading-5 text-[var(--muted)]">
