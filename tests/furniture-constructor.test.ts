@@ -354,10 +354,12 @@ test("kupe: antresol, two rods, drawers between spacers", () => {
   // 1800 − 2·16 − 16 = 1752 → две секции по 876, перегородка с 892.
   assert.deepEqual(result.kupe?.partitions, [892]);
   assert.equal(part("перегородка 1")?.length, 2400 - 70 - 32);
-  // Двери: (1800 + 25) / 2, высота 2400 − 70 − 40, без присадки.
+  // Двери: (1800 + 25) / 2; по чертежу Hettich верх на 2,5 мм выше
+  // крыши, низ в 35 мм от пола: 2400 + 2,5 − 35. Без присадки.
   assert.equal(part("дверь купе")?.quantity, 2);
   assert.equal(part("дверь купе")?.width, 912.5);
-  assert.equal(part("дверь купе")?.length, 2290);
+  assert.equal(part("дверь купе")?.length, 2367.5);
+  assert.equal(result.kupe?.doors.bottom, 35);
   assert.equal(part("дверь купе")?.hardware, undefined);
   // Секция 1: 2 ящика, полка над ними, 3 полки, антресоль.
   assert.equal(part("полка над ящиками, секция 1")?.quantity, 1);
@@ -439,6 +441,21 @@ test("kupe: antresol, two rods, drawers between spacers", () => {
   const { min, max } = bounds(boxes);
   assert.equal(min[0], 0);
   assert.equal(max[0], 1800);
+});
+
+test("kupe: plinth under 60 mm leaves no room for the bottom track", () => {
+  const kupe = { kind: "kupe" as const, ...CABINET_KINDS.kupe.defaults };
+  const low = buildCabinet({ ...kupe, plinth: 50 }, 16);
+  assert.ok(
+    low.problems.some((problem) => /Цоколь шкафа-купе 50 мм/.test(problem)),
+  );
+  assert.deepEqual(buildCabinet({ ...kupe, plinth: 60 }, 16).problems, []);
+  // Высота двери не зависит от цоколя.
+  const door = (spec: typeof kupe) =>
+    buildCabinet(spec, 16).parts.find(
+      (part) => partKind(part.title) === "дверь купе",
+    )!;
+  assert.equal(door({ ...kupe, plinth: 100 }).length, 2367.5);
 });
 
 test("kupe: own section widths, rod with trousers, shoes, four doors", () => {
