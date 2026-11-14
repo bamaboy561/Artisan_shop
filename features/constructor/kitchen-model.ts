@@ -268,6 +268,8 @@ export function buildKitchenModel(
         );
       }
     };
+    // У левой стены ось куска идёт от его конца к углу — отступ выреза
+    // считаем от того же конца.
     const cuts = (result.cutouts ?? [])
       .filter(
         (cut) =>
@@ -275,10 +277,16 @@ export function buildKitchenModel(
           cut.at >= piece.from - 0.5 &&
           cut.at + cut.width <= piece.to + 0.5,
       )
-      .sort((a, b) => a.at - b.at);
+      .map((cut) => ({
+        cut,
+        left:
+          piece.wall === 1
+            ? piece.to - (cut.at + cut.width)
+            : cut.at - piece.from,
+      }))
+      .sort((a, b) => a.left - b.left);
     let x = 0;
-    for (const cut of cuts) {
-      const left = cut.at - piece.from;
+    for (const { cut, left } of cuts) {
       slab(x, 0, left - x, spec.countertopDepth);
       slab(left, 0, cut.width, cut.back);
       const front = cut.back + cut.depth;

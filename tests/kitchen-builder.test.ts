@@ -483,6 +483,49 @@ test("kitchen: countertop cutouts for the sink and the hob", () => {
   );
 });
 
+test("kitchen corner and U: countertop opens right over the sink and hob", () => {
+  for (const layout of ["corner", "u"] as KitchenLayout[]) {
+    const spec = kitchen(layout);
+    const result = buildKitchen(spec, T);
+    const boxes = buildKitchenModel(spec, T, result, options);
+    // Точка в мировых x, z для бокса: обратное преобразование по осям.
+    const inside = (box: (typeof boxes)[number], wx: number, wz: number) => {
+      const m = box.matrix;
+      const xs = [box.x, box.x + box.sizeX];
+      const zs = [0, box.thickness];
+      const px = xs.flatMap((x) => zs.map((z) => m[0] * x + m[2] * z + m[3]));
+      const pz = xs.flatMap((x) => zs.map((z) => m[8] * x + m[10] * z + m[11]));
+      return (
+        Math.min(...px) < wx &&
+        wx < Math.max(...px) &&
+        Math.min(...pz) < wz &&
+        wz < Math.max(...pz)
+      );
+    };
+    const top = boxes.filter((box) =>
+      /: столешница$/.test(box.info?.name ?? ""),
+    );
+    assert.ok(result.cutouts.length >= 2, layout);
+    for (const cut of result.cutouts) {
+      // Центр мойки или панели в мире — по её стеклу/дну.
+      const appliance = boxes.find(
+        (box) =>
+          box.info?.name ===
+          `Кухня, ${cut.code}: ${cut.kind === "sink" ? "мойка" : "варочная панель"}`,
+      )!;
+      const m = appliance.matrix;
+      const cx = appliance.x + appliance.sizeX / 2;
+      const cz = appliance.thickness / 2;
+      const wx = m[0] * cx + m[2] * cz + m[3];
+      const wz = m[8] * cx + m[10] * cz + m[11];
+      assert.ok(
+        !top.some((box) => inside(box, wx, wz)),
+        `${layout} ${cut.code}: столешница закрывает вырез`,
+      );
+    }
+  }
+});
+
 test("kitchen: shallow countertop leaves no room for the hob cutout", () => {
   const spec = { ...kitchen("line"), countertopDepth: 560 };
   const result = buildKitchen(spec, T);
