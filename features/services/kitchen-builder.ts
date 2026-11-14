@@ -440,6 +440,12 @@ export function buildKitchen(
       `Навесные ниже ${Math.round(worktop + 450)} мм от пола: над столешницей меньше 450 мм.`,
     );
   }
+  // Стяжки столешницы (QUICK TECH) — от 25 мм; тоньше стык в углу не стянуть.
+  if (spec.layout !== "line" && spec.countertop < 25) {
+    problems.push(
+      `Столешница ${spec.countertop} мм: для стяжек на угловом стыке нужна толщина от 25 мм.`,
+    );
+  }
   if (spec.countertopDepth < spec.baseDepth + t + 3) {
     problems.push("Столешница мельче тумб с фасадами — увеличьте её глубину.");
   }

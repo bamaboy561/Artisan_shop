@@ -276,7 +276,14 @@ test("kitchen corner: filler and plinth close the inner corner", () => {
   const count = (key: string) =>
     lines.find((line) => line.key === key)?.count ?? 0;
   assert.equal(count("worktopJoint"), 1);
+  assert.equal(count("worktopConnector"), 3);
   assert.equal(count("worktopEnd"), 2);
+  // Тонкая столешница: стяжки на угловой стык не встанут.
+  assert.ok(
+    buildKitchen({ ...spec, countertop: 22 }, T).problems.some((problem) =>
+      /Столешница 22 мм: для стяжек/.test(problem),
+    ),
+  );
 });
 
 test("kitchen: wide modules stand on 6 legs", () => {
@@ -340,9 +347,13 @@ test("фурнитура одного блока: без столешницы, �
       sum.set(line.key, (sum.get(line.key) ?? 0) + line.count);
   for (const line of all) {
     if (
-      ["worktopPlinth", "worktopJoint", "worktopEnd", "wallRail"].includes(
-        line.key,
-      )
+      [
+        "worktopPlinth",
+        "worktopJoint",
+        "worktopConnector",
+        "worktopEnd",
+        "wallRail",
+      ].includes(line.key)
     ) {
       assert.equal(sum.has(line.key) && line.key !== "wallRail", false);
       continue;
