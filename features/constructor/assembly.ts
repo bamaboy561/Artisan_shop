@@ -44,6 +44,7 @@ export type FittingKey =
   | "cargo"
   | "worktopPlinth"
   | "worktopJoint"
+  | "worktopConnector"
   | "worktopEnd"
   | "wallRail";
 
@@ -60,6 +61,8 @@ export type FittingLine = {
 };
 
 const BACK_NAIL_STEP = 150; // мм между гвоздями задней стенки
+// Стяжек на угловой стык столешницы глубиной 600 мм.
+const WORKTOP_CONNECTORS = 3;
 
 const FITTING_INFO: Record<
   FittingKey,
@@ -201,6 +204,13 @@ const FITTING_INFO: Record<
     note: "на стык в углу",
     search: /планк.*(соедин|стыков)|(соедин|стыков).*планк/i,
   },
+  // Стяжка столешницы (Italiana Ferramenta QUICK TECH): две выборки Ø35
+  // по обе стороны стыка, межосевое 64 или 100 мм, столешница от 25 мм.
+  worktopConnector: {
+    label: "Стяжка столешницы",
+    note: `по ${WORKTOP_CONNECTORS} на угловой стык, выборки Ø35, межосевое 64 или 100 мм, столешница от 25 мм`,
+    search: /стяжк\S*.*столешн|столешн\S*.*стяжк|quick\s?tech/i,
+  },
   worktopEnd: {
     label: "Планка торцевая для столешницы",
     note: "на концы, которые не упираются в стену",
@@ -290,6 +300,7 @@ const FITTING_ORDER: FittingKey[] = [
   "wallRail",
   "worktopPlinth",
   "worktopJoint",
+  "worktopConnector",
   "worktopEnd",
 ];
 
@@ -921,7 +932,7 @@ export function kitchenFittings(
       add("handleScrew", 2);
     }
   }
-  // Столешница: плинтус вдоль стен, планки на стыки в углах и на
+  // Столешница: плинтус вдоль стен, стяжки и планки на стыки в углах и на
   // свободные концы. Шина под навесные — по длине навесных рядов.
   const worktop = result.countertops.reduce(
     (sum, piece) => sum + piece.to - piece.from,
@@ -934,6 +945,7 @@ export function kitchenFittings(
   if (worktop > 0 && !only) {
     add("worktopPlinth", Math.ceil(worktop / 1000));
     add("worktopJoint", joints);
+    add("worktopConnector", joints * WORKTOP_CONNECTORS);
     add("worktopEnd", result.countertops.length * 2 - joints * 2);
   }
   const hanging = modules

@@ -804,6 +804,15 @@ export function buildKitchen(
       piece.from = spec.countertopDepth;
     }
   }
+  // Стяжки столешницы (QUICK TECH) на угловом стыке — от 25 мм.
+  const joined = countertops.some(
+    (piece) => piece.wall > 0 && piece.from < starts[piece.wall].base,
+  );
+  if (joined && spec.countertop < 25) {
+    problems.push(
+      `Столешница ${spec.countertop} мм: для стяжек на угловом стыке нужна толщина от 25 мм.`,
+    );
+  }
   // Цоколь боковой стены, который доходит до угла.
   for (const piece of plinths) {
     if (piece.wall > 0 && piece.from === starts[piece.wall].base) {
