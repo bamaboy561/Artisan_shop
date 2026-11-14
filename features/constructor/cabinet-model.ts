@@ -24,6 +24,8 @@ export const TONE_LED = 3;
 // Двери-купе: декор фасадов, но без ручки.
 export const TONE_SLIDING = 4;
 export const TONE_ROD = 5;
+// Фасад без ручки: заглушка углового модуля, цоколь кухни.
+export const TONE_PLAIN = 8;
 // LED-лента в профиле выступает из паза на столько, мм.
 const LED_PROUD = 3;
 
@@ -167,17 +169,38 @@ export function buildCabinetModel(
       TONE_BODY,
       info(byTitle("дно"), "Дно", body),
     ),
-    brick(
-      t,
-      H - t,
-      0,
-      W - 2 * t,
-      t,
-      D,
-      TONE_BODY,
-      info(byTitle("крыша"), "Крыша", body),
-    ),
   );
+  const rail = byTitle("царга");
+  if (rail) {
+    // Тумба под мойку: царги сзади и спереди вместо крыши.
+    for (const z of [0, D - rail.width]) {
+      boxes.push(
+        brick(
+          t,
+          H - t,
+          z,
+          W - 2 * t,
+          t,
+          rail.width,
+          TONE_BODY,
+          info(rail, "Царга", body),
+        ),
+      );
+    }
+  } else {
+    boxes.push(
+      brick(
+        t,
+        H - t,
+        0,
+        W - 2 * t,
+        t,
+        D,
+        TONE_BODY,
+        info(byTitle("крыша"), "Крыша", body),
+      ),
+    );
+  }
   // Полки короче глубины: стоят от задней стенки.
   const shelf = byTitle("полка");
   if (shelf && !kupe) {
@@ -410,13 +433,61 @@ export function buildCabinetModel(
   const angle =
     (Math.max(0, Math.min(1, options.doorOpen)) * OPEN_DOOR_ANGLE * Math.PI) /
     180;
+  const singleRight =
+    doors.length === 1 &&
+    (spec.blind ? spec.blind.side === "left" : spec.hinge === "right");
   doors.forEach((door, index) => {
-    const left = DOOR_GAP + index * (result.doorWidth + DOOR_GAP);
-    const hingeOnRight = doors.length === 2 && index === 1;
+    const left =
+      (result.doorLeft ?? DOOR_GAP) + index * (result.doorWidth + DOOR_GAP);
+    const hingeOnRight = (doors.length === 2 && index === 1) || singleRight;
     const a = hingeOnRight ? angle : -angle;
     const cos = Math.cos(a);
     const sin = Math.sin(a);
     const hingeX = hingeOnRight ? left + result.doorWidth : left;
+    // Выдвижной фасад карго уезжает вперёд вместе с корзиной.
+    if (spec.pullOut && doors.length === 1) {
+      boxes.push({
+        x: 0,
+        y: 0,
+        sizeX: result.doorWidth,
+        sizeY: result.doorHeight,
+        thickness: t,
+        matrix: [
+          1,
+          0,
+          0,
+          left,
+          0,
+          1,
+          0,
+          doorBottom,
+          0,
+          0,
+          1,
+          D + Math.max(0, Math.min(1, options.doorOpen)) * (D - 60),
+        ],
+        tone: TONE_FACADE,
+        info: info(door, "Дверь", facade),
+      });
+      return;
+    }
+    // Подъёмная дверь поворачивается вверх вокруг верхнего края.
+    if (spec.lift) {
+      const up = Math.min(angle, (85 * Math.PI) / 180);
+      const c = Math.cos(up);
+      const s = Math.sin(up);
+      boxes.push({
+        x: 0,
+        y: -result.doorHeight,
+        sizeX: result.doorWidth,
+        sizeY: result.doorHeight,
+        thickness: t,
+        matrix: [1, 0, 0, left, 0, c, s, H, 0, -s, c, D],
+        tone: TONE_FACADE,
+        info: info(door, "Дверь", facade),
+      });
+      return;
+    }
     boxes.push({
       x: hingeOnRight ? -result.doorWidth : 0,
       y: 0,
@@ -428,6 +499,21 @@ export function buildCabinetModel(
       info: info(door, "Дверь", facade),
     });
   });
+  const blindPart = byTitle("заглушка");
+  if (blindPart && result.blindPanel) {
+    boxes.push(
+      brick(
+        result.blindPanel.left,
+        doorBottom,
+        D,
+        result.blindPanel.width,
+        result.doorHeight,
+        t,
+        TONE_PLAIN,
+        info(blindPart, "Заглушка", facade),
+      ),
+    );
+  }
 
   return boxes;
 }

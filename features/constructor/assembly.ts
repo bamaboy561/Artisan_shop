@@ -9,6 +9,7 @@ import {
   type CabinetSpec,
 } from "../services/cabinet-builder";
 import { hardwareHoles } from "../services/drilling-hardware";
+import { kitchenLegs, type KitchenResult } from "../services/kitchen-builder";
 
 export type FittingKey =
   | "minifix"
@@ -34,7 +35,12 @@ export type FittingKey =
   | "rodHolder"
   | "rodScrew"
   | "spacerScrew"
-  | "trousers";
+  | "trousers"
+  | "kitchenLeg"
+  | "plinthClip"
+  | "lift"
+  | "dishDryer"
+  | "cargo";
 
 export type FittingLine = {
   key: FittingKey;
@@ -159,6 +165,31 @@ const FITTING_INFO: Record<
     note: "на направляющих, под полку",
     search: /брючн/i,
   },
+  kitchenLeg: {
+    label: "Ножка кухонная регулируемая",
+    note: "100 мм, под цоколь",
+    search: /ножк|опора/i,
+  },
+  plinthClip: {
+    label: "Клипса цоколя",
+    note: "крепит цоколь к ножке",
+    search: /клипс|цокол/i,
+  },
+  lift: {
+    label: "Подъёмный механизм двери",
+    note: "газлифт, пара на дверь",
+    search: /газлифт|подъ[её]мн|подъемник|aventos/i,
+  },
+  dishDryer: {
+    label: "Сушка для посуды",
+    note: "в навесной шкаф",
+    search: /сушк/i,
+  },
+  cargo: {
+    label: "Карго (бутылочница)",
+    note: "выдвижное, в узкую тумбу",
+    search: /карго|бутылочн/i,
+  },
   rodScrew: {
     label: "Саморез для штангодержателей",
     note: "3,5×16 мм",
@@ -198,6 +229,38 @@ const bottomNails = (result: CabinetResult) =>
     0,
   );
 const isDrawerFront = (title: string) => /: фасад ящика/.test(title);
+
+const FITTING_ORDER: FittingKey[] = [
+  "confirmat",
+  "minifix",
+  "minifixStem",
+  "dowel",
+  "shelfPin",
+  "hinge",
+  "hingeScrew",
+  "slide",
+  "slideScrew",
+  "spacerScrew",
+  "frontScrew",
+  "handle",
+  "handleScrew",
+  "topTrack",
+  "bottomTrack",
+  "kupeRoller",
+  "rod",
+  "rodHolder",
+  "rodScrew",
+  "trousers",
+  "hanger",
+  "backNail",
+  "ledProfile",
+  "ledStrip",
+  "kitchenLeg",
+  "plinthClip",
+  "lift",
+  "dishDryer",
+  "cargo",
+];
 
 export function cabinetFittings(
   spec: CabinetSpec,
@@ -316,32 +379,6 @@ export function cabinetFittings(
     add("ledStrip", meters);
   }
 
-  const order: FittingKey[] = [
-    "confirmat",
-    "minifix",
-    "minifixStem",
-    "dowel",
-    "shelfPin",
-    "hinge",
-    "hingeScrew",
-    "slide",
-    "slideScrew",
-    "spacerScrew",
-    "frontScrew",
-    "handle",
-    "handleScrew",
-    "topTrack",
-    "bottomTrack",
-    "kupeRoller",
-    "rod",
-    "rodHolder",
-    "rodScrew",
-    "trousers",
-    "hanger",
-    "backNail",
-    "ledProfile",
-    "ledStrip",
-  ];
   const slideNote = result.drawers
     ? `${result.drawers.slide} мм, полного выдвижения, пара на ящик`
     : "";
@@ -363,14 +400,12 @@ export function cabinetFittings(
         }
       : {}),
   };
-  return order
-    .filter((key) => counts.has(key))
-    .map((key) => ({
-      key,
-      ...FITTING_INFO[key],
-      ...(notes[key] ? { note: notes[key] } : {}),
-      count: counts.get(key)!,
-    }));
+  return FITTING_ORDER.filter((key) => counts.has(key)).map((key) => ({
+    key,
+    ...FITTING_INFO[key],
+    ...(notes[key] ? { note: notes[key] } : {}),
+    count: counts.get(key)!,
+  }));
 }
 
 export type AssemblyStep = {
@@ -789,4 +824,71 @@ export function cabinetAssembly(
     });
   }
   return steps;
+}
+
+// Фурнитура всей кухни: сумма по модулям плюс ножки, клипсы цоколя,
+// подъёмники, сушка, карго и ручка на фасад посудомойки.
+export function kitchenFittings(
+  result: KitchenResult,
+  thickness: number,
+): FittingLine[] {
+  const counts = new Map<FittingKey, number>();
+  const notes = new Map<FittingKey, Map<string, number>>();
+  const add = (key: FittingKey, count: number, note?: string) => {
+    if (count <= 0) return;
+    counts.set(key, (counts.get(key) ?? 0) + count);
+    if (note) {
+      const byNote = notes.get(key) ?? new Map<string, number>();
+      byNote.set(note, (byNote.get(note) ?? 0) + count);
+      notes.set(key, byNote);
+    }
+  };
+  for (const item of result.modules) {
+    if (item.spec && item.result) {
+      for (const line of cabinetFittings(item.spec, item.result, thickness)) {
+        add(
+          line.key,
+          line.count,
+          line.key === "slide" && item.result.drawers
+            ? `${item.result.drawers.slide} мм`
+            : undefined,
+        );
+      }
+    }
+    if (item.type === "lift" && item.row === "top") add("lift", 1);
+    if (item.type === "dryer" && item.row === "top") add("dishDryer", 1);
+    if (item.type === "bottle" && item.row === "base") add("cargo", 1);
+    if (item.facade) {
+      add("handle", 1);
+      add("handleScrew", 2);
+    }
+  }
+  if (result.legs > 0) {
+    const { legs, clips } = kitchenLegs(result);
+    add("kitchenLeg", legs);
+    add("plinthClip", clips);
+  }
+  const noteFor = (key: FittingKey) => {
+    const byNote = notes.get(key);
+    if (!byNote) return null;
+    if (key === "slide") {
+      const lengths = [...byNote];
+      return lengths.length === 1
+        ? `${lengths[0][0]}, полного выдвижения, пара на ящик`
+        : `полного выдвижения, пара на ящик: ${lengths
+            .map(([length, count]) => `${length} — ${count}`)
+            .join(", ")}`;
+    }
+    return null;
+  };
+  return FITTING_ORDER.filter((key) => counts.has(key)).map((key) => ({
+    key,
+    ...FITTING_INFO[key],
+    ...(key === "kitchenLeg"
+      ? { note: `${result.legs} мм, под цоколь` }
+      : noteFor(key)
+        ? { note: noteFor(key)! }
+        : {}),
+    count: counts.get(key)!,
+  }));
 }

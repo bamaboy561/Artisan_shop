@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { FurnitureConstructor } from "@/features/constructor/furniture-constructor";
+import { ConstructorTabs } from "@/features/constructor/constructor-tabs";
 import {
   getConstructorDecors,
   getConstructorFittingProducts,
@@ -8,9 +8,9 @@ import {
 import { createSeoMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = createSeoMetadata({
-  title: "Конструктор мебели онлайн: шкаф, тумба, навесной шкаф в 3D",
+  title: "Конструктор мебели онлайн: кухня, шкаф, тумба в 3D",
   description:
-    "Соберите шкаф, тумбу или навесной шкаф на сайте Artisan: размеры, полки, двери, декор ЛДСП из каталога, 3D-макет и детали с кромкой и присадкой сразу в распил в Бишкеке.",
+    "Соберите кухню, шкаф, шкаф-купе или тумбу на сайте Artisan: размеры, модули, двери, декор ЛДСП из каталога, 3D-макет и детали с кромкой и присадкой сразу в распил в Бишкеке.",
   path: "/konstruktor",
 });
 
@@ -30,15 +30,13 @@ export default async function ConstructorPage() {
           Соберите мебель и сразу отправьте в распил
         </h1>
         <p className="mt-3 max-w-2xl text-base leading-7 text-[var(--muted)]">
-          Выберите шкаф, тумбу или навесной шкаф, задайте размеры и декор из
-          нашего каталога. Макет в 3D меняется сразу, а детали с кромкой и
-          присадкой уходят в калькулятор распила одной кнопкой.
+          Соберите кухню целиком или отдельный шкаф, тумбу, шкаф-купе. Задайте
+          размеры и декор из нашего каталога. Макет в 3D меняется сразу, а
+          детали с кромкой и присадкой уходят в калькулятор распила одной
+          кнопкой.
         </p>
         <div className="mt-6">
-          <FurnitureConstructor
-            decors={decors}
-            fittingProducts={fittingProducts}
-          />
+          <ConstructorTabs decors={decors} fittingProducts={fittingProducts} />
         </div>
       </section>
     </div>

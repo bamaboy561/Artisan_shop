@@ -66,13 +66,14 @@ import {
   TONE_BODY,
   TONE_FACADE,
   TONE_LED,
+  TONE_PLAIN,
   TONE_ROD,
   TONE_SLIDING,
 } from "./cabinet-model";
 import type { FurnitureSceneApi, SceneTone } from "./furniture-scene";
 
 // three.js тяжёлый: грузим только на странице конструктора и без SSR.
-const FurnitureScene = dynamic(
+export const FurnitureScene = dynamic(
   () => import("./furniture-scene").then((module) => module.FurnitureScene),
   {
     ssr: false,
@@ -84,14 +85,14 @@ const FurnitureScene = dynamic(
   },
 );
 
-const DOOR_ANIMATION_MS = 700;
+export const DOOR_ANIMATION_MS = 700;
 const FALLBACK_COLOR = [214, 206, 192];
-const BACK_COLOR = [198, 170, 132];
-const sizeFormatter = new Intl.NumberFormat("ru-RU", {
+export const BACK_COLOR = [198, 170, 132];
+export const sizeFormatter = new Intl.NumberFormat("ru-RU", {
   maximumFractionDigits: 1,
 });
 
-function decorColor(decor: ConstructorDecor | undefined) {
+export function decorColor(decor: ConstructorDecor | undefined) {
   return (decor && guessDecorColor(decor.name)) ?? FALLBACK_COLOR;
 }
 
@@ -121,7 +122,7 @@ function Swatch({
 }
 
 // Выбор декора: поиск по названию и плитки с фото декора из каталога.
-function DecorPicker({
+export function DecorPicker({
   title,
   decors,
   value,
@@ -214,7 +215,7 @@ function DecorPicker({
 }
 
 // Пазы деталей конструктора всегда вдоль переднего (лицевого) торца.
-function grooveNote(part: CabinetPart) {
+export function grooveNote(part: CabinetPart) {
   return (part.milling?.grooves ?? [])
     .map(
       (groove) =>
@@ -249,7 +250,7 @@ function partsToDraftRows(parts: CabinetPart[]) {
 
 // Отдаём детали калькулятору распила тем же путём, что страница проекта
 // Базиса: черновик калькулятора и плита из каталога.
-function sendToCalculator(
+export function sendToCalculator(
   parts: CabinetPart[],
   decor: ConstructorDecor | undefined,
 ) {
@@ -436,6 +437,7 @@ export function FurnitureConstructor({
     list[TONE_LED] = { color: [255, 190, 80], glow: true };
     list[TONE_SLIDING] = list[TONE_FACADE];
     list[TONE_ROD] = { color: [200, 202, 206], metal: true };
+    list[TONE_PLAIN] = list[TONE_FACADE];
     return list;
   }, [bodyDecor, facadeDecor]);
   const fittings = useMemo(

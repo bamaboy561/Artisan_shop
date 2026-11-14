@@ -744,8 +744,13 @@ test("купе: стойка колонок — отверстия в дне п�
   const bottom = result.parts.find((part) => partKind(part.title) === "дно")!;
   const x = bottomStand.left + 8 - 16;
   const face = hardwareHoles(bottom.hardware, bottom.length, bottom.width, 16)
-    .filter((hole) => hole.diameter === 7 && Math.abs(hole.x - x) < 0.2)
-    .map((hole) => Math.round(hole.y));
+    .flatMap((hole) =>
+      hole.kind === "face" &&
+      hole.diameter === 7 &&
+      Math.abs(hole.x - x) < 0.2
+        ? [Math.round(hole.y)]
+        : [],
+    );
   assert.ok(edge.length > 0);
   for (const y of edge) assert.ok(face.includes(y), `${y} in ${face}`);
 });
