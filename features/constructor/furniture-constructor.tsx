@@ -24,7 +24,9 @@ import {
   CABINET_JOINTS,
   CABINET_KINDS,
   CABINET_LEDS,
-  KUPE_HEIGHT_DEDUCTION,
+  KUPE_DOOR_FLOOR_GAP,
+  KUPE_DOOR_OVER_ROOF,
+  KUPE_PLINTH_SETBACK,
   KUPE_OVERLAP,
   buildCabinet,
   kupeDoorCount,
@@ -1048,9 +1050,11 @@ export function FurnitureConstructor({
               {result.kupe
                 ? `${sizeFormatter.format(result.kupe.doors.height)} × ${sizeFormatter.format(result.kupe.doors.width)} мм`
                 : ""}
-              , перехлёст {KUPE_OVERLAP} мм, ниже корпуса над цоколем на{" "}
-              {KUPE_HEIGHT_DEDUCTION} мм. Ящики с вкладными фасадами,
-              направляющие {result.drawers?.slide || "—"} мм.
+              , перехлёст {KUPE_OVERLAP} мм: верх на {KUPE_DOOR_OVER_ROOF} мм
+              выше крыши, низ в {KUPE_DOOR_FLOOR_GAP} мм от пола, цоколь
+              отступает на {KUPE_PLINTH_SETBACK} мм под нижнюю направляющую.
+              Ящики с вкладными фасадами, направляющие{" "}
+              {result.drawers?.slide || "—"} мм.
             </p>
           </div>
         ) : null}

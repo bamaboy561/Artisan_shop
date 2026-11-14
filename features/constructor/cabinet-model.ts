@@ -8,6 +8,7 @@
 
 import type { BazisViewerBox } from "@/components/bazis/bazis-viewer";
 import {
+  KUPE_PLINTH_SETBACK,
   KUPE_TRAY_BOX,
   sectionSuffix,
   type CabinetPart,
@@ -386,14 +387,14 @@ export function buildCabinetModel(
     }
   }
 
-  // Цоколь спереди под дном.
+  // Цоколь спереди под дном; у купе — с отступом под нижнюю направляющую.
   const plinthPart = byTitle("цоколь");
   if (plinthPart && plinth > 0) {
     boxes.push(
       brick(
         t,
         0,
-        D - t,
+        D - t - (result.kupe ? KUPE_PLINTH_SETBACK : 0),
         W - 2 * t,
         plinth,
         t,

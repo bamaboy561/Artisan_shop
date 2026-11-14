@@ -484,12 +484,16 @@ export const CABINET_KINDS: Record<
   },
 };
 
-// Двери-купе Hettich TopLine L перед корпусом. Стандартные значения —
-// их сверяет мастер: перехлёст соседних дверей, вычет из высоты проёма
-// (место под верхний и нижний профиль), зазор двери над дном.
+// Двери-купе Hettich TopLine L перед корпусом. Перехлёст соседних дверей
+// сверяет мастер. Высота — по чертежу каталога (Sliding & Folding,
+// с. 17): верх двери на 2,5 мм выше крыши, низ не ниже 32,5 мм от пола
+// (берём 35); под дном не меньше 60 мм — там нижняя направляющая, цоколь
+// отступает от передней кромки дна на 46 мм.
 export const KUPE_OVERLAP = 25;
-export const KUPE_HEIGHT_DEDUCTION = 40;
-const KUPE_DOOR_LIFT = 15;
+export const KUPE_DOOR_OVER_ROOF = 2.5;
+export const KUPE_DOOR_FLOOR_GAP = 35;
+const KUPE_MIN_PLINTH = 60;
+export const KUPE_PLINTH_SETBACK = 46;
 const KUPE_DOOR_MIN_WIDTH = 550;
 const KUPE_DOOR_MAX_WIDTH = 1500;
 // В инструкции на 3 двери (MTA 9 288 579 02) двери шире 1350 мм нет.
@@ -1376,7 +1380,12 @@ function buildKupe(spec: CabinetSpec, t: number): CabinetResult {
 
   // Двери-купе: n дверей перекрывают ширину шкафа с перехлёстом.
   const doorWidth = round((W + (n - 1) * KUPE_OVERLAP) / n);
-  const doorHeight = round(H - plinth - KUPE_HEIGHT_DEDUCTION);
+  const doorHeight = round(H + KUPE_DOOR_OVER_ROOF - KUPE_DOOR_FLOOR_GAP);
+  if (plinth < KUPE_MIN_PLINTH) {
+    problems.push(
+      `Цоколь шкафа-купе ${plinth} мм: под дном нужно не меньше ${KUPE_MIN_PLINTH} мм — там стоит нижняя направляющая Hettich TopLine L.`,
+    );
+  }
   // Пределы Hettich TopLine L (каталог 2020, с. 14): ширина двери 550–1500 мм,
   // высота до 2600 мм, вес до 50 кг, толщина 10–30 мм.
   const maxDoor = n >= 3 ? KUPE_DOOR_MAX_WIDTH_3 : KUPE_DOOR_MAX_WIDTH;
@@ -1979,7 +1988,7 @@ function buildKupe(spec: CabinetSpec, t: number): CabinetResult {
         count: n,
         width: doorWidth,
         height: doorHeight,
-        bottom: round(plinth + KUPE_DOOR_LIFT),
+        bottom: KUPE_DOOR_FLOOR_GAP,
         overlap: KUPE_OVERLAP,
         tracks: Array.from({ length: n }, (_, index) =>
           index % 2 === 0
