@@ -10,6 +10,9 @@ import {
 import {
   CABINET_KINDS,
   buildCabinet,
+  kupeSchemeSections,
+  KUPE_SCHEMES,
+  KUPE_SECTION_TEMPLATES,
   slideKupeDoor,
 } from "../features/services/cabinet-builder";
 import { hardwareHoles } from "../features/services/drilling-hardware";
@@ -362,7 +365,10 @@ test("kupe: antresol, two rods, drawers between spacers", () => {
   assert.equal(part("полка антресоли, секция 1")?.length, 874);
   // Секция 2: антресоль на 400 мм ниже крыши, средняя полка, 2 штанги.
   const second = result.kupe!.sections[1];
-  assert.equal(second.fill, "twoRods");
+  assert.deepEqual(
+    second.zones.map((zone) => zone.kind),
+    ["antresol", "rod", "rod"],
+  );
   assert.deepEqual(
     second.shelves.map((shelf) => shelf.at),
     [1019, 2400 - 16 - 400 - 16],
@@ -456,7 +462,7 @@ test("kupe: own section widths, rod with trousers, shoes, four doors", () => {
     [564, 764, 2800 - 32 - 48 - 564 - 764 - 564, 564],
   );
   assert.equal(sections[0].shelves[0].kind, "полка для обуви");
-  assert.equal(sections[2].trousersAt !== null, true);
+  assert.equal(sections[2].trousers.length, 1);
   const door = result.parts.find((part) => /дверь купе/.test(part.title))!;
   assert.equal(door.quantity, 4);
   assert.ok(Math.abs(4 * door.width - 3 * 25 - 2800) < 0.5);
@@ -560,3 +566,138 @@ test("купе: двери вне пределов Hettich TopLine L — пре�
   const ok = buildCabinet({ ...CABINET_KINDS.kupe.defaults, kind: "kupe" }, 16);
   assert.ok(!ok.problems.some((text) => /TopLine/.test(text)));
 });
+
+test("купе: зоны секции сверху вниз — колонки, выдвижные полки, ящики посередине, брючница, обувь", () => {
+  const kupe = {
+    kind: "kupe" as const,
+    ...CABINET_KINDS.kupe.defaults,
+    width: 2400,
+    slidingDoors: 3 as const,
+    sections: [
+      {
+        zones: [
+          { kind: "antresol" as const, height: 400 },
+          { kind: "split" as const, count: 2, height: 700 },
+          { kind: "trays" as const, count: 2 },
+          { kind: "drawers" as const, count: 2 },
+          { kind: "shoes" as const, count: 1 },
+        ],
+      },
+      {
+        zones: [
+          { kind: "antresol" as const, height: 400 },
+          { kind: "rod" as const },
+          { kind: "trousers" as const, height: 800 },
+        ],
+      },
+      {
+        zones: [
+          { kind: "antresol" as const, height: 400 },
+          { kind: "shelves" as const, count: 2 },
+          { kind: "split" as const, count: 1 },
+        ],
+      },
+    ],
+  };
+  const result = buildCabinet(kupe, 16);
+  assert.deepEqual(result.problems, []);
+  const [first, second, third] = result.kupe!.sections;
+  // Зоны занимают всю высоту внутри: сверху крыша, снизу дно.
+  const bottomTop = 70 + 16;
+  for (const section of [first, second, third]) {
+    const last = section.zones[section.zones.length - 1];
+    assert.ok(Math.abs(last.from - bottomTop) < 0.2);
+    assert.ok(
+      Math.abs(section.zones[0].from + section.zones[0].height - 2384) < 0.2,
+    );
+  }
+  // Секция 1: стойка в зоне колонок, по 2 полки в каждой колонке.
+  assert.equal(first.stands.length, 1);
+  assert.equal(first.stands[0].height, 700);
+  assert.equal(
+    first.shelves.filter((shelf) => shelf.kind === "полка в колонке").length,
+    4,
+  );
+  assert.equal(first.trays, 2);
+  assert.equal(first.drawers, 2);
+  // Ящики над обувью: фасады от полки над обувью.
+  const shoeZone = first.zones[4];
+  assert.equal(
+    first.drawer!.frontsAt[0],
+    round1(shoeZone.from + shoeZone.height + 16 + 3),
+  );
+  // Секция 2: штанга под антресолью, брючница под полкой над ней.
+  assert.equal(second.trousers.length, 1);
+  assert.equal(second.rods.length, 1);
+  // Секция 3: стойка стоит на дне — в дне сквозное Ø7 под неё.
+  assert.equal(third.stands[0].at, bottomTop);
+  const part = (kind: string) =>
+    result.parts.find((entry) => partKind(entry.title) === kind);
+  assert.equal(part("выдвижная полка боковина, секция 1")?.width, 80);
+  assert.equal(part("проставка выдвижных полок, секция 1")?.width, 300);
+  assert.ok(part("полка со стойкой, секция 1"));
+  const bottom = part("дно")!;
+  const holes = hardwareHoles(bottom.hardware, bottom.length, bottom.width, 16);
+  const standX = third.stands[0].left + 8 - 16;
+  assert.ok(
+    holes.some(
+      (hole) =>
+        hole.kind === "face" &&
+        hole.diameter === 7 &&
+        Math.abs(hole.x - standX) < 0.2,
+    ),
+  );
+
+  const fittings = cabinetFittings(kupe, result, 16);
+  const count = (key: string) =>
+    fittings.find((line) => line.key === key)?.count ?? 0;
+  assert.equal(count("slide"), 4);
+  assert.equal(count("handle"), 2);
+  assert.equal(count("trousers"), 1);
+  const steps = cabinetAssembly(kupe, result, fittings);
+  const used = new Map<string, number>();
+  for (const step of steps)
+    for (const item of step.fittings)
+      used.set(item.label, (used.get(item.label) ?? 0) + item.count);
+  for (const line of fittings)
+    assert.equal(used.get(line.label), line.count, line.label);
+  const added = new Set(steps.flatMap((step) => step.added));
+  for (const entry of result.parts)
+    assert.ok(added.has(partKind(entry.title)), partKind(entry.title));
+  const boxes = buildCabinetModel(kupe, 16, result, options);
+  for (const entry of boxes)
+    assert.ok(
+      added.has(partKind(entry.info?.name ?? "")) ||
+        partKind(entry.info?.name ?? "") === "задняя стенка",
+      entry.info?.name,
+    );
+});
+
+test("купе: схемы с фото собираются без ошибок на ширине 1400–2700", () => {
+  for (const scheme of KUPE_SCHEMES) {
+    const width = scheme.sections.length > 2 ? 2700 : 1400;
+    const kupe = {
+      kind: "kupe" as const,
+      ...CABINET_KINDS.kupe.defaults,
+      width,
+      slidingDoors: (scheme.sections.length > 2 ? 3 : 2) as 2 | 3,
+      sections: kupeSchemeSections(scheme, width, 16),
+    };
+    const result = buildCabinet(kupe, 16);
+    assert.deepEqual(result.problems, [], scheme.label);
+  }
+  for (const template of KUPE_SECTION_TEMPLATES) {
+    const kupe = {
+      kind: "kupe" as const,
+      ...CABINET_KINDS.kupe.defaults,
+      width: 1400,
+      // По секции на дверь: ящики выходят в проём своей двери.
+      sections: [{ zones: template.zones }, { zones: template.zones }],
+    };
+    assert.deepEqual(buildCabinet(kupe, 16).problems, [], template.label);
+  }
+});
+
+function round1(value: number) {
+  return Math.round(value * 10) / 10;
+}

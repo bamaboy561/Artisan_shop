@@ -3,6 +3,7 @@
 // столько шкантов, сколько эксцентриков — столько штоков и т. д.
 
 import {
+  KUPE_TRAY_BOX,
   sectionSuffix,
   type CabinetResult,
   type CabinetSpec,
@@ -254,6 +255,10 @@ export function cabinetFittings(
     add("slideScrew", drawers * 12);
     add("frontScrew", drawers * 4);
     add("backNail", bottomNails(result));
+    // Выдвижные полки купе на тех же направляющих.
+    const trays = result.drawers.trays ?? 0;
+    add("slide", trays);
+    add("slideScrew", trays * 12);
   }
 
   if (result.back) {
@@ -269,7 +274,7 @@ export function cabinetFittings(
       add("shelfPin", part.quantity * 4);
     }
     // Проставка ящиков: 4 самореза к стенке секции.
-    if (kind.startsWith("проставка ящиков")) {
+    if (kind.startsWith("проставка")) {
       add("spacerScrew", part.quantity * 4);
     }
   }
@@ -290,7 +295,7 @@ export function cabinetFittings(
     add("rodScrew", rods * 4);
     add(
       "trousers",
-      kupe.sections.filter((section) => section.trousersAt !== null).length,
+      kupe.sections.reduce((sum, section) => sum + section.trousers.length, 0),
     );
   }
 
@@ -351,8 +356,9 @@ export function cabinetFittings(
             .map((length) => `${Math.round(length)}`)
             .join(", ")} мм`,
           trousers: `под секцию ${kupe.sections
-            .filter((section) => section.trousersAt !== null)
-            .map((section) => Math.round(section.width))
+            .flatMap((section) =>
+              section.trousers.map(() => Math.round(section.width)),
+            )
             .join(", ")} мм, крепится под полку`,
         }
       : {}),
@@ -420,10 +426,13 @@ export function cabinetAssembly(
   // Конфирматы цоколя: по одному с каждой стороны, остальные — корпус.
   const plinthScrews = hasPlinth ? 2 : 0;
   // Конфирматы коробов ящиков: по 2 на каждый из 4 углов.
-  const drawerScrews =
-    result.drawers && result.drawers.slide > 0 && has("ящик стенка")
-      ? result.drawers.count * 8
-      : 0;
+  const drawerScrews = result.parts
+    .filter((part) =>
+      ["ящик стенка", "выдвижная полка стенка"].includes(
+        baseKind(partKind(part.title)),
+      ),
+    )
+    .reduce((sum, part) => sum + part.quantity * 4, 0);
   const drawerNails = drawerScrews > 0 ? bottomNails(result) : 0;
   // Перегородки купе: конфирматы через крышу и дно.
   const partitions = result.parts.filter((part) => isPartition(part.title));
@@ -439,8 +448,31 @@ export function cabinetAssembly(
       ).length,
     0,
   );
+  // Конфирматы стоек колонок и бортиков выдвижных полок.
+  const edgeScrews = (test: (kind: string) => boolean) =>
+    result.parts
+      .filter((part) => test(baseKind(partKind(part.title))))
+      .reduce(
+        (sum, part) =>
+          sum +
+          hardwareHoles(
+            part.hardware?.filter((entry) => entry.kind === "confirmatEdge"),
+            part.length,
+            part.width,
+            16,
+          ).length *
+            part.quantity,
+        0,
+      );
+  const standScrews = edgeScrews((kind) => kind.startsWith("стойка"));
+  const trayScrews = edgeScrews((kind) => kind === "выдвижная полка");
   const bodyScrews =
-    count("confirmat") - plinthScrews - drawerScrews - partitionScrews;
+    count("confirmat") -
+    plinthScrews -
+    drawerScrews -
+    partitionScrews -
+    standScrews -
+    trayScrews;
   const closed = [...body, ...(hasPlinth ? ["цоколь"] : []), "боковина правая"];
 
   if (joint === "minifix") {
@@ -538,10 +570,20 @@ export function cabinetAssembly(
     const grooved = shelfParts.some((part) => part.milling?.grooves?.length);
     steps.push({
       title: "Поставьте полки",
-      text: `Поставьте корпус. Вставьте полкодержатели в отверстия Ø5 — по 4 на полку — и уложите ${total} ${total === 1 ? "полку" : total < 5 ? "полки" : "полок"}${grooved ? " пазом вниз" : ""}.${fixedShelf ? (kupe ? " Полка над ящиками закрывает их сверху." : " Нижняя полка отделяет ящики от отделения за дверями.") : ""}${has("полка антресоли") ? " Верхние полки на 400 мм ниже крыши — антресоль." : ""}`,
+      text: `Поставьте корпус. Вставьте полкодержатели в отверстия Ø5 — по 4 на полку — и уложите ${total} ${total === 1 ? "полку" : total < 5 ? "полки" : "полок"}${grooved ? " пазом вниз" : ""}.${fixedShelf ? (kupe ? " Полка над ящиками закрывает их сверху." : " Нижняя полка отделяет ящики от отделения за дверями.") : ""}${has("полка антресоли") ? " Полки антресоли отделяют верх секций." : ""}`,
       shown: [...withBack, ...shelfKinds],
       added: shelfKinds,
       fittings: item("shelfPin", count("shelfPin")),
+    });
+  }
+  const standKinds = kindsWhere((kind) => kind.startsWith("стойка"));
+  if (standKinds.length > 0) {
+    steps.push({
+      title: standKinds.length === 1 ? "Поставьте стойку" : "Поставьте стойки",
+      text: "Стойка делит секцию на две колонки. Поставьте её между полками со стойкой по отверстиям Ø7 и закрутите конфирматы через полки сверху и снизу (через крышу или дно, если стойка у них). Полки колонок ставятся на полкодержатели в стенке секции и в стойке.",
+      shown: [...withBack, ...shelfKinds, ...standKinds],
+      added: standKinds,
+      fittings: item("confirmat", standScrews),
     });
   }
   const rodKinds = kupe
@@ -560,7 +602,7 @@ export function cabinetAssembly(
     steps.push({
       title: count("rod") === 1 ? "Повесьте штангу" : "Повесьте штанги",
       text: `Прикрутите штангодержатели к стенкам секции под полкой, по 2 самореза: ось штанги на ${heights.join(", ")} мм от пола. Отрежьте штангу по ширине секции минус 4 мм и вставьте в держатели.`,
-      shown: [...withBack, ...shelfKinds, ...rodKinds],
+      shown: [...withBack, ...shelfKinds, ...standKinds, ...rodKinds],
       added: rodKinds,
       fittings: [
         ...item("rod", count("rod")),
@@ -571,30 +613,45 @@ export function cabinetAssembly(
   }
   const trouserKinds = kupe
     ? kupe.sections
-        .filter((section) => section.trousersAt !== null)
+        .filter((section) => section.trousers.length > 0)
         .map((section) => `брючница${sectionSuffix(section.index)}`)
     : [];
   if (trouserKinds.length > 0) {
     steps.push({
       title: "Поставьте брючницу",
-      text: "Прикрутите направляющие брючницы снизу к средней полке секции по инструкции к брючнице, вставьте рамку до щелчка. Брюки висят под ней.",
-      shown: [...withBack, ...shelfKinds, ...rodKinds, ...trouserKinds],
+      text: "Прикрутите направляющие брючницы снизу к полке над ней по инструкции к брючнице, вставьте рамку до щелчка. Брюки висят под ней.",
+      shown: [
+        ...withBack,
+        ...shelfKinds,
+        ...standKinds,
+        ...rodKinds,
+        ...trouserKinds,
+      ],
       added: trouserKinds,
       fittings: item("trousers", count("trousers")),
     });
   }
   const withRod = [...rodKinds, ...trouserKinds];
-  const spacerKinds = kindsWhere((kind) => kind === "проставка ящиков");
+  const spacerKinds = kindsWhere((kind) => kind.startsWith("проставка"));
   const drawers = result.drawers;
-  const boxSideKinds = kindsWhere((kind) => kind === "ящик боковина");
+  const trays = drawers?.trays ?? 0;
+  const boxSideKinds = kindsWhere(
+    (kind) => kind === "ящик боковина" || kind === "выдвижная полка боковина",
+  );
   const boxKinds = [
     ...boxSideKinds,
-    ...kindsWhere((kind) => kind === "ящик стенка"),
-    ...boxSideKinds.map((kind) => kind.replace("ящик боковина", "дно ящика")),
+    ...kindsWhere(
+      (kind) => kind === "ящик стенка" || kind === "выдвижная полка стенка",
+    ),
+    ...boxSideKinds.map((kind) =>
+      kind.replace(/(ящик|выдвижная полка) боковина/, (_, what: string) =>
+        what === "ящик" ? "дно ящика" : "дно выдвижной полки",
+      ),
+    ),
   ];
   const frontKinds = kindsWhere((kind) => kind === "фасад ящика");
   const drawerKinds = [...boxKinds, ...frontKinds];
-  const withShelves = [...withBack, ...shelfKinds, ...withRod];
+  const withShelves = [...withBack, ...shelfKinds, ...standKinds, ...withRod];
   if (drawers && drawers.slide > 0 && boxSideKinds.length > 0) {
     const bottoms = drawerBottoms(result)
       .map(
@@ -602,9 +659,10 @@ export function cabinetAssembly(
           `${Math.round(bottom.length)} × ${Math.round(bottom.width)} мм${drawerBottoms(result).length > 1 ? ` (${bottom.count} шт.)` : ""}`,
       )
       .join(", ");
+    const boxes = drawers.count + trays;
     steps.push({
       title: "Соберите короба ящиков",
-      text: `Соберите ${drawers.count} ${drawers.count === 1 ? "короб" : drawers.count < 5 ? "короба" : "коробов"}: стенки между боковинами на конфирматах через отверстия Ø7. Проверьте диагонали и прибейте снизу дно ХДФ ${bottoms}.`,
+      text: `Соберите ${boxes} ${boxes === 1 ? "короб" : boxes < 5 ? "короба" : "коробов"}: стенки между боковинами на конфирматах через отверстия Ø7. Проверьте диагонали и прибейте снизу дно ХДФ ${bottoms}.${trays > 0 ? ` Низкие короба по ${KUPE_TRAY_BOX} мм — выдвижные полки без фасада.` : ""}`,
       shown: boxKinds,
       added: boxKinds,
       fittings: [
@@ -615,16 +673,28 @@ export function cabinetAssembly(
     if (spacerKinds.length > 0) {
       steps.push({
         title: "Прикрутите проставки",
-        text: "Ящики должны выходить в проём между дверями-купе, не задевая их. Прикрутите проставки к стенкам секций с ящиками со стороны перехлёста дверей, от дна до полки над ящиками, по 4 самореза.",
+        text: "Ящики должны выходить в проём между дверями-купе, не задевая их. Прикрутите проставки к стенкам секций со стороны перехлёста дверей, по высоте блока ящиков или выдвижных полок, по 4 самореза.",
         shown: [...withShelves, ...spacerKinds],
         added: spacerKinds,
         fittings: item("spacerScrew", count("spacerScrew")),
       });
     }
+    const centers = kupe
+      ? kupe.sections.flatMap((section) => [
+          ...(section.drawer?.boxesAt ?? []).map(
+            (at) => at + drawers.boxHeight / 2,
+          ),
+          ...(section.drawer?.traysAt ?? []).map(
+            (at) => at + KUPE_TRAY_BOX / 2,
+          ),
+        ])
+      : drawers.boxesAt.map((at) => at + drawers.boxHeight / 2);
     steps.push({
       title: "Поставьте ящики на направляющие",
-      text: `Разделите направляющие ${drawers.slide} мм на половины. Узкие прикрутите к боковинам коробов по центру высоты, широкие — к ${kupe ? "стенкам секции (или проставкам)" : "боковинам корпуса"} по разметке, центр направляющей от пола: ${drawers.boxesAt
-        .map((at) => Math.round(at + drawers.boxHeight / 2))
+      text: `Разделите направляющие ${drawers.slide} мм на половины. Узкие прикрутите к боковинам коробов по центру высоты, широкие — к ${kupe ? "стенкам секции (или проставкам)" : "боковинам корпуса"} по разметке, центр направляющей от пола: ${[
+        ...new Set(centers.map((at) => Math.round(at))),
+      ]
+        .sort((a, b) => a - b)
         .join(", ")} мм (снизу вверх). Вставьте короба до щелчка.`,
       shown: [...withShelves, ...spacerKinds, ...boxKinds],
       added: boxKinds,
@@ -633,17 +703,19 @@ export function cabinetAssembly(
         ...item("slideScrew", count("slideScrew")),
       ],
     });
-    steps.push({
-      title: "Прикрутите фасады ящиков",
-      text: `${drawers.inset ? "Фасады вкладные: приложите фасад внутри секции с зазором 2 мм до стенок и 3 мм между фасадами" : "Приложите фасад к коробу с зазором 3 мм между фасадами"}, прикрутите изнутри короба четырьмя саморезами. Поставьте ручки: разметьте по шаблону, просверлите Ø5 насквозь и прикрутите винтами изнутри.`,
-      shown: [...withShelves, ...spacerKinds, ...drawerKinds],
-      added: frontKinds,
-      fittings: [
-        ...item("frontScrew", count("frontScrew")),
-        ...item("handle", drawers.count),
-        ...item("handleScrew", drawers.count * 2),
-      ],
-    });
+    if (frontKinds.length > 0) {
+      steps.push({
+        title: "Прикрутите фасады ящиков",
+        text: `${drawers.inset ? "Фасады вкладные: приложите фасад внутри секции с зазором 2 мм до стенок и 3 мм между фасадами" : "Приложите фасад к коробу с зазором 3 мм между фасадами"}, прикрутите изнутри короба четырьмя саморезами. Поставьте ручки: разметьте по шаблону, просверлите Ø5 насквозь и прикрутите винтами изнутри.`,
+        shown: [...withShelves, ...spacerKinds, ...drawerKinds],
+        added: frontKinds,
+        fittings: [
+          ...item("frontScrew", count("frontScrew")),
+          ...item("handle", drawers.count),
+          ...item("handleScrew", drawers.count * 2),
+        ],
+      });
+    }
   }
   const led = spec.led ?? "none";
   const hasLed = count("ledProfile") > 0;
@@ -697,7 +769,7 @@ export function cabinetAssembly(
     );
     steps.push({
       title: "Поставьте двери-купе",
-      text: `Прикрутите верхний профиль TopLine L под крышу или к потолку, нижний — к полу или к дну по передней кромке, оба на ${spec.width} мм. Прикрутите ролики к дверям по инструкции к комплекту. Поставьте ${kupe.doors.count} двери ${door ? `${door.length} × ${door.width} мм` : ""}: ${kupe.doors.count === 2 ? "левую в заднюю дорожку, правую в переднюю" : "крайние в заднюю дорожку, среднюю в переднюю"}. Отрегулируйте ролики, чтобы двери закрывались без щели, перехлёст ${kupe.doors.overlap} мм.`,
+      text: `Прикрутите верхний профиль TopLine L под крышу или к потолку, нижний — к полу или к дну по передней кромке, оба на ${spec.width} мм. Прикрутите ролики к дверям по инструкции к комплекту. Поставьте ${kupe.doors.count} двери ${door ? `${door.length} × ${door.width} мм` : ""}: ${kupe.doors.count === 2 ? "левую в заднюю дорожку, правую в переднюю" : kupe.doors.count === 3 ? "крайние в заднюю дорожку, среднюю в переднюю" : "1-ю и 3-ю в заднюю дорожку, 2-ю и 4-ю в переднюю"}. Отрегулируйте ролики, чтобы двери закрывались без щели, перехлёст ${kupe.doors.overlap} мм.`,
       shown: [...inside, "дверь купе"],
       added: ["дверь купе"],
       fittings: [
