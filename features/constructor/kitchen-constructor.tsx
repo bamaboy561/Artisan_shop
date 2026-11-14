@@ -21,6 +21,7 @@ import {
   kitchenWalls,
   type KitchenBaseType,
   type KitchenLayout,
+  type KitchenPlaced,
   type KitchenSpec,
   type KitchenTopType,
   type KitchenWall,
@@ -34,6 +35,7 @@ import type {
 } from "@/lib/server/constructor-decors";
 
 import { kitchenFittings } from "./assembly";
+import { BlockCatalog, BlockIcon } from "./kitchen-blocks";
 import { FittingsPanel } from "./assembly-panel";
 import {
   TONE_BACK,
@@ -108,7 +110,34 @@ const isFacade = (part: CabinetPart) =>
 const moduleCode = (name: string) =>
   /, ((?:\d+-)?[НВ]\d+):/.exec(name)?.[1] ?? null;
 
+// Задние стенки и дно ящиков из ХДФ: размер листа и сколько штук.
+function hdfSheets(modules: KitchenPlaced[]) {
+  const sheets = new Map<string, number>();
+  for (const item of modules) {
+    const cabinet = item.result;
+    if (!cabinet) continue;
+    const add = (length: number, width: number, count: number) => {
+      const key = `${sizeFormatter.format(length)} × ${sizeFormatter.format(width)}`;
+      sheets.set(key, (sheets.get(key) ?? 0) + count);
+    };
+    if (cabinet.back) add(cabinet.back.length, cabinet.back.width, 1);
+    if (cabinet.drawers?.slide) {
+      for (const bottom of cabinet.drawers.bottoms ?? [
+        { ...cabinet.drawers.bottom, count: cabinet.drawers.count },
+      ]) {
+        add(bottom.length, bottom.width, bottom.count);
+      }
+    }
+  }
+  return [...sheets].map(([size, count]) => ({ size, count }));
+}
+
+// Код блока, как в деталях: «Н3», «2-В1».
+const blockCode = (wall: number, row: "base" | "top", index: number) =>
+  `${wall > 0 ? `${wall + 1}-` : ""}${row === "base" ? "Н" : "В"}${index + 1}`;
+
 function ModuleRow<T extends string>({
+  row,
   code,
   types,
   type,
@@ -121,6 +150,7 @@ function ModuleRow<T extends string>({
   onMove,
   onRemove,
 }: {
+  row: "base" | "top";
   code: string;
   types: Record<T, { label: string; width: number; hint: string }>;
   type: T;
@@ -148,9 +178,10 @@ function ModuleRow<T extends string>({
         <button
           type="button"
           onClick={onSelect}
-          className="h-9 w-11 shrink-0 rounded-lg bg-[var(--surface-strong)] text-[12px] font-semibold"
-          title="Показать в макете"
+          className="grid h-14 w-12 shrink-0 justify-items-center rounded-lg bg-[var(--surface-strong)] pt-0.5 text-[11px] leading-3 font-semibold"
+          title="Показать блок, его детали и фурнитуру"
         >
+          <BlockIcon row={row} type={type} className="size-9" />
           {code}
         </button>
         <label className="grid min-w-0 flex-1 gap-1 text-[12px] text-[var(--muted)]">
@@ -233,6 +264,9 @@ export function KitchenConstructor({
   const [doorsOpen, setDoorsOpen] = useState(false);
   const doorOpen = useDoorOpen(doorsOpen);
   const [selected, setSelected] = useState<string | null>(null);
+  // Ряд, у которого открыт каталог блоков: «0-base».
+  const [adding, setAdding] = useState<string | null>(null);
+  const blockCard = useRef<HTMLElement>(null);
   const [error, setError] = useState("");
 
   const bodyDecor = decors.find((decor) => decor.id === bodyId);
@@ -298,27 +332,42 @@ export function KitchenConstructor({
     setSelected(null);
     set({ layout, walls: kitchenPreset(layout) });
   };
+  // Пустые стены той же планировки: блоки ставятся по одному.
+  const clearWalls = () => {
+    setSelected(null);
+    setAdding("0-base");
+    set({
+      walls: walls.map((wall) => ({ ...wall, base: [], top: [] })),
+    });
+  };
 
   // Задние стенки и дно ящиков — ХДФ, отдельным материалом.
-  const hdf = useMemo(() => {
-    const sheets = new Map<string, number>();
-    for (const item of result.modules) {
-      const cabinet = item.result;
-      if (!cabinet) continue;
-      const add = (length: number, width: number, count: number) => {
-        const key = `${sizeFormatter.format(length)} × ${sizeFormatter.format(width)}`;
-        sheets.set(key, (sheets.get(key) ?? 0) + count);
-      };
-      if (cabinet.back) add(cabinet.back.length, cabinet.back.width, 1);
-      if (cabinet.drawers?.slide) {
-        for (const bottom of cabinet.drawers.bottoms ?? [
-          { ...cabinet.drawers.bottom, count: cabinet.drawers.count },
-        ]) {
-          add(bottom.length, bottom.width, bottom.count);
-        }
-      }
+  const hdf = useMemo(() => hdfSheets(result.modules), [result]);
+  const blockFittings = useMemo(
+    () => (selected ? kitchenFittings(result, thickness, selected) : []),
+    [result, thickness, selected],
+  );
+  const selectedModule = result.modules.find((item) => item.code === selected);
+  const selectedHdf = selectedModule ? hdfSheets([selectedModule]) : [];
+  const selectedProblems = selected
+    ? result.problems.filter((problem) => problem.startsWith(`${selected}:`))
+    : [];
+  const selectedParts = selected
+    ? result.parts.filter((part) => moduleCode(part.title) === selected)
+    : [];
+  // Детали по блокам: сначала блоки по порядку, в конце общие (цоколь,
+  // фальшпанели).
+  const partGroups = useMemo(() => {
+    const groups = new Map<string, CabinetPart[]>();
+    for (const part of result.parts) {
+      const code = moduleCode(part.title) ?? "";
+      groups.set(code, [...(groups.get(code) ?? []), part]);
     }
-    return [...sheets].map(([size, count]) => ({ size, count }));
+    const order = result.modules.map((item) => item.code);
+    return [...groups].sort(
+      ([a], [b]) =>
+        (a ? order.indexOf(a) : Infinity) - (b ? order.indexOf(b) : Infinity),
+    );
   }, [result]);
   const countertopNote = result.countertops.length
     ? `Столешница ${spec.countertop} мм (покупная, в распил не входит): ${result.countertops
@@ -331,13 +380,20 @@ export function KitchenConstructor({
   const partCount = result.parts.reduce((sum, part) => sum + part.quantity, 0);
   const bodies = result.modules.filter((item) => item.spec).length;
 
-  const send = (which: "all" | "body" | "facade") => {
-    const name = spec.name.trim() || "Кухня";
-    const hdfNote = hdf.length
-      ? `ХДФ (задние стенки и дно ящиков): ${hdf.map((sheet) => `${sheet.size} мм — ${sheet.count} шт`).join(", ")}.`
+  // В распил вся кухня или один блок («Н3»): у блока свои ХДФ и
+  // фурнитура, столешница — только у всей кухни.
+  const send = (which: "all" | "body" | "facade", block?: string) => {
+    const kitchen = spec.name.trim() || "Кухня";
+    const name = block ? `${kitchen}, блок ${block}` : kitchen;
+    const sheets = block
+      ? hdfSheets(result.modules.filter((item) => item.code === block))
+      : hdf;
+    const lines = block ? kitchenFittings(result, thickness, block) : fittings;
+    const hdfNote = sheets.length
+      ? `ХДФ (задние стенки и дно ящиков): ${sheets.map((sheet) => `${sheet.size} мм — ${sheet.count} шт`).join(", ")}.`
       : "";
-    const fittingsNote = fittings.length
-      ? `Фурнитура: ${fittings.map((item) => `${item.label.toLowerCase()} ${item.note} — ${item.count} ${item.unit ?? "шт."}`).join(", ")}.`
+    const fittingsNote = lines.length
+      ? `Фурнитура: ${lines.map((item) => `${item.label.toLowerCase()} ${item.note} — ${item.count} ${item.unit ?? "шт."}`).join(", ")}.`
       : "";
     const facadeNote =
       which === "body" && facadeDecor
@@ -347,7 +403,7 @@ export function KitchenConstructor({
       id: `constructor-${Math.random().toString(36).slice(2, 9)}`,
       label: which === "facade" ? `${name}, фасады` : name,
       note: [
-        which === "facade" ? "" : countertopNote,
+        which === "facade" || block ? "" : countertopNote,
         which === "facade" ? "" : hdfNote,
         facadeNote,
         which === "facade" ? "" : fittingsNote,
@@ -356,6 +412,7 @@ export function KitchenConstructor({
         .join(" "),
     };
     const parts = result.parts
+      .filter((part) => !block || moduleCode(part.title) === block)
       .filter((part) =>
         which === "all"
           ? true
@@ -377,6 +434,17 @@ export function KitchenConstructor({
   const clickBox = (index: number) => {
     const code = moduleCode(boxes[index]?.info?.name ?? "");
     setSelected((current) => (code && current !== code ? code : null));
+    // На широком экране карточка блока может быть выше прокрутки.
+    if (code && window.matchMedia("(min-width: 1024px)").matches) {
+      setTimeout(
+        () =>
+          blockCard.current?.scrollIntoView({
+            block: "nearest",
+            behavior: "smooth",
+          }),
+        50,
+      );
+    }
   };
 
   return (
@@ -422,6 +490,128 @@ export function KitchenConstructor({
       </div>
 
       <div className="grid min-w-0 content-start gap-4">
+        {selectedModule ? (
+          <section
+            ref={blockCard}
+            className="grid scroll-mt-24 gap-3 rounded-2xl border border-[var(--accent)] p-3"
+          >
+            <div className="flex items-start gap-3">
+              <BlockIcon
+                row={selectedModule.row}
+                type={selectedModule.type}
+                className="size-12 shrink-0"
+              />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold">
+                  Блок {selectedModule.code} · {selectedModule.label}
+                </p>
+                <p className="text-[12px] text-[var(--muted)] tabular-nums">
+                  {sizeFormatter.format(selectedModule.width)} ×{" "}
+                  {sizeFormatter.format(selectedModule.height)} ×{" "}
+                  {sizeFormatter.format(selectedModule.depth)} мм (ширина ×
+                  высота × глубина)
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelected(null)}
+                className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-[color:var(--line)]"
+                aria-label="Закрыть блок"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+            {selectedProblems.length > 0 ? (
+              <ul className="grid gap-1 rounded-xl border border-amber-200 bg-amber-50 p-2 text-[12px] leading-5 text-amber-900">
+                {selectedProblems.map((problem) => (
+                  <li key={problem}>{problem}</li>
+                ))}
+              </ul>
+            ) : null}
+            {selectedParts.length > 0 ? (
+              <table className="w-full text-[12px]">
+                <tbody>
+                  {selectedParts.map((part, index) => (
+                    <tr
+                      key={`${part.title}-${index}`}
+                      className="border-t border-[color:var(--line)] first:border-t-0"
+                    >
+                      <td className="py-1 pr-2">
+                        {partLabel(part.title)}
+                        {isFacade(part) && !sameDecor ? (
+                          <span className="text-[var(--muted)]"> · фасад</span>
+                        ) : null}
+                      </td>
+                      <td className="py-1 whitespace-nowrap tabular-nums">
+                        {sizeFormatter.format(part.length)} ×{" "}
+                        {sizeFormatter.format(part.width)}
+                      </td>
+                      <td className="py-1 text-right tabular-nums">
+                        {part.quantity}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <p className="text-[12px] text-[var(--muted)]">
+                Без деталей ЛДСП: место под технику.
+              </p>
+            )}
+            {selectedHdf.length > 0 ? (
+              <p className="text-[12px] leading-5 text-[var(--muted)]">
+                ХДФ (задняя стенка, дно ящиков):{" "}
+                {selectedHdf
+                  .map((sheet) => `${sheet.size} мм — ${sheet.count} шт`)
+                  .join(", ")}
+                .
+              </p>
+            ) : null}
+            {blockFittings.length > 0 ? (
+              <FittingsPanel
+                key={selectedModule.code}
+                lines={blockFittings}
+                products={fittingProducts}
+              />
+            ) : null}
+            {selectedParts.length > 0 ? (
+              <div className="grid gap-2 sm:grid-cols-2">
+                {sameDecor ? (
+                  <button
+                    type="button"
+                    disabled={selectedProblems.length > 0}
+                    onClick={() => send("all", selectedModule.code)}
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-[var(--accent)] px-4 text-[13px] font-semibold text-[var(--accent-ink)] disabled:opacity-40 sm:col-span-2"
+                  >
+                    <Scissors className="size-4" />
+                    Блок {selectedModule.code} в распил
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      disabled={selectedProblems.length > 0}
+                      onClick={() => send("body", selectedModule.code)}
+                      className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-[var(--accent)] px-4 text-[13px] font-semibold text-[var(--accent-ink)] disabled:opacity-40"
+                    >
+                      <Scissors className="size-4" />
+                      Корпус {selectedModule.code} в распил
+                    </button>
+                    <button
+                      type="button"
+                      disabled={selectedProblems.length > 0}
+                      onClick={() => send("facade", selectedModule.code)}
+                      className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-[color:var(--line-strong)] px-4 text-[13px] font-semibold disabled:opacity-40"
+                    >
+                      Фасады {selectedModule.code} в распил
+                    </button>
+                  </>
+                )}
+              </div>
+            ) : null}
+          </section>
+        ) : null}
+
         <div className="flex flex-wrap gap-2">
           {(Object.keys(KITCHEN_LAYOUTS) as KitchenLayout[]).map((layout) => (
             <button
@@ -439,9 +629,28 @@ export function KitchenConstructor({
             </button>
           ))}
         </div>
+        <div className="-mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+          <button
+            type="button"
+            onClick={clearWalls}
+            className="text-[13px] font-medium text-[var(--accent)] underline-offset-2 hover:underline"
+          >
+            Собрать с пустых стен
+          </button>
+          <button
+            type="button"
+            onClick={() => chooseLayout(spec.layout)}
+            className="text-[13px] font-medium text-[var(--accent)] underline-offset-2 hover:underline"
+          >
+            Готовый набор блоков
+          </button>
+        </div>
         <p className="-mt-2 text-[12px] leading-5 text-[var(--muted)]">
-          Модули идут слева направо, если стоять лицом к стене. У угла первым
-          ставьте угловой модуль: его глухая часть уходит за соседний ряд.
+          Кухня собирается из блоков: добавляйте их в ряд из каталога, блоки
+          идут слева направо, если стоять лицом к стене. Нажмите на блок в
+          макете или в списке — увидите его детали и фурнитуру, его можно отдать
+          в распил отдельно. У угла первым ставьте угловой блок: его глухая
+          часть уходит за соседний ряд.
         </p>
 
         <label className="grid gap-1 text-[12px] text-[var(--muted)]">
@@ -526,7 +735,7 @@ export function KitchenConstructor({
                         </p>
                       ) : null}
                       {list.map((item, index) => {
-                        const code = `${w > 0 ? `${w + 1}-` : ""}${row === "base" ? "Н" : "В"}${index + 1}`;
+                        const code = blockCode(w, row, index);
                         const common = {
                           code,
                           width: item.width,
@@ -565,6 +774,7 @@ export function KitchenConstructor({
                         return row === "base" ? (
                           <ModuleRow<KitchenBaseType>
                             key={`${code}-${item.type}`}
+                            row="base"
                             {...common}
                             types={KITCHEN_BASE_TYPES}
                             type={item.type as KitchenBaseType}
@@ -573,6 +783,7 @@ export function KitchenConstructor({
                         ) : (
                           <ModuleRow<KitchenTopType>
                             key={`${code}-${item.type}`}
+                            row="top"
                             {...common}
                             types={KITCHEN_TOP_TYPES}
                             type={item.type as KitchenTopType}
@@ -580,21 +791,65 @@ export function KitchenConstructor({
                           />
                         );
                       })}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const width =
-                            free >= 150 ? Math.min(600, Math.round(free)) : 600;
-                          update([
-                            ...list,
-                            { type: "doors", width },
-                          ] as typeof list);
-                        }}
-                        className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-dashed border-[color:var(--line-strong)] text-[13px] font-medium"
-                      >
-                        <Plus className="size-4" />
-                        Добавить модуль
-                      </button>
+                      {adding === `${w}-${row}` ? (
+                        <div className="grid gap-2 rounded-xl border border-dashed border-[color:var(--line-strong)] p-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-[12px] text-[var(--muted)]">
+                              Нажмите на блок — он встанет в конец ряда.
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => setAdding(null)}
+                              className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-[color:var(--line)]"
+                              aria-label="Закрыть каталог"
+                            >
+                              <X className="size-4" />
+                            </button>
+                          </div>
+                          {row === "base" ? (
+                            <BlockCatalog<KitchenBaseType>
+                              row="base"
+                              types={KITCHEN_BASE_TYPES}
+                              onPick={(type) => {
+                                update([
+                                  ...wall.base,
+                                  {
+                                    type,
+                                    width: KITCHEN_BASE_TYPES[type].width,
+                                  },
+                                ] as typeof list);
+                                setSelected(
+                                  blockCode(w, row, wall.base.length),
+                                );
+                              }}
+                            />
+                          ) : (
+                            <BlockCatalog<KitchenTopType>
+                              row="top"
+                              types={KITCHEN_TOP_TYPES}
+                              onPick={(type) => {
+                                update([
+                                  ...wall.top,
+                                  {
+                                    type,
+                                    width: KITCHEN_TOP_TYPES[type].width,
+                                  },
+                                ] as typeof list);
+                                setSelected(blockCode(w, row, wall.top.length));
+                              }}
+                            />
+                          )}
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setAdding(`${w}-${row}`)}
+                          className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-dashed border-[color:var(--line-strong)] text-[13px] font-medium"
+                        >
+                          <Plus className="size-4" />
+                          Добавить блок
+                        </button>
+                      )}
                     </div>
                   );
                 })}
@@ -736,17 +991,33 @@ export function KitchenConstructor({
               </tr>
             </thead>
             <tbody>
-              {result.parts.map((part, index) => {
-                const code = moduleCode(part.title);
-                return (
+              {partGroups.map(([code, parts]) => [
+                <tr key={`group-${code}`}>
+                  <th
+                    colSpan={4}
+                    className="pt-3 pb-1 text-left text-[12px] font-semibold"
+                  >
+                    {code ? (
+                      <button
+                        type="button"
+                        onClick={() => setSelected(code)}
+                        className="underline-offset-2 hover:underline"
+                      >
+                        Блок {code} ·{" "}
+                        {result.modules.find((item) => item.code === code)
+                          ?.label ?? ""}
+                      </button>
+                    ) : (
+                      "Общие: цоколь и фальшпанели"
+                    )}
+                  </th>
+                </tr>,
+                ...parts.map((part, index) => (
                   <tr
                     key={`${part.title}-${index}`}
                     className="border-t border-[color:var(--line)]"
                   >
                     <td className="py-1.5 pr-2">
-                      {code ? (
-                        <span className="text-[var(--muted)]">{code} · </span>
-                      ) : null}
                       {partLabel(part.title)}
                       {isFacade(part) && !sameDecor ? (
                         <span className="text-[var(--muted)]"> · фасад</span>
@@ -768,8 +1039,8 @@ export function KitchenConstructor({
                       {part.quantity}
                     </td>
                   </tr>
-                );
-              })}
+                )),
+              ])}
               {hdf.map((sheet) => (
                 <tr
                   key={`hdf-${sheet.size}`}

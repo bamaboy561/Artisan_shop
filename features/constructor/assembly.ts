@@ -875,11 +875,16 @@ export function cabinetAssembly(
 }
 
 // Фурнитура всей кухни: сумма по модулям плюс ножки, клипсы цоколя,
-// подъёмники, сушка, карго и ручка на фасад посудомойки.
+// подъёмники, сушка, карго и ручка на фасад посудомойки. С кодом блока
+// («Н3») — только фурнитура этого блока, без столешницы.
 export function kitchenFittings(
   result: KitchenResult,
   thickness: number,
+  only?: string,
 ): FittingLine[] {
+  const modules = only
+    ? result.modules.filter((item) => item.code === only)
+    : result.modules;
   const counts = new Map<FittingKey, number>();
   const notes = new Map<FittingKey, Map<string, number>>();
   const add = (key: FittingKey, count: number, note?: string) => {
@@ -891,7 +896,7 @@ export function kitchenFittings(
       notes.set(key, byNote);
     }
   };
-  for (const item of result.modules) {
+  for (const item of modules) {
     if (item.spec && item.result) {
       for (const line of cabinetFittings(item.spec, item.result, thickness)) {
         add(
@@ -921,17 +926,17 @@ export function kitchenFittings(
     (piece) =>
       piece.wall > 0 && piece.from < (result.starts[piece.wall]?.base ?? 0),
   ).length;
-  if (worktop > 0) {
+  if (worktop > 0 && !only) {
     add("worktopPlinth", Math.ceil(worktop / 1000));
     add("worktopJoint", joints);
     add("worktopEnd", result.countertops.length * 2 - joints * 2);
   }
-  const hanging = result.modules
+  const hanging = modules
     .filter((item) => item.row === "top" && item.spec)
     .reduce((sum, item) => sum + item.width, 0);
   add("wallRail", Math.ceil(hanging / 1000));
   if (result.legs > 0) {
-    const { legs, clips } = kitchenLegs(result);
+    const { legs, clips } = kitchenLegs({ ...result, modules });
     add("kitchenLeg", legs);
     add("plinthClip", clips);
   }
