@@ -69,7 +69,7 @@ export const KITCHEN_BASE_TYPES: Record<
   oven: {
     label: "Под духовку",
     width: 600,
-    hint: "Ящик снизу, над ним ниша 600 мм под встраиваемую духовку.",
+    hint: "Ящик снизу, над ним ниша 585 мм под духовку высотой 595 (сверьте с паспортом).",
   },
   dishwasher: {
     label: "Посудомойка",
@@ -79,7 +79,7 @@ export const KITCHEN_BASE_TYPES: Record<
   bottle: {
     label: "Бутылочница",
     width: 200,
-    hint: "Узкая тумба под выдвижное карго.",
+    hint: "Узкая тумба, выдвижной фасад на карго (без петель).",
   },
   appliance: {
     label: "Место под технику",
@@ -346,6 +346,9 @@ export type KitchenResult = {
 
 const round = (value: number) => Math.round(value * 10) / 10;
 const SHEET = 2750; // длинная сторона листа, мм
+// Ниша под встраиваемую духовку высотой 595 мм (у духовок ниша
+// 585–595, фасад духовки перекрывает края), мм.
+export const OVEN_NICHE = 585;
 
 export function kitchenWalls(spec: KitchenSpec): KitchenWall[] {
   const count = kitchenWallCount(spec.layout);
@@ -455,12 +458,14 @@ export function buildKitchen(
             drawers: 1,
             shelves: 0,
             openAbove: true,
+            niche: OVEN_NICHE,
           });
           break;
         case "bottle":
           cabinetSpec = cabinet(code, "base", width, height, depth, {
             doors: 1,
             shelves: 0,
+            pullOut: true,
           });
           break;
         case "corner":
@@ -642,6 +647,26 @@ export function buildKitchen(
       );
     }
   });
+
+  // Над пеналом и холодильником навесного нет: там должно быть «Пусто».
+  for (const tall of modules) {
+    if (tall.row !== "base" || !TALL.includes(tall.type as KitchenBaseType))
+      continue;
+    for (const top of modules) {
+      if (
+        top.row === "top" &&
+        top.wall === tall.wall &&
+        top.type !== "none" &&
+        Math.min(top.at + top.width, tall.at + tall.width) -
+          Math.max(top.at, tall.at) >
+          0.5
+      ) {
+        problems.push(
+          `${top.code} висит над ${tall.label.toLowerCase()} (${tall.code}): поставьте там навесной «Пусто» нужной ширины.`,
+        );
+      }
+    }
+  }
 
   // Столешница — над подряд идущими нижними модулями без пеналов и
   // холодильника. Цоколь — под всеми модулями, кроме мест под отдельно

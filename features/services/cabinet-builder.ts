@@ -404,6 +404,11 @@ export type CabinetSpec = {
   openAbove?: boolean;
   // Подъёмная дверь навесного шкафа: без петель, на подъёмнике.
   lift?: boolean;
+  // Выдвижной фасад (карго): без петель, крепится к механизму.
+  pullOut?: boolean;
+  // Высота открытой ниши над ящиками (openAbove), мм: ящики
+  // ужимаются, чтобы ниша была не ниже.
+  niche?: number;
 };
 
 export const CABINET_KINDS: Record<
@@ -982,7 +987,13 @@ export function buildCabinet(
       ? 0
       : fill
         ? round((H - plinth) / drawerCount - DOOR_GAP)
-        : DRAWER_FRONT;
+        : spec.openAbove && spec.niche
+          ? Math.floor(
+              ((H - t - plinth - DOOR_GAP - spec.niche) / drawerCount -
+                DOOR_GAP) *
+                10,
+            ) / 10
+          : DRAWER_FRONT;
   const drawerBlock = drawerCount * (frontHeight + DOOR_GAP);
   const bottomTop = plinth + t;
   const roofBottom = H - t;
@@ -1041,7 +1052,8 @@ export function buildCabinet(
   // Одна дверь: петли на стороне без заглушки или по выбору.
   const hingeRight =
     doors === 1 && (blind ? blind.side === "left" : spec.hinge === "right");
-  const lift = Boolean(spec.lift) && doors === 1;
+  // Подъёмная или выдвижная дверь — без петель.
+  const lift = Boolean(spec.lift || spec.pullOut) && doors === 1;
   const hinges = hingeCount(doorHeight);
   const hingeHeights = Array.from({ length: hinges }, (_, index) =>
     round(

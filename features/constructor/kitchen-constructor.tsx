@@ -662,11 +662,19 @@ export function KitchenConstructor({
           title="Декор корпусов"
           decors={decors}
           value={bodyId}
-          onChange={setBodyId}
+          onChange={(id) => {
+            // Фасады режем из плиты той же толщины, что и корпуса: присадка
+            // считается по ней. Другая толщина сбрасывается на декор корпуса.
+            const next = decors.find((decor) => decor.id === id);
+            if (sameDecor || facadeDecor?.thickness !== next?.thickness) {
+              setFacadeId(id);
+            }
+            setBodyId(id);
+          }}
         />
         <DecorPicker
           title="Декор фасадов и цоколя"
-          decors={decors}
+          decors={decors.filter((decor) => decor.thickness === thickness)}
           value={facadeDecor?.id ?? ""}
           onChange={setFacadeId}
         />

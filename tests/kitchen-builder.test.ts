@@ -5,6 +5,7 @@ import { kitchenFittings } from "../features/constructor/assembly";
 import { buildKitchenModel } from "../features/constructor/kitchen-model";
 import {
   KITCHEN_DEFAULTS,
+  OVEN_NICHE,
   buildKitchen,
   kitchenLegs,
   kitchenPreset,
@@ -180,4 +181,47 @@ test("kitchen: fittings sum modules and add legs, lifts, dryers", () => {
       (part.hardware ?? []).some((hole) => hole.kind === "hinge"),
     ),
   );
+});
+
+test("kitchen: oven niche keeps the oven niche clear above the drawer", () => {
+  for (const t of [16, 18]) {
+    const spec = kitchen("line");
+    spec.walls[0].base[3] = { type: "oven", width: 600 };
+    const result = buildKitchen(spec, t);
+    assert.deepEqual(result.problems, []);
+    const oven = result.modules.find((item) => item.type === "oven")!;
+    const cabinet = oven.result!;
+    const front = cabinet.parts.find((part) => /фасад ящика/.test(part.title))!;
+    const frontHeight = Math.min(front.length, front.width);
+    assert.ok(frontHeight >= 100, `front ${frontHeight}`);
+    // Ниша: от полки над ящиком до крыши.
+    const clear = spec.baseHeight - t - 3 - (frontHeight + 3);
+    assert.ok(clear >= OVEN_NICHE - 0.1, `niche ${clear} at ${t} mm`);
+  }
+});
+
+test("kitchen: bottle cargo front has no hinges", () => {
+  const spec = kitchen("line");
+  spec.walls[0].base.push({ type: "bottle", width: 200 });
+  spec.walls[0].length = 3200;
+  const result = buildKitchen(spec, T);
+  const bottle = result.modules.find((item) => item.type === "bottle")!;
+  assert.ok(
+    !bottle.result!.parts.some((part) =>
+      (part.hardware ?? []).some(
+        (hole) => hole.kind === "hinge" || hole.kind === "hingePlate",
+      ),
+    ),
+  );
+  const lines = kitchenFittings(result, T);
+  assert.equal(lines.find((line) => line.key === "cargo")?.count, 1);
+});
+
+test("kitchen: wall cabinet over a tall pantry is reported", () => {
+  const spec = kitchen("line");
+  spec.walls[0].base[4] = { type: "tallPantry", width: 600 };
+  const result = buildKitchen(spec, T);
+  assert.ok(result.problems.some((problem) => /В5 висит над/.test(problem)));
+  spec.walls[0].top[4] = { type: "none", width: 600 };
+  assert.deepEqual(buildKitchen(spec, T).problems, []);
 });

@@ -444,6 +444,33 @@ export function buildCabinetModel(
     const cos = Math.cos(a);
     const sin = Math.sin(a);
     const hingeX = hingeOnRight ? left + result.doorWidth : left;
+    // Выдвижной фасад карго уезжает вперёд вместе с корзиной.
+    if (spec.pullOut && doors.length === 1) {
+      boxes.push({
+        x: 0,
+        y: 0,
+        sizeX: result.doorWidth,
+        sizeY: result.doorHeight,
+        thickness: t,
+        matrix: [
+          1,
+          0,
+          0,
+          left,
+          0,
+          1,
+          0,
+          doorBottom,
+          0,
+          0,
+          1,
+          D + Math.max(0, Math.min(1, options.doorOpen)) * (D - 60),
+        ],
+        tone: TONE_FACADE,
+        info: info(door, "Дверь", facade),
+      });
+      return;
+    }
     // Подъёмная дверь поворачивается вверх вокруг верхнего края.
     if (spec.lift) {
       const up = Math.min(angle, (85 * Math.PI) / 180);
