@@ -516,12 +516,7 @@ function kupeInterior(
       );
     }
     for (const stand of section.stands) {
-      const part = result.parts.find(
-        (entry) =>
-          /: стойка/.test(entry.title) &&
-          entry.title.endsWith(suffix) &&
-          Math.abs(entry.length - stand.height) < 0.5,
-      );
+      const part = byTitle(`${stand.kind ?? "стойка"}${suffix}`);
       boxes.push(
         brick(
           stand.left,

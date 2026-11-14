@@ -701,3 +701,51 @@ test("купе: схемы с фото собираются без ошибок 
 function round1(value: number) {
   return Math.round(value * 10) / 10;
 }
+
+test("купе: стойка колонок — отверстия в дне по её глубине, разные стойки отдельно", () => {
+  const kupe = {
+    kind: "kupe" as const,
+    ...CABINET_KINDS.kupe.defaults,
+    sections: [
+      {
+        zones: [
+          { kind: "split" as const, count: 1, height: 700 },
+          { kind: "split" as const, count: 2, height: 700 },
+          { kind: "split" as const, count: 1 },
+        ],
+      },
+      { zones: [{ kind: "rod" as const }] },
+    ],
+  };
+  const result = buildCabinet(kupe, 16);
+  const section = result.kupe!.sections[0];
+  const stands = result.parts.filter((part) => /: стойка/.test(part.title));
+  // Три стойки: 700 с 1 полкой, 700 с 2 полками, остаток — разные строки.
+  assert.equal(stands.length, 3);
+  assert.equal(
+    stands.reduce((sum, part) => sum + part.quantity, 0),
+    section.stands.length,
+  );
+  // Отверстия стойки в торце совпадают с отверстиями в дне.
+  const bottomStand = section.stands.find((stand) => stand.at === 86)!;
+  const standPart = result.parts.find(
+    (part) => partKind(part.title) === `${bottomStand.kind}, секция 1`,
+  )!;
+  const edge = hardwareHoles(
+    standPart.hardware,
+    standPart.length,
+    standPart.width,
+    16,
+  ).flatMap((hole) =>
+    hole.kind === "edge" && hole.side === "left"
+      ? [Math.round(hole.position)]
+      : [],
+  );
+  const bottom = result.parts.find((part) => partKind(part.title) === "дно")!;
+  const x = bottomStand.left + 8 - 16;
+  const face = hardwareHoles(bottom.hardware, bottom.length, bottom.width, 16)
+    .filter((hole) => hole.diameter === 7 && Math.abs(hole.x - x) < 0.2)
+    .map((hole) => Math.round(hole.y));
+  assert.ok(edge.length > 0);
+  for (const y of edge) assert.ok(face.includes(y), `${y} in ${face}`);
+});

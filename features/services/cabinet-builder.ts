@@ -650,7 +650,7 @@ export type CabinetSection = {
   // Брючницы: низ полки, под которой висит рамка.
   trousers: number[];
   // Стойки зон «две колонки»: левая грань, низ, высота.
-  stands: Array<{ left: number; at: number; height: number }>;
+  stands: Array<{ left: number; at: number; height: number; kind?: string }>;
   drawers: number;
   trays: number;
   // Ящики и выдвижные полки секции: между проставками, в проёме двери.
@@ -1546,7 +1546,20 @@ function buildKupe(spec: CabinetSpec, t: number): CabinetResult {
       holes: [{ diameter: 7, depth: 0 }],
     }));
   const partitionCenters = partitions.map((left) => left + t / 2);
-  const standCenters = (level: number) =>
+  // Стойка мельче крыши и дна на отступ полок и стоит у задней кромки:
+  // отверстия под её конфирматы — по её глубине, от задней кромки.
+  const standDepth = D - SHELF_SETBACK;
+  const standPlaces =
+    confirmatPlaces.count === 1
+      ? [standDepth / 2]
+      : Array.from(
+          { length: confirmatPlaces.count },
+          (_, index) =>
+            confirmatPlaces.offset +
+            ((standDepth - 2 * confirmatPlaces.offset) * index) /
+              (confirmatPlaces.count - 1),
+        );
+  const standScrews = (level: number): HardwareItem[] =>
     sections.flatMap((section) =>
       section.stands
         .filter(
@@ -1554,7 +1567,15 @@ function buildKupe(spec: CabinetSpec, t: number): CabinetResult {
             Math.abs(stand.at - level) < 1 ||
             Math.abs(stand.at + stand.height - level) < 1,
         )
-        .map((stand) => stand.left + t / 2),
+        .flatMap((stand) =>
+          standPlaces.map((place) => ({
+            ...createHardware("faceRow", "left"),
+            count: 1,
+            offset: round(place),
+            indent: round(stand.left + t / 2 - t),
+            holes: [{ diameter: 7, depth: 0 }],
+          })),
+        ),
     );
   for (const [title, level] of [
     ["крыша", roofBottom],
@@ -1569,7 +1590,8 @@ function buildKupe(spec: CabinetSpec, t: number): CabinetResult {
       fixedGrain: true,
       hardware: [
         ...roofHardware(),
-        ...throughScrews([...partitionCenters, ...standCenters(level)]),
+        ...throughScrews(partitionCenters),
+        ...standScrews(level),
       ],
     });
   }
@@ -1658,27 +1680,45 @@ function buildKupe(spec: CabinetSpec, t: number): CabinetResult {
     }
     // Стойки колонок: на конфирматах к полкам сверху и снизу, сквозные
     // полкодержатели под полки обеих колонок.
-    const standHeights = new Map<number, number[]>();
+    // Одинаковые стойки (высота и полкодержатели) — одной строкой.
+    const standGroups = new Map<
+      string,
+      {
+        height: number;
+        at: number;
+        pins: number[];
+        stands: typeof section.stands;
+      }
+    >();
     for (const stand of section.stands) {
-      const list = standHeights.get(stand.height) ?? [];
-      list.push(stand.at);
-      standHeights.set(stand.height, list);
-    }
-    for (const [height, bottoms] of standHeights) {
-      const at = bottoms[0];
-      const own = section.shelves
+      const pins = section.shelves
         .filter(
           (shelf) =>
             shelf.kind === "полка в колонке" &&
-            shelf.at > at &&
-            shelf.at < at + height,
+            shelf.at > stand.at &&
+            shelf.at < stand.at + stand.height,
         )
-        .map((shelf) => shelf.at);
+        .map((shelf) => round(shelf.at - stand.at));
+      const key = `${stand.height}|${[...new Set(pins)].join(",")}`;
+      const group = standGroups.get(key) ?? {
+        height: stand.height,
+        at: stand.at,
+        pins,
+        stands: [],
+      };
+      group.stands.push(stand);
+      standGroups.set(key, group);
+    }
+    [...standGroups.values()].forEach((group, place) => {
+      const kind = place === 0 ? "стойка" : `стойка ${place + 1}`;
+      for (const stand of group.stands) stand.kind = kind;
+      const { height, at } = group;
+      const own = group.pins.map((pin) => pin + at);
       parts.push({
-        title: `${name}: стойка${height === section.stands[0].height ? "" : ` ${Math.round(height)}`}${suffix}`,
+        title: `${name}: ${kind}${suffix}`,
         length: round(height),
-        width: D - SHELF_SETBACK,
-        quantity: bottoms.length,
+        width: standDepth,
+        quantity: group.stands.length,
         edgedSides: ["top"],
         fixedGrain: true,
         hardware: [
@@ -1690,7 +1730,7 @@ function buildKupe(spec: CabinetSpec, t: number): CabinetResult {
           ...pinsAt(own, at, true),
         ],
       });
-    }
+    });
   }
 
   // Ящики и выдвижные полки по секциям.
