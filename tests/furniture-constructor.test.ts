@@ -776,6 +776,8 @@ test("высокие двери: сборка по инструкции Hettich 
   assert.match(doorsStep(2200).text, /вдвоём/);
   assert.match(doorsStep(2200).text, /одинаковый поворот/);
   assert.doesNotMatch(doorsStep(800).text, /вдвоём/);
+});
+
 test("купе: при 3 дверях TopLine L — двери не шире 1350 мм", () => {
   const wide = buildCabinet(
     {
