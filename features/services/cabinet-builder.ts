@@ -492,6 +492,8 @@ export const KUPE_HEIGHT_DEDUCTION = 40;
 const KUPE_DOOR_LIFT = 15;
 const KUPE_DOOR_MIN_WIDTH = 550;
 const KUPE_DOOR_MAX_WIDTH = 1500;
+// В инструкции на 3 двери (MTA 9 288 579 02) двери шире 1350 мм нет.
+const KUPE_DOOR_MAX_WIDTH_3 = 1350;
 const KUPE_DOOR_MAX_HEIGHT = 2600;
 // Двери на двух дорожках: задняя у корпуса, передняя перед ней.
 const KUPE_TRACK_GAP = 5;
@@ -1377,9 +1379,10 @@ function buildKupe(spec: CabinetSpec, t: number): CabinetResult {
   const doorHeight = round(H - plinth - KUPE_HEIGHT_DEDUCTION);
   // Пределы Hettich TopLine L (каталог 2020, с. 14): ширина двери 550–1500 мм,
   // высота до 2600 мм, вес до 50 кг, толщина 10–30 мм.
-  if (doorWidth < KUPE_DOOR_MIN_WIDTH || doorWidth > KUPE_DOOR_MAX_WIDTH) {
+  const maxDoor = n >= 3 ? KUPE_DOOR_MAX_WIDTH_3 : KUPE_DOOR_MAX_WIDTH;
+  if (doorWidth < KUPE_DOOR_MIN_WIDTH || doorWidth > maxDoor) {
     problems.push(
-      `Дверь-купе шириной ${doorWidth} мм: система Hettich TopLine L держит двери от ${KUPE_DOOR_MIN_WIDTH} до ${KUPE_DOOR_MAX_WIDTH} мм — ${doorWidth < KUPE_DOOR_MIN_WIDTH ? "уменьшите" : "увеличьте"} число дверей.`,
+      `Дверь-купе шириной ${doorWidth} мм: система Hettich TopLine L держит ${n >= 3 ? `при ${n} дверях ` : ""}двери от ${KUPE_DOOR_MIN_WIDTH} до ${maxDoor} мм — ${doorWidth < KUPE_DOOR_MIN_WIDTH ? "уменьшите" : "увеличьте"} число дверей.`,
     );
   }
   if (doorHeight > KUPE_DOOR_MAX_HEIGHT) {
