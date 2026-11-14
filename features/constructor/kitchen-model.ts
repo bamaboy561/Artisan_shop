@@ -2,9 +2,11 @@
 // стене, столешница, цоколь и места под технику.
 
 import type { BazisViewerBox } from "@/components/bazis/bazis-viewer";
-import type {
-  KitchenResult,
-  KitchenSpec,
+import {
+  KITCHEN_BACK,
+  PLINTH_SETBACK,
+  type KitchenResult,
+  type KitchenSpec,
 } from "@/features/services/kitchen-builder";
 import {
   TONE_BODY,
@@ -18,7 +20,6 @@ import {
 export const TONE_COUNTERTOP = 6;
 export const TONE_APPLIANCE = 7;
 
-const PLINTH_SETBACK = 50;
 // Корпус стоит задней стенкой ХДФ к стене.
 const offWall: number[] = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, BACK_THICKNESS];
 const DOOR_GAP = 3;
@@ -227,7 +228,7 @@ export function buildKitchenModel(
           transform,
           0,
           0,
-          BACK_THICKNESS + spec.baseDepth - PLINTH_SETBACK,
+          KITCHEN_BACK + spec.baseDepth - PLINTH_SETBACK,
           piece.to - piece.from,
           result.legs - 3,
           t,
@@ -242,6 +243,35 @@ export function buildKitchenModel(
         ),
       );
     }
+  }
+  // Фальшпанели у внутреннего угла: в плоскости фасадов боковой стены.
+  for (const piece of result.fillers ?? []) {
+    const transform = wallTransform(
+      piece.wall,
+      piece.from,
+      piece.to - piece.from,
+      result.legs + DOOR_GAP,
+      backLength,
+    );
+    boxes.push(
+      block(
+        transform,
+        0,
+        0,
+        KITCHEN_BACK + spec.baseDepth,
+        piece.to - piece.from,
+        spec.baseHeight - DOOR_GAP,
+        t,
+        TONE_PLAIN,
+        {
+          name: `${name}: фальшпанель угла`,
+          material: options.facadeMaterial,
+          length: spec.baseHeight - DOOR_GAP,
+          width: Math.round(piece.to - piece.from),
+          thickness: t,
+        },
+      ),
+    );
   }
   return boxes;
 }

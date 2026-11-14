@@ -236,7 +236,7 @@ function presetWalls(layout: KitchenLayout): KitchenWall[] {
         ],
       },
       {
-        length: 2400,
+        length: 2500,
         base: [
           { type: "hob", width: 600 },
           { type: "doors", width: 600 },
@@ -339,6 +339,9 @@ export type KitchenResult = {
   countertops: Array<{ wall: number; from: number; to: number }>;
   // Цоколь: куски вдоль стены.
   plinths: Array<{ wall: number; from: number; to: number }>;
+  // Фальшпанели у внутреннего угла: закрывают зазор между рядом задней
+  // стены и рядом боковой, чтобы ящики и ручки не цеплялись.
+  fillers: Array<{ wall: number; from: number; to: number }>;
   // Высота столешницы над полом.
   worktop: number;
   legs: number;
@@ -349,6 +352,13 @@ const SHEET = 2750; // длинная сторона листа, мм
 // Ниша под встраиваемую духовку высотой 595 мм (у духовок ниша
 // 585–595, фасад духовки перекрывает края), мм.
 export const OVEN_NICHE = 585;
+// Задняя стенка ХДФ между корпусом и стеной, мм.
+export const KITCHEN_BACK = 3;
+// Цоколь стоит на столько глубже фасадов, мм.
+export const PLINTH_SETBACK = 50;
+// Фальшпанель у угла: ряд боковой стены отступает от фасадов задней
+// на столько, чтобы выдвинутый ящик прошёл мимо ручки угловой двери.
+export const CORNER_FILLER = 50;
 
 export function kitchenWalls(spec: KitchenSpec): KitchenWall[] {
   const count = kitchenWallCount(spec.layout);
@@ -391,7 +401,7 @@ export function buildKitchen(
   const starts = walls.map((_, index) =>
     index === 0
       ? { base: 0, top: 0 }
-      : { base: spec.countertopDepth, top: topStart },
+      : { base: spec.countertopDepth + CORNER_FILLER, top: topStart },
   );
 
   const cabinet = (
@@ -499,6 +509,13 @@ export function buildKitchen(
           break;
         default:
           break;
+      }
+      // Тумбы — без крыши: две царги, через переднюю крепится столешница,
+      // над варочной и мойкой ничего не мешает врезке. У мойки нет задней
+      // стенки — там трубы.
+      if (cabinetSpec?.kind === "base" && !tall) {
+        cabinetSpec.rails = true;
+        if (item.type === "sink") cabinetSpec.noBack = true;
       }
       const result = cabinetSpec ? buildCabinet(cabinetSpec, t) : null;
       if (result) {
@@ -697,8 +714,54 @@ export function buildKitchen(
     segments(w, (type) => type !== "fridge" && type !== "appliance", plinths);
   });
 
-  // Цоколь — полосы ЛДСП высотой с ножки, куски не длиннее листа.
+  // Внутренние углы. Столешница боковой стены начинается сразу за
+  // столешницей задней. Цоколь задней стены начинается у цоколя боковой,
+  // цоколь боковой упирается в него — угол закрыт.
+  const plinthFace = KITCHEN_BACK + spec.baseDepth - PLINTH_SETBACK;
+  const backLength = walls[0]?.length ?? 0;
+  for (const piece of countertops) {
+    if (piece.wall > 0 && piece.from === starts[piece.wall].base) {
+      piece.from = spec.countertopDepth;
+    }
+  }
+  // Цоколь боковой стены, который доходит до угла.
+  for (const piece of plinths) {
+    if (piece.wall > 0 && piece.from === starts[piece.wall].base) {
+      piece.from = plinthFace + t;
+    }
+  }
+  const reachesCorner = (w: number) =>
+    plinths.some((piece) => piece.wall === w && piece.from === plinthFace + t);
+  // Цоколь задней стены укорачиваем, только если в угол упирается цоколь
+  // боковой — иначе угол остался бы открытым.
+  for (const piece of plinths) {
+    if (piece.wall !== 0) continue;
+    if (reachesCorner(1) && piece.from < plinthFace) piece.from = plinthFace;
+    if (reachesCorner(2) && piece.to > backLength - plinthFace) {
+      piece.to = backLength - plinthFace;
+    }
+  }
   const name = spec.name.trim() || "Кухня";
+  // Фальшпанель: в плоскости фасадов боковой стены, от фасадов задней до
+  // первого модуля боковой. Высота как у дверей тумб.
+  const fillers: KitchenResult["fillers"] = [];
+  const fillerFrom = KITCHEN_BACK + spec.baseDepth + t;
+  walls.forEach((wall, w) => {
+    if (w === 0 || wall.base.length === 0) return;
+    const to = starts[w].base;
+    if (to - fillerFrom < 1) return;
+    fillers.push({ wall: w, from: fillerFrom, to });
+    parts.push({
+      title: `${name}: фальшпанель угла`,
+      length: round(spec.baseHeight - 3),
+      width: round(to - fillerFrom),
+      quantity: 1,
+      edgedSides: ["top", "right", "bottom", "left"],
+      fixedGrain: true,
+    });
+  });
+
+  // Цоколь — полосы ЛДСП высотой с ножки, куски не длиннее листа.
   const plinthPieces = new Map<number, number>();
   for (const piece of plinths) {
     let rest = piece.to - piece.from;
@@ -731,6 +794,7 @@ export function buildKitchen(
     starts,
     countertops,
     plinths,
+    fillers,
     worktop,
     legs,
   };
@@ -752,11 +816,18 @@ function mergeParts(parts: CabinetPart[]) {
   return merged;
 }
 
-// Сколько ножек и клипс цоколя: по 4 ножки на модуль с корпусом снизу,
-// по 2 клипсы на лицевые ножки.
+// Сколько ножек и клипс цоколя: по 4 ножки на модуль с корпусом снизу
+// (6 — под модуль от 900 мм, средние не дают прогнуться дну), клипсы —
+// на лицевые ножки.
+export const WIDE_MODULE = 900;
 export function kitchenLegs(result: KitchenResult) {
-  const bodies = result.modules.filter(
-    (item) => item.row === "base" && item.spec,
-  ).length;
-  return { legs: bodies * 4, clips: bodies * 2 };
+  let legs = 0;
+  let clips = 0;
+  for (const item of result.modules) {
+    if (item.row !== "base" || !item.spec) continue;
+    const wide = item.width >= WIDE_MODULE;
+    legs += wide ? 6 : 4;
+    clips += wide ? 3 : 2;
+  }
+  return { legs, clips };
 }
