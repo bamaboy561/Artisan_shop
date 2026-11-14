@@ -3,8 +3,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import {
+  ArrowDown,
+  ArrowUp,
   DoorOpen,
   DoorClosed,
+  Plus,
+  X,
   ListOrdered,
   Scissors,
   Search,
@@ -24,17 +28,21 @@ import {
   KUPE_OVERLAP,
   buildCabinet,
   kupeDoorCount,
+  kupeSchemeSections,
   kupeSections,
   slideKupeDoor,
-  KUPE_FILLS,
+  KUPE_SCHEMES,
+  KUPE_SECTION_TEMPLATES,
+  ZONE_KINDS,
   cabinetGroupLabel,
   type CabinetJoint,
   type CabinetKind,
   type CabinetLed,
   type CabinetPart,
   type CabinetSpec,
-  type KupeFill,
   type KupeSection,
+  type KupeZone,
+  type ZoneKind,
 } from "@/features/services/cabinet-builder";
 import { Field, inputClass } from "@/features/services/cabinet-builder-dialog";
 
@@ -779,9 +787,9 @@ export function FurnitureConstructor({
                       { length: count },
                       (_, index) =>
                         sections[index] ?? {
-                          fill: "shelves" as const,
-                          shelves: 4,
-                          drawers: 0,
+                          zones: KUPE_SECTION_TEMPLATES[0].zones.map(
+                            (zone) => ({ ...zone }),
+                          ),
                         },
                     ),
                   });
@@ -839,88 +847,199 @@ export function FurnitureConstructor({
         </div>
         {isKupe ? (
           <div className="grid gap-2">
-            <label className="flex items-center gap-2 text-[13px]">
-              <input
-                type="checkbox"
-                checked={spec.antresol ?? true}
-                onChange={(event) => set({ antresol: event.target.checked })}
-              />
-              Антресоль: полка на 400 мм ниже крыши во всех секциях
+            <label className="grid gap-1 text-[12px] text-[var(--muted)]">
+              Готовая схема шкафа
+              <select
+                className={inputClass}
+                value=""
+                onChange={(event) => {
+                  const scheme = KUPE_SCHEMES[Number(event.target.value)];
+                  if (!scheme) return;
+                  set({
+                    sections: kupeSchemeSections(scheme, spec.width, thickness),
+                  });
+                }}
+              >
+                <option value="">Выберите схему — заменит секции</option>
+                {KUPE_SCHEMES.map((scheme, index) => (
+                  <option key={scheme.label} value={index}>
+                    {scheme.label}
+                  </option>
+                ))}
+              </select>
             </label>
             {sections.map((section, index) => {
-              const fill = section.fill ?? "shelves";
-              const withShelves = fill === "shelves" || fill === "rodShelves";
+              const built = result.kupe?.sections[index];
+              const zones = section.zones ?? [];
+              const template = KUPE_SECTION_TEMPLATES.findIndex(
+                (entry) =>
+                  JSON.stringify(entry.zones) === JSON.stringify(zones),
+              );
+              const setZones = (next: KupeZone[]) =>
+                setSection(index, { zones: next });
+              const setZone = (at: number, patch: Partial<KupeZone>) =>
+                setZones(
+                  zones.map((zone, place) =>
+                    place === at ? { ...zone, ...patch } : zone,
+                  ),
+                );
+              const moveZone = (at: number, by: number) => {
+                const next = [...zones];
+                const [zone] = next.splice(at, 1);
+                next.splice(at + by, 0, zone);
+                setZones(next);
+              };
               return (
                 <div
                   key={index}
-                  className="grid grid-cols-3 items-end gap-2 rounded-xl border border-[color:var(--line)] p-2"
+                  className="grid gap-2 rounded-xl border border-[color:var(--line)] p-2"
                 >
-                  <label className="col-span-2 grid gap-1 text-[12px] text-[var(--muted)]">
-                    Секция {index + 1}
-                    <select
-                      className={inputClass}
-                      value={fill}
-                      onChange={(event) =>
-                        setSection(index, {
-                          fill: event.target.value as KupeFill,
-                        })
-                      }
-                    >
-                      {(Object.keys(KUPE_FILLS) as KupeFill[]).map((key) => (
-                        <option key={key} value={key}>
-                          {KUPE_FILLS[key]}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <Field
-                    label={`Ширина${section.width ? "" : ` (${Math.round(result.kupe?.sections[index]?.width ?? 0)})`}`}
-                    value={section.width ?? 0}
-                    onChange={(width) => setSection(index, { width })}
-                  />
-                  {withShelves ? (
+                  <div className="grid grid-cols-3 items-end gap-2">
+                    <label className="col-span-2 grid gap-1 text-[12px] text-[var(--muted)]">
+                      Секция {index + 1}: наполнение
+                      <select
+                        className={inputClass}
+                        value={template}
+                        onChange={(event) => {
+                          const entry =
+                            KUPE_SECTION_TEMPLATES[Number(event.target.value)];
+                          if (entry) {
+                            setZones(entry.zones.map((zone) => ({ ...zone })));
+                          }
+                        }}
+                      >
+                        <option value={-1}>Своё (зоны ниже)</option>
+                        {KUPE_SECTION_TEMPLATES.map((entry, at) => (
+                          <option key={entry.label} value={at}>
+                            {entry.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
                     <Field
-                      label="Полок, шт."
-                      value={section.shelves}
-                      onChange={(shelves) => setSection(index, { shelves })}
+                      label={`Ширина${section.width ? "" : ` (${Math.round(built?.width ?? 0)})`}`}
+                      value={section.width ?? 0}
+                      onChange={(width) => setSection(index, { width })}
                     />
-                  ) : (
-                    <span />
-                  )}
-                  <label className="grid gap-1 text-[12px] text-[var(--muted)]">
-                    Ящиков внизу
-                    <select
-                      className={inputClass}
-                      value={section.drawers}
-                      onChange={(event) =>
-                        setSection(index, {
-                          drawers: Number(event.target.value),
-                        })
+                  </div>
+                  <p className="text-[11px] leading-4 text-[var(--muted)]">
+                    Зоны сверху вниз, между зонами полка. Высота 0 — поровну.
+                  </p>
+                  {zones.map((zone, at) => {
+                    const limits = ZONE_KINDS[zone.kind].count;
+                    const placed = built?.zones[at];
+                    return (
+                      <div
+                        key={at}
+                        className="grid grid-cols-[1fr_4.5rem_4.5rem_auto] items-end gap-1.5"
+                      >
+                        <label className="grid gap-1 text-[12px] text-[var(--muted)]">
+                          {at + 1}.
+                          <select
+                            className={inputClass}
+                            value={zone.kind}
+                            onChange={(event) => {
+                              const kind = event.target.value as ZoneKind;
+                              setZone(at, {
+                                kind,
+                                count: ZONE_KINDS[kind].count?.default,
+                                height: kind === "antresol" ? 400 : 0,
+                              });
+                            }}
+                          >
+                            {(Object.keys(ZONE_KINDS) as ZoneKind[]).map(
+                              (kind) => (
+                                <option key={kind} value={kind}>
+                                  {ZONE_KINDS[kind].label}
+                                </option>
+                              ),
+                            )}
+                          </select>
+                        </label>
+                        {limits ? (
+                          <label className="grid gap-1 text-[12px] text-[var(--muted)]">
+                            Шт.
+                            <select
+                              className={inputClass}
+                              value={zone.count ?? limits.default}
+                              onChange={(event) =>
+                                setZone(at, {
+                                  count: Number(event.target.value),
+                                })
+                              }
+                            >
+                              {Array.from(
+                                { length: limits.max - limits.min + 1 },
+                                (_, step) => limits.min + step,
+                              ).map((count) => (
+                                <option key={count} value={count}>
+                                  {count}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        ) : (
+                          <span />
+                        )}
+                        <Field
+                          label={`Выс.${zone.height ? "" : ` ${Math.round(placed?.height ?? 0)}`}`}
+                          value={zone.height ?? 0}
+                          onChange={(height) => setZone(at, { height })}
+                        />
+                        <div className="flex gap-0.5 pb-1">
+                          <button
+                            type="button"
+                            aria-label="Выше"
+                            disabled={at === 0}
+                            onClick={() => moveZone(at, -1)}
+                            className="grid size-7 place-items-center rounded-full border border-[color:var(--line)] disabled:opacity-30"
+                          >
+                            <ArrowUp className="size-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            aria-label="Ниже"
+                            disabled={at === zones.length - 1}
+                            onClick={() => moveZone(at, 1)}
+                            className="grid size-7 place-items-center rounded-full border border-[color:var(--line)] disabled:opacity-30"
+                          >
+                            <ArrowDown className="size-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            aria-label="Убрать зону"
+                            disabled={zones.length === 1}
+                            onClick={() =>
+                              setZones(zones.filter((_, place) => place !== at))
+                            }
+                            className="grid size-7 place-items-center rounded-full border border-[color:var(--line)] disabled:opacity-30"
+                          >
+                            <X className="size-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {zones.length < 8 ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setZones([
+                          ...zones,
+                          { kind: "shelves", count: 1, height: 0 },
+                        ])
                       }
+                      className="inline-flex h-8 w-fit items-center gap-1.5 rounded-full border border-[color:var(--line)] px-3 text-[12px] font-medium"
                     >
-                      {[0, 1, 2, 3, 4, 5].map((count) => (
-                        <option key={count} value={count}>
-                          {count === 0 ? "без ящиков" : count}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="flex items-center gap-2 pb-2 text-[12px] text-[var(--muted)]">
-                    <input
-                      type="checkbox"
-                      disabled={section.drawers > 0}
-                      checked={Boolean(section.shoes) && section.drawers === 0}
-                      onChange={(event) =>
-                        setSection(index, { shoes: event.target.checked })
-                      }
-                    />
-                    Полка для обуви
-                  </label>
+                      <Plus className="size-3.5" />
+                      Добавить зону
+                    </button>
+                  ) : null}
                 </div>
               );
             })}
             <p className="text-[11px] leading-4 text-[var(--muted)]">
-              Ширина 0 — секции делят остаток поровну.
+              Ширина секции 0 — секции делят остаток поровну.
             </p>
             <p className="text-[11px] leading-4 text-[var(--muted)]">
               Двери-купе Hettich TopLine L перед корпусом:{" "}

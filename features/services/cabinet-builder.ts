@@ -36,15 +36,297 @@ export const KUPE_FILLS: Record<KupeFill, string> = {
   rodTrousers: "Штанга и брючница",
 };
 
-// Секция шкафа-купе: ширина (0 — поровну с другими), наполнение, ящики
-// или полка для обуви внизу.
+// Зона секции купе: участок по высоте между двумя полками. Секция
+// собирается из зон сверху вниз, между соседними зонами — полка.
+export type ZoneKind =
+  | "antresol"
+  | "shelves"
+  | "rod"
+  | "drawers"
+  | "trays"
+  | "trousers"
+  | "shoes"
+  | "split";
+
+export const ZONE_KINDS: Record<
+  ZoneKind,
+  {
+    label: string;
+    count?: { label: string; min: number; max: number; default: number };
+  }
+> = {
+  antresol: { label: "Антресоль" },
+  shelves: {
+    label: "Полки",
+    count: { label: "Полок внутри", min: 0, max: 8, default: 2 },
+  },
+  rod: { label: "Штанга (вешалки)" },
+  drawers: {
+    label: "Ящики",
+    count: { label: "Ящиков", min: 1, max: 6, default: 2 },
+  },
+  trays: {
+    label: "Выдвижные полки (рубашки)",
+    count: { label: "Полок", min: 1, max: 6, default: 2 },
+  },
+  trousers: { label: "Брючница" },
+  shoes: {
+    label: "Обувь",
+    count: { label: "Полок для обуви", min: 0, max: 4, default: 1 },
+  },
+  split: {
+    label: "Полки в две колонки",
+    count: { label: "Полок в колонке", min: 0, max: 6, default: 2 },
+  },
+};
+
+// height — высота зоны в свету, мм; 0 или пусто — поровну с другими
+// такими зонами. Ящики и выдвижные полки берут высоту по своему числу.
+export type KupeZone = { kind: ZoneKind; count?: number; height?: number };
+
+// Готовое наполнение секции: зоны сверху вниз.
+const A: KupeZone = { kind: "antresol", height: 400 };
+export const KUPE_SECTION_TEMPLATES: Array<{
+  label: string;
+  zones: KupeZone[];
+}> = [
+  { label: "Полки", zones: [A, { kind: "shelves", count: 4 }] },
+  { label: "Длинная штанга", zones: [A, { kind: "rod" }] },
+  { label: "Две штанги", zones: [A, { kind: "rod" }, { kind: "rod" }] },
+  {
+    label: "Штанга и полки",
+    zones: [A, { kind: "rod", height: 1000 }, { kind: "shelves", count: 2 }],
+  },
+  {
+    label: "Длинная штанга и 2 ящика",
+    zones: [A, { kind: "rod" }, { kind: "drawers", count: 2 }],
+  },
+  {
+    label: "Штанга и 4 ящика",
+    zones: [A, { kind: "rod" }, { kind: "drawers", count: 4 }],
+  },
+  {
+    label: "Полки и 3 ящика",
+    zones: [A, { kind: "shelves", count: 3 }, { kind: "drawers", count: 3 }],
+  },
+  {
+    label: "Полки, выдвижные полки и ящики",
+    zones: [
+      A,
+      { kind: "shelves", count: 1 },
+      { kind: "trays", count: 2 },
+      { kind: "shelves", count: 0, height: 360 },
+      { kind: "drawers", count: 2 },
+    ],
+  },
+  {
+    label: "Полки и 3 выдвижные полки",
+    zones: [
+      A,
+      { kind: "shelves", count: 2 },
+      { kind: "trays", count: 3 },
+      { kind: "shelves", count: 0, height: 330 },
+    ],
+  },
+  {
+    label: "Полки и брючница",
+    zones: [
+      A,
+      { kind: "shelves", count: 1 },
+      { kind: "trousers", height: 920 },
+    ],
+  },
+  {
+    label: "Полки, ящик и брючница",
+    zones: [
+      A,
+      { kind: "shelves", count: 1 },
+      { kind: "drawers", count: 1 },
+      { kind: "trousers", height: 920 },
+    ],
+  },
+  {
+    label: "Штанга и брючница",
+    zones: [A, { kind: "rod" }, { kind: "trousers", height: 800 }],
+  },
+  {
+    label: "Длинная штанга и обувь",
+    zones: [A, { kind: "rod" }, { kind: "shoes", count: 1 }],
+  },
+  {
+    label: "Штанга и полки в две колонки",
+    zones: [A, { kind: "rod" }, { kind: "split", count: 2, height: 900 }],
+  },
+];
+
+// Схемы шкафа с фото Султана: секции слева направо, ширина — доля от
+// ширины внутри (последняя секция — остаток).
+export const KUPE_SCHEMES: Array<{
+  label: string;
+  sections: Array<{ share?: number; zones: KupeZone[] }>;
+}> = (() => {
+  const twoRods: KupeZone[] = [A, { kind: "rod" }, { kind: "rod" }];
+  const narrow = 564 / 1328;
+  const left = (label: string, zones: KupeZone[]) => ({
+    label,
+    sections: [{ share: narrow, zones }, { zones: twoRods }],
+  });
+  const four = [564, 764, 818].map((width) => width / 2710);
+  return [
+    left("2 секции: длинная штанга и две штанги", [
+      A,
+      { kind: "rod", height: 1436 },
+      { kind: "shelves", count: 0 },
+    ]),
+    left("2 секции: полки, 3 выдвижные полки и две штанги", [
+      A,
+      { kind: "shelves", count: 2 },
+      { kind: "trays", count: 3 },
+      { kind: "shelves", count: 0, height: 330 },
+    ]),
+    {
+      label: "2 секции: штанга с брючницей и длинная штанга",
+      sections: [
+        {
+          share: narrow,
+          zones: [A, { kind: "rod", height: 1000 }, { kind: "trousers" }],
+        },
+        {
+          zones: [
+            A,
+            { kind: "rod", height: 1464 },
+            { kind: "shelves", count: 0 },
+          ],
+        },
+      ],
+    },
+    left("2 секции: полки, выдвижные полки, ящики и две штанги", [
+      A,
+      { kind: "shelves", count: 1 },
+      { kind: "trays", count: 2 },
+      { kind: "shelves", count: 0, height: 360 },
+      { kind: "drawers", count: 2 },
+    ]),
+    left("2 секции: полки с брючницей и две штанги", [
+      A,
+      { kind: "shelves", count: 1 },
+      { kind: "trousers", height: 920 },
+    ]),
+    left("2 секции: штанга, 4 ящика и две штанги", [
+      A,
+      { kind: "rod", height: 914 },
+      { kind: "drawers", count: 4 },
+    ]),
+    left("2 секции: длинная штанга, 2 ящика и две штанги", [
+      A,
+      { kind: "rod" },
+      { kind: "drawers", count: 2 },
+    ]),
+    left("2 секции: полки, ящик, брючница и две штанги", [
+      A,
+      { kind: "shelves", count: 1 },
+      { kind: "drawers", count: 1 },
+      { kind: "trousers", height: 920 },
+    ]),
+    left("2 секции: полки и две штанги", [A, { kind: "shelves", count: 4 }]),
+    {
+      label:
+        "4 секции: штанга с брючницей, две штанги, длинная, полки с брючницей",
+      sections: [
+        {
+          share: four[0],
+          zones: [A, { kind: "rod" }, { kind: "trousers", height: 772 }],
+        },
+        { share: four[1], zones: twoRods },
+        {
+          share: four[2],
+          zones: [
+            A,
+            { kind: "rod", height: 1300 },
+            { kind: "shelves", count: 0 },
+          ],
+        },
+        {
+          zones: [
+            A,
+            { kind: "shelves", count: 2 },
+            { kind: "trousers", height: 772 },
+          ],
+        },
+      ],
+    },
+    {
+      label:
+        "4 секции: полки с ящиками, две штанги, длинная, штанга с брючницей",
+      sections: [
+        {
+          share: four[0],
+          zones: [
+            A,
+            { kind: "shelves", count: 3 },
+            { kind: "drawers", count: 4 },
+          ],
+        },
+        { share: four[1], zones: twoRods },
+        {
+          share: four[2],
+          zones: [
+            A,
+            { kind: "rod", height: 1300 },
+            { kind: "shelves", count: 0 },
+          ],
+        },
+        {
+          zones: [A, { kind: "rod" }, { kind: "trousers", height: 772 }],
+        },
+      ],
+    },
+    {
+      label: "3 секции: штанга с брючницей, штанга с ящиками, длинная штанга",
+      sections: [
+        {
+          share: 1 / 3,
+          zones: [A, { kind: "rod" }, { kind: "trousers", height: 800 }],
+        },
+        {
+          share: 1 / 3,
+          zones: [A, { kind: "rod" }, { kind: "drawers", count: 3 }],
+        },
+        {
+          zones: [
+            A,
+            { kind: "rod", height: 1414 },
+            { kind: "shelves", count: 0 },
+          ],
+        },
+      ],
+    },
+  ];
+})();
+
+// Секции шкафа по схеме для ширины width и плиты t.
+export function kupeSchemeSections(
+  scheme: (typeof KUPE_SCHEMES)[number],
+  width: number,
+  t: number,
+): KupeSection[] {
+  const k = scheme.sections.length;
+  const span = width - 2 * t - (k - 1) * t;
+  return scheme.sections.map((section) => ({
+    width: section.share ? Math.round(span * section.share) : 0,
+    zones: section.zones.map((zone) => ({ ...zone })),
+  }));
+}
+
+// Секция шкафа-купе: ширина (0 — поровну с другими) и зоны сверху вниз.
+// Старые поля (fill, shelves, drawers, shoes, rod) читаются, если зон нет.
 export type KupeSection = {
   width?: number;
+  zones?: KupeZone[];
   fill?: KupeFill;
-  shelves: number;
-  drawers: number;
+  shelves?: number;
+  drawers?: number;
   shoes?: boolean;
-  // Старое поле: штанга вместо полок.
   rod?: boolean;
 };
 
@@ -109,7 +391,7 @@ export type CabinetSpec = {
   // Шкаф-купе: раздвижные двери перед корпусом, по секции на дверь.
   slidingDoors?: 2 | 3 | 4;
   sections?: KupeSection[];
-  // Антресоль: полка на 400 мм ниже крыши во всех секциях.
+  // Старое поле: антресоль во всех секциях без своих зон.
   antresol?: boolean;
 };
 
@@ -164,10 +446,21 @@ export const CABINET_KINDS: Record<
       shelves: 0,
       doors: 0,
       slidingDoors: 2,
-      antresol: true,
       sections: [
-        { fill: "shelves", shelves: 3, drawers: 2 },
-        { fill: "twoRods", shelves: 0, drawers: 0 },
+        {
+          zones: [
+            { kind: "antresol", height: 400 },
+            { kind: "shelves", count: 3 },
+            { kind: "drawers", count: 2 },
+          ],
+        },
+        {
+          zones: [
+            { kind: "antresol", height: 400 },
+            { kind: "rod" },
+            { kind: "rod" },
+          ],
+        },
       ],
     },
   },
@@ -195,6 +488,14 @@ const KUPE_HANGING_SHORT = 800;
 const KUPE_ROD_ZONE = 1000;
 // Полка для обуви над дном, мм.
 const KUPE_SHOE_HEIGHT = 300;
+// Выдвижная полка: шаг по высоте, бортик спереди, над нижней полкой.
+const KUPE_TRAY_PITCH = 150;
+export const KUPE_TRAY_BOX = 80;
+const KUPE_TRAY_LIFT = 30;
+// Зона короче этого не строится, мм.
+const KUPE_MIN_ZONE = 100;
+// Брючнице нужно места под полкой, мм.
+const KUPE_TROUSERS_HEIGHT = 700;
 const KUPE_MIN_SECTION = 250;
 const KUPE_FRONT_GAP = 2; // вкладной фасад ящика от боковин секции, мм
 const KUPE_DRAWER_FRONT = 180;
@@ -203,10 +504,55 @@ const KUPE_FRONT_SETBACK = 30;
 const KUPE_DOOR_CLEARANCE = 5;
 
 const DEFAULT_SECTION: KupeSection = {
-  fill: "shelves",
-  shelves: 4,
-  drawers: 0,
+  zones: [{ kind: "shelves", count: 4 }],
 };
+
+// Зоны из старых полей секции: наполнение, ящики или обувь внизу,
+// антресоль (или шляпная полка над штангой) сверху.
+function legacyZones(section: KupeSection, antresol: boolean): KupeZone[] {
+  const fill = section.fill ?? (section.rod ? "rod" : "shelves");
+  const shelves = section.shelves ?? 0;
+  const zones: KupeZone[] = [];
+  if (antresol) zones.push({ kind: "antresol", height: KUPE_HAT_SPACE });
+  else if (fill !== "shelves") {
+    zones.push({ kind: "shelves", count: 0, height: KUPE_HAT_SPACE });
+  }
+  if (fill === "shelves") zones.push({ kind: "shelves", count: shelves });
+  else if (fill === "rod") zones.push({ kind: "rod" });
+  else if (fill === "twoRods") zones.push({ kind: "rod" }, { kind: "rod" });
+  else if (fill === "rodTrousers") {
+    zones.push({ kind: "rod" }, { kind: "trousers" });
+  } else {
+    zones.push(
+      { kind: "rod", height: KUPE_ROD_ZONE },
+      { kind: "shelves", count: shelves },
+    );
+  }
+  const drawers = Math.round(section.drawers ?? 0);
+  if (drawers > 0) zones.push({ kind: "drawers", count: drawers });
+  else if (section.shoes) {
+    zones.push({ kind: "shoes", count: 0, height: KUPE_SHOE_HEIGHT });
+  }
+  return zones;
+}
+
+function normalizeZone(zone: KupeZone): KupeZone {
+  const kind: ZoneKind = zone.kind in ZONE_KINDS ? zone.kind : "shelves";
+  const limits = ZONE_KINDS[kind].count;
+  const height = Math.max(0, Math.round(zone.height || 0));
+  return {
+    kind,
+    ...(limits
+      ? {
+          count: Math.max(
+            limits.min,
+            Math.min(limits.max, Math.round(zone.count ?? limits.default)),
+          ),
+        }
+      : {}),
+    ...(height > 0 ? { height } : {}),
+  };
+}
 
 export function kupeDoorCount(spec: CabinetSpec): 2 | 3 | 4 {
   return spec.slidingDoors === 3 || spec.slidingDoors === 4
@@ -219,16 +565,29 @@ export function kupeSections(spec: CabinetSpec): KupeSection[] {
   const list = spec.sections?.length
     ? spec.sections.slice(0, 5)
     : Array.from({ length: kupeDoorCount(spec) }, () => DEFAULT_SECTION);
+  const antresol = spec.antresol ?? true;
   return list.map((section) => {
-    const drawers = Math.max(0, Math.min(5, Math.round(section.drawers || 0)));
+    const source = section.zones?.length
+      ? section.zones
+      : legacyZones(section, antresol);
+    const zones = source.slice(0, 8).map(normalizeZone);
     return {
       width: Math.max(0, Math.round(section.width || 0)),
-      fill: section.fill ?? (section.rod ? "rod" : "shelves"),
-      shelves: Math.max(0, Math.min(10, Math.round(section.shelves || 0))),
-      drawers,
-      shoes: drawers === 0 && Boolean(section.shoes),
+      zones: zones.length > 0 ? zones : [{ kind: "shelves", count: 0 }],
     };
   });
+}
+
+// Высота зоны, которую задают ящики или выдвижные полки, мм в свету.
+function zoneNaturalHeight(zone: KupeZone, t: number) {
+  const count = zone.count ?? 0;
+  if (zone.kind === "drawers") return count * (KUPE_DRAWER_FRONT + DOOR_GAP);
+  if (zone.kind === "trays") return count * KUPE_TRAY_PITCH;
+  if (zone.kind === "antresol") return KUPE_HAT_SPACE;
+  if (zone.kind === "shoes") {
+    return (count + 1) * KUPE_SHOE_HEIGHT + count * t;
+  }
+  return 0;
 }
 
 // Зазоры и отступы, принятые в мебельных программах по умолчанию.
@@ -272,6 +631,8 @@ export type CabinetDrawers = {
   spacer?: number;
   // Купе: днища ящиков разных секций (ширина секций может различаться).
   bottoms?: Array<{ length: number; width: number; count: number }>;
+  // Купе: выдвижных полок на тех же направляющих.
+  trays?: number;
 };
 
 // Секция купе: внутренний проём от left шириной width, мм. Высоты — низ
@@ -280,13 +641,19 @@ export type CabinetSection = {
   index: number;
   left: number;
   width: number;
-  fill: KupeFill;
-  // Съёмные полки на полкодержателях: высота и вид полки.
-  shelves: Array<{ at: number; kind: string }>;
+  // Зоны сверху вниз: низ зоны и высота в свету.
+  zones: Array<KupeZone & { from: number; height: number }>;
+  // Полки на полкодержателях: высота и вид полки. Полки колонок — со своим
+  // левым краем и шириной.
+  shelves: Array<{ at: number; kind: string; left?: number; width?: number }>;
   rods: number[];
-  trousersAt: number | null;
+  // Брючницы: низ полки, под которой висит рамка.
+  trousers: number[];
+  // Стойки зон «две колонки»: левая грань, низ, высота.
+  stands: Array<{ left: number; at: number; height: number; kind?: string }>;
   drawers: number;
-  // Ящики секции: фасад и короб между проставками.
+  trays: number;
+  // Ящики и выдвижные полки секции: между проставками, в проёме двери.
   drawer: {
     frontLeft: number;
     frontWidth: number;
@@ -294,6 +661,13 @@ export type CabinetSection = {
     boxWidth: number;
     spacerLeft: number;
     spacerRight: number;
+    // Низы фасадов и коробов ящиков, низы выдвижных полок.
+    frontsAt: number[];
+    boxesAt: number[];
+    traysAt: number[];
+    // Блоки под проставки: низ и высота.
+    drawerBlock: { at: number; height: number } | null;
+    trayBlock: { at: number; height: number } | null;
   } | null;
 };
 
@@ -504,6 +878,7 @@ function drawerBoxParts(
   t: number,
   count: number,
   suffix = "",
+  kind = "ящик",
 ): CabinetPart[] {
   const boxScrews = (side: "left" | "right") => ({
     ...createHardware("faceRow", side),
@@ -514,7 +889,7 @@ function drawerBoxParts(
   });
   return [
     {
-      title: `${name}: ящик боковина${suffix}`,
+      title: `${name}: ${kind} боковина${suffix}`,
       length: slide,
       width: boxHeight,
       quantity: 2 * count,
@@ -523,7 +898,7 @@ function drawerBoxParts(
       hardware: [boxScrews("left"), boxScrews("right")],
     },
     {
-      title: `${name}: ящик стенка${suffix}`,
+      title: `${name}: ${kind} стенка${suffix}`,
       length: round(boxWidth - 2 * t),
       width: boxHeight,
       quantity: 2 * count,
@@ -835,7 +1210,6 @@ function buildKupe(spec: CabinetSpec, t: number): CabinetResult {
   const config = kupeSections(spec);
   const k = config.length;
   const n = kupeDoorCount(spec);
-  const antresol = spec.antresol ?? true;
 
   // Ширины секций: заданные как есть, остальное поровну.
   const span = W - 2 * t - (k - 1) * t;
@@ -908,49 +1282,91 @@ function buildKupe(spec: CabinetSpec, t: number): CabinetResult {
     };
   });
 
-  // Ящики: одна направляющая и одна высота фасада во всех секциях.
+  // Ящики и выдвижные полки: одна направляющая и одна высота фасада во
+  // всех секциях.
   const slide =
     [...DRAWER_SLIDE_LENGTHS]
       .reverse()
       .find((length) => length <= D - t - KUPE_FRONT_SETBACK - 30) ?? 0;
   const frontHeight = KUPE_DRAWER_FRONT;
   const boxHeight = Math.floor((frontHeight - 40) / 10) * 10;
-  const maxDrawers = Math.max(0, ...config.map((section) => section.drawers));
-  const frontsAt = Array.from({ length: maxDrawers }, (_, index) =>
-    round(bottomTop + DOOR_GAP + index * (frontHeight + DOOR_GAP)),
-  );
 
   const sections: CabinetSection[] = config.map((section, index) => {
     const left = lefts[index];
     const width = widths[index];
     const label = `Секция ${index + 1}`;
+    const zones = section.zones!;
     const shelves: CabinetSection["shelves"] = [];
     const rods: number[] = [];
-    let trousersAt: number | null = null;
+    const trousers: number[] = [];
+    const stands: CabinetSection["stands"] = [];
 
-    // Низ секции: ящики под полкой или полка для обуви.
-    let from = bottomTop;
-    if (section.drawers > 0) {
-      const at = round(bottomTop + section.drawers * (frontHeight + DOOR_GAP));
-      shelves.push({ at, kind: "полка над ящиками" });
-      from = at + t;
-    } else if (section.shoes) {
-      const at = round(bottomTop + KUPE_SHOE_HEIGHT);
-      shelves.push({ at, kind: "полка для обуви" });
-      from = at + t;
+    // Высоты зон: заданные, у ящиков и выдвижных полок — по их числу,
+    // остальное поровну. Если «авто» зон нет, остаток берёт верхняя
+    // зона без ящиков.
+    const span = roofBottom - bottomTop - (zones.length - 1) * t;
+    const given = zones.map((zone) => {
+      const natural = zoneNaturalHeight(zone, t);
+      if (zone.kind === "drawers" || zone.kind === "trays") {
+        return Math.max(natural, zone.height ?? 0);
+      }
+      return zone.height || natural;
+    });
+    let auto = given.map((height) => height === 0);
+    if (!auto.some(Boolean)) {
+      const flexible = zones.findIndex(
+        (zone) => zone.kind !== "drawers" && zone.kind !== "trays",
+      );
+      if (flexible >= 0) auto = auto.map((_, at) => at === flexible);
     }
-    // Верх секции: антресоль или (для штанги) шляпная полка.
-    const hatAt = round(roofBottom - KUPE_HAT_SPACE - t);
-    let top = roofBottom;
-    const fill = section.fill ?? "shelves";
-    if (antresol) {
-      shelves.push({ at: hatAt, kind: "полка антресоли" });
-      top = hatAt;
-    } else if (fill !== "shelves") {
-      shelves.push({ at: hatAt, kind: "полка" });
-      top = hatAt;
+    const fixedSum = given.reduce(
+      (sum, height, at) => sum + (auto[at] ? 0 : height),
+      0,
+    );
+    const autoCount = auto.filter(Boolean).length;
+    const autoHeight = autoCount > 0 ? (span - fixedSum) / autoCount : 0;
+    if (
+      (autoCount > 0 && autoHeight < KUPE_MIN_ZONE) ||
+      (autoCount === 0 && Math.abs(fixedSum - span) > 1)
+    ) {
+      problems.push(
+        `${label}: зоны не помещаются по высоте (внутри ${Math.round(span)} мм) — уменьшите высоты или число зон.`,
+      );
     }
-    const spread = (count: number, low: number, high: number) => {
+    const heights = given.map((height, at) =>
+      auto[at] ? Math.max(KUPE_MIN_ZONE, autoHeight) : height,
+    );
+
+    // Раскладка сверху вниз: между зонами полка.
+    const placed: CabinetSection["zones"] = [];
+    let cursor = roofBottom;
+    zones.forEach((zone, at) => {
+      const from = cursor - heights[at];
+      placed.push({ ...zone, from: round(from), height: round(heights[at]) });
+      if (at < zones.length - 1) {
+        const next = zones[at + 1];
+        const nearSplit = zone.kind === "split" || next.kind === "split";
+        const kind = nearSplit
+          ? "полка со стойкой"
+          : next.kind === "drawers" || next.kind === "trays"
+            ? "полка над ящиками"
+            : zone.kind === "antresol"
+              ? "полка антресоли"
+              : next.kind === "shoes"
+                ? "полка для обуви"
+                : "полка";
+        shelves.push({ at: round(from - t), kind });
+        cursor = from - t;
+      }
+    });
+
+    const spread = (
+      count: number,
+      low: number,
+      high: number,
+      kind: string,
+      column?: { left: number; width: number },
+    ) => {
       const step = (high - low - count * t) / (count + 1);
       if (count > 0 && step < 150) {
         problems.push(`${label}: полки чаще 150 мм — уменьшите число полок.`);
@@ -958,50 +1374,79 @@ function buildKupe(spec: CabinetSpec, t: number): CabinetResult {
       for (let shelf = 0; shelf < count; shelf += 1) {
         shelves.push({
           at: round(low + step * (shelf + 1) + t * shelf),
-          kind: "полка",
+          kind,
+          ...(column ?? {}),
         });
       }
     };
-    const hang = (rodAt: number, low: number, need: number) => {
-      if (rodAt - low < need) {
-        problems.push(
-          `${label}: под штангой ${Math.round(rodAt - low)} мм, нужно от ${need} мм.`,
-        );
-      }
-    };
 
-    if (fill === "shelves") {
-      spread(section.shelves, from, top);
-    } else if (fill === "rod") {
-      rods.push(round(top - KUPE_ROD_BELOW_SHELF));
-      hang(rods[0], from, KUPE_HANGING_LONG);
-    } else if (fill === "twoRods" || fill === "rodTrousers") {
-      const mid = round(from + (top - from - t) / 2);
-      shelves.push({ at: mid, kind: "полка" });
-      rods.push(round(top - KUPE_ROD_BELOW_SHELF));
-      hang(rods[0], mid + t, KUPE_HANGING_SHORT);
-      if (fill === "twoRods") {
-        rods.push(round(mid - KUPE_ROD_BELOW_SHELF));
-        hang(rods[1], from, KUPE_HANGING_SHORT);
-      } else {
-        // Брючница крепится под полкой, брюки висят под ней.
-        trousersAt = mid;
-      }
-    } else {
-      const shelfAt = round(top - KUPE_ROD_ZONE - t);
-      rods.push(round(top - KUPE_ROD_BELOW_SHELF));
-      if (shelfAt - from < 150) {
-        problems.push(`${label}: под штангой не остаётся места для полок.`);
-      } else {
-        shelves.push({ at: shelfAt, kind: "полка" });
-        spread(section.shelves, from, shelfAt);
+    let frontsAt: number[] = [];
+    let traysAt: number[] = [];
+    let drawerBlock: { at: number; height: number } | null = null;
+    let trayBlock: { at: number; height: number } | null = null;
+    for (const zone of placed) {
+      const low = zone.from;
+      const high = zone.from + zone.height;
+      const count = zone.count ?? 0;
+      if (zone.kind === "shelves") spread(count, low, high, "полка");
+      else if (zone.kind === "shoes") {
+        spread(count, low, high, "полка для обуви");
+      } else if (zone.kind === "rod") {
+        const rodAt = round(high - KUPE_ROD_BELOW_SHELF);
+        rods.push(rodAt);
+        if (rodAt - low < KUPE_HANGING_SHORT) {
+          problems.push(
+            `${label}: под штангой ${Math.round(rodAt - low)} мм, нужно от ${KUPE_HANGING_SHORT} мм (длинные вещи — от ${KUPE_HANGING_LONG} мм).`,
+          );
+        }
+      } else if (zone.kind === "trousers") {
+        trousers.push(round(high));
+        if (zone.height < KUPE_TROUSERS_HEIGHT) {
+          problems.push(
+            `${label}: под брючницей ${Math.round(zone.height)} мм, нужно от ${KUPE_TROUSERS_HEIGHT} мм.`,
+          );
+        }
+      } else if (zone.kind === "split") {
+        const column = (width - t) / 2;
+        const standLeft = round(left + column);
+        stands.push({ left: standLeft, at: round(low), height: zone.height });
+        spread(count, low, high, "полка в колонке", {
+          left: round(left + SHELF_CLEARANCE),
+          width: round(column - 2 * SHELF_CLEARANCE),
+        });
+        spread(count, low, high, "полка в колонке", {
+          left: round(standLeft + t + SHELF_CLEARANCE),
+          width: round(column - 2 * SHELF_CLEARANCE),
+        });
+        if (column < 200) {
+          problems.push(`${label}: колонки уже 200 мм — секция узкая.`);
+        }
+      } else if (zone.kind === "drawers") {
+        if (drawerBlock) {
+          problems.push(`${label}: ящики — одной зоной на секцию.`);
+          continue;
+        }
+        frontsAt = Array.from({ length: count }, (_, at) =>
+          round(low + DOOR_GAP + at * (frontHeight + DOOR_GAP)),
+        );
+        drawerBlock = { at: round(low), height: round(zone.height) };
+      } else if (zone.kind === "trays") {
+        if (trayBlock) {
+          problems.push(`${label}: выдвижные полки — одной зоной на секцию.`);
+          continue;
+        }
+        traysAt = Array.from({ length: count }, (_, at) =>
+          round(low + KUPE_TRAY_LIFT + at * KUPE_TRAY_PITCH),
+        );
+        trayBlock = { at: round(low), height: round(zone.height) };
       }
     }
 
-    // Ящики выходят в проём двери, с которой секция больше всего
-    // совпадает; где проём уже секции — проставки целыми слоями плиты.
+    // Ящики и выдвижные полки выходят в проём двери, с которой секция
+    // больше всего совпадает; где проём уже секции — проставки целыми
+    // слоями плиты.
     let drawer: CabinetSection["drawer"] = null;
-    if (section.drawers > 0) {
+    if (drawerBlock || trayBlock) {
       const right = left + width;
       const best = windows.reduce((found, win) =>
         Math.min(right, win.to) - Math.max(left, win.from) >
@@ -1028,6 +1473,11 @@ function buildKupe(spec: CabinetSpec, t: number): CabinetResult {
         boxWidth: round(inner - 2 * DRAWER_SLIDE_GAP),
         spacerLeft,
         spacerRight,
+        frontsAt,
+        boxesAt: frontsAt.map((at) => round(at + DRAWER_LIFT)),
+        traysAt,
+        drawerBlock,
+        trayBlock,
       };
     }
 
@@ -1035,19 +1485,35 @@ function buildKupe(spec: CabinetSpec, t: number): CabinetResult {
       index,
       left,
       width,
-      fill,
+      zones: placed,
       shelves: shelves.sort((a, b) => a.at - b.at),
       rods,
-      trousersAt,
-      drawers: section.drawers,
+      trousers,
+      stands,
+      drawers: frontsAt.length,
+      trays: traysAt.length,
       drawer,
     };
   });
 
   // Полкодержатели: у боковины — от пола, у перегородки — от её низа (над
   // дном), отверстия в перегородке сквозные: держат полки с обеих сторон.
-  const heightsOf = (section: CabinetSection) =>
-    section.shelves.map((shelf) => shelf.at);
+  // Полки колонок держатся с одной стороны на стенке секции, с другой —
+  // на стойке.
+  const heightsAt = (section: CabinetSection, edge: number) =>
+    section.shelves
+      .filter(
+        (shelf) =>
+          shelf.left === undefined ||
+          Math.abs(shelf.left - edge) <= SHELF_CLEARANCE + 1 ||
+          Math.abs(shelf.left + (shelf.width ?? 0) - edge) <=
+            SHELF_CLEARANCE + 1,
+      )
+      .map((shelf) => shelf.at);
+  const leftHeights = (section: CabinetSection) =>
+    heightsAt(section, section.left);
+  const rightHeights = (section: CabinetSection) =>
+    heightsAt(section, section.left + section.width);
   const pinsAt = (heights: number[], base: number, through: boolean) =>
     [...new Set(heights)].map((height) => ({
       ...createHardware("shelfPins", "top"),
@@ -1057,7 +1523,7 @@ function buildKupe(spec: CabinetSpec, t: number): CabinetResult {
     }));
 
   const parts: CabinetPart[] = [];
-  const sidePins = [heightsOf(sections[0]), heightsOf(sections[k - 1])];
+  const sidePins = [leftHeights(sections[0]), rightHeights(sections[k - 1])];
   ["левая", "правая"].forEach((label, index) => {
     parts.push({
       title: `${name}: боковина ${label}`,
@@ -1071,15 +1537,50 @@ function buildKupe(spec: CabinetSpec, t: number): CabinetResult {
   });
 
   // Крыша и дно: крепёж к боковинам и сквозные Ø7 под конфирматы
-  // перегородок (по центру толщины перегородки).
-  const partitionScrews = (): HardwareItem[] =>
-    partitions.map((left) => ({
+  // перегородок (по центру толщины перегородки) и стоек у крыши или дна.
+  const throughScrews = (centers: number[]): HardwareItem[] =>
+    centers.map((center) => ({
       ...createHardware("faceRow", "left"),
       ...confirmatPlaces,
-      indent: round(left + t / 2 - t),
+      indent: round(center - t),
       holes: [{ diameter: 7, depth: 0 }],
     }));
-  for (const title of ["крыша", "дно"]) {
+  const partitionCenters = partitions.map((left) => left + t / 2);
+  // Стойка мельче крыши и дна на отступ полок и стоит у задней кромки:
+  // отверстия под её конфирматы — по её глубине, от задней кромки.
+  const standDepth = D - SHELF_SETBACK;
+  const standPlaces =
+    confirmatPlaces.count === 1
+      ? [standDepth / 2]
+      : Array.from(
+          { length: confirmatPlaces.count },
+          (_, index) =>
+            confirmatPlaces.offset +
+            ((standDepth - 2 * confirmatPlaces.offset) * index) /
+              (confirmatPlaces.count - 1),
+        );
+  const standScrews = (level: number): HardwareItem[] =>
+    sections.flatMap((section) =>
+      section.stands
+        .filter(
+          (stand) =>
+            Math.abs(stand.at - level) < 1 ||
+            Math.abs(stand.at + stand.height - level) < 1,
+        )
+        .flatMap((stand) =>
+          standPlaces.map((place) => ({
+            ...createHardware("faceRow", "left"),
+            count: 1,
+            offset: round(place),
+            indent: round(stand.left + t / 2 - t),
+            holes: [{ diameter: 7, depth: 0 }],
+          })),
+        ),
+    );
+  for (const [title, level] of [
+    ["крыша", roofBottom],
+    ["дно", bottomTop],
+  ] as const) {
     parts.push({
       title: `${name}: ${title}`,
       length: round(W - 2 * t),
@@ -1087,7 +1588,11 @@ function buildKupe(spec: CabinetSpec, t: number): CabinetResult {
       quantity: 1,
       edgedSides: ["top"],
       fixedGrain: true,
-      hardware: [...roofHardware(), ...partitionScrews()],
+      hardware: [
+        ...roofHardware(),
+        ...throughScrews(partitionCenters),
+        ...standScrews(level),
+      ],
     });
   }
 
@@ -1106,7 +1611,10 @@ function buildKupe(spec: CabinetSpec, t: number): CabinetResult {
           mirror: true,
         },
         ...pinsAt(
-          [...heightsOf(sections[index]), ...heightsOf(sections[index + 1])],
+          [
+            ...rightHeights(sections[index]),
+            ...leftHeights(sections[index + 1]),
+          ],
           bottomTop,
           true,
         ),
@@ -1133,89 +1641,192 @@ function buildKupe(spec: CabinetSpec, t: number): CabinetResult {
     });
   }
 
-  // Полки секции: по строке на вид полки.
+  // Полки секции: по строке на вид полки. Полка со стойкой — со сквозными
+  // Ø7 под конфирматы стойки.
   for (const section of sections) {
     const suffix = sectionSuffix(section.index);
-    const kinds = new Map<string, number>();
+    const kinds = new Map<string, { quantity: number; width: number }>();
     for (const shelf of section.shelves) {
-      kinds.set(shelf.kind, (kinds.get(shelf.kind) ?? 0) + 1);
+      const entry = kinds.get(shelf.kind);
+      kinds.set(shelf.kind, {
+        quantity: (entry?.quantity ?? 0) + 1,
+        width: shelf.width ?? section.width - 2 * SHELF_CLEARANCE,
+      });
     }
-    for (const [kind, quantity] of kinds) {
+    const standX = section.stands[0]
+      ? section.stands[0].left + t / 2 - section.left - SHELF_CLEARANCE
+      : 0;
+    for (const [kind, { quantity, width }] of kinds) {
       parts.push({
         title: `${name}: ${kind}${suffix}`,
-        length: round(section.width - 2 * SHELF_CLEARANCE),
+        length: round(width),
         width: D - SHELF_SETBACK,
         quantity,
         edgedSides: ["top"],
         fixedGrain: true,
+        ...(kind === "полка со стойкой"
+          ? {
+              hardware: [
+                {
+                  ...createHardware("faceRow", "left"),
+                  ...confirmatPlaces,
+                  indent: round(standX),
+                  holes: [{ diameter: 7, depth: 0 }],
+                },
+              ],
+            }
+          : {}),
       });
     }
+    // Стойки колонок: на конфирматах к полкам сверху и снизу, сквозные
+    // полкодержатели под полки обеих колонок.
+    // Одинаковые стойки (высота и полкодержатели) — одной строкой.
+    const standGroups = new Map<
+      string,
+      {
+        height: number;
+        at: number;
+        pins: number[];
+        stands: typeof section.stands;
+      }
+    >();
+    for (const stand of section.stands) {
+      const pins = section.shelves
+        .filter(
+          (shelf) =>
+            shelf.kind === "полка в колонке" &&
+            shelf.at > stand.at &&
+            shelf.at < stand.at + stand.height,
+        )
+        .map((shelf) => round(shelf.at - stand.at));
+      const key = `${stand.height}|${[...new Set(pins)].join(",")}`;
+      const group = standGroups.get(key) ?? {
+        height: stand.height,
+        at: stand.at,
+        pins,
+        stands: [],
+      };
+      group.stands.push(stand);
+      standGroups.set(key, group);
+    }
+    [...standGroups.values()].forEach((group, place) => {
+      const kind = place === 0 ? "стойка" : `стойка ${place + 1}`;
+      for (const stand of group.stands) stand.kind = kind;
+      const { height, at } = group;
+      const own = group.pins.map((pin) => pin + at);
+      parts.push({
+        title: `${name}: ${kind}${suffix}`,
+        length: round(height),
+        width: standDepth,
+        quantity: group.stands.length,
+        edgedSides: ["top"],
+        fixedGrain: true,
+        hardware: [
+          {
+            ...createHardware("confirmatEdge", "left"),
+            ...confirmatPlaces,
+            mirror: true,
+          },
+          ...pinsAt(own, at, true),
+        ],
+      });
+    });
   }
 
-  // Ящики по секциям.
+  // Ящики и выдвижные полки по секциям.
   const drawerCount = sections.reduce(
     (sum, section) => sum + section.drawers,
     0,
   );
+  const trayCount = sections.reduce((sum, section) => sum + section.trays, 0);
   let drawers: CabinetDrawers | null = null;
-  if (drawerCount > 0) {
+  if (drawerCount + trayCount > 0) {
     if (slide === 0) problems.push("Корпус слишком мелкий для ящиков.");
-    const withDrawers = sections.filter((section) => section.drawer);
-    const first = withDrawers[0].drawer!;
+    const withBoxes = sections.filter((section) => section.drawer);
+    const withDrawers = sections.filter((section) => section.drawers > 0);
+    const first = withBoxes[0].drawer!;
+    const frontsAll = withDrawers.flatMap(
+      (section) => section.drawer!.frontsAt,
+    );
     drawers = {
       count: drawerCount,
       frontWidth: first.frontWidth,
       frontHeight,
-      frontsAt,
+      frontsAt: frontsAll,
       slide,
       boxHeight,
       boxWidth: first.boxWidth,
-      boxesAt: frontsAt.map((at) => round(at + DRAWER_LIFT)),
+      boxesAt: frontsAll.map((at) => round(at + DRAWER_LIFT)),
       bottom: { length: slide, width: first.boxWidth },
       shelfAt: null,
       inset: KUPE_FRONT_SETBACK,
       spacer: first.spacerLeft,
-      bottoms: withDrawers.map((section) => ({
+      trays: trayCount,
+      bottoms: withBoxes.map((section) => ({
         length: slide,
         width: section.drawer!.boxWidth,
-        count: section.drawers,
+        count: section.drawers + section.trays,
       })),
     };
-    for (const section of withDrawers) {
+    for (const section of withBoxes) {
       const suffix = sectionSuffix(section.index);
       const box = section.drawer!;
-      if (slide > 0) {
+      if (section.drawers > 0) {
+        if (slide > 0) {
+          parts.push(
+            ...drawerBoxParts(
+              name,
+              slide,
+              boxHeight,
+              box.boxWidth,
+              t,
+              section.drawers,
+              suffix,
+            ),
+          );
+        }
+        parts.push({
+          title: `${name}: фасад ящика${suffix}`,
+          length: frontHeight,
+          width: box.frontWidth,
+          quantity: section.drawers,
+          edgedSides: ["top", "right", "bottom", "left"],
+          fixedGrain: true,
+        });
+      }
+      if (section.trays > 0 && slide > 0) {
+        // Выдвижная полка: низкий короб без фасада на тех же
+        // направляющих, передняя стенка — бортик.
         parts.push(
           ...drawerBoxParts(
             name,
             slide,
-            boxHeight,
+            KUPE_TRAY_BOX,
             box.boxWidth,
             t,
-            section.drawers,
+            section.trays,
             suffix,
+            "выдвижная полка",
           ),
         );
       }
-      parts.push({
-        title: `${name}: фасад ящика${suffix}`,
-        length: frontHeight,
-        width: box.frontWidth,
-        quantity: section.drawers,
-        edgedSides: ["top", "right", "bottom", "left"],
-        fixedGrain: true,
-      });
-      // Проставки: по высоте блока ящиков, на глубину направляющей.
+      // Проставки: по высоте блока ящиков или выдвижных полок, на
+      // глубину направляющей.
       const layers = (box.spacerLeft + box.spacerRight) / t;
-      if (layers > 0) {
-        parts.push({
-          title: `${name}: проставка ящиков${suffix}`,
-          length: slide,
-          width: round(section.drawers * (frontHeight + DOOR_GAP) - DOOR_GAP),
-          quantity: layers,
-          edgedSides: ["left"],
-          fixedGrain: true,
-        });
+      for (const [kind, block] of [
+        ["проставка ящиков", box.drawerBlock],
+        ["проставка выдвижных полок", box.trayBlock],
+      ] as const) {
+        if (layers > 0 && block) {
+          parts.push({
+            title: `${name}: ${kind}${suffix}`,
+            length: slide,
+            width: block.height,
+            quantity: layers,
+            edgedSides: ["left"],
+            fixedGrain: true,
+          });
+        }
       }
     }
   }
@@ -1236,7 +1847,9 @@ function buildKupe(spec: CabinetSpec, t: number): CabinetResult {
       width: round(W - 2 * BACK_OVERLAP_GAP),
     },
     problems,
-    shelvesAt: sections.flatMap(heightsOf),
+    shelvesAt: sections.flatMap((section) =>
+      section.shelves.map((shelf) => shelf.at),
+    ),
     doorWidth,
     doorHeight,
     drawers,
