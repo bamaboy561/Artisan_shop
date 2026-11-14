@@ -284,6 +284,18 @@ test("kitchen corner: filler and plinth close the inner corner", () => {
       /Столешница 22 мм: для стяжек/.test(problem),
     ),
   );
+  // Без стыка (боковой ряд пуст) тонкая столешница допустима.
+  const noJoint = buildKitchen(
+    {
+      ...spec,
+      countertop: 22,
+      walls: spec.walls.map((wall, w) =>
+        w === 1 ? { ...wall, base: [] } : wall,
+      ),
+    },
+    T,
+  );
+  assert.ok(!noJoint.problems.some((problem) => /для стяжек/.test(problem)));
 });
 
 test("kitchen: wide modules stand on 6 legs", () => {
