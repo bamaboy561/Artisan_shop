@@ -17,6 +17,7 @@ import {
   KITCHEN_LAYOUTS,
   KITCHEN_TOP_TYPES,
   buildKitchen,
+  kitchenDropTarget,
   kitchenPreset,
   kitchenWalls,
   type KitchenBaseType,
@@ -35,7 +36,12 @@ import type {
 } from "@/lib/server/constructor-decors";
 
 import { kitchenFittings } from "./assembly";
-import { BlockCatalog, BlockIcon } from "./kitchen-blocks";
+import {
+  BlockCatalog,
+  BlockIcon,
+  BlockToolbar,
+  BlockTray,
+} from "./kitchen-blocks";
 import { FittingsPanel } from "./assembly-panel";
 import {
   TONE_BACK,
@@ -56,18 +62,24 @@ import {
   sendToCalculator,
   sizeFormatter,
 } from "./furniture-constructor";
-import type { SceneTone } from "./furniture-scene";
+import type {
+  FurnitureSceneApi,
+  ScenePick,
+  SceneTone,
+} from "./furniture-scene";
 import {
   TONE_APPLIANCE,
   TONE_BODY,
   TONE_COUNTERTOP,
   TONE_FACADE,
+  TONE_WALL,
   buildKitchenModel,
   kitchenHandlePlacement,
 } from "./kitchen-model";
 
 const COUNTERTOP_COLOR = [92, 84, 78];
 const APPLIANCE_COLOR = [196, 199, 204];
+const WALL_COLOR = [232, 228, 221];
 // Камера: П-образную видно сверху спереди, иначе правый ряд стоит
 // спиной к зрителю.
 const KITCHEN_VIEWS: Record<KitchenLayout, [number, number, number]> = {
@@ -275,6 +287,10 @@ export function KitchenConstructor({
   const [selected, setSelected] = useState<string | null>(null);
   // Ряд, у которого открыт каталог блоков: «0-base».
   const [adding, setAdding] = useState<string | null>(null);
+  // Полка блоков в макете: ряд и блок, который сейчас ставят.
+  const [trayRow, setTrayRow] = useState<"base" | "top">("base");
+  const [armed, setArmed] = useState<string | null>(null);
+  const sceneApi = useRef<FurnitureSceneApi | null>(null);
   const blockCard = useRef<HTMLElement>(null);
   const [error, setError] = useState("");
 
@@ -295,6 +311,7 @@ export function KitchenConstructor({
         doorOpen,
         bodyMaterial: bodyDecor?.label ?? `ЛДСП ${thickness} мм`,
         facadeMaterial: facadeDecor?.label ?? `ЛДСП ${thickness} мм`,
+        walls: true,
       }),
     [spec, thickness, result, doorOpen, bodyDecor, facadeDecor],
   );
@@ -322,6 +339,7 @@ export function KitchenConstructor({
     list[TONE_COUNTERTOP] = { color: COUNTERTOP_COLOR };
     list[TONE_APPLIANCE] = { color: APPLIANCE_COLOR, metal: true };
     list[TONE_PLAIN] = list[TONE_FACADE];
+    list[TONE_WALL] = { color: WALL_COLOR };
     return list;
   }, [bodyDecor, facadeDecor]);
   const fittings = useMemo(
@@ -440,7 +458,67 @@ export function KitchenConstructor({
     }
   };
 
+  // Блок с полки ставится в точку макета: к стене и между соседями.
+  const placeBlock = (type: string, pick: ScenePick | null) => {
+    if (!pick?.point) return;
+    const hitCode =
+      pick.index === null
+        ? null
+        : moduleCode(boxes[pick.index]?.info?.name ?? "");
+    const row = trayRow;
+    const { wall, index } = kitchenDropTarget(
+      spec,
+      result,
+      row,
+      pick.point,
+      hitCode,
+      type,
+    );
+    const types = row === "base" ? KITCHEN_BASE_TYPES : KITCHEN_TOP_TYPES;
+    const item = { type, width: types[type as keyof typeof types].width };
+    const list = row === "base" ? walls[wall].base : walls[wall].top;
+    const next = [...list.slice(0, index), item, ...list.slice(index)];
+    setWall(
+      wall,
+      row === "base"
+        ? { base: next as KitchenWall["base"] }
+        : { top: next as KitchenWall["top"] },
+    );
+    setArmed(null);
+    setSelected(blockCode(wall, row, index));
+  };
+  // Правка выбранного блока из панели в макете.
+  const editSelected = (
+    change: (
+      list: Array<{ type: string; width: number }>,
+      index: number,
+    ) => Array<{ type: string; width: number }>,
+    nextIndex?: number | null,
+  ) => {
+    if (!selectedModule) return;
+    const { wall, row, index } = selectedModule;
+    const list = row === "base" ? walls[wall].base : walls[wall].top;
+    const next = change(list, index);
+    setWall(
+      wall,
+      row === "base"
+        ? { base: next as KitchenWall["base"] }
+        : { top: next as KitchenWall["top"] },
+    );
+    if (nextIndex === null) setSelected(null);
+    else if (nextIndex !== undefined)
+      setSelected(blockCode(wall, row, nextIndex));
+  };
+  const selectedRowLength = selectedModule
+    ? (selectedModule.row === "base"
+        ? walls[selectedModule.wall].base
+        : walls[selectedModule.wall].top
+      ).length
+    : 0;
+
   const clickBox = (index: number) => {
+    // Блок с полки ставится через onScenePick.
+    if (armed) return;
     const code = moduleCode(boxes[index]?.info?.name ?? "");
     setSelected((current) => (code && current !== code ? code : null));
     // На широком экране карточка блока может быть выше прокрутки.
@@ -464,12 +542,61 @@ export function KitchenConstructor({
             boxes={boxes}
             highlight={highlight}
             onBoxClick={clickBox}
-            hint="Крутите пальцем или мышью · нажмите на модуль"
+            onScenePick={(pick) => {
+              if (armed) placeBlock(armed, pick);
+            }}
+            apiRef={sceneApi}
+            overlay={
+              <>
+                {selectedModule && !armed ? (
+                  <BlockToolbar
+                    row={selectedModule.row}
+                    type={selectedModule.type}
+                    code={selectedModule.code}
+                    label={selectedModule.label}
+                    width={selectedModule.width}
+                    first={selectedModule.index === 0}
+                    last={selectedModule.index === selectedRowLength - 1}
+                    onMove={(by) =>
+                      editSelected((list, index) => {
+                        const next = [...list];
+                        const [moved] = next.splice(index, 1);
+                        next.splice(index + by, 0, moved);
+                        return next;
+                      }, selectedModule.index + by)
+                    }
+                    onWidth={(width) =>
+                      editSelected((list, index) =>
+                        list.map((item, at) =>
+                          at === index ? { ...item, width } : item,
+                        ),
+                      )
+                    }
+                    onRemove={() =>
+                      editSelected(
+                        (list, index) => list.filter((_, at) => at !== index),
+                        null,
+                      )
+                    }
+                    onClose={() => setSelected(null)}
+                  />
+                ) : null}
+                <BlockTray
+                  row={trayRow}
+                  onRowChange={setTrayRow}
+                  armed={armed}
+                  onArm={setArmed}
+                  onDrop={(type, x, y) =>
+                    placeBlock(type, sceneApi.current?.pickAt?.(x, y) ?? null)
+                  }
+                />
+              </>
+            }
             tones={tones}
             handleTone={TONE_FACADE}
             handlePlacement={kitchenHandlePlacement}
             viewDirection={KITCHEN_VIEWS[spec.layout]}
-            className="h-[56vh] min-h-80 lg:h-[72vh]"
+            className="h-[66vh] min-h-96 lg:h-[72vh]"
           />
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2">

@@ -538,6 +538,9 @@ export function buildKitchen(
           `${code}: угловой модуль ставьте на задней стене у угла — ряды боковых стен начинаются за ней.`,
         );
       }
+      if (item.type === "corner" && w === 0 && walls.length > 1) {
+        problems.push(...cornerProblems(code, index, wall.base, walls.length));
+      }
       modules.push({
         wall: w,
         row: "base",
@@ -662,6 +665,33 @@ export function buildKitchen(
       problems.push(
         `Стена ${w + 1}: навесные ${Math.round(topAt)} мм, а стена ${wall.length} мм.`,
       );
+    }
+    if (w === 0) {
+      wall.top.forEach((item, index) => {
+        if (item.type === "corner" && walls.length > 1) {
+          problems.push(
+            ...cornerProblems(`В${index + 1}`, index, wall.top, walls.length),
+          );
+        }
+      });
+    }
+    // Угловой у правого угла (П-образная) должен дойти до угла.
+    if (w === 0 && walls.length > 2) {
+      for (const [list, end, letter] of [
+        [wall.base, at, "Н"],
+        [wall.top, topAt, "В"],
+      ] as const) {
+        const last = list[list.length - 1];
+        if (
+          list.length > 1 &&
+          last.type === "corner" &&
+          end < wall.length - 0.5
+        ) {
+          problems.push(
+            `${letter}${list.length}: угловой блок у правого угла не доходит до угла на ${Math.round(wall.length - end)} мм — добавьте блоки перед ним или сделайте их шире.`,
+          );
+        }
+      }
     }
   });
 
@@ -830,4 +860,65 @@ export function kitchenLegs(result: KitchenResult) {
     clips += wide ? 3 : 2;
   }
   return { legs, clips };
+}
+
+// Угловой блок на задней стене — только первым в ряду (левый угол) или
+// последним в П-образной (правый угол).
+function cornerProblems(
+  code: string,
+  index: number,
+  list: Array<{ type: string }>,
+  wallCount: number,
+) {
+  const last = index === list.length - 1;
+  if (index === 0 || (wallCount > 2 && last)) return [];
+  return [
+    `${code}: угловой блок ставьте первым в ряду задней стены${wallCount > 2 ? " или последним" : ""} — посередине его глухая часть закрыта соседом.`,
+  ];
+}
+
+// Куда встаёт блок, поставленный в точку макета (мм): стена и место в
+// ряду. Нажали на блок — к его стене, до или после него; нажали на пол
+// или стену — к ближайшей стене, между блоками по положению вдоль неё.
+// Угловой блок сам встаёт в угол задней стены (в П-образной — в
+// ближайший).
+export function kitchenDropTarget(
+  spec: KitchenSpec,
+  result: KitchenResult,
+  row: "base" | "top",
+  point: [number, number, number],
+  hitCode?: string | null,
+  type?: string,
+): { wall: number; index: number } {
+  const [x, , z] = point;
+  const walls = kitchenWalls(spec);
+  const backLength = walls[0]?.length ?? 0;
+  const hit = hitCode
+    ? result.modules.find((item) => item.code === hitCode)
+    : undefined;
+  if (type === "corner" && walls.length > 1) {
+    const count = result.modules.filter(
+      (item) => item.wall === 0 && item.row === row,
+    ).length;
+    return {
+      wall: 0,
+      index: walls.length > 2 && x > backLength / 2 ? count : 0,
+    };
+  }
+  let wall = hit?.wall ?? 0;
+  if (!hit && walls.length > 1) {
+    const distances = [Math.abs(z), Math.abs(x), Math.abs(x - backLength)];
+    wall = 0;
+    for (let w = 1; w < walls.length; w += 1) {
+      if (distances[w] < distances[wall]) wall = w;
+    }
+  }
+  const along = wall === 0 ? x : z;
+  const index = result.modules.filter(
+    (item) =>
+      item.wall === wall &&
+      item.row === row &&
+      item.at + item.width / 2 < along,
+  ).length;
+  return { wall, index };
 }

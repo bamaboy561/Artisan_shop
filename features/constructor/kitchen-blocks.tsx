@@ -1,11 +1,21 @@
 "use client";
 
-import type { ReactNode } from "react";
+import {
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from "react";
+import { createPortal } from "react-dom";
+import { ArrowLeft, ArrowRight, Minus, Plus, Trash2, X } from "lucide-react";
 
-import type {
-  KitchenBaseType,
-  KitchenTopType,
+import {
+  KITCHEN_BASE_TYPES,
+  KITCHEN_TOP_TYPES,
+  type KitchenBaseType,
+  type KitchenTopType,
 } from "@/features/services/kitchen-builder";
+import { cn } from "@/lib/utils";
 
 // Картинки блоков для каталога: вид спереди, линии — фасады.
 const BODY = { x: 8, w: 32 };
@@ -402,6 +412,237 @@ export function BlockCatalog<T extends string>({
           </span>
         </button>
       ))}
+    </div>
+  );
+}
+
+// Полка с блоками поверх 3D-макета: нажали блок — потом нажмите в
+// макете, куда его поставить; мышью (или пальцем вверх) блок можно
+// перетащить прямо в макет.
+export function BlockTray({
+  row,
+  onRowChange,
+  armed,
+  onArm,
+  onDrop,
+}: {
+  row: "base" | "top";
+  onRowChange: (row: "base" | "top") => void;
+  armed: string | null;
+  onArm: (type: string | null) => void;
+  // Блок отпущен в точке экрана.
+  onDrop: (type: string, clientX: number, clientY: number) => void;
+}) {
+  const types: Record<string, { label: string; width: number }> =
+    row === "base" ? KITCHEN_BASE_TYPES : KITCHEN_TOP_TYPES;
+  const [ghost, setGhost] = useState<{
+    type: string;
+    x: number;
+    y: number;
+  } | null>(null);
+  const drag = useRef<{
+    type: string;
+    x: number;
+    y: number;
+    moved: boolean;
+    pointer: number;
+  } | null>(null);
+
+  const onPointerDown = (type: string) => (event: ReactPointerEvent) => {
+    drag.current = {
+      type,
+      x: event.clientX,
+      y: event.clientY,
+      moved: false,
+      pointer: event.pointerId,
+    };
+    (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+  };
+  const onPointerMove = (event: ReactPointerEvent) => {
+    const current = drag.current;
+    if (!current || current.pointer !== event.pointerId) return;
+    if (
+      !current.moved &&
+      Math.hypot(event.clientX - current.x, event.clientY - current.y) < 8
+    ) {
+      return;
+    }
+    current.moved = true;
+    setGhost({ type: current.type, x: event.clientX, y: event.clientY });
+  };
+  const onPointerUp = (event: ReactPointerEvent) => {
+    const current = drag.current;
+    drag.current = null;
+    setGhost(null);
+    if (!current || current.pointer !== event.pointerId) return;
+    if (current.moved) onDrop(current.type, event.clientX, event.clientY);
+    else onArm(armed === current.type ? null : current.type);
+  };
+  const onPointerCancel = () => {
+    drag.current = null;
+    setGhost(null);
+  };
+
+  return (
+    <div className="grid gap-1.5 bg-white/92 px-2 pt-2 pb-2 shadow-[0_-1px_0_var(--line)] backdrop-blur">
+      <div className="flex items-center gap-1.5">
+        {(["base", "top"] as const).map((value) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => {
+              onArm(null);
+              onRowChange(value);
+            }}
+            className={cn(
+              "h-7 rounded-full border px-3 text-[12px] font-medium",
+              row === value
+                ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-ink)]"
+                : "border-[color:var(--line)] bg-white",
+            )}
+          >
+            {value === "base" ? "Нижние и пеналы" : "Навесные"}
+          </button>
+        ))}
+        <p className="min-w-0 flex-1 truncate text-right text-[11px] text-[var(--muted)]">
+          {armed
+            ? `Нажмите в макете, куда поставить «${types[armed]?.label ?? ""}»`
+            : "Нажмите блок или перетащите его в макет"}
+        </p>
+      </div>
+      <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+        {Object.keys(types).map((type) => (
+          <button
+            key={type}
+            type="button"
+            onPointerDown={onPointerDown(type)}
+            onPointerMove={onPointerMove}
+            onPointerUp={onPointerUp}
+            onPointerCancel={onPointerCancel}
+            style={{ touchAction: "pan-x" }}
+            title={types[type].label}
+            className={cn(
+              "grid w-[68px] shrink-0 cursor-grab justify-items-center rounded-lg border bg-white px-1 py-1 text-center select-none",
+              armed === type
+                ? "border-[var(--accent)] ring-2 ring-[var(--accent)]/30"
+                : "border-[color:var(--line)] hover:border-[var(--accent)]",
+            )}
+          >
+            <BlockIcon row={row} type={type} className="size-9" />
+            <span className="line-clamp-2 text-[10px] leading-[12px]">
+              {types[type].label}
+            </span>
+          </button>
+        ))}
+      </div>
+      {/* Полка с backdrop-blur — свой блок для fixed: значок тащим в body. */}
+      {ghost
+        ? createPortal(
+            <div
+              className="pointer-events-none fixed z-[90] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-[var(--accent)] bg-white/95 p-1 shadow-lg"
+              style={{ left: ghost.x, top: ghost.y }}
+            >
+              <BlockIcon row={row} type={ghost.type} className="size-12" />
+            </div>,
+            document.body,
+          )
+        : null}
+    </div>
+  );
+}
+
+// Панель выбранного блока в макете: переставить, ширина, убрать.
+export function BlockToolbar({
+  row,
+  type,
+  code,
+  label,
+  width,
+  first,
+  last,
+  onMove,
+  onWidth,
+  onRemove,
+  onClose,
+}: {
+  row: "base" | "top";
+  type: string;
+  code: string;
+  label: string;
+  width: number;
+  first: boolean;
+  last: boolean;
+  onMove: (by: -1 | 1) => void;
+  onWidth: (width: number) => void;
+  onRemove: () => void;
+  onClose: () => void;
+}) {
+  const button =
+    "inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-[color:var(--line)] bg-white disabled:opacity-30";
+  return (
+    <div className="mx-2 mb-2 flex flex-wrap items-center gap-1.5 rounded-xl bg-white/95 p-1.5 shadow-sm">
+      <div className="flex min-w-0 basis-full items-center gap-1.5 sm:flex-1 sm:basis-auto">
+        <BlockIcon row={row} type={type} className="size-8 shrink-0" />
+        <p className="min-w-0 flex-1 truncate text-[12px] leading-4">
+          <span className="font-semibold">{code}</span> · {label} · {width} мм
+        </p>
+      </div>
+      <div className="ml-auto flex items-center gap-1.5">
+        <button
+          type="button"
+          className={button}
+          disabled={first}
+          onClick={() => onMove(-1)}
+          aria-label="Левее"
+        >
+          <ArrowLeft className="size-4" />
+        </button>
+        <button
+          type="button"
+          className={button}
+          disabled={last}
+          onClick={() => onMove(1)}
+          aria-label="Правее"
+        >
+          <ArrowRight className="size-4" />
+        </button>
+        <button
+          type="button"
+          className={button}
+          disabled={width <= 150}
+          onClick={() => onWidth(width - 50)}
+          aria-label="Уже на 50 мм"
+        >
+          <Minus className="size-4" />
+        </button>
+        <span className="w-10 text-center text-[12px] tabular-nums">
+          {width}
+        </span>
+        <button
+          type="button"
+          className={button}
+          onClick={() => onWidth(width + 50)}
+          aria-label="Шире на 50 мм"
+        >
+          <Plus className="size-4" />
+        </button>
+        <button
+          type="button"
+          className={button}
+          onClick={onRemove}
+          aria-label="Убрать блок"
+        >
+          <Trash2 className="size-4" />
+        </button>
+        <button
+          type="button"
+          className={button}
+          onClick={onClose}
+          aria-label="Снять выбор"
+        >
+          <X className="size-4" />
+        </button>
+      </div>
     </div>
   );
 }

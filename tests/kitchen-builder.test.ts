@@ -11,6 +11,7 @@ import {
   WIDE_MODULE,
   OVEN_NICHE,
   buildKitchen,
+  kitchenDropTarget,
   kitchenLegs,
   kitchenPreset,
   type KitchenLayout,
@@ -354,4 +355,84 @@ test("фурнитура одного блока: без столешницы, �
     (line) => line.key === "kitchenLeg",
   );
   assert.equal(legs?.count, 4);
+});
+
+test("блок из полки встаёт к стене и между соседями", () => {
+  const spec = kitchen("corner");
+  const result = buildKitchen(spec, T);
+  const back = result.modules.filter(
+    (item) => item.wall === 0 && item.row === "base",
+  );
+  // На пол перед серединой второго блока задней стены, правее середины.
+  const second = back[1];
+  const x = second.at + second.width * 0.75;
+  assert.deepEqual(kitchenDropTarget(spec, result, "base", [x, 0, 900]), {
+    wall: 0,
+    index: 2,
+  });
+  // У левой стены (x≈0), далеко от угла — в конец её ряда.
+  const left = result.modules.filter(
+    (item) => item.wall === 1 && item.row === "base",
+  );
+  assert.deepEqual(kitchenDropTarget(spec, result, "base", [100, 0, 2400]), {
+    wall: 1,
+    index: left.length,
+  });
+  // Нажали на блок: та же стена, перед ним, если левее его середины.
+  assert.deepEqual(
+    kitchenDropTarget(
+      spec,
+      result,
+      "base",
+      [second.at + 10, 300, 600],
+      second.code,
+    ),
+    { wall: 0, index: 1 },
+  );
+  // Угловой — всегда в угол задней стены.
+  assert.deepEqual(
+    kitchenDropTarget(spec, result, "base", [100, 0, 2000], null, "corner"),
+    { wall: 0, index: 0 },
+  );
+});
+
+test("угловой блок: только в углу, у правого угла — до самого угла", () => {
+  const u = kitchen("u");
+  u.walls = u.walls.map((wall) => ({ ...wall, base: [], top: [] }));
+  // П-образная: угловой последним, но ряд не доходит до правого угла.
+  u.walls[0] = {
+    ...u.walls[0],
+    base: [
+      { type: "corner", width: 1000 },
+      { type: "drawers", width: 400 },
+      { type: "corner", width: 1000 },
+    ],
+  };
+  const short = buildKitchen(u, T);
+  assert.ok(
+    short.problems.some((text) =>
+      /Н3: угловой блок у правого угла не доходит/.test(text),
+    ),
+    short.problems.join("\n"),
+  );
+  // Угловой посередине ряда.
+  const corner = kitchen("corner");
+  corner.walls = corner.walls.map((wall) => ({ ...wall, base: [], top: [] }));
+  corner.walls[0] = {
+    ...corner.walls[0],
+    base: [
+      { type: "corner", width: 1000 },
+      { type: "corner", width: 1000 },
+      { type: "drawers", width: 400 },
+    ],
+  };
+  assert.ok(
+    buildKitchen(corner, T).problems.some((text) =>
+      /Н2: угловой блок ставьте первым/.test(text),
+    ),
+  );
+  // Готовые наборы по-прежнему без предупреждений.
+  for (const layout of ["line", "corner", "u"] as const) {
+    assert.deepEqual(buildKitchen(kitchen(layout), T).problems, []);
+  }
 });
