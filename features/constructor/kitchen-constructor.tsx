@@ -132,6 +132,15 @@ function hdfSheets(modules: KitchenPlaced[]) {
   return [...sheets].map(([size, count]) => ({ size, count }));
 }
 
+// Предупреждение касается блока, если называет его код («В1 висит над
+// … (Н1)») или не называет ни одного блока (высота навесных, стена
+// переполнена) — тогда оно про всю кухню.
+const BLOCK_CODE = /(?:^|[^\d-])((?:\d+-)?[НВ]\d+)(?!\d)/g;
+function problemConcerns(problem: string, code: string) {
+  const codes = [...problem.matchAll(BLOCK_CODE)].map((match) => match[1]);
+  return codes.length === 0 || codes.includes(code);
+}
+
 // Код блока, как в деталях: «Н3», «2-В1».
 const blockCode = (wall: number, row: "base" | "top", index: number) =>
   `${wall > 0 ? `${wall + 1}-` : ""}${row === "base" ? "Н" : "В"}${index + 1}`;
@@ -350,7 +359,7 @@ export function KitchenConstructor({
   const selectedModule = result.modules.find((item) => item.code === selected);
   const selectedHdf = selectedModule ? hdfSheets([selectedModule]) : [];
   const selectedProblems = selected
-    ? result.problems.filter((problem) => problem.startsWith(`${selected}:`))
+    ? result.problems.filter((problem) => problemConcerns(problem, selected))
     : [];
   const selectedParts = selected
     ? result.parts.filter((part) => moduleCode(part.title) === selected)
