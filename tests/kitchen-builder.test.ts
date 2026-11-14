@@ -289,3 +289,22 @@ test("kitchen: wide modules stand on 6 legs", () => {
   assert.equal(kitchenLegs(result).legs, expected);
   assert.ok(bodies.some((item) => item.width >= WIDE_MODULE));
 });
+
+test("kitchen: tall oven keeps its roof", () => {
+  const spec = kitchen("line");
+  spec.walls[0].base[4] = { type: "tallOven", width: 600 };
+  spec.walls[0].top[4] = { type: "none", width: 600 };
+  const result = buildKitchen(spec, T);
+  const tall = result.modules.find((item) => item.type === "tallOven")!;
+  const titles = tall.result!.parts.map((part) => part.title);
+  assert.ok(titles.some((title) => /: крыша$/.test(title)));
+  assert.ok(!titles.some((title) => /: царга$/.test(title)));
+});
+
+test("kitchen corner: back plinth stays full when the side row is empty", () => {
+  const spec = kitchen("corner");
+  spec.walls[1].base = [];
+  const result = buildKitchen(spec, T);
+  const back = result.plinths.find((piece) => piece.wall === 0)!;
+  assert.equal(back.from, 0);
+});

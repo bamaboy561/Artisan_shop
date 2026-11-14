@@ -513,7 +513,7 @@ export function buildKitchen(
       // Тумбы — без крыши: две царги, через переднюю крепится столешница,
       // над варочной и мойкой ничего не мешает врезке. У мойки нет задней
       // стенки — там трубы.
-      if (cabinetSpec?.kind === "base") {
+      if (cabinetSpec?.kind === "base" && !tall) {
         cabinetSpec.rails = true;
         if (item.type === "sink") cabinetSpec.noBack = true;
       }
@@ -724,14 +724,21 @@ export function buildKitchen(
       piece.from = spec.countertopDepth;
     }
   }
+  // Цоколь боковой стены, который доходит до угла.
   for (const piece of plinths) {
-    if (piece.wall === 0) {
-      if (walls.length > 1 && piece.from < plinthFace) piece.from = plinthFace;
-      if (walls.length > 2 && piece.to > backLength - plinthFace) {
-        piece.to = backLength - plinthFace;
-      }
-    } else if (piece.from === starts[piece.wall].base) {
+    if (piece.wall > 0 && piece.from === starts[piece.wall].base) {
       piece.from = plinthFace + t;
+    }
+  }
+  const reachesCorner = (w: number) =>
+    plinths.some((piece) => piece.wall === w && piece.from === plinthFace + t);
+  // Цоколь задней стены укорачиваем, только если в угол упирается цоколь
+  // боковой — иначе угол остался бы открытым.
+  for (const piece of plinths) {
+    if (piece.wall !== 0) continue;
+    if (reachesCorner(1) && piece.from < plinthFace) piece.from = plinthFace;
+    if (reachesCorner(2) && piece.to > backLength - plinthFace) {
+      piece.to = backLength - plinthFace;
     }
   }
   const name = spec.name.trim() || "Кухня";
