@@ -145,8 +145,8 @@ const FITTING_INFO: Record<
     search: /top\s?line.*ниж|ниж.*top\s?line/i,
   },
   kupeRoller: {
-    label: "Комплект роликов TopLine L на дверь",
-    note: "верхние и нижние, со стопорами",
+    label: "Комплект ходовых и направляющих элементов TopLine L",
+    note: "на 2 или 3 двери",
     search: /top\s?line.*(ролик|комплект)|(ролик|комплект).*top\s?line/i,
   },
   rod: {
@@ -292,6 +292,21 @@ const FITTING_ORDER: FittingKey[] = [
   "worktopEnd",
 ];
 
+// Артикулы комплектов TopLine L по каталогу Hettich 2020 (с. 17–19):
+// двери 10–16 мм — 9 242 708 / 709 (2 двери) и 9 242 710 (3 двери),
+// 18–30 мм — 9 242 711 / 712 и 9 242 713.
+function kupeRollerNote(doors: number, thickness: number) {
+  const thin = thickness <= 16;
+  const two = thin ? "9 242 708 или 9 242 709" : "9 242 711 или 9 242 712";
+  const three = thin ? "9 242 710" : "9 242 713";
+  const range = thin ? "10–16 мм" : "18–30 мм";
+  if (doors === 3) return `на 3 двери, для дверей ${range}: арт. ${three}`;
+  if (doors === 4) {
+    return `2 комплекта на 2 двери, для дверей ${range}: арт. ${two}`;
+  }
+  return `на 2 двери, для дверей ${range}: арт. ${two}`;
+}
+
 export function cabinetFittings(
   spec: CabinetSpec,
   result: CabinetResult,
@@ -378,7 +393,9 @@ export function cabinetFittings(
   if (kupe) {
     add("topTrack", 1);
     add("bottomTrack", 1);
-    add("kupeRoller", kupe.doors.count);
+    // Hettich продаёт ходовые элементы комплектом на шкаф: на 2 или на 3
+    // двери. 4 двери — два комплекта на 2 двери.
+    add("kupeRoller", kupe.doors.count === 4 ? 2 : 1);
     const rods = kupe.sections.reduce(
       (sum, section) => sum + section.rods.length,
       0,
@@ -416,6 +433,7 @@ export function cabinetFittings(
     ...(slideNote ? { slide: slideNote } : {}),
     ...(kupe
       ? {
+          kupeRoller: kupeRollerNote(kupe.doors.count, thickness),
           topTrack: `${spec.width} мм`,
           bottomTrack: `${spec.width} мм`,
           rod: `Ø25 мм, отрезать: ${kupe.sections
