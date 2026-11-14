@@ -381,7 +381,7 @@ test("kupe: antresol, two rods, drawers between spacers", () => {
   assert.equal(part("фасад ящика, секция 1")?.width, 856);
   assert.ok(box.frontLeft + box.frontWidth <= 887.5 - 5);
   assert.equal(part("проставка ящиков, секция 1")?.quantity, 1);
-  assert.equal(result.drawers?.slide, 500);
+  assert.equal(result.drawers?.slide, 550);
   // Крыша: сквозные Ø7 под конфирматы перегородки по центру её толщины.
   const roof = part("крыша")!;
   const roofHoles = hardwareHoles(roof.hardware, roof.length, roof.width, 16);
@@ -401,7 +401,12 @@ test("kupe: antresol, two rods, drawers between spacers", () => {
   const fittings = cabinetFittings(kupe, result, 16);
   const count = (key: string) =>
     fittings.find((line) => line.key === key)?.count ?? 0;
-  assert.equal(count("kupeRoller"), 2);
+  // Ходовые элементы TopLine L — один комплект на 2 двери.
+  assert.equal(count("kupeRoller"), 1);
+  assert.match(
+    fittings.find((line) => line.key === "kupeRoller")!.note,
+    /9 242 708/,
+  );
   assert.equal(count("topTrack"), 1);
   assert.equal(count("rod"), 2);
   assert.equal(count("rodHolder"), 4);
@@ -562,7 +567,7 @@ test("купе: двери вне пределов Hettich TopLine L — пре�
     },
     16,
   );
-  assert.ok(narrow.problems.some((text) => /от 500 до 1500/.test(text)));
+  assert.ok(narrow.problems.some((text) => /от 550 до 1500/.test(text)));
   const ok = buildCabinet({ ...CABINET_KINDS.kupe.defaults, kind: "kupe" }, 16);
   assert.ok(!ok.problems.some((text) => /TopLine/.test(text)));
 });
@@ -743,14 +748,16 @@ test("купе: стойка колонок — отверстия в дне п�
   );
   const bottom = result.parts.find((part) => partKind(part.title) === "дно")!;
   const x = bottomStand.left + 8 - 16;
-  const face = hardwareHoles(bottom.hardware, bottom.length, bottom.width, 16)
-    .flatMap((hole) =>
-      hole.kind === "face" &&
-      hole.diameter === 7 &&
-      Math.abs(hole.x - x) < 0.2
-        ? [Math.round(hole.y)]
-        : [],
-    );
+  const face = hardwareHoles(
+    bottom.hardware,
+    bottom.length,
+    bottom.width,
+    16,
+  ).flatMap((hole) =>
+    hole.kind === "face" && hole.diameter === 7 && Math.abs(hole.x - x) < 0.2
+      ? [Math.round(hole.y)]
+      : [],
+  );
   assert.ok(edge.length > 0);
   for (const y of edge) assert.ok(face.includes(y), `${y} in ${face}`);
 });

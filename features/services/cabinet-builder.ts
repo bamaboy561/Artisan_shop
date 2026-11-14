@@ -490,7 +490,7 @@ export const CABINET_KINDS: Record<
 export const KUPE_OVERLAP = 25;
 export const KUPE_HEIGHT_DEDUCTION = 40;
 const KUPE_DOOR_LIFT = 15;
-const KUPE_DOOR_MIN_WIDTH = 500;
+const KUPE_DOOR_MIN_WIDTH = 550;
 const KUPE_DOOR_MAX_WIDTH = 1500;
 const KUPE_DOOR_MAX_HEIGHT = 2600;
 // Двери на двух дорожках: задняя у корпуса, передняя перед ней.
@@ -625,6 +625,8 @@ const DRAWER_TOP_GAP = 30; // над коробом до следующего я
 const DRAWER_CONFIRMAT_OFFSET = 30; // конфирмат короба от верха и низа
 // Шариковые направляющие продаются этими длинами.
 export const DRAWER_SLIDE_LENGTHS = [250, 300, 350, 400, 450, 500, 550, 600];
+// Hettich KA: внутренняя глубина корпуса — длина направляющей + 4 мм.
+const SLIDE_DEPTH_RESERVE = 4;
 
 export type CabinetDrawers = {
   count: number;
@@ -1241,8 +1243,9 @@ export function buildCabinet(
   let drawers: CabinetDrawers | null = null;
   if (drawerCount > 0) {
     const slide =
-      [...DRAWER_SLIDE_LENGTHS].reverse().find((length) => length <= D - 30) ??
-      0;
+      [...DRAWER_SLIDE_LENGTHS]
+        .reverse()
+        .find((length) => length + SLIDE_DEPTH_RESERVE <= D) ?? 0;
     const boxHeight = Math.floor((frontHeight - t - DRAWER_TOP_GAP) / 10) * 10;
     const boxWidth = round(innerWidth - 2 * DRAWER_SLIDE_GAP);
     if (slide === 0) problems.push("Корпус слишком мелкий для ящиков.");
@@ -1372,7 +1375,8 @@ function buildKupe(spec: CabinetSpec, t: number): CabinetResult {
   // Двери-купе: n дверей перекрывают ширину шкафа с перехлёстом.
   const doorWidth = round((W + (n - 1) * KUPE_OVERLAP) / n);
   const doorHeight = round(H - plinth - KUPE_HEIGHT_DEDUCTION);
-  // Пределы Hettich TopLine L: ширина двери 500–1500 мм, высота до 2600 мм.
+  // Пределы Hettich TopLine L (каталог 2020, с. 14): ширина двери 550–1500 мм,
+  // высота до 2600 мм, вес до 50 кг, толщина 10–30 мм.
   if (doorWidth < KUPE_DOOR_MIN_WIDTH || doorWidth > KUPE_DOOR_MAX_WIDTH) {
     problems.push(
       `Дверь-купе шириной ${doorWidth} мм: система Hettich TopLine L держит двери от ${KUPE_DOOR_MIN_WIDTH} до ${KUPE_DOOR_MAX_WIDTH} мм — ${doorWidth < KUPE_DOOR_MIN_WIDTH ? "уменьшите" : "увеличьте"} число дверей.`,
@@ -1397,7 +1401,9 @@ function buildKupe(spec: CabinetSpec, t: number): CabinetResult {
   const slide =
     [...DRAWER_SLIDE_LENGTHS]
       .reverse()
-      .find((length) => length <= D - t - KUPE_FRONT_SETBACK - 30) ?? 0;
+      .find(
+        (length) => length + SLIDE_DEPTH_RESERVE <= D - t - KUPE_FRONT_SETBACK,
+      ) ?? 0;
   const frontHeight = KUPE_DRAWER_FRONT;
   const boxHeight = Math.floor((frontHeight - 40) / 10) * 10;
 
