@@ -6,6 +6,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 import { ArrowLeft, ArrowRight, Minus, Plus, Trash2, X } from "lucide-react";
 
 import {
@@ -534,14 +535,18 @@ export function BlockTray({
           </button>
         ))}
       </div>
-      {ghost ? (
-        <div
-          className="pointer-events-none fixed z-[90] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-[var(--accent)] bg-white/95 p-1 shadow-lg"
-          style={{ left: ghost.x, top: ghost.y }}
-        >
-          <BlockIcon row={row} type={ghost.type} className="size-12" />
-        </div>
-      ) : null}
+      {/* Полка с backdrop-blur — свой блок для fixed: значок тащим в body. */}
+      {ghost
+        ? createPortal(
+            <div
+              className="pointer-events-none fixed z-[90] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-[var(--accent)] bg-white/95 p-1 shadow-lg"
+              style={{ left: ghost.x, top: ghost.y }}
+            >
+              <BlockIcon row={row} type={ghost.type} className="size-12" />
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }

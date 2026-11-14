@@ -538,6 +538,9 @@ export function buildKitchen(
           `${code}: угловой модуль ставьте на задней стене у угла — ряды боковых стен начинаются за ней.`,
         );
       }
+      if (item.type === "corner" && w === 0 && walls.length > 1) {
+        problems.push(...cornerProblems(code, index, wall.base, walls.length));
+      }
       modules.push({
         wall: w,
         row: "base",
@@ -662,6 +665,33 @@ export function buildKitchen(
       problems.push(
         `Стена ${w + 1}: навесные ${Math.round(topAt)} мм, а стена ${wall.length} мм.`,
       );
+    }
+    if (w === 0) {
+      wall.top.forEach((item, index) => {
+        if (item.type === "corner" && walls.length > 1) {
+          problems.push(
+            ...cornerProblems(`В${index + 1}`, index, wall.top, walls.length),
+          );
+        }
+      });
+    }
+    // Угловой у правого угла (П-образная) должен дойти до угла.
+    if (w === 0 && walls.length > 2) {
+      for (const [list, end, letter] of [
+        [wall.base, at, "Н"],
+        [wall.top, topAt, "В"],
+      ] as const) {
+        const last = list[list.length - 1];
+        if (
+          list.length > 1 &&
+          last.type === "corner" &&
+          end < wall.length - 0.5
+        ) {
+          problems.push(
+            `${letter}${list.length}: угловой блок у правого угла не доходит до угла на ${Math.round(wall.length - end)} мм — добавьте блоки перед ним или сделайте их шире.`,
+          );
+        }
+      }
     }
   });
 
@@ -830,6 +860,21 @@ export function kitchenLegs(result: KitchenResult) {
     clips += wide ? 3 : 2;
   }
   return { legs, clips };
+}
+
+// Угловой блок на задней стене — только первым в ряду (левый угол) или
+// последним в П-образной (правый угол).
+function cornerProblems(
+  code: string,
+  index: number,
+  list: Array<{ type: string }>,
+  wallCount: number,
+) {
+  const last = index === list.length - 1;
+  if (index === 0 || (wallCount > 2 && last)) return [];
+  return [
+    `${code}: угловой блок ставьте первым в ряду задней стены${wallCount > 2 ? " или последним" : ""} — посередине его глухая часть закрыта соседом.`,
+  ];
 }
 
 // Куда встаёт блок, поставленный в точку макета (мм): стена и место в
