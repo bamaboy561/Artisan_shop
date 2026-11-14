@@ -11,6 +11,7 @@ import {
   WIDE_MODULE,
   OVEN_NICHE,
   buildKitchen,
+  kitchenCutoutNote,
   kitchenDropTarget,
   kitchenLegs,
   kitchenPreset,
@@ -435,4 +436,59 @@ test("угловой блок: только в углу, у правого уг�
   for (const layout of ["line", "corner", "u"] as const) {
     assert.deepEqual(buildKitchen(kitchen(layout), T).problems, []);
   }
+});
+
+test("kitchen: countertop cutouts for the sink and the hob", () => {
+  const spec = kitchen("line");
+  const result = buildKitchen(spec, T);
+  // Мойка Н2 (800, с 400): вырез 740 × 480 по центру тумбы и столешницы.
+  // Варочная Н4 (600, с 1800): вырез 560 × 490.
+  assert.deepEqual(
+    result.cutouts.map((cut) => [
+      cut.code,
+      cut.kind,
+      cut.at,
+      cut.width,
+      cut.back,
+      cut.depth,
+    ]),
+    [
+      ["Н2", "sink", 430, 740, 60, 480],
+      ["Н4", "hob", 1820, 560, 55, 490],
+    ],
+  );
+  assert.equal(
+    kitchenCutoutNote(spec, result),
+    "Вырезы в столешнице (сверьте с паспортом мойки и панели): Н2 мойка — 740 × 480 мм, 430 мм от левого края куска 3000 мм, 60 мм от переднего края; Н4 варочная панель — 560 × 490 мм, 1820 мм от левого края куска 3000 мм, 55 мм от переднего края.",
+  );
+  // В 3D столешница расступается: над вырезом её нет, есть мойка и панель.
+  const boxes = buildKitchenModel(spec, T, result, options);
+  const top = boxes.filter((box) => /: столешница$/.test(box.info?.name ?? ""));
+  const covers = (x: number, z: number) =>
+    top.some(
+      (box) =>
+        box.matrix[3] + box.x <= x &&
+        x <= box.matrix[3] + box.x + box.sizeX &&
+        box.matrix[11] <= z &&
+        z <= box.matrix[11] + box.thickness,
+    );
+  assert.ok(!covers(800, 300), "над мойкой нет столешницы");
+  assert.ok(!covers(2100, 300), "над панелью нет столешницы");
+  assert.ok(covers(800, 30) && covers(800, 570) && covers(1500, 300));
+  const area = top.reduce((sum, box) => sum + box.sizeX * box.thickness, 0);
+  assert.equal(area, 3000 * 600 - 740 * 480 - 560 * 490);
+  assert.ok(boxes.some((box) => /Н2: мойка/.test(box.info?.name ?? "")));
+  assert.ok(
+    boxes.some((box) => /Н4: варочная панель/.test(box.info?.name ?? "")),
+  );
+});
+
+test("kitchen: shallow countertop leaves no room for the hob cutout", () => {
+  const spec = { ...kitchen("line"), countertopDepth: 560 };
+  const result = buildKitchen(spec, T);
+  assert.ok(
+    result.problems.some((problem) =>
+      /^Н4: вырез под варочную панель 490/.test(problem),
+    ),
+  );
 });

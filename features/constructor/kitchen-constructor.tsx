@@ -17,6 +17,7 @@ import {
   KITCHEN_LAYOUTS,
   KITCHEN_TOP_TYPES,
   buildKitchen,
+  kitchenCutoutNote,
   kitchenDropTarget,
   kitchenPreset,
   kitchenWalls,
@@ -70,8 +71,11 @@ import type {
 import {
   TONE_APPLIANCE,
   TONE_BODY,
+  TONE_BURNER,
   TONE_COUNTERTOP,
   TONE_FACADE,
+  TONE_GLASS,
+  TONE_STEEL,
   TONE_WALL,
   buildKitchenModel,
   kitchenHandlePlacement,
@@ -340,6 +344,9 @@ export function KitchenConstructor({
     list[TONE_APPLIANCE] = { color: APPLIANCE_COLOR, metal: true };
     list[TONE_PLAIN] = list[TONE_FACADE];
     list[TONE_WALL] = { color: WALL_COLOR };
+    list[TONE_STEEL] = { color: [196, 199, 204], metal: true };
+    list[TONE_GLASS] = { color: [22, 22, 24] };
+    list[TONE_BURNER] = { color: [78, 78, 82] };
     return list;
   }, [bodyDecor, facadeDecor]);
   const fittings = useMemo(
@@ -376,6 +383,9 @@ export function KitchenConstructor({
   );
   const selectedModule = result.modules.find((item) => item.code === selected);
   const selectedHdf = selectedModule ? hdfSheets([selectedModule]) : [];
+  const selectedCutout = result.cutouts.find(
+    (cut) => cut.code === selectedModule?.code,
+  );
   const selectedProblems = selected
     ? result.problems.filter((problem) => problemConcerns(problem, selected))
     : [];
@@ -402,7 +412,7 @@ export function KitchenConstructor({
           (piece) =>
             `${Math.round(piece.to - piece.from)} × ${spec.countertopDepth} мм`,
         )
-        .join(", ")}.`
+        .join(", ")}. ${kitchenCutoutNote(spec, result)}`.trim()
     : "";
   const partCount = result.parts.reduce((sum, part) => sum + part.quantity, 0);
   const bodies = result.modules.filter((item) => item.spec).length;
@@ -694,6 +704,18 @@ export function KitchenConstructor({
                 Без деталей ЛДСП: место под технику.
               </p>
             )}
+            {selectedCutout ? (
+              <p className="text-[12px] leading-5 text-[var(--muted)]">
+                Вырез в столешнице под{" "}
+                {selectedCutout.kind === "sink" ? "мойку" : "варочную панель"}:{" "}
+                {sizeFormatter.format(selectedCutout.width)} ×{" "}
+                {sizeFormatter.format(selectedCutout.depth)} мм по центру тумбы
+                ({selectedCutout.kind === "sink" ? "мойка" : "панель"}{" "}
+                {sizeFormatter.format(selectedCutout.outer.width)} ×{" "}
+                {sizeFormatter.format(selectedCutout.outer.depth)} мм, сверьте с
+                паспортом).
+              </p>
+            ) : null}
             {selectedHdf.length > 0 ? (
               <p className="text-[12px] leading-5 text-[var(--muted)]">
                 ХДФ (задняя стенка, дно ящиков):{" "}

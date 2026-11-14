@@ -337,6 +337,9 @@ export type KitchenResult = {
   starts: Array<{ base: number; top: number }>;
   // Куски столешницы: стена, от и до вдоль стены.
   countertops: Array<{ wall: number; from: number; to: number }>;
+  // Вырезы в столешнице под мойку и варочную панель: от стены, вдоль
+  // стены (at — левый край выреза), размеры выреза и самого прибора.
+  cutouts: KitchenCutout[];
   // Цоколь: куски вдоль стены.
   plinths: Array<{ wall: number; from: number; to: number }>;
   // Фальшпанели у внутреннего угла: закрывают зазор между рядом задней
@@ -346,6 +349,53 @@ export type KitchenResult = {
   worktop: number;
   legs: number;
 };
+
+export type KitchenCutout = {
+  wall: number;
+  code: string;
+  kind: "sink" | "hob";
+  // Левый край выреза вдоль стены и его ширина, мм.
+  at: number;
+  width: number;
+  // Задний край выреза от стены и глубина выреза, мм.
+  back: number;
+  depth: number;
+  // Размер мойки или панели по верху (бортик, стекло), мм.
+  outer: { width: number; depth: number };
+};
+
+// Типовые размеры. Мойка врезная прямоугольная: на 40 мм уже тумбы,
+// глубина 500; вырез на 10 мм внутрь от борта с каждой стороны.
+// Варочная панель 450 / 590 / 770 под тумбу 450 / 600 / 800 мм,
+// вырез 420 / 560 / 750 × 490. Всё сверяется с паспортом прибора.
+const SINK_DEPTH = 500;
+const SINK_RIM = 10;
+const HOB_DEPTH = 520;
+const HOB_CUTOUT_DEPTH = 490;
+// От выреза до края столешницы — не меньше, иначе её край ломается.
+const CUTOUT_EDGE = 50;
+
+export function kitchenCutoutSize(
+  kind: "sink" | "hob",
+  moduleWidth: number,
+): KitchenCutout["outer"] & { cutWidth: number; cutDepth: number } {
+  if (kind === "sink") {
+    const width = Math.max(300, moduleWidth - 40);
+    return {
+      width,
+      depth: SINK_DEPTH,
+      cutWidth: width - 2 * SINK_RIM,
+      cutDepth: SINK_DEPTH - 2 * SINK_RIM,
+    };
+  }
+  const [width, cutWidth] =
+    moduleWidth >= 800
+      ? [770, 750]
+      : moduleWidth >= 600
+        ? [590, 560]
+        : [Math.max(300, moduleWidth), Math.max(270, moduleWidth - 30)];
+  return { width, depth: HOB_DEPTH, cutWidth, cutDepth: HOB_CUTOUT_DEPTH };
+}
 
 const round = (value: number) => Math.round(value * 10) / 10;
 const SHEET = 2750; // длинная сторона листа, мм
@@ -771,6 +821,35 @@ export function buildKitchen(
       piece.to = backLength - plinthFace;
     }
   }
+  // Вырезы: по центру тумбы вдоль стены и по центру столешницы в глубину.
+  const cutouts: KitchenCutout[] = [];
+  for (const item of modules) {
+    if (item.row !== "base" || (item.type !== "sink" && item.type !== "hob"))
+      continue;
+    const kind = item.type;
+    const size = kitchenCutoutSize(kind, item.width);
+    const room = spec.countertopDepth - 2 * CUTOUT_EDGE;
+    if (size.cutDepth > room) {
+      problems.push(
+        `${item.code}: вырез под ${kind === "sink" ? "мойку" : "варочную панель"} ${size.cutDepth} мм в глубину не помещается в столешницу ${spec.countertopDepth} мм (нужно по ${CUTOUT_EDGE} мм до краёв).`,
+      );
+    }
+    const depth = Math.min(size.cutDepth, Math.max(100, room));
+    cutouts.push({
+      wall: item.wall,
+      code: item.code,
+      kind,
+      at: round(item.at + (item.width - size.cutWidth) / 2),
+      width: size.cutWidth,
+      back: round((spec.countertopDepth - depth) / 2),
+      depth,
+      outer: {
+        width: size.width,
+        depth: Math.min(size.depth, spec.countertopDepth - 20),
+      },
+    });
+  }
+
   const name = spec.name.trim() || "Кухня";
   // Фальшпанель: в плоскости фасадов боковой стены, от фасадов задней до
   // первого модуля боковой. Высота как у дверей тумб.
@@ -823,6 +902,7 @@ export function buildKitchen(
     problems,
     starts,
     countertops,
+    cutouts,
     plinths,
     fillers,
     worktop,
@@ -921,4 +1001,32 @@ export function kitchenDropTarget(
       item.at + item.width / 2 < along,
   ).length;
   return { wall, index };
+}
+
+// Вырезы для заявки на столешницу: размер, где стоит левый край выреза
+// (от левого края куска у задней стены, от края у угла — у боковых)
+// и сколько от переднего края.
+export function kitchenCutoutNote(
+  spec: KitchenSpec,
+  result: KitchenResult,
+): string {
+  const lines = result.cutouts.map((cut) => {
+    const piece = result.countertops.find(
+      (entry) =>
+        entry.wall === cut.wall &&
+        entry.from <= cut.at + 0.5 &&
+        entry.to >= cut.at + cut.width - 0.5,
+    );
+    const what = cut.kind === "sink" ? "мойка" : "варочная панель";
+    const from = piece ? Math.round(cut.at - piece.from) : null;
+    const front = Math.round(spec.countertopDepth - cut.back - cut.depth);
+    const where =
+      from === null
+        ? ""
+        : `, ${from} мм от ${cut.wall === 0 ? "левого края" : "края у угла"} куска ${Math.round(piece!.to - piece!.from)} мм, ${front} мм от переднего края`;
+    return `${cut.code} ${what} — ${cut.width} × ${cut.depth} мм${where}`;
+  });
+  return lines.length
+    ? `Вырезы в столешнице (сверьте с паспортом мойки и панели): ${lines.join("; ")}.`
+    : "";
 }
