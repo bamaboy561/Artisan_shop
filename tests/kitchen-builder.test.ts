@@ -4,7 +4,11 @@ import test from "node:test";
 import { kitchenFittings } from "../features/constructor/assembly";
 import { buildKitchenModel } from "../features/constructor/kitchen-model";
 import {
+  CORNER_FILLER,
+  KITCHEN_BACK,
   KITCHEN_DEFAULTS,
+  PLINTH_SETBACK,
+  WIDE_MODULE,
   OVEN_NICHE,
   buildKitchen,
   kitchenLegs,
@@ -127,7 +131,9 @@ test("kitchen: tall pantry breaks the countertop", () => {
   const spec = kitchen("corner");
   const result = buildKitchen(spec, T);
   const side = result.countertops.filter((piece) => piece.wall === 1);
-  assert.deepEqual(side, [{ wall: 1, from: 600, to: 1800 }]);
+  // Столешница боковой стены — сразу за столешницей задней, над
+  // фальшпанелью тоже.
+  assert.deepEqual(side, [{ wall: 1, from: 600, to: 1850 }]);
   const pantry = result.modules.find((item) => item.type === "tallPantry")!;
   assert.equal(pantry.bottom + pantry.height, 1500 + 720);
 });
@@ -224,4 +230,62 @@ test("kitchen: wall cabinet over a tall pantry is reported", () => {
   assert.ok(result.problems.some((problem) => /В5 висит над/.test(problem)));
   spec.walls[0].top[4] = { type: "none", width: 600 };
   assert.deepEqual(buildKitchen(spec, T).problems, []);
+});
+
+test("kitchen: base modules have rails, the sink has no back", () => {
+  const result = buildKitchen(kitchen("line"), T);
+  for (const item of result.modules) {
+    if (item.row !== "base" || !item.result) continue;
+    const titles = item.result.parts.map((part) => part.title);
+    assert.ok(
+      titles.some((title) => /: царга$/.test(title)),
+      item.code,
+    );
+    assert.ok(!titles.some((title) => /: крыша$/.test(title)), item.code);
+    assert.equal(item.result.back === null, item.type === "sink", item.code);
+  }
+});
+
+test("kitchen corner: filler and plinth close the inner corner", () => {
+  const spec = kitchen("corner");
+  const result = buildKitchen(spec, T);
+  const face = KITCHEN_BACK + spec.baseDepth - PLINTH_SETBACK;
+  const back = result.plinths.find((piece) => piece.wall === 0)!;
+  const side = result.plinths.find((piece) => piece.wall === 1)!;
+  // Цоколь задней стены начинается у цоколя боковой, боковой упирается в
+  // лицо заднего.
+  assert.equal(back.from, face);
+  assert.equal(side.from, face + T);
+  // Фальшпанель — от фасадов задней стены до первого модуля боковой.
+  assert.equal(result.starts[1].base, spec.countertopDepth + CORNER_FILLER);
+  const filler = result.parts.find((part) => /фальшпанель/.test(part.title))!;
+  assert.equal(
+    filler.width,
+    result.starts[1].base - (KITCHEN_BACK + spec.baseDepth + T),
+  );
+  assert.deepEqual(result.fillers, [
+    {
+      wall: 1,
+      from: KITCHEN_BACK + spec.baseDepth + T,
+      to: result.starts[1].base,
+    },
+  ]);
+  const lines = kitchenFittings(result, T);
+  const count = (key: string) =>
+    lines.find((line) => line.key === key)?.count ?? 0;
+  assert.equal(count("worktopJoint"), 1);
+  assert.equal(count("worktopEnd"), 2);
+});
+
+test("kitchen: wide modules stand on 6 legs", () => {
+  const result = buildKitchen(kitchen("u"), T);
+  const bodies = result.modules.filter(
+    (item) => item.row === "base" && item.spec,
+  );
+  const expected = bodies.reduce(
+    (sum, item) => sum + (item.width >= WIDE_MODULE ? 6 : 4),
+    0,
+  );
+  assert.equal(kitchenLegs(result).legs, expected);
+  assert.ok(bodies.some((item) => item.width >= WIDE_MODULE));
 });

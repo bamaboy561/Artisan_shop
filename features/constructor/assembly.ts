@@ -40,7 +40,11 @@ export type FittingKey =
   | "plinthClip"
   | "lift"
   | "dishDryer"
-  | "cargo";
+  | "cargo"
+  | "worktopPlinth"
+  | "worktopJoint"
+  | "worktopEnd"
+  | "wallRail";
 
 export type FittingLine = {
   key: FittingKey;
@@ -185,6 +189,28 @@ const FITTING_INFO: Record<
     note: "в навесной шкаф",
     search: /сушк/i,
   },
+  worktopPlinth: {
+    label: "Плинтус для столешницы",
+    note: "вдоль стен, с заглушками и уголками",
+    search: /плинтус.*столешн|столешн.*плинтус/i,
+    unit: "м",
+  },
+  worktopJoint: {
+    label: "Планка соединительная для столешницы",
+    note: "на стык в углу",
+    search: /планк.*(соедин|стыков)|(соедин|стыков).*планк/i,
+  },
+  worktopEnd: {
+    label: "Планка торцевая для столешницы",
+    note: "на концы, которые не упираются в стену",
+    search: /планк.*торц|торц.*планк/i,
+  },
+  wallRail: {
+    label: "Шина монтажная для навесных шкафов",
+    note: "под регулируемые навесы",
+    search: /шина.*(монтаж|навес)|(монтаж|навес).*шина/i,
+    unit: "м",
+  },
   cargo: {
     label: "Карго (бутылочница)",
     note: "выдвижное, в узкую тумбу",
@@ -260,6 +286,10 @@ const FITTING_ORDER: FittingKey[] = [
   "lift",
   "dishDryer",
   "cargo",
+  "wallRail",
+  "worktopPlinth",
+  "worktopJoint",
+  "worktopEnd",
 ];
 
 export function cabinetFittings(
@@ -863,6 +893,25 @@ export function kitchenFittings(
       add("handleScrew", 2);
     }
   }
+  // Столешница: плинтус вдоль стен, планки на стыки в углах и на
+  // свободные концы. Шина под навесные — по длине навесных рядов.
+  const worktop = result.countertops.reduce(
+    (sum, piece) => sum + piece.to - piece.from,
+    0,
+  );
+  const joints = result.countertops.filter(
+    (piece) =>
+      piece.wall > 0 && piece.from < (result.starts[piece.wall]?.base ?? 0),
+  ).length;
+  if (worktop > 0) {
+    add("worktopPlinth", Math.ceil(worktop / 1000));
+    add("worktopJoint", joints);
+    add("worktopEnd", result.countertops.length * 2 - joints * 2);
+  }
+  const hanging = result.modules
+    .filter((item) => item.row === "top" && item.spec)
+    .reduce((sum, item) => sum + item.width, 0);
+  add("wallRail", Math.ceil(hanging / 1000));
   if (result.legs > 0) {
     const { legs, clips } = kitchenLegs(result);
     add("kitchenLeg", legs);

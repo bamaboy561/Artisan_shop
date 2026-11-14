@@ -404,6 +404,8 @@ export type CabinetSpec = {
   openAbove?: boolean;
   // Подъёмная дверь навесного шкафа: без петель, на подъёмнике.
   lift?: boolean;
+  // Без задней стенки (тумба под мойку: трубы).
+  noBack?: boolean;
   // Выдвижной фасад (карго): без петель, крепится к механизму.
   pullOut?: boolean;
   // Высота открытой ниши над ящиками (openAbove), мм: ящики
@@ -1278,10 +1280,12 @@ export function buildCabinet(
     });
   }
 
-  const back = {
-    length: round(H - plinth - 2 * BACK_OVERLAP_GAP),
-    width: round(W - 2 * BACK_OVERLAP_GAP),
-  };
+  const back = spec.noBack
+    ? null
+    : {
+        length: round(H - plinth - 2 * BACK_OVERLAP_GAP),
+        width: round(W - 2 * BACK_OVERLAP_GAP),
+      };
 
   return {
     parts,
