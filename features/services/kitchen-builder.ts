@@ -831,3 +831,49 @@ export function kitchenLegs(result: KitchenResult) {
   }
   return { legs, clips };
 }
+
+// Куда встаёт блок, поставленный в точку макета (мм): стена и место в
+// ряду. Нажали на блок — к его стене, до или после него; нажали на пол
+// или стену — к ближайшей стене, между блоками по положению вдоль неё.
+// Угловой блок сам встаёт в угол задней стены (в П-образной — в
+// ближайший).
+export function kitchenDropTarget(
+  spec: KitchenSpec,
+  result: KitchenResult,
+  row: "base" | "top",
+  point: [number, number, number],
+  hitCode?: string | null,
+  type?: string,
+): { wall: number; index: number } {
+  const [x, , z] = point;
+  const walls = kitchenWalls(spec);
+  const backLength = walls[0]?.length ?? 0;
+  const hit = hitCode
+    ? result.modules.find((item) => item.code === hitCode)
+    : undefined;
+  if (type === "corner" && walls.length > 1) {
+    const count = result.modules.filter(
+      (item) => item.wall === 0 && item.row === row,
+    ).length;
+    return {
+      wall: 0,
+      index: walls.length > 2 && x > backLength / 2 ? count : 0,
+    };
+  }
+  let wall = hit?.wall ?? 0;
+  if (!hit && walls.length > 1) {
+    const distances = [Math.abs(z), Math.abs(x), Math.abs(x - backLength)];
+    wall = 0;
+    for (let w = 1; w < walls.length; w += 1) {
+      if (distances[w] < distances[wall]) wall = w;
+    }
+  }
+  const along = wall === 0 ? x : z;
+  const index = result.modules.filter(
+    (item) =>
+      item.wall === wall &&
+      item.row === row &&
+      item.at + item.width / 2 < along,
+  ).length;
+  return { wall, index };
+}

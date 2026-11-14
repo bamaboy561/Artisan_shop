@@ -11,6 +11,7 @@ import {
   WIDE_MODULE,
   OVEN_NICHE,
   buildKitchen,
+  kitchenDropTarget,
   kitchenLegs,
   kitchenPreset,
   type KitchenLayout,
@@ -354,4 +355,43 @@ test("фурнитура одного блока: без столешницы, �
     (line) => line.key === "kitchenLeg",
   );
   assert.equal(legs?.count, 4);
+});
+
+test("блок из полки встаёт к стене и между соседями", () => {
+  const spec = kitchen("corner");
+  const result = buildKitchen(spec, T);
+  const back = result.modules.filter(
+    (item) => item.wall === 0 && item.row === "base",
+  );
+  // На пол перед серединой второго блока задней стены, правее середины.
+  const second = back[1];
+  const x = second.at + second.width * 0.75;
+  assert.deepEqual(kitchenDropTarget(spec, result, "base", [x, 0, 900]), {
+    wall: 0,
+    index: 2,
+  });
+  // У левой стены (x≈0), далеко от угла — в конец её ряда.
+  const left = result.modules.filter(
+    (item) => item.wall === 1 && item.row === "base",
+  );
+  assert.deepEqual(kitchenDropTarget(spec, result, "base", [100, 0, 2400]), {
+    wall: 1,
+    index: left.length,
+  });
+  // Нажали на блок: та же стена, перед ним, если левее его середины.
+  assert.deepEqual(
+    kitchenDropTarget(
+      spec,
+      result,
+      "base",
+      [second.at + 10, 300, 600],
+      second.code,
+    ),
+    { wall: 0, index: 1 },
+  );
+  // Угловой — всегда в угол задней стены.
+  assert.deepEqual(
+    kitchenDropTarget(spec, result, "base", [100, 0, 2000], null, "corner"),
+    { wall: 0, index: 0 },
+  );
 });

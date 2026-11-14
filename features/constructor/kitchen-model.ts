@@ -5,6 +5,7 @@ import type { BazisViewerBox } from "@/components/bazis/bazis-viewer";
 import {
   KITCHEN_BACK,
   PLINTH_SETBACK,
+  kitchenWalls,
   type KitchenResult,
   type KitchenSpec,
 } from "@/features/services/kitchen-builder";
@@ -19,6 +20,9 @@ import {
 // Свои цвета кухни: столешница и техника.
 export const TONE_COUNTERTOP = 6;
 export const TONE_APPLIANCE = 7;
+// Стены комнаты (TONE_PLAIN = 8 занят).
+export const TONE_WALL = 9;
+const WALL_THICKNESS = 20;
 
 // Корпус стоит задней стенкой ХДФ к стене.
 const offWall: number[] = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, BACK_THICKNESS];
@@ -88,12 +92,54 @@ export function buildKitchenModel(
   spec: KitchenSpec,
   thickness: number,
   result: KitchenResult,
-  options: { doorOpen: number; bodyMaterial: string; facadeMaterial: string },
+  options: {
+    doorOpen: number;
+    bodyMaterial: string;
+    facadeMaterial: string;
+    // Показать стены комнаты: блоки ставят к ним.
+    walls?: boolean;
+  },
 ): BazisViewerBox[] {
   const t = thickness > 0 ? thickness : 16;
   const boxes: BazisViewerBox[] = [];
   const backLength = spec.walls[0]?.length ?? 0;
   const name = spec.name.trim() || "Кухня";
+
+  if (options.walls) {
+    const height = spec.topBottom + spec.topHeight + 200;
+    const walls = kitchenWalls(spec);
+    walls.forEach((wall, w) => {
+      const length = wall.length;
+      if (length <= 0) return;
+      // Задняя стена закрывает углы с боковыми.
+      const from = w === 0 && walls.length > 1 ? -WALL_THICKNESS : 0;
+      const to = w === 0 && walls.length > 2 ? WALL_THICKNESS : 0;
+      boxes.push(
+        block(
+          wallTransform(w, 0, length, 0, backLength),
+          from,
+          0,
+          -WALL_THICKNESS,
+          length - from + to,
+          height,
+          WALL_THICKNESS,
+          TONE_WALL,
+          {
+            name:
+              w === 0
+                ? "Задняя стена"
+                : w === 1
+                  ? "Левая стена"
+                  : "Правая стена",
+            material: "Стена",
+            length,
+            width: height,
+            thickness: WALL_THICKNESS,
+          },
+        ),
+      );
+    });
+  }
 
   for (const item of result.modules) {
     const transform = wallTransform(

@@ -4,7 +4,7 @@
 // из каталога, мягкий свет и тени на полу, ручки на дверях. Детали
 // приходят тем же списком брусков, что и в BazisViewer (мм, матрица 3×4).
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
@@ -26,8 +26,18 @@ const DEFAULT_VIEW: [number, number, number] = [0.55, 0.32, 1];
 
 export type HandlePlacement = "top" | "middle" | "bottom";
 
-// Снимок макета для печатной инструкции.
-export type FurnitureSceneApi = { snapshot: () => string | null };
+// Что под точкой экрана: деталь (номер в boxes) и точка в мм — на детали
+// или на полу.
+export type ScenePick = {
+  index: number | null;
+  point: [number, number, number] | null;
+};
+
+// Снимок макета для печатной инструкции; что под точкой экрана.
+export type FurnitureSceneApi = {
+  snapshot: () => string | null;
+  pickAt?: (clientX: number, clientY: number) => ScenePick | null;
+};
 
 const HIGHLIGHT = 0xf0a070;
 
@@ -178,8 +188,14 @@ export function FurnitureScene({
   apiRef,
   hint = "Крутите пальцем или мышью · нажмите на деталь",
   onBoxClick,
+  onScenePick,
+  overlay,
   viewDirection,
 }: {
+  // Нажатие в макете: деталь и точка (в мм) на детали или на полу.
+  onScenePick?: (pick: ScenePick) => void;
+  // Своя панель внизу макета (вместо подсказки и карточки детали).
+  overlay?: ReactNode;
   // Откуда смотрит камера при первом показе (и когда направление
   // меняется): x — вправо, y — вверх, z — к зрителю.
   viewDirection?: [number, number, number];
@@ -202,9 +218,11 @@ export function FurnitureScene({
 }) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const onBoxClickRef = useRef(onBoxClick);
+  const onScenePickRef = useRef(onScenePick);
   useEffect(() => {
     onBoxClickRef.current = onBoxClick;
-  }, [onBoxClick]);
+    onScenePickRef.current = onScenePick;
+  }, [onBoxClick, onScenePick]);
   const labelsRef = useRef<HTMLDivElement | null>(null);
   const stateRef = useRef<{
     renderer: THREE.WebGLRenderer;
@@ -220,6 +238,7 @@ export function FurnitureScene({
     signature: string;
     fitted: string;
     render: () => void;
+    pickAt: (clientX: number, clientY: number) => ScenePick;
     labelPoints: () => Array<{
       x: number;
       y: number;
@@ -228,6 +247,7 @@ export function FurnitureScene({
     }>;
   } | null>(null);
   const [selected, setSelected] = useState<Selected>(null);
+  const hasOverlay = Boolean(overlay);
   const [expanded, setExpanded] = useState(false);
   const [failed, setFailed] = useState(false);
 
@@ -368,6 +388,38 @@ export function FurnitureScene({
 
     // Нажатие на деталь показывает её название и размер.
     const raycaster = new THREE.Raycaster();
+    const toMm = (point: THREE.Vector3): [number, number, number] => [
+      point.x / MM,
+      point.y / MM,
+      point.z / MM,
+    ];
+    const castAt = (clientX: number, clientY: number) => {
+      const rect = renderer.domElement.getBoundingClientRect();
+      const pointer = new THREE.Vector2(
+        ((clientX - rect.left) / rect.width) * 2 - 1,
+        -((clientY - rect.top) / rect.height) * 2 + 1,
+      );
+      raycaster.setFromCamera(pointer, camera);
+      return raycaster.intersectObjects(
+        stateRef.current?.meshes ?? [],
+        false,
+      )[0];
+    };
+    const pickAt = (clientX: number, clientY: number): ScenePick => {
+      const hit = castAt(clientX, clientY);
+      if (hit) {
+        return {
+          index: (hit.object.userData.index as number | undefined) ?? null,
+          point: toMm(hit.point),
+        };
+      }
+      const ground = new THREE.Plane(
+        new THREE.Vector3(0, 1, 0),
+        -floor.position.y,
+      );
+      const point = raycaster.ray.intersectPlane(ground, new THREE.Vector3());
+      return { index: null, point: point ? toMm(point) : null };
+    };
     let down: { x: number; y: number } | null = null;
     const onDown = (event: PointerEvent) => {
       down = { x: event.clientX, y: event.clientY };
@@ -377,15 +429,12 @@ export function FurnitureScene({
       const moved = Math.hypot(event.clientX - down.x, event.clientY - down.y);
       down = null;
       if (moved > 6) return;
-      const rect = renderer.domElement.getBoundingClientRect();
-      const pointer = new THREE.Vector2(
-        ((event.clientX - rect.left) / rect.width) * 2 - 1,
-        -((event.clientY - rect.top) / rect.height) * 2 + 1,
-      );
-      raycaster.setFromCamera(pointer, camera);
       const state = stateRef.current;
       if (!state) return;
-      const hit = raycaster.intersectObjects(state.meshes, false)[0];
+      if (onScenePickRef.current) {
+        onScenePickRef.current(pickAt(event.clientX, event.clientY));
+      }
+      const hit = castAt(event.clientX, event.clientY);
       const info = hit?.object.userData.info as BazisViewerBox["info"];
       for (const mesh of state.meshes) {
         const material = mesh.material as THREE.MeshStandardMaterial;
@@ -430,6 +479,7 @@ export function FurnitureScene({
       signature: "",
       fitted: "",
       render,
+      pickAt,
       labelPoints,
     };
 
@@ -632,6 +682,9 @@ export function FurnitureScene({
       const newView = !state.fitted.endsWith(`|${viewKey}`);
       if (fitKey !== state.fitted && !signature.includes("NaN")) {
         const center = bounds.getCenter(new THREE.Vector3());
+        // Панель внизу закрывает низ макета: смотрим чуть ниже середины,
+        // и изделие поднимается над панелью.
+        if (hasOverlay) center.y -= size.y * 0.25;
         const radius = size.length() / 2;
         const distance =
           radius / Math.sin((state.camera.fov * Math.PI) / 360) + 0.2;
@@ -647,11 +700,34 @@ export function FurnitureScene({
       }
     }
     state.render();
-  }, [boxes, tones, handleTone, handlePlacement, highlight, viewDirection]);
+  }, [
+    boxes,
+    tones,
+    handleTone,
+    handlePlacement,
+    highlight,
+    viewDirection,
+    hasOverlay,
+  ]);
 
   useEffect(() => {
     if (!apiRef) return;
     apiRef.current = {
+      // Точка вне макета — null.
+      pickAt: (clientX, clientY) => {
+        const state = stateRef.current;
+        if (!state) return null;
+        const rect = state.renderer.domElement.getBoundingClientRect();
+        if (
+          clientX < rect.left ||
+          clientX > rect.right ||
+          clientY < rect.top ||
+          clientY > rect.bottom
+        ) {
+          return null;
+        }
+        return state.pickAt(clientX, clientY);
+      },
       snapshot: () => {
         const state = stateRef.current;
         if (!state) return null;
@@ -769,7 +845,9 @@ export function FurnitureScene({
           <Maximize2 className="size-4" />
         )}
       </button>
-      {selected ? (
+      {overlay ? (
+        <div className="absolute right-0 bottom-0 left-0">{overlay}</div>
+      ) : selected ? (
         <div className="absolute right-3 bottom-3 left-3 rounded-xl bg-white/95 p-3 text-[13px] shadow-sm sm:right-auto sm:max-w-xs">
           <p className="font-semibold">{selected.name}</p>
           <p className="text-[var(--muted)]">{selected.size}</p>
