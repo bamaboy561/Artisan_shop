@@ -393,6 +393,17 @@ export type CabinetSpec = {
   sections?: KupeSection[];
   // Старое поле: антресоль во всех секциях без своих зон.
   antresol?: boolean;
+  // Кухонные модули. Одна дверь — на левой или правой боковине.
+  hinge?: "left" | "right";
+  // Глухая часть фасада у угла: дверь уже на width мм с этой стороны,
+  // там прикручена заглушка.
+  blind?: { side: "left" | "right"; width: number };
+  // Тумба под мойку: вместо крыши две царги спереди и сзади.
+  rails?: boolean;
+  // Ящики внизу без дверей, выше открытая ниша (под духовку).
+  openAbove?: boolean;
+  // Подъёмная дверь навесного шкафа: без петель, на подъёмнике.
+  lift?: boolean;
 };
 
 export const CABINET_KINDS: Record<
@@ -592,6 +603,7 @@ function zoneNaturalHeight(zone: KupeZone, t: number) {
 
 // Зазоры и отступы, принятые в мебельных программах по умолчанию.
 const DOOR_GAP = 3; // между дверями и по краям, мм
+const RAIL_WIDTH = 100; // царга тумбы под мойку, мм
 const SHELF_SETBACK = 20; // полка короче глубины, мм
 const SHELF_CLEARANCE = 1; // зазор полки с каждой стороны, мм
 const PIN_BELOW_SHELF = 8; // центр полкодержателя под полкой, мм
@@ -772,6 +784,10 @@ export type CabinetResult = {
   doorHeight: number;
   drawers: CabinetDrawers | null;
   kupe: KupeLayout | null;
+  // Левый край первой двери, если дверь сдвинута глухой частью, и
+  // заглушка: левый край и ширина.
+  doorLeft?: number;
+  blindPanel?: { left: number; width: number } | null;
 };
 
 export function hingeCount(doorHeight: number) {
@@ -959,7 +975,8 @@ export function buildCabinet(
     spec.kind === "wall"
       ? 0
       : Math.max(0, Math.min(6, Math.round(spec.drawers ?? 0)));
-  const fill = drawerCount > 0 && doors === 0 && spec.kind === "base";
+  const fill =
+    drawerCount > 0 && doors === 0 && spec.kind === "base" && !spec.openAbove;
   const frontHeight =
     drawerCount === 0
       ? 0
@@ -1008,7 +1025,23 @@ export function buildCabinet(
   // дверь.
   const doorBottom = round(plinth + DOOR_GAP + drawerBlock);
   const doorHeight = round(H - doorBottom);
-  const doorWidth = doors > 0 ? round((W - DOOR_GAP * (doors + 1)) / doors) : 0;
+  const blind =
+    doors === 1 && spec.blind && spec.blind.width > 0
+      ? {
+          side: spec.blind.side,
+          width: Math.min(spec.blind.width, W - 200),
+        }
+      : null;
+  const doorWidth =
+    doors > 0
+      ? blind
+        ? round(W - blind.width - 2 * DOOR_GAP)
+        : round((W - DOOR_GAP * (doors + 1)) / doors)
+      : 0;
+  // Одна дверь: петли на стороне без заглушки или по выбору.
+  const hingeRight =
+    doors === 1 && (blind ? blind.side === "left" : spec.hinge === "right");
+  const lift = Boolean(spec.lift) && doors === 1;
   const hinges = hingeCount(doorHeight);
   const hingeHeights = Array.from({ length: hinges }, (_, index) =>
     round(
@@ -1023,9 +1056,31 @@ export function buildCabinet(
       count: 1,
       offset: height,
     }));
-  // Одна дверь навешена на левую боковину, две — каждая на свою.
+  // Одна дверь навешена на левую (или правую) боковину, две — каждая на
+  // свою. Подъёмная дверь — без петель.
   const platesOn = (label: string) =>
-    doors === 2 || (doors === 1 && label === "левая") ? plates() : [];
+    lift
+      ? []
+      : doors === 2 ||
+          (doors === 1 && label === (hingeRight ? "правая" : "левая"))
+        ? plates()
+        : [];
+  // Тумба под мойку: боковины сверху крепятся к царгам — по одному
+  // сквозному Ø7 по центру каждой царги.
+  const rails = Boolean(spec.rails);
+  const bodySide = (): HardwareItem[] =>
+    rails
+      ? [
+          ...sideHardware().filter((item) => item.side !== "right"),
+          {
+            ...createHardware("faceRow", "right"),
+            count: 2,
+            offset: RAIL_WIDTH / 2,
+            indent: round(t / 2),
+            holes: [{ diameter: 7, depth: 0 }],
+          },
+        ]
+      : sideHardware();
 
   for (const label of ["левая", "правая"]) {
     parts.push({
@@ -1035,7 +1090,7 @@ export function buildCabinet(
       quantity: 1,
       edgedSides: ["top"],
       fixedGrain: true,
-      hardware: [...sideHardware(), ...pins, ...platesOn(label)],
+      hardware: [...bodySide(), ...pins, ...platesOn(label)],
       ...(led === "sides"
         ? {
             milling: ledMilling(
@@ -1046,15 +1101,34 @@ export function buildCabinet(
     });
   }
 
-  parts.push({
-    title: `${name}: крыша`,
-    length: innerWidth,
-    width: D,
-    quantity: 1,
-    edgedSides: ["top"],
-    fixedGrain: true,
-    hardware: roofHardware(),
-  });
+  if (rails) {
+    parts.push({
+      title: `${name}: царга`,
+      length: innerWidth,
+      width: RAIL_WIDTH,
+      quantity: 2,
+      edgedSides: ["top"],
+      fixedGrain: true,
+      hardware: [
+        {
+          ...createHardware("confirmatEdge", "left"),
+          count: 1,
+          offset: 0,
+          mirror: true,
+        },
+      ],
+    });
+  } else {
+    parts.push({
+      title: `${name}: крыша`,
+      length: innerWidth,
+      width: D,
+      quantity: 1,
+      edgedSides: ["top"],
+      fixedGrain: true,
+      hardware: roofHardware(),
+    });
+  }
   parts.push({
     title: `${name}: дно`,
     length: innerWidth,
@@ -1120,16 +1194,29 @@ export function buildCabinet(
         "left",
       ] as CabinetPart["edgedSides"],
       fixedGrain: true,
-      hardware: [
-        {
-          ...createHardware("hinge", hingeSide),
-          count: hinges,
-          offset: HINGE_OFFSET,
-        },
-      ],
+      hardware: lift
+        ? []
+        : [
+            {
+              ...createHardware("hinge", hingeSide),
+              count: hinges,
+              offset: HINGE_OFFSET,
+            },
+          ],
     });
-    if (doors === 1) parts.push(door("", "bottom"));
-    else {
+    if (doors === 1) {
+      parts.push(door("", hingeRight ? "top" : "bottom"));
+      if (blind) {
+        parts.push({
+          title: `${name}: заглушка`,
+          length: doorHeight,
+          width: round(blind.width - DOOR_GAP),
+          quantity: 1,
+          edgedSides: ["top", "right", "bottom", "left"],
+          fixedGrain: true,
+        });
+      }
+    } else {
       parts.push(door(" левая", "bottom"));
       parts.push(door(" правая", "top"));
     }
@@ -1193,6 +1280,13 @@ export function buildCabinet(
     doorHeight,
     drawers,
     kupe: null,
+    doorLeft: blind?.side === "left" ? blind.width + DOOR_GAP : DOOR_GAP,
+    blindPanel: blind
+      ? {
+          left: blind.side === "left" ? DOOR_GAP : W - blind.width,
+          width: round(blind.width - DOOR_GAP),
+        }
+      : null,
   };
 }
 

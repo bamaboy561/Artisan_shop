@@ -22,6 +22,8 @@ export type SceneTone = {
   glow?: boolean;
 };
 
+const DEFAULT_VIEW: [number, number, number] = [0.55, 0.32, 1];
+
 export type HandlePlacement = "top" | "middle" | "bottom";
 
 // Снимок макета для печатной инструкции.
@@ -83,11 +85,12 @@ function handleMatrix(box: BazisViewerBox, placement: HandlePlacement) {
     ? box.x + box.sizeX - HANDLE_FROM_EDGE
     : box.x + HANDLE_FROM_EDGE;
   const y =
-    placement === "top"
+    box.y +
+    (placement === "top"
       ? box.sizeY - HANDLE_FROM_END - HANDLE_LENGTH / 2
       : placement === "bottom"
         ? HANDLE_FROM_END + HANDLE_LENGTH / 2
-        : Math.min(box.sizeY / 2, 1000);
+        : Math.min(box.sizeY / 2, 1000));
   // Фасад ящика (шире, чем выше): ручка лёжа по центру.
   const drawerFront = box.sizeX > box.sizeY * 1.2;
   const m = box.matrix;
@@ -175,7 +178,11 @@ export function FurnitureScene({
   apiRef,
   hint = "Крутите пальцем или мышью · нажмите на деталь",
   onBoxClick,
+  viewDirection,
 }: {
+  // Откуда смотрит камера при первом показе (и когда направление
+  // меняется): x — вправо, y — вверх, z — к зрителю.
+  viewDirection?: [number, number, number];
   // Нажатие на деталь: номер детали в boxes (например, сдвинуть дверь).
   onBoxClick?: (index: number) => void;
   // Детали текущего шага сборки подсвечиваются.
@@ -188,7 +195,9 @@ export function FurnitureScene({
   tones: SceneTone[];
   // Номер материала дверей: на них ставим ручки. null — без ручек.
   handleTone: number | null;
-  handlePlacement: HandlePlacement;
+  // Где ручка на фасаде: одно место для всех или по фасаду (кухня:
+  // у тумб сверху, у навесных снизу).
+  handlePlacement: HandlePlacement | ((box: BazisViewerBox) => HandlePlacement);
   className?: string;
 }) {
   const hostRef = useRef<HTMLDivElement | null>(null);
@@ -594,7 +603,14 @@ export function FurnitureScene({
         const handle = handles[handleIndex];
         handleIndex += 1;
         if (handle) {
-          handle.matrix.copy(handleMatrix(box, handlePlacement));
+          handle.matrix.copy(
+            handleMatrix(
+              box,
+              typeof handlePlacement === "function"
+                ? handlePlacement(box)
+                : handlePlacement,
+            ),
+          );
           handle.matrixWorldNeedsUpdate = true;
         }
       }
@@ -610,15 +626,18 @@ export function FurnitureScene({
       // Изделие стоит на полу: нижняя точка — пол.
       state.floor.position.y = bounds.min.y - 0.0005;
       const size = bounds.getSize(new THREE.Vector3());
-      const fitKey = `${size.x.toFixed(2)}|${size.y.toFixed(2)}`;
+      const view = viewDirection ?? DEFAULT_VIEW;
+      const viewKey = view.join(",");
+      const fitKey = `${size.x.toFixed(2)}|${size.y.toFixed(2)}|${viewKey}`;
+      const newView = !state.fitted.endsWith(`|${viewKey}`);
       if (fitKey !== state.fitted && !signature.includes("NaN")) {
         const center = bounds.getCenter(new THREE.Vector3());
         const radius = size.length() / 2;
         const distance =
           radius / Math.sin((state.camera.fov * Math.PI) / 360) + 0.2;
-        const direction = state.fitted
+        const direction = !newView
           ? state.camera.position.clone().sub(state.controls.target).normalize()
-          : new THREE.Vector3(0.55, 0.32, 1).normalize();
+          : new THREE.Vector3(...view).normalize();
         state.controls.target.copy(center);
         state.camera.position.copy(
           center.clone().add(direction.multiplyScalar(distance)),
@@ -628,7 +647,7 @@ export function FurnitureScene({
       }
     }
     state.render();
-  }, [boxes, tones, handleTone, handlePlacement, highlight]);
+  }, [boxes, tones, handleTone, handlePlacement, highlight, viewDirection]);
 
   useEffect(() => {
     if (!apiRef) return;
@@ -689,7 +708,7 @@ export function FurnitureScene({
     const vector =
       direction === "front"
         ? new THREE.Vector3(0, 0.08, 1)
-        : new THREE.Vector3(0.55, 0.32, 1);
+        : new THREE.Vector3(...(viewDirection ?? DEFAULT_VIEW));
     state.camera.position.copy(
       state.controls.target
         .clone()
