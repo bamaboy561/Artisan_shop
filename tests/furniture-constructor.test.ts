@@ -567,7 +567,7 @@ test("купе: двери вне пределов Hettich TopLine L — пре�
     },
     16,
   );
-  assert.ok(narrow.problems.some((text) => /от 550 до 1500/.test(text)));
+  assert.ok(narrow.problems.some((text) => /от 550 до 1350/.test(text)));
   const ok = buildCabinet({ ...CABINET_KINDS.kupe.defaults, kind: "kupe" }, 16);
   assert.ok(!ok.problems.some((text) => /TopLine/.test(text)));
 });
@@ -760,4 +760,27 @@ test("купе: стойка колонок — отверстия в дне п�
   );
   assert.ok(edge.length > 0);
   for (const y of edge) assert.ok(face.includes(y), `${y} in ${face}`);
+});
+
+test("купе: при 3 дверях TopLine L — двери не шире 1350 мм", () => {
+  const wide = buildCabinet(
+    {
+      ...CABINET_KINDS.kupe.defaults,
+      kind: "kupe",
+      width: 4200,
+      slidingDoors: 3,
+    },
+    16,
+  );
+  assert.ok(wide.problems.some((text) => /до 1350 мм/.test(text)));
+  const two = buildCabinet(
+    {
+      ...CABINET_KINDS.kupe.defaults,
+      kind: "kupe",
+      width: 2700,
+      slidingDoors: 2,
+    },
+    16,
+  );
+  assert.ok(!two.problems.some((text) => /TopLine/.test(text)));
 });
