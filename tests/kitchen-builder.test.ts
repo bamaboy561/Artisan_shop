@@ -308,3 +308,50 @@ test("kitchen corner: back plinth stays full when the side row is empty", () => 
   const back = result.plinths.find((piece) => piece.wall === 0)!;
   assert.equal(back.from, 0);
 });
+
+test("кухня по блокам: пустые стены и блоки по одному", () => {
+  for (const layout of ["line", "corner", "u"] as const) {
+    const empty = kitchen(layout);
+    empty.walls = empty.walls.map((wall) => ({ ...wall, base: [], top: [] }));
+    const result = buildKitchen(empty, T);
+    assert.deepEqual(result.problems, []);
+    assert.equal(result.parts.length, 0);
+    assert.equal(result.countertops.length, 0);
+    assert.deepEqual(buildKitchenModel(empty, T, result, options), []);
+    assert.deepEqual(kitchenFittings(result, T), []);
+  }
+  const spec = kitchen("line");
+  spec.walls = [
+    { ...spec.walls[0], base: [{ type: "drawers", width: 400 }], top: [] },
+  ];
+  const result = buildKitchen(spec, T);
+  assert.ok(result.parts.some((part) => /, Н1: /.test(part.title)));
+});
+
+test("фурнитура одного блока: без столешницы, ножки только его", () => {
+  const result = buildKitchen(kitchen("corner"), T);
+  const all = kitchenFittings(result, T);
+  const codes = result.modules.map((item) => item.code);
+  const sum = new Map<string, number>();
+  for (const code of codes)
+    for (const line of kitchenFittings(result, T, code))
+      sum.set(line.key, (sum.get(line.key) ?? 0) + line.count);
+  for (const line of all) {
+    if (
+      ["worktopPlinth", "worktopJoint", "worktopEnd", "wallRail"].includes(
+        line.key,
+      )
+    ) {
+      assert.equal(sum.has(line.key) && line.key !== "wallRail", false);
+      continue;
+    }
+    assert.equal(sum.get(line.key), line.count, line.key);
+  }
+  const drawers = result.modules.find(
+    (item) => item.row === "base" && item.width < WIDE_MODULE && item.spec,
+  )!;
+  const legs = kitchenFittings(result, T, drawers.code).find(
+    (line) => line.key === "kitchenLeg",
+  );
+  assert.equal(legs?.count, 4);
+});
