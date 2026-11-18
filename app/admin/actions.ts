@@ -6392,13 +6392,16 @@ export async function setClientPasswordAction(formData: FormData) {
   }
 
   const { hash } = await import("bcryptjs");
+  const hashedPassword = await hash(password, 10);
+  // Отметку берём после хеширования: вход старым паролем, пока считается
+  // хеш, тоже должен завершиться.
   const revokedKey = `session-revocation:${client.id}`;
   const revocation = { revokedBefore: Date.now() };
 
   await db.$transaction([
     db.user.update({
       where: { id: client.id },
-      data: { hashedPassword: await hash(password, 10) },
+      data: { hashedPassword },
     }),
     // Ссылка из «Забыли пароль?», если клиент успел её запросить, больше
     // не нужна.
