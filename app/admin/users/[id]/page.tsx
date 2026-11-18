@@ -3,7 +3,10 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 
 import { LoyaltyTransactionStatus } from "@/generated/prisma";
-import { updateClientContactsAction } from "@/app/admin/actions";
+import {
+  setClientPasswordAction,
+  updateClientContactsAction,
+} from "@/app/admin/actions";
 import { AdminSubmitButton } from "@/components/admin/admin-submit-button";
 import { MetricCard } from "@/components/admin/metric-card";
 import { StatusBadge } from "@/components/admin/status-badge";
@@ -26,6 +29,7 @@ import { requireAdminSession } from "@/lib/auth/dal";
 import { formatPrice } from "@/lib/commerce";
 import { hasDatabaseUrl } from "@/lib/db";
 import { revenueOrderStatuses } from "@/lib/server/admin-data";
+import { canManageLoyalty } from "@/lib/server/loyalty-permissions";
 import { getLoyaltyProgramConfig } from "@/lib/server/loyalty-settings";
 import { getLoyaltyTierLabel } from "@/lib/server/pricing";
 import { getAdminUserProfile } from "@/lib/server/users-admin";
@@ -50,6 +54,18 @@ const noticeMessages: Record<string, { ok: boolean; text: string }> = {
   "contacts-invalid": {
     ok: false,
     text: "Не сохранено: проверьте имя, телефон и почту.",
+  },
+  "password-saved": {
+    ok: true,
+    text: "Новый пароль задан. Сообщите его клиенту: он входит на сайт со своей почтой и этим паролем. Старые входы на других устройствах завершены.",
+  },
+  "password-invalid": {
+    ok: false,
+    text: "Пароль не изменён: нужно от 8 символов (кириллицей не больше 36).",
+  },
+  "password-no-email": {
+    ok: false,
+    text: "Пароль не изменён: у клиента нет почты. Сначала впишите его почту в «Контакты» и сохраните.",
   },
   "email-taken": {
     ok: false,
@@ -78,7 +94,10 @@ export default async function AdminUserProfilePage({
   params,
   searchParams,
 }: AdminUserProfilePageProps) {
-  await requireAdminSession("/login?next=/admin/users", "/admin/users");
+  const session = await requireAdminSession(
+    "/login?next=/admin/users",
+    "/admin/users",
+  );
 
   const { id } = await params;
   const user = hasDatabaseUrl() ? await getAdminUserProfile(id) : null;
@@ -87,6 +106,7 @@ export default async function AdminUserProfilePage({
     notFound();
   }
 
+  const mayManageClient = await canManageLoyalty(session);
   const noticeParam = (await searchParams)?.notice;
   const notice =
     noticeMessages[
@@ -243,6 +263,56 @@ export default async function AdminUserProfilePage({
           </p>
         ) : null}
       </section>
+
+      {mayManageClient ? (
+        <section className="rounded-[18px] border border-[color:var(--line)] bg-white p-4 sm:p-5">
+          <h2 className="text-lg font-semibold text-[var(--foreground)]">
+            Пароль для входа
+          </h2>
+          {isTechnicalClientEmail(user.email) ? (
+            <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
+              У клиента нет почты, поэтому войти на сайт он пока не может.
+              Впишите его почту в «Контакты» выше и сохраните, после этого здесь
+              можно будет задать пароль.
+            </p>
+          ) : (
+            <>
+              <p className="mt-1 text-sm leading-6 text-[var(--muted)]">
+                Если клиент забыл пароль, задайте новый и сообщите его клиенту.
+                Вход: почта {user.email} и этот пароль.
+              </p>
+              <form
+                action={setClientPasswordAction}
+                className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,20rem)_auto] sm:items-end"
+              >
+                <input type="hidden" name="id" value={user.id} />
+                <label className="grid gap-1.5 text-xs font-medium text-[var(--foreground)]">
+                  Новый пароль
+                  <Input
+                    name="password"
+                    type="text"
+                    required
+                    minLength={8}
+                    maxLength={72}
+                    autoComplete="off"
+                    spellCheck={false}
+                    placeholder="Не меньше 8 символов"
+                    className="h-10"
+                  />
+                </label>
+                <AdminSubmitButton
+                  type="submit"
+                  variant="secondary"
+                  size="sm"
+                  className="h-10"
+                  idleLabel="Задать пароль"
+                  pendingLabel="Сохраняем..."
+                />
+              </form>
+            </>
+          )}
+        </section>
+      ) : null}
 
       <div className="grid grid-cols-2 gap-2.5 sm:gap-3 xl:grid-cols-4">
         <MetricCard
