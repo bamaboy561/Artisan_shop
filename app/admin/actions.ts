@@ -6347,6 +6347,78 @@ export async function updateClientContactsAction(formData: FormData) {
   redirect(back("contacts-saved"));
 }
 
+// Клиент забыл пароль: администратор задаёт новый на карточке клиента и
+// сообщает его клиенту. Прежние входы клиента на всех устройствах
+// завершаются, как после «Забыли пароль?».
+export async function setClientPasswordAction(formData: FormData) {
+  if (!hasDatabaseUrl()) {
+    return;
+  }
+
+  await ensureLoyaltyManageAccess();
+
+  const id = getString(formData, "id");
+
+  if (!id) {
+    return;
+  }
+
+  const back = (notice: string) => `/admin/users/${id}?notice=${notice}`;
+  const password = String(formData.get("password") ?? "");
+
+  if (
+    password.trim().length < 8 ||
+    password.length > 128 ||
+    Buffer.byteLength(password, "utf8") > 72
+  ) {
+    redirect(back("password-invalid"));
+  }
+
+  const db = getDb();
+  const client = await db.user.findFirst({
+    where: {
+      id,
+      role: { code: { in: [RoleCode.CUSTOMER, RoleCode.DEALER] } },
+    },
+    select: { id: true, email: true },
+  });
+
+  if (!client) {
+    return;
+  }
+
+  if (isTechnicalClientEmail(client.email)) {
+    redirect(back("password-no-email"));
+  }
+
+  const { hash } = await import("bcryptjs");
+  const hashedPassword = await hash(password, 10);
+  // Отметку берём после хеширования: вход старым паролем, пока считается
+  // хеш, тоже должен завершиться.
+  const revokedKey = `session-revocation:${client.id}`;
+  const revocation = { revokedBefore: Date.now() };
+
+  await db.$transaction([
+    db.user.update({
+      where: { id: client.id },
+      data: { hashedPassword },
+    }),
+    // Ссылка из «Забыли пароль?», если клиент успел её запросить, больше
+    // не нужна.
+    db.siteSetting.deleteMany({
+      where: { key: `password-reset:${client.id}` },
+    }),
+    db.siteSetting.upsert({
+      where: { key: revokedKey },
+      create: { key: revokedKey, value: revocation },
+      update: { value: revocation },
+    }),
+  ]);
+
+  revalidateAdminUsers();
+  redirect(back("password-saved"));
+}
+
 export async function setLoyaltyManagerAccessAction(formData: FormData) {
   if (!hasDatabaseUrl()) {
     return;
