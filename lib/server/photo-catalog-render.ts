@@ -150,6 +150,39 @@ const COLORS = {
   accent: "#c98a6b",
   sale: "#b4432f",
 };
+const COVER = {
+  background: "#171613",
+  footer: "#0f0e0c",
+  text: "#d8d2c8",
+  muted: "#9a9388",
+  line: "#3a3631",
+  watermark: "#1e1c19",
+};
+
+// Знак Artisan — как иконка сайта: тёмный квадрат, белая «A»,
+// медная полоса слева и снизу.
+function drawLogoMark(
+  doc: InstanceType<typeof PDFDocument>,
+  x: number,
+  y: number,
+  size: number,
+) {
+  doc.save();
+  doc.rect(x, y, size, size).fill("#111210");
+  doc.rect(x, y, size * 0.074, size).fill("#c76a43");
+  doc.rect(x, y + size * 0.935, size, size * 0.065).fill("#ac5835");
+  doc
+    .font("bold")
+    .fontSize(size * 0.72)
+    .fillColor("#fffdf8")
+    .text("A", x + size * 0.037, y + size * 0.04, {
+      width: size,
+      align: "center",
+      lineBreak: false,
+    });
+  doc.restore();
+}
+
 const GRID = {
   columns: 3,
   gap: 12,
@@ -182,10 +215,10 @@ export function catalogSection(product: { category: string }) {
 }
 
 // Раскладка считается заранее: так в содержании на обложке есть номера
-// страниц разделов. Страница 1 — обложка, товары начинаются со второй.
+// страниц разделов. Страница 1 — титульная, 2 — содержание, товары с третьей.
 export function layoutPhotoCatalog(products: CatalogProduct[]): CatalogLayout {
-  const layout: CatalogLayout = { pages: 1, sections: [], cards: [] };
-  let page = 1;
+  const layout: CatalogLayout = { pages: 2, sections: [], cards: [] };
+  let page = 2;
   let y = GRID.bottom;
   let column = GRID.columns;
   const rowHeight = GRID.cardHeight + GRID.gap;
@@ -270,74 +303,224 @@ export async function renderPhotoPdf(
       color: { dark: COLORS.ink, light: "#ffffff" },
     });
 
-  // Обложка: название, фото, содержание и контакты.
-  doc.rect(0, 0, PAGE.width, 372).fill(COLORS.ink);
+  // Страница 1 — титульная: логотип, название каталога, образцы, контакты.
+  doc.rect(0, 0, PAGE.width, PAGE.height).fill(COVER.background);
+  // Большая «A» знака — фоном справа, заполняет пустое место.
   doc
     .font("bold")
-    .fontSize(40)
+    .fontSize(430)
+    .fillColor(COVER.watermark)
+    .text("A", PAGE.width - 330, 150, { width: 360, lineBreak: false });
+
+  const left = PAGE.margin + 12;
+  const right = PAGE.width - PAGE.margin - 12;
+  drawLogoMark(doc, left, 44, 42);
+  doc
+    .font("bold")
+    .fontSize(20)
     .fillColor("#ffffff")
-    .text("ARTISAN", PAGE.margin + 8, 64, { characterSpacing: 4 });
+    .text("ARTISAN", left + 56, 48, { characterSpacing: 5, lineBreak: false });
   doc
     .font("regular")
-    .fontSize(13)
-    .fillColor("#c9d3ce")
-    .text("Каталог материалов и фурнитуры", PAGE.margin + 8, 118);
+    .fontSize(8)
+    .fillColor(COVER.muted)
+    .text("МЕБЕЛЬНЫЕ МАТЕРИАЛЫ · БИШКЕК", left + 57, 74, {
+      characterSpacing: 1.5,
+      lineBreak: false,
+    });
+  doc
+    .font("regular")
+    .fontSize(8)
+    .fillColor(COVER.muted)
+    .text("КАТАЛОГ", right - 120, 52, {
+      width: 120,
+      align: "right",
+      characterSpacing: 2,
+      lineBreak: false,
+    });
   doc
     .font("bold")
-    .fontSize(22)
+    .fontSize(16)
     .fillColor(COLORS.accent)
-    .text(data.title, PAGE.margin + 8, 146, { width: 520, lineBreak: false });
+    .text(String(data.createdAt.getFullYear()), right - 120, 64, {
+      width: 120,
+      align: "right",
+      lineBreak: false,
+    });
+  doc
+    .strokeColor(COVER.line)
+    .lineWidth(0.6)
+    .moveTo(left, 110)
+    .lineTo(right, 110)
+    .stroke();
+
+  doc
+    .font("bold")
+    .fontSize(9)
+    .fillColor(COLORS.accent)
+    .text("ФОТОКАТАЛОГ С ЦЕНАМИ", left, 158, {
+      characterSpacing: 3,
+      lineBreak: false,
+    });
+  doc.font("bold").fontSize(data.title.length > 18 ? 36 : 48);
+  const titleOptions = { width: right - left, height: 120, ellipsis: true };
+  doc.fillColor("#ffffff").text(data.title, left, 176, titleOptions);
+  let coverY =
+    176 + Math.min(120, doc.heightOfString(data.title, titleOptions));
+  doc.rect(left, coverY + 14, 56, 3).fill(COLORS.accent);
   doc
     .font("regular")
-    .fontSize(9)
-    .fillColor("#c9d3ce")
+    .fontSize(12)
+    .fillColor(COVER.text)
     .text(
-      `Цены и наличие на ${date} · Товаров: ${data.products.length} · Разделов: ${contents.length}`,
-      PAGE.margin + 8,
-      182,
+      contents.map((section) => section.category).join(" · "),
+      left,
+      coverY + 30,
+      { width: right - left, height: 34, ellipsis: true, lineGap: 2 },
     );
+
+  // Образцы — фото первых товаров плиткой, как доска с декорами.
   const coverPhotos = photos.filter((photo): photo is Buffer => !!photo);
-  const coverWidth = (PAGE.width - PAGE.margin * 2 - 16 - 2 * 10) / 3;
-  coverPhotos.slice(0, 3).forEach((photo, index) => {
-    const x = PAGE.margin + 8 + index * (coverWidth + 10);
+  const tileGap = 8;
+  const tileWidth = (right - left - tileGap * 2) / 3;
+  const tileHeight = 118;
+  const tileRows =
+    coverPhotos.length >= 6 ? 2 : coverPhotos.length >= 3 ? 1 : 0;
+  const tilesTop = 656 - tileRows * tileHeight - (tileRows - 1) * tileGap;
+  coverPhotos.slice(0, tileRows * 3).forEach((photo, i) => {
+    const x = left + (i % 3) * (tileWidth + tileGap);
+    const y = tilesTop + Math.floor(i / 3) * (tileHeight + tileGap);
     doc.save();
-    doc.roundedRect(x, 214, coverWidth, 124, 8).clip();
-    doc.rect(x, 214, coverWidth, 124).fill("#ffffff");
-    doc.image(photo, x, 214, {
-      cover: [coverWidth, 124],
+    doc.roundedRect(x, y, tileWidth, tileHeight, 6).clip();
+    doc.rect(x, y, tileWidth, tileHeight).fill("#ffffff");
+    doc.image(photo, x, y, {
+      cover: [tileWidth, tileHeight],
       align: "center",
       valign: "center",
     });
     doc.restore();
   });
+  if (!tileRows) {
+    // Без фото — коротко о том, что ещё делает Artisan.
+    [
+      "Распил и кромление",
+      "Присадка и фрезеровка",
+      "Расчёт распила онлайн",
+    ].forEach((label, i) => {
+      const x = left + i * (tileWidth + tileGap);
+      doc.rect(x, 600, 24, 2).fill(COLORS.accent);
+      doc
+        .font("regular")
+        .fontSize(10)
+        .fillColor(COVER.text)
+        .text(label, x, 612, { width: tileWidth, lineBreak: false });
+    });
+  }
 
+  // Нижняя полоса: дата цен, телефон, QR на сайт.
+  const footerY = 690;
+  doc.rect(0, footerY, PAGE.width, PAGE.height - footerY).fill(COVER.footer);
+  doc.rect(0, footerY, PAGE.width, 3).fill(COLORS.accent);
+  doc
+    .font("regular")
+    .fontSize(8)
+    .fillColor(COVER.muted)
+    .text("ЦЕНЫ И НАЛИЧИЕ НА", left, footerY + 30, {
+      characterSpacing: 1.5,
+      lineBreak: false,
+    });
   doc
     .font("bold")
-    .fontSize(14)
+    .fontSize(16)
+    .fillColor("#ffffff")
+    .text(date, left, footerY + 44, { lineBreak: false });
+  doc
+    .font("regular")
+    .fontSize(9)
+    .fillColor(COVER.text)
+    .text(
+      `Товаров: ${data.products.length} · Разделов: ${contents.length}`,
+      left,
+      footerY + 70,
+      { lineBreak: false },
+    );
+  const contactX = left + 175;
+  doc
+    .font("regular")
+    .fontSize(8)
+    .fillColor(COVER.muted)
+    .text("ЗАКАЗ И КОНСУЛЬТАЦИЯ", contactX, footerY + 30, {
+      characterSpacing: 1.5,
+      lineBreak: false,
+    });
+  doc
+    .font("bold")
+    .fontSize(16)
+    .fillColor("#ffffff")
+    .text(data.contacts.phone, contactX, footerY + 44, { lineBreak: false });
+  doc
+    .font("regular")
+    .fontSize(9)
+    .fillColor(COVER.text)
+    .text(`WhatsApp · ${site}`, contactX, footerY + 70, { lineBreak: false });
+  const qrBox = 92;
+  const qrX = right - qrBox;
+  doc.roundedRect(qrX, footerY + 22, qrBox, qrBox, 8).fill("#ffffff");
+  doc.image(await qr(data.siteUrl), qrX + 12, footerY + 30, { width: 68 });
+  doc
+    .font("regular")
+    .fontSize(6.5)
+    .fillColor(COLORS.muted)
+    .text("Каталог онлайн", qrX, footerY + 100, {
+      width: qrBox,
+      align: "center",
+      lineBreak: false,
+    });
+  doc.link(qrX, footerY + 22, qrBox, qrBox, data.siteUrl);
+
+  // Страница 2 — содержание и контакты.
+  doc.addPage({ size: "A4", margin: 0 });
+  drawLogoMark(doc, PAGE.margin + 8, 40, 30);
+  doc
+    .font("bold")
+    .fontSize(13)
     .fillColor(COLORS.ink)
-    .text("Содержание", PAGE.margin + 8, 396);
-  const tocTop = 422;
-  const tocBottom = 676;
-  const tocColumns = contents.length > 14 ? 2 : 1;
+    .text("ARTISAN", PAGE.margin + 48, 47, {
+      characterSpacing: 3,
+      lineBreak: false,
+    });
+  doc
+    .font("bold")
+    .fontSize(26)
+    .fillColor(COLORS.ink)
+    .text("Содержание", PAGE.margin + 8, 104);
+  doc.rect(PAGE.margin + 8, 142, 40, 3).fill(COLORS.accent);
+  const tocTop = 166;
+  // Мало разделов — внизу остаётся место под услуги производства.
+  const showServices = contents.length <= 16;
+  const tocBottom = showServices ? 500 : 676;
+  const tocColumns = contents.length > 26 ? 2 : 1;
   const tocWidth =
     (PAGE.width - PAGE.margin * 2 - 16 - (tocColumns - 1) * 20) / tocColumns;
-  const tocRows = Math.floor((tocBottom - tocTop) / 17);
+  const tocStep = 19;
+  const tocRows = Math.floor((tocBottom - tocTop) / tocStep);
   const tocVisible =
     contents.length > tocRows * tocColumns
       ? tocRows * tocColumns - 1
       : contents.length;
   contents.slice(0, tocVisible).forEach((section, index) => {
     const x = PAGE.margin + 8 + Math.floor(index / tocRows) * (tocWidth + 20);
-    const y = tocTop + (index % tocRows) * 17;
-    doc.font("regular").fontSize(9).fillColor(COLORS.ink);
+    const y = tocTop + (index % tocRows) * tocStep;
+    doc.font("regular").fontSize(10).fillColor(COLORS.ink);
     const label = `${section.category} (${section.count})`;
     doc.text(label, x, y, {
       width: tocWidth - 34,
-      height: 12,
+      height: 13,
       ellipsis: true,
       lineBreak: false,
     });
     doc
+      .font("bold")
       .fillColor(COLORS.green)
       .text(String(section.page), x + tocWidth - 30, y, {
         width: 30,
@@ -347,8 +530,8 @@ export async function renderPhotoPdf(
     doc
       .strokeColor(COLORS.line)
       .lineWidth(0.5)
-      .moveTo(x, y + 13.5)
-      .lineTo(x + tocWidth, y + 13.5)
+      .moveTo(x, y + 15)
+      .lineTo(x + tocWidth, y + 15)
       .stroke();
   });
   if (tocVisible < contents.length)
@@ -359,8 +542,53 @@ export async function renderPhotoPdf(
       .text(
         `и ещё разделов: ${contents.length - tocVisible}`,
         PAGE.margin + 8 + (tocColumns - 1) * (tocWidth + 20),
-        tocTop + (tocRows - 1) * 17,
+        tocTop + (tocRows - 1) * tocStep,
       );
+
+  if (showServices) {
+    doc
+      .font("bold")
+      .fontSize(14)
+      .fillColor(COLORS.ink)
+      .text("Производство Artisan", PAGE.margin + 8, 520);
+    const services = [
+      ["Распил", "Плиты режем на немецком оборудовании — ровно и без сколов."],
+      ["Кромление", "Кромка на PUR-клей: держится и не боится влаги."],
+      [
+        "Присадка и фрезеровка",
+        "Отверстия под петли, конфирматы и пазы — по вашему проекту.",
+      ],
+      ["Онлайн на сайте", "Калькулятор распила и 3D-конструктор мебели."],
+    ];
+    const cardWidth = (PAGE.width - PAGE.margin * 2 - 12) / 2;
+    services.forEach(([name, text], i) => {
+      const x = PAGE.margin + (i % 2) * (cardWidth + 12);
+      const y = 546 + Math.floor(i / 2) * 68;
+      doc
+        .roundedRect(x, y, cardWidth, 58, 8)
+        .lineWidth(0.6)
+        .strokeColor(COLORS.line)
+        .stroke();
+      doc.rect(x + 14, y + 14, 3, 12).fill(COLORS.accent);
+      doc
+        .font("bold")
+        .fontSize(10)
+        .fillColor(COLORS.ink)
+        .text(name, x + 24, y + 12, {
+          width: cardWidth - 36,
+          lineBreak: false,
+        });
+      doc
+        .font("regular")
+        .fontSize(8)
+        .fillColor(COLORS.muted)
+        .text(text, x + 24, y + 28, {
+          width: cardWidth - 36,
+          height: 24,
+          ellipsis: true,
+        });
+    });
+  }
 
   const contactsY = 700;
   doc
@@ -403,7 +631,7 @@ export async function renderPhotoPdf(
     });
 
   // Страницы товаров.
-  for (let page = 2; page <= layout.pages; page++) {
+  for (let page = 3; page <= layout.pages; page++) {
     doc.addPage({ size: "A4", margin: 0 });
     doc
       .font("bold")

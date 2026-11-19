@@ -96,9 +96,10 @@ test("PDF embeds a Cyrillic font and paginates without dropping products", async
   assert.equal(file.subarray(0, 5).toString(), "%PDF-");
   const source = file.toString("latin1");
   assert.ok(source.includes("/FontFile2"));
-  // Обложка и три страницы по девять карточек.
-  assert.equal((source.match(/\/Type \/Page\b/g) ?? []).length, 4);
-  assert.equal((source.match(/\/URI \(/g) ?? []).length, 25);
+  // Титульная, содержание и три страницы по девять карточек.
+  assert.equal((source.match(/\/Type \/Page\b/g) ?? []).length, 5);
+  // Ссылки карточек и QR на сайт на титульной.
+  assert.equal((source.match(/\/URI \(/g) ?? []).length, 26);
 });
 
 test("PDF layout keeps every product, groups top-level sections and repeats a split section header", () => {
@@ -130,7 +131,7 @@ test("PDF layout keeps every product, groups top-level sections and repeats a sp
     ],
   );
   assert.ok(layout.sections.some((s) => s.continued && s.category === "Плиты"));
-  assert.ok(layout.cards.every((card) => card.page >= 2));
+  assert.ok(layout.cards.every((card) => card.page >= 3));
   for (const card of layout.cards) assert.ok(card.y + 224 <= 841.89 - 40);
   const keys = layout.cards.map((card) => `${card.page}:${card.x}:${card.y}`);
   assert.equal(new Set(keys).size, keys.length, "cards never overlap");
