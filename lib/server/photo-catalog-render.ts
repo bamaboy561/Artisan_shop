@@ -42,6 +42,13 @@ export async function loadCatalogPhotos(data: PhotoCatalogData) {
   return photos;
 }
 
+// Логотип выбранного бренда для титульной — крупнее миниатюр товаров.
+export async function loadCatalogLogo(data: PhotoCatalogData) {
+  return data.brandLogoUrl
+    ? catalogThumbnail(data.brandLogoUrl, [480, 240])
+    : null;
+}
+
 export async function renderPhotoExcel(
   data: PhotoCatalogData,
   photos: (Buffer | null)[],
@@ -269,6 +276,7 @@ export function layoutPhotoCatalog(products: CatalogProduct[]): CatalogLayout {
 export async function renderPhotoPdf(
   data: PhotoCatalogData,
   photos: (Buffer | null)[],
+  brandLogo: Buffer | null = null,
 ) {
   const doc = new PDFDocument({
     size: "A4",
@@ -363,7 +371,11 @@ export async function renderPhotoPdf(
       lineBreak: false,
     });
   doc.font("bold").fontSize(data.title.length > 18 ? 36 : 48);
-  const titleOptions = { width: right - left, height: 120, ellipsis: true };
+  const titleOptions = {
+    width: right - left - (brandLogo ? 170 : 0),
+    height: 120,
+    ellipsis: true,
+  };
   doc.fillColor("#ffffff").text(data.title, left, 176, titleOptions);
   let coverY =
     176 + Math.min(120, doc.heightOfString(data.title, titleOptions));
@@ -378,6 +390,21 @@ export async function renderPhotoPdf(
       coverY + 30,
       { width: right - left, height: 34, ellipsis: true, lineGap: 2 },
     );
+
+  // Логотип бренда — на белой плашке справа от названия.
+  if (brandLogo) {
+    const plate = { width: 150, height: 76 };
+    const plateX = right - plate.width;
+    const plateY = 160;
+    doc
+      .roundedRect(plateX, plateY, plate.width, plate.height, 8)
+      .fill("#ffffff");
+    doc.image(brandLogo, plateX + 12, plateY + 10, {
+      fit: [plate.width - 24, plate.height - 20],
+      align: "center",
+      valign: "center",
+    });
+  }
 
   // Образцы — фото первых товаров плиткой, как доска с декорами.
   const coverPhotos = photos.filter((photo): photo is Buffer => !!photo);
