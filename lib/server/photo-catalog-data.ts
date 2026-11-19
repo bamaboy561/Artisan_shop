@@ -55,7 +55,9 @@ export async function getPhotoCatalogData(brandId: string, inStock: boolean) {
           { sku: "asc" },
         ],
       }),
-      db.brand.findMany({ select: { id: true, name: true } }),
+      db.brand.findMany({
+        select: { id: true, name: true, slug: true, logoUrl: true },
+      }),
       db.category.findMany({
         select: { id: true, name: true, parentId: true },
       }),
@@ -82,12 +84,18 @@ export async function getPhotoCatalogData(brandId: string, inStock: boolean) {
     return names.join(" / ");
   }
   const siteUrl = getSiteUrl();
+  const selectedBrand = brandId
+    ? brands.find((brand) => brand.id === brandId)
+    : undefined;
   return {
     siteUrl,
     contacts: companyContacts,
-    title: brandId
-      ? brands.find((brand) => brand.id === brandId)!.name
-      : "Все бренды",
+    title: selectedBrand ? selectedBrand.name : "Все бренды",
+    // Логотип бренда для титульной; у Albero он лежит в public, как на витрине.
+    brandLogoUrl: selectedBrand
+      ? (selectedBrand.logoUrl ??
+        (selectedBrand.slug === "albero" ? "/brands/albero-logo.png" : null))
+      : null,
     createdAt: new Date(),
     products: products
       .map(({ promotions, category, images, ...product }) => {

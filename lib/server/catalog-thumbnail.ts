@@ -103,6 +103,7 @@ async function remoteImage(url: URL): Promise<Buffer> {
 
 export async function catalogThumbnail(
   src: string | null,
+  size: [number, number] = [240, 180],
 ): Promise<Buffer | null> {
   if (!src || !isAllowedCatalogImage(src)) return null;
   try {
@@ -122,7 +123,7 @@ export async function catalogThumbnail(
     } else bytes = await remoteImage(new URL(src));
     return await sharp(bytes, { limitInputPixels: 40_000_000 })
       .rotate()
-      .resize(240, 180, {
+      .resize(size[0], size[1], {
         fit: "contain",
         background: "white",
         withoutEnlargement: true,

@@ -6,6 +6,7 @@ import {
   loadCatalogPhotos,
   renderPhotoExcel,
   renderPhotoPdf,
+  loadCatalogLogo,
 } from "@/lib/server/photo-catalog-render";
 
 export const runtime = "nodejs";
@@ -54,7 +55,7 @@ export async function GET(request: Request) {
     const photos = await loadCatalogPhotos(data);
     const file =
       format === "pdf"
-        ? await renderPhotoPdf(data, photos)
+        ? await renderPhotoPdf(data, photos, await loadCatalogLogo(data))
         : await renderPhotoExcel(data, photos);
     if (file.length > 4 * 1024 * 1024)
       return Response.json(

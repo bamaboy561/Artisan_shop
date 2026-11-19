@@ -386,3 +386,20 @@ test("private DNS answers, including IPv4-mapped IPv6, stay blocked before conne
     assert.equal(requests, 0, address);
   }
 });
+
+test("PDF title page shows the selected brand logo", async () => {
+  const logo = await sharp({
+    create: { width: 80, height: 40, channels: 3, background: "white" },
+  })
+    .jpeg()
+    .toBuffer();
+  const images = (file) =>
+    (file.toString("latin1").match(/\/Subtype \/Image/g) ?? []).length;
+  const plain = await render.renderPhotoPdf(data, [null]);
+  const branded = await render.renderPhotoPdf(data, [null], logo);
+  assert.equal(images(branded), images(plain) + 1);
+  assert.equal(
+    await render.loadCatalogLogo({ ...data, brandLogoUrl: null }),
+    null,
+  );
+});
