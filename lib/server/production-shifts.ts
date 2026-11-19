@@ -358,8 +358,11 @@ export async function confirmShift(input: {
   await getDb().productionShift.update({
     where: { id: shift.id },
     data: {
-      confirmedAt: new Date(),
-      confirmedByName: actorName(input.actor),
+      // Сдачу смены можно принять только после того, как сотрудник её сдал.
+      // Пока смена идёт, мастер сохраняет проверку без отметки «принято».
+      ...(shift.endedAt
+        ? { confirmedAt: new Date(), confirmedByName: actorName(input.actor) }
+        : {}),
       masterDeviations: JSON.stringify(
         input.deviations.filter((key) => known.has(key)),
       ),

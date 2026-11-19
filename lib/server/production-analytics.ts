@@ -15,7 +15,6 @@ import {
 import { addDaysToDateKey } from "@/features/production/queue";
 import { getFaultsOverlapping } from "@/lib/server/production-shifts";
 
-
 function bishkekStart(day: string) {
   return new Date(`${day}T00:00:00+06:00`);
 }
@@ -234,6 +233,7 @@ function withFaults<
     stations: Array<{
       station: WorkStation;
       downtimeMs: number;
+      workMs: number;
       faults: number;
     }>;
     faults: Awaited<ReturnType<typeof getFaultsOverlapping>>;
@@ -251,7 +251,9 @@ function withFaults<
   },
 ): T {
   const windows = clipWindows(input, start, end);
+  const workMs = windows.reduce((sum, w) => sum + (w.end - w.start), 0);
   for (const row of result.stations) {
+    row.workMs = workMs;
     const own = faults.filter((fault) => fault.station === row.station);
     row.faults = own.length;
     // Простой — только когда станок остановлен, в рабочие часы смены.
