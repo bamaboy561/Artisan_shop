@@ -15,7 +15,6 @@ import {
 import { addDaysToDateKey } from "@/features/production/queue";
 import { getFaultsOverlapping } from "@/lib/server/production-shifts";
 
-const dayMs = 86_400_000;
 
 function bishkekStart(day: string) {
   return new Date(`${day}T00:00:00+06:00`);
@@ -75,18 +74,36 @@ export async function getProductionAnalytics(input: {
     select: { entityId: true },
     take: 3000,
   });
-  // Для загрузки станков нужны и заявки, которые просто были на станке.
-  const activeEvents = await db.operationEvent.findMany({
-    where: {
-      entityType: "request",
-      eventType: "cutting_stage",
-      createdAt: { gte: new Date(start.getTime() - 14 * dayMs), lt: end },
-    },
-    select: { entityId: true },
-    take: 10000,
-  });
+  // Для загрузки станков нужны все заявки, которые стояли на станции хоть
+  // часть периода. Такая заявка либо сменила этап в периоде или позже
+  // (событие с даты начала), либо стоит на станции до сих пор.
+  const [activeEvents, onStation] = await Promise.all([
+    db.operationEvent.findMany({
+      where: {
+        entityType: "request",
+        eventType: "cutting_stage",
+        createdAt: { gte: start },
+      },
+      select: { entityId: true },
+      distinct: ["entityId"],
+      take: 10000,
+    }),
+    db.request.findMany({
+      where: {
+        type: RequestType.CUTTING_SERVICE,
+        cuttingStage: { in: [...workStations] },
+        status: { notIn: ["COMPLETED", "CANCELED"] },
+      },
+      select: { id: true },
+      take: 2000,
+    }),
+  ]);
   const ids = [
-    ...new Set([...readyEvents, ...activeEvents].map((e) => e.entityId)),
+    ...new Set([
+      ...readyEvents.map((e) => e.entityId),
+      ...activeEvents.map((e) => e.entityId),
+      ...onStation.map((r) => r.id),
+    ]),
   ];
   if (!ids.length) {
     const faults = await getFaultsOverlapping(start, end);
