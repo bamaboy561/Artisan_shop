@@ -1,5 +1,8 @@
 import "server-only";
 
+import { shiftDayMessageLines } from "@/features/production/shift";
+import { getShiftDaySummary } from "@/lib/server/production-shifts";
+
 import { RoleCode } from "@/generated/prisma";
 import {
   buildDeadlineAlert,
@@ -212,6 +215,16 @@ export async function runProductionDailyReport(now = new Date()) {
   try {
     const report = await getProductionDailyReport(board, board.today);
     const message = buildDailyReportMessage(report, board.today);
+    // Итог смены: кто не сдал смену, отсутствия, опоздания, неисправности.
+    try {
+      const shift = await getShiftDaySummary(board.today);
+      const shiftLines = shift
+        ? shiftDayMessageLines(shift.summary, shift)
+        : [];
+      if (shiftLines.length) message.lines.push("", ...shiftLines);
+    } catch (error) {
+      console.error("[production-daily-report] shift summary failed", error);
+    }
     const boardUrl = `${getSiteUrl()}${productionBoardPath}#daily-report`;
     const topic = await sendStaffNotice({
       ...message,

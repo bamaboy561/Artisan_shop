@@ -32,6 +32,7 @@ import {
 } from "@/lib/server/production-workspace";
 import { parseReportDay } from "@/features/production/daily-report";
 import { getProductionDailyReport } from "@/lib/server/production-daily-report";
+import { getShiftDaySummary } from "@/lib/server/production-shifts";
 import styles from "./board.module.css";
 import { DailyReportSection } from "./daily-report";
 
@@ -130,7 +131,10 @@ export default async function ProductionBoardPage({
   const board = await getProductionBoard();
   const now = board.now;
   const reportDay = parseReportDay(params.day, board.today);
-  const report = await getProductionDailyReport(board, reportDay);
+  const [report, shift] = await Promise.all([
+    getProductionDailyReport(board, reportDay),
+    getShiftDaySummary(board.today).catch(() => null),
+  ]);
   const byColumn = new Map<BoardColumnKey, Card[]>(
     columns.map((column) => [column.key, []]),
   );
@@ -206,6 +210,35 @@ export default async function ProductionBoardPage({
           <dd>{board.issuedToday}</dd>
         </div>
       </dl>
+
+      {shift && shift.summary.total ? (
+        <Link className={styles.shiftStrip} href="/admin/production/shifts">
+          <strong>Смена сегодня</strong>
+          <span>
+            приняли{" "}
+            {shift.summary.total -
+              shift.summary.notStarted.length -
+              shift.summary.absent.length}{" "}
+            из {shift.summary.total}
+          </span>
+          <span>сдали {shift.summary.ended.length}</span>
+          {shift.summary.late.length ? (
+            <span data-tone="warn">опоздали {shift.summary.late.length}</span>
+          ) : null}
+          {shift.summary.deviations ? (
+            <span data-tone="bad">отклонений {shift.summary.deviations}</span>
+          ) : null}
+          {shift.openFaults ? (
+            <span data-tone="bad">неисправностей {shift.openFaults}</span>
+          ) : null}
+          {shift.pendingIncidents ? (
+            <span data-tone="warn">
+              журнал: в работе {shift.pendingIncidents}
+            </span>
+          ) : null}
+          <ArrowRight size={16} />
+        </Link>
+      ) : null}
 
       {board.truncated ? (
         <p className={styles.error}>

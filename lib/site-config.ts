@@ -85,6 +85,16 @@ export const adminNavigation: NavItem[] = [
     description: "Все заявки по этапам, сроки и проблемы.",
   },
   {
+    href: "/admin/production/shift",
+    label: "Моя смена",
+    description: "Чек-лист приёмки и сдачи смены, неисправности.",
+  },
+  {
+    href: "/admin/production/shifts",
+    label: "Смены цеха",
+    description: "Кто на смене, журнал фактов, итоги и работа станков.",
+  },
+  {
     href: "/admin/categories",
     label: "Каталог",
     description: "Структура каталога.",
