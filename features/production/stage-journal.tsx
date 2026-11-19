@@ -2,6 +2,11 @@ import { CuttingStage } from "@/generated/prisma";
 import { cuttingStageLabels } from "@/features/cutting/progress";
 import { formatDuration } from "./workflow-flags";
 import { productionTimeZone } from "./queue";
+import {
+  buildRequestCycle,
+  workStationLabels,
+  workStations,
+} from "./cycle-time";
 
 type StageEvent = {
   eventType: string;
@@ -63,14 +68,38 @@ const timeFormatter = new Intl.DateTimeFormat("ru-RU", {
 export function StageJournal({
   events,
   closed,
+  createdAt,
 }: {
   events: StageEvent[];
   closed: boolean;
+  createdAt?: Date;
 }) {
   const rows = buildStageJournal(events);
+  const cycle = createdAt ? buildRequestCycle(events, createdAt) : null;
   return (
     <section className="border-y border-[color:var(--line)] bg-white p-4 sm:p-5">
       <h2 className="text-base font-semibold">Журнал этапов</h2>
+      {cycle?.launchedAt ? (
+        <p className="mt-2 text-sm">
+          <span className="font-semibold">
+            {cycle.done ? "Цикл для клиента: " : "Идёт уже: "}
+            {formatDuration(cycle.clientMs)}
+          </span>
+          <span className="text-[var(--muted)]">
+            {" "}
+            (в цеху {formatDuration(cycle.shopMs ?? 0)}
+            {cycle.waitMs ? `, ожидание ${formatDuration(cycle.waitMs)}` : ""}
+            {workStations
+              .filter((station) => cycle.stageMs[station] > 0)
+              .map(
+                (station) =>
+                  `, ${workStationLabels[station].toLowerCase()} ${formatDuration(cycle.stageMs[station])}`,
+              )
+              .join("")}
+            )
+          </span>
+        </p>
+      ) : null}
       {rows.length === 0 ? (
         <p className="mt-2 text-sm text-[var(--muted)]">
           Этапы по этой заявке ещё не отмечались.

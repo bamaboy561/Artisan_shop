@@ -5,6 +5,8 @@ import { usePathname } from "next/navigation";
 import {
   BadgePercent,
   Calculator,
+  ClipboardCheck,
+  ClipboardList,
   FileText,
   FileStack,
   Factory,
@@ -46,6 +48,8 @@ const iconMap = {
   "/admin/cutting": Scissors,
   "/admin/production": Factory,
   "/admin/production/board": LayoutGrid,
+  "/admin/production/shift": ClipboardCheck,
+  "/admin/production/shifts": ClipboardList,
   "/admin/promotions": BadgePercent,
   "/admin/content": FileText,
   "/calculator": Calculator,
@@ -56,7 +60,14 @@ const iconMap = {
 } as const;
 
 function isItemActive(pathname: string, href: string) {
-  if (href === "/admin/production" && pathname === "/admin/production/board")
+  if (
+    href === "/admin/production" &&
+    [
+      "/admin/production/board",
+      "/admin/production/shift",
+      "/admin/production/shifts",
+    ].includes(pathname)
+  )
     return false;
   return href === "/admin" || href === "/account"
     ? pathname === href

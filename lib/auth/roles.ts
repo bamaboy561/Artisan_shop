@@ -185,8 +185,11 @@ export function canAccessAdminPath(roleCode: RoleCode, pathname: string) {
     return canManageStaff(roleCode);
   }
 
-  // Доска распила только для тех, кто управляет производством.
-  if (pathname === "/admin/production/board") {
+  // Доска распила и смены цеха только для тех, кто управляет производством.
+  if (
+    pathname === "/admin/production/board" ||
+    pathname === "/admin/production/shifts"
+  ) {
     return canManageProduction(roleCode);
   }
 

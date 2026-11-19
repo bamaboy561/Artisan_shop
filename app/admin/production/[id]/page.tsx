@@ -710,7 +710,11 @@ export default async function ProductionRequestPage({
         </section>
       ) : null}
 
-      <StageJournal events={events} closed={isClosed} />
+      <StageJournal
+        events={events}
+        closed={isClosed}
+        createdAt={request.createdAt}
+      />
 
       <section className="border border-[color:var(--line)] bg-white p-5 sm:p-6">
         <div className="flex flex-wrap items-end justify-between gap-3">

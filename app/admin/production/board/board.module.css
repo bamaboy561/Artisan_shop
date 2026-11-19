@@ -362,3 +362,25 @@
 .reportList li span {
   color: #5f6a64;
 }
+.shiftStrip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  border: 1px solid #dce2dd;
+  background: #fff;
+  font-size: 14px;
+}
+.shiftStrip:hover {
+  border-color: #1d2420;
+}
+.shiftStrip span[data-tone="bad"] {
+  color: #9b1c1c;
+  font-weight: 600;
+}
+.shiftStrip span[data-tone="warn"] {
+  color: #8a5a00;
+  font-weight: 600;
+}
