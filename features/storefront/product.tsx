@@ -10,7 +10,7 @@ import type { FeaturedProduct } from "@/features/catalog/types";
 import { formatPrice } from "@/lib/commerce";
 import { breadcrumbJsonLd, canonicalUrl, productJsonLd } from "@/lib/seo";
 import { companyContacts } from "@/lib/site-config";
-import { StorefrontCard } from "./card";
+import { formatChips, sheetArea, StorefrontCard } from "./card";
 import {
   ProductPurchase,
   ProductSections,
@@ -35,6 +35,8 @@ export function StorefrontProduct({
 }) {
   const href = `/product/${product.slug}`;
   const gallery = orderedGallery(product);
+  const area = sheetArea(product.format);
+  const chips = formatChips(product.format);
   return (
     <div className={`${s.container} ${s.productPage}`}>
       <StructuredData
@@ -56,7 +58,11 @@ export function StorefrontProduct({
         <Link href={categoryHref}>{product.categoryName}</Link>
       </nav>
       <section className={s.productDetail}>
-        <StorefrontGallery images={gallery} name={product.name} />
+        <StorefrontGallery
+          images={gallery}
+          name={product.name}
+          cover={area !== null && product.categorySlug !== "kromka"}
+        />
         <div className={s.detailInfo}>
           <div className={s.detailTop}>
             <Link
@@ -88,7 +94,12 @@ export function StorefrontProduct({
           {product.format && (
             <div className={s.formatDetail}>
               <span>Формат и толщина</span>
-              <strong>{product.format}</strong>
+              <div className={s.specChips}>
+                {chips.map((chip) => (
+                  <span key={chip}>{chip}</span>
+                ))}
+                {area && <span>{area.toFixed(2).replace(".", ",")} м²</span>}
+              </div>
             </div>
           )}
           <div className={s.detailPrice}>
@@ -103,6 +114,11 @@ export function StorefrontProduct({
                   {formatPrice(product.oldPrice)}
                 </del>
               )}
+            {area && typeof product.price === "number" && (
+              <span className={s.unitPrice}>
+                {formatPrice(Math.round(product.price / area))}/м²
+              </span>
+            )}
           </div>
           {product.purchaseMode === "cart" &&
           typeof product.price === "number" ? (
