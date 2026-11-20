@@ -7,7 +7,7 @@ import {
   type ClipboardEvent,
   type KeyboardEvent,
 } from "react";
-import { Copy, Drill, Trash2 } from "lucide-react";
+import { Copy, Drill, Plus, Trash2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { parseCutListText, type ImportedDetail } from "./cut-list-import";
@@ -69,7 +69,7 @@ const sideTitles: Record<EdgeSide, string> = {
 // Таблица в одну строку, когда ей хватает места (а не только на очень
 // широком экране): @container на обёртке, @min-[780px] на строках.
 const wideGrid =
-  "@min-[780px]:grid-cols-[24px_minmax(90px,1fr)_76px_76px_52px_64px_112px_80px_auto]";
+  "@min-[780px]:grid-cols-[24px_minmax(76px,1fr)_68px_68px_52px_64px_100px_72px_166px]";
 
 const fieldClass =
   "h-10 w-full min-w-0 rounded-lg border border-[color:var(--line)] bg-[var(--surface-strong)] px-2.5 text-[14px] text-[var(--foreground)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/15 @min-[780px]:h-9 @min-[780px]:px-2";
@@ -362,7 +362,7 @@ export function CutDetailTable({
           <span>Кромка</span>
           <span>Текстура</span>
           <span className="text-right">Цена</span>
-          <span className="w-[100px]" />
+          <span>{onDrilling ? "Присадка" : ""}</span>
         </div>
 
         <ol ref={listRef} onPaste={handlePaste}>
@@ -467,7 +467,7 @@ export function CutDetailTable({
                 </span>
               </div>
 
-              <div className="flex items-center justify-end gap-0.5 @min-[780px]:w-[100px]">
+              <div className="flex items-center justify-end gap-0.5">
                 {onDrilling ? (
                   <button
                     type="button"
@@ -478,21 +478,28 @@ export function CutDetailTable({
                     aria-label={`Присадка детали ${index + 1}`}
                     title={
                       drillingLabels[row.id]
-                        ? `Присадка: ${drillingLabels[row.id]}`
+                        ? `Присадка: ${drillingLabels[row.id].replace("\n", " · ")}`
                         : "Присадка: фурнитура на чертеже детали"
                     }
                     className={cn(
-                      "flex h-9 items-center justify-center gap-1 rounded-lg px-2 text-[12px] transition hover:bg-[var(--surface)] hover:text-[var(--foreground)] disabled:opacity-30",
+                      "mr-1 flex h-9 items-center justify-center gap-1 rounded-full border px-3 text-[12px] font-semibold whitespace-nowrap text-[var(--accent)] transition disabled:opacity-30 @min-[780px]:w-[100px] @min-[780px]:justify-start @min-[780px]:gap-0.5 @min-[780px]:px-2",
                       drillingLabels[row.id]
-                        ? "font-semibold text-[var(--accent)]"
-                        : "text-[var(--muted)]",
+                        ? "border-[var(--accent)] bg-[var(--accent)]/10 hover:bg-[var(--accent)]/15"
+                        : "border-dashed border-[var(--accent)]/60 hover:border-[var(--accent)] hover:bg-[var(--accent)]/5",
                     )}
                   >
-                    <Drill className="size-4" />
-                    {/* В строке таблицы подпись не помещается: только значок. */}
-                    <span className="@min-[780px]:sr-only">
-                      {drillingLabels[row.id] || "Присадка"}
-                    </span>
+                    {drillingLabels[row.id] ? (
+                      <Drill className="size-4 shrink-0" />
+                    ) : (
+                      <Plus className="size-4 shrink-0" />
+                    )}
+                    {drillingLabels[row.id] ? (
+                      <span className="text-left text-[11px] leading-[1.15] whitespace-pre-line">
+                        {drillingLabels[row.id]}
+                      </span>
+                    ) : (
+                      "Присадка"
+                    )}
                   </button>
                 ) : null}
                 <button
@@ -500,7 +507,7 @@ export function CutDetailTable({
                   onClick={() => onDuplicate(row.id)}
                   aria-label="Дублировать деталь"
                   title="Дублировать"
-                  className="flex size-9 items-center justify-center rounded-lg text-[var(--muted)] transition hover:bg-[var(--surface)] hover:text-[var(--foreground)]"
+                  className="flex size-9 items-center @min-[780px]:size-8 justify-center rounded-lg text-[var(--muted)] transition hover:bg-[var(--surface)] hover:text-[var(--foreground)]"
                 >
                   <Copy className="size-4" />
                 </button>
@@ -510,7 +517,7 @@ export function CutDetailTable({
                   disabled={rows.length === 1}
                   aria-label="Удалить деталь"
                   title="Удалить"
-                  className="flex size-9 items-center justify-center rounded-lg text-[var(--muted)] transition hover:bg-[var(--surface)] hover:text-[var(--accent)] disabled:opacity-30"
+                  className="flex size-9 items-center @min-[780px]:size-8 justify-center rounded-lg text-[var(--muted)] transition hover:bg-[var(--surface)] hover:text-[var(--accent)] disabled:opacity-30"
                 >
                   <Trash2 className="size-4" />
                 </button>
@@ -526,6 +533,13 @@ export function CutDetailTable({
           className="mt-2 text-[12px] leading-5 text-[var(--foreground)]"
         >
           {notice}
+        </p>
+      ) : null}
+      {onDrilling ? (
+        <p className="mt-2 text-[13px] leading-5 text-[var(--foreground)]">
+          <span className="font-semibold">Нужны отверстия под фурнитуру?</span>{" "}
+          Нажмите «+ Присадка» у детали: выберите фурнитуру на чертеже, цена
+          посчитается сразу.
         </p>
       ) : null}
       <p className="mt-2 hidden text-[12px] leading-5 text-[var(--muted)] sm:block">
