@@ -8,7 +8,11 @@ import {
   type HardwareItem,
   type PartSide,
 } from "./drilling-hardware";
-import type { PartRole } from "./drilling-templates";
+import {
+  dowelPlaces,
+  minifixPlaces,
+  type PartRole,
+} from "./drilling-templates";
 
 // Выбор фурнитуры карточками: что это и для чего, по группам. Крепёж
 // («Эксцентрик», «Конфирмат», «Шкант») сам встаёт как надо: на боковине —
@@ -22,7 +26,13 @@ type Pick = {
   title: string;
   hint: string;
   icon: ReactNode;
-  make: (side: PartSide, thickness: number, variant: Variant) => HardwareItem;
+  /** edge — длина выбранного края, мм: от неё зависит, сколько мест крепежа. */
+  make: (
+    side: PartSide,
+    thickness: number,
+    variant: Variant,
+    edge: number,
+  ) => HardwareItem;
   /** Крепёж: на боковине и на крыше сверлится по-разному. */
   joint?: boolean;
 };
@@ -49,21 +59,32 @@ const GROUPS: { title: string; picks: Pick[] }[] = [
         joint: true,
         icon: icon(
           <>
-            <circle cx="15" cy="15" r="10" fill="none" stroke={ACCENT} strokeWidth="2.5" />
+            <circle
+              cx="15"
+              cy="15"
+              r="10"
+              fill="none"
+              stroke={ACCENT}
+              strokeWidth="2.5"
+            />
             <path d="M9 15h12" stroke={ACCENT} strokeWidth="2.5" />
           </>,
         ),
         // На боковине — отверстие под шток, на крыше — корпус и канал.
-        make: (side, t, variant) =>
+        make: (side, t, variant, edge) =>
           variant === "side"
             ? {
                 ...createHardware("faceRow", side),
+                ...minifixPlaces(edge),
                 indent: round(t / 2),
-                offset: 50,
                 mirror: true,
                 holes: [{ diameter: 5, depth: 12 }],
               }
-            : { ...createHardware("minifix", side), mirror: true },
+            : {
+                ...createHardware("minifix", side),
+                ...minifixPlaces(edge),
+                mirror: true,
+              },
       },
       {
         key: "confirmat",
@@ -76,16 +97,20 @@ const GROUPS: { title: string; picks: Pick[] }[] = [
             <path d="M15 10v15" stroke={ACCENT} strokeWidth="3" />
           </>,
         ),
-        make: (side, t, variant) =>
+        make: (side, t, variant, edge) =>
           variant === "side"
             ? {
                 ...createHardware("faceRow", side),
+                ...minifixPlaces(edge),
                 indent: round(t / 2),
-                offset: 50,
                 mirror: true,
                 holes: [{ diameter: 7, depth: 0 }],
               }
-            : { ...createHardware("confirmatEdge", side), mirror: true },
+            : {
+                ...createHardware("confirmatEdge", side),
+                ...minifixPlaces(edge),
+                mirror: true,
+              },
       },
       {
         key: "dowel",
@@ -98,18 +123,18 @@ const GROUPS: { title: string; picks: Pick[] }[] = [
             <path d="M11 9h8M11 13h8M11 17h8M11 21h8" stroke="#a87a42" />
           </>,
         ),
-        make: (side, t, variant) =>
+        make: (side, t, variant, edge) =>
           variant === "side"
             ? {
                 ...createHardware("faceRow", side),
+                ...dowelPlaces(edge),
                 indent: round(t / 2),
-                offset: 130,
                 mirror: true,
                 holes: [{ diameter: 8, depth: 12 }],
               }
             : {
                 ...createHardware("dowelEdge", side),
-                offset: 130,
+                ...dowelPlaces(edge),
                 mirror: true,
                 holes: [{ diameter: 8, depth: 20 }],
               },
@@ -138,7 +163,14 @@ const GROUPS: { title: string; picks: Pick[] }[] = [
         hint: "чашка Ø35 на двери",
         icon: icon(
           <>
-            <circle cx="12" cy="15" r="7" fill="none" stroke={ACCENT} strokeWidth="2.5" />
+            <circle
+              cx="12"
+              cy="15"
+              r="7"
+              fill="none"
+              stroke={ACCENT}
+              strokeWidth="2.5"
+            />
             <path d="M19 15h7" stroke={MUTED} strokeWidth="3" />
           </>,
         ),
@@ -150,7 +182,16 @@ const GROUPS: { title: string; picks: Pick[] }[] = [
         hint: "на боковину, напротив петли",
         icon: icon(
           <>
-            <rect x="9" y="6" width="12" height="18" rx="2" fill="none" stroke={MUTED} strokeWidth="2" />
+            <rect
+              x="9"
+              y="6"
+              width="12"
+              height="18"
+              rx="2"
+              fill="none"
+              stroke={MUTED}
+              strokeWidth="2"
+            />
             <circle cx="15" cy="11" r="1.8" fill={ACCENT} />
             <circle cx="15" cy="19" r="1.8" fill={ACCENT} />
           </>,
@@ -168,7 +209,12 @@ const GROUPS: { title: string; picks: Pick[] }[] = [
         hint: "2 отверстия на межосевом",
         icon: icon(
           <>
-            <path d="M7 12c0 6 16 6 16 0" fill="none" stroke={MUTED} strokeWidth="3" />
+            <path
+              d="M7 12c0 6 16 6 16 0"
+              fill="none"
+              stroke={MUTED}
+              strokeWidth="3"
+            />
             <circle cx="7" cy="12" r="2" fill={ACCENT} />
             <circle cx="23" cy="12" r="2" fill={ACCENT} />
           </>,
@@ -180,7 +226,15 @@ const GROUPS: { title: string; picks: Pick[] }[] = [
         title: "Своё отверстие",
         hint: "любой диаметр и глубина",
         icon: icon(
-          <circle cx="15" cy="15" r="6" fill="none" stroke={ACCENT} strokeWidth="2.5" strokeDasharray="3 2" />,
+          <circle
+            cx="15"
+            cy="15"
+            r="6"
+            fill="none"
+            stroke={ACCENT}
+            strokeWidth="2.5"
+            strokeDasharray="3 2"
+          />,
         ),
         make: (side) => createHardware("hole", side),
       },
@@ -199,6 +253,8 @@ export function HardwarePicker({
   side,
   sideName,
   thickness,
+  length,
+  width,
   onPick,
   className,
 }: {
@@ -207,10 +263,14 @@ export function HardwarePicker({
   /** «перед», «к дну» или «левый край». */
   sideName: string;
   thickness: number;
+  /** Размеры детали, мм: «Длина» по x, «Ширина» по y. */
+  length: number;
+  width: number;
   onPick: (item: HardwareItem) => void;
   className?: string;
 }) {
   const variant = roleVariant(role);
+  const edge = side === "top" || side === "bottom" ? length : width;
   const cardClass =
     "flex min-w-0 items-center gap-2 rounded-xl border border-[color:var(--line)] bg-[var(--surface-strong)] px-2 py-1.5 text-left";
 
@@ -254,7 +314,9 @@ export function HardwarePicker({
                         <button
                           key={value}
                           type="button"
-                          onClick={() => onPick(pick.make(side, thickness, value))}
+                          onClick={() =>
+                            onPick(pick.make(side, thickness, value, edge))
+                          }
                           className="rounded-full border border-[color:var(--line)] px-2 py-1 text-left text-[11.5px] whitespace-nowrap hover:border-[var(--accent)] hover:text-[var(--accent)]"
                         >
                           + {label}
@@ -269,7 +331,7 @@ export function HardwarePicker({
                   key={pick.key}
                   type="button"
                   onClick={() =>
-                    onPick(pick.make(side, thickness, variant ?? "roof"))
+                    onPick(pick.make(side, thickness, variant ?? "roof", edge))
                   }
                   className={cn(
                     cardClass,

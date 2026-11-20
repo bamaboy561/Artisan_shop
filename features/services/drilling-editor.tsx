@@ -298,7 +298,9 @@ function PartDrawing({
         fill={edgeLabel("top") ? "var(--accent)" : "#69716d"}
         fontWeight={edgeLabel("top") ? 700 : 400}
       >
-        {edgeLabel("top") ? `${edgeLabel("top")} · ${length} мм` : `${length} мм`}
+        {edgeLabel("top")
+          ? `${edgeLabel("top")} · ${length} мм`
+          : `${length} мм`}
       </text>
       <text
         x={-pad * 0.35}
@@ -309,7 +311,9 @@ function PartDrawing({
         fontWeight={edgeLabel("left") ? 700 : 400}
         transform={`rotate(-90 ${-pad * 0.35} ${width / 2})`}
       >
-        {edgeLabel("left") ? `${edgeLabel("left")} · ${width} мм` : `${width} мм`}
+        {edgeLabel("left")
+          ? `${edgeLabel("left")} · ${width} мм`
+          : `${width} мм`}
       </text>
       {edgeLabel("bottom") ? (
         <text
@@ -666,6 +670,8 @@ export function DrillingEditor({
               side={side}
               sideName={edgeName(side, role, SIDE_LABELS).replace(" край", "")}
               thickness={thickness}
+              length={length}
+              width={width}
               onPick={add}
             />
           </div>
@@ -1145,8 +1151,13 @@ export function DrillingEditor({
               <HardwarePicker
                 role={role}
                 side={side}
-                sideName={edgeName(side, role, SIDE_LABELS).replace(" край", "")}
+                sideName={edgeName(side, role, SIDE_LABELS).replace(
+                  " край",
+                  "",
+                )}
                 thickness={thickness}
+                length={length}
+                width={width}
                 onPick={add}
               />
             </div>
