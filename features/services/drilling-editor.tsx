@@ -511,12 +511,31 @@ function PartDrawing({
 
 // Подписи полей фурнитуры обычными словами: от чего мерить, видно ещё и
 // по размерам на чертеже.
+const PAIRED_KINDS = new Set<HardwareKind>(["handle", "hingePlate"]);
+
+// Отверстие в торец: глубина 0 его убирает, «насквозь» бывает только в пласть.
+function isEdgeHole(item: HardwareItem, index: number) {
+  if (item.kind === "confirmatEdge" || item.kind === "dowelEdge") return true;
+  if (item.kind === "minifix") return index === 1;
+  return item.kind === "hole" && item.edge;
+}
+
+function depthText(item: HardwareItem, index: number, depth: number) {
+  if (depth > 0) return `глубина ${depth}`;
+  return isEdgeHole(item, index) ? "глубина не задана" : "насквозь";
+}
+
 function fieldLabel(field: HardwareField, item: HardwareItem) {
   switch (field) {
     case "count":
       return "Сколько";
     case "offset":
       if (item.kind === "shelfPins") return "От угла до первого";
+      // У ручки и планки два отверстия по бокам от оси: меряем до середины.
+      if (PAIRED_KINDS.has(item.kind))
+        return Math.round(item.count) === 1
+          ? "От угла до середины, 0 — центр"
+          : "От угла до середины";
       return Math.round(item.count) === 1 ? "От угла, 0 — центр" : "От угла";
     case "indent":
       return "От края до центра";
@@ -1112,7 +1131,7 @@ export function DrillingEditor({
                     >
                       {open
                         ? "Скрыть диаметр и глубину"
-                        : `${item.holes.map((hole) => `Ø${String(hole.diameter).replace(".", ",")} ${hole.depth ? `глубина ${hole.depth}` : "насквозь"}`).join(" и ")} · изменить`}
+                        : `${item.holes.map((hole, index) => `Ø${String(hole.diameter).replace(".", ",")} ${depthText(item, index, hole.depth)}`).join(" и ")} · изменить`}
                     </button>
                     <label className="flex items-center gap-1.5">
                       <input
@@ -1166,7 +1185,11 @@ export function DrillingEditor({
                             }
                           />
                           <NumberField
-                            label="Глубина, 0 — насквозь"
+                            label={
+                              isEdgeHole(item, index)
+                                ? "Глубина, мм"
+                                : "Глубина, 0 — насквозь"
+                            }
                             value={hole.depth}
                             onChange={(next) =>
                               update(item.id, {
