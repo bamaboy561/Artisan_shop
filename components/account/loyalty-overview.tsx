@@ -2,6 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import {
   ArrowUpRight,
+  ChevronDown,
   BadgePercent,
   FileStack,
   Gem,
@@ -125,6 +126,13 @@ export function LoyaltyOverview({
     },
   ];
 
+  const nextGoal = progressCards
+    .filter((item) => item.progress.nextTier)
+    .sort((a, b) => a.progress.pointsToNext - b.progress.pointsToNext)[0];
+  const nextGoalText = nextGoal?.progress.nextTier
+    ? `До уровня ${getLoyaltyTierLabel(nextGoal.progress.nextTier, loyaltyConfig)} (${nextGoal.label.toLowerCase()}): ${formatNumber(nextGoal.progress.pointsToNext)} сом`
+    : "У вас максимальный уровень";
+
   const stats = [
     {
       label: "Заказы",
@@ -243,18 +251,16 @@ export function LoyaltyOverview({
               </div>
             </div>
 
-            <div className="rounded-[22px] border border-white/10 bg-white/[0.055] p-3 sm:p-4">
-              <div className="flex items-start justify-between gap-3">
+            <details className="group/progress rounded-[22px] border border-white/10 bg-white/[0.055] p-3 sm:p-4">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 [&::-webkit-details-marker]:hidden">
                 <div>
                   <p className="text-xs text-white/48">Прогресс программы</p>
-                  <p className="mt-1 text-base font-semibold text-white">
-                    Накопленный оплаченный оборот
+                  <p className="mt-1 text-sm font-semibold text-white">
+                    {nextGoalText}
                   </p>
                 </div>
-                <p className="rounded-full border border-white/10 px-3 py-1 text-xs text-white/58">
-                  до 50% списания
-                </p>
-              </div>
+                <ChevronDown className="size-4 shrink-0 text-white/60 transition group-open/progress:rotate-180" />
+              </summary>
 
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
                 {progressCards.map((item) => {
@@ -307,10 +313,10 @@ export function LoyaltyOverview({
                   );
                 })}
               </div>
-            </div>
+            </details>
           </div>
 
-          <div className="grid gap-2 rounded-[24px] border border-white/10 bg-white/[0.055] p-3 sm:p-4">
+          <div className="hidden gap-2 rounded-[24px] border border-white/10 bg-white/[0.055] p-3 sm:p-4 lg:grid">
             <div className="min-w-0">
               <p className="text-xs font-medium text-white/38">
                 Быстрые действия
@@ -382,6 +388,27 @@ export function LoyaltyOverview({
         </div>
       </article>
 
+      <details className="group/qr rounded-[20px] border border-[color:var(--line)] bg-[var(--surface-strong)]/92 p-4 lg:hidden">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold text-[var(--foreground)] [&::-webkit-details-marker]:hidden">
+          QR клиента для менеджера в зале
+          <ChevronDown className="size-4 shrink-0 text-[var(--muted)] transition group-open/qr:rotate-180" />
+        </summary>
+        <div className="mt-3 grid grid-cols-[120px_minmax(0,1fr)] items-center gap-3">
+          <Image
+            src={clientQrUrl}
+            alt="QR клиента Artisan"
+            width={120}
+            height={120}
+            unoptimized
+            className="rounded-xl border border-[color:var(--line)] bg-[var(--surface-strong)]"
+          />
+          <p className="text-xs leading-5 text-[var(--muted)]">
+            Покажите менеджеру в зале: он сразу найдёт ваш профиль и начислит
+            бонусы.
+          </p>
+        </div>
+      </details>
+
       <article className="grid gap-3 rounded-[24px] border border-[color:var(--line)] bg-[var(--surface-strong)]/92 p-4 shadow-[0_14px_34px_rgba(17,17,17,0.04)] sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
         <div className="min-w-0">
           <p className="text-xs font-medium text-[var(--muted)]">Telegram</p>
@@ -435,7 +462,12 @@ export function LoyaltyOverview({
         })}
       </div>
 
-      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+      <details className="group/tiers rounded-[20px] border border-[color:var(--line)] bg-[var(--surface-strong)]/92 p-4">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold text-[var(--foreground)] [&::-webkit-details-marker]:hidden">
+          Уровни программы и проценты
+          <ChevronDown className="size-4 shrink-0 text-[var(--muted)] transition group-open/tiers:rotate-180" />
+        </summary>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
         {loyaltyTierOrder.map((tier) => {
           const benefits = getLoyaltyTierBenefits(tier, loyaltyConfig);
           const isCurrent = tier === user.loyaltyTier;
@@ -505,6 +537,7 @@ export function LoyaltyOverview({
           );
         })}
       </div>
+      </details>
 
       <div className="flex flex-col gap-2 sm:flex-row">
         <ButtonLink href="/checkout" variant="contrast" icon>
