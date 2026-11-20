@@ -120,6 +120,168 @@ function outlinePath(length: number, width: number, milling?: PartMilling) {
     .join(" ");
 }
 
+// Размерные линии выбранной фурнитуры: «от угла» вдоль края и «от края
+// до центра» поперёк, с цифрами в плашках.
+function DimLines({
+  dims,
+  length,
+  width,
+}: {
+  dims: DrawingDims;
+  length: number;
+  width: number;
+}) {
+  const size = Math.max(length, width);
+  const stroke = size / 300;
+  const font = size / 26;
+  const tick = size / 70;
+  const flip = (y: number) => width - y;
+  const color = "var(--accent)";
+  // Точки в координатах SVG: начало края (угол), место вдоль края, центр.
+  const horizontal = dims.side === "top" || dims.side === "bottom";
+  const edgeAt = (along: number): [number, number] => {
+    switch (dims.side) {
+      case "top":
+        return [along, flip(width)];
+      case "bottom":
+        return [along, flip(0)];
+      case "left":
+        return [0, flip(along)];
+      case "right":
+        return [length, flip(along)];
+    }
+  };
+  const inward: [number, number] = {
+    top: [0, 1],
+    bottom: [0, -1],
+    left: [1, 0],
+    right: [-1, 0],
+  }[dims.side] as [number, number];
+  const [cx, cy] = edgeAt(dims.along);
+  const indent = dims.indent ?? 0;
+  const center: [number, number] = [
+    cx + inward[0] * indent,
+    cy + inward[1] * indent,
+  ];
+  // «От угла» рисуем чуть дальше от края, чем центр отверстия.
+  const shift = Math.max(indent, 0) + size / 22;
+  const [sx, sy] = edgeAt(0);
+  const a: [number, number] = [sx + inward[0] * shift, sy + inward[1] * shift];
+  const b: [number, number] = [cx + inward[0] * shift, cy + inward[1] * shift];
+  const badge = (x: number, y: number, text: string) => {
+    const w = font * (0.62 * text.length + 0.9);
+    const h = font * 1.35;
+    return (
+      <g>
+        <rect
+          x={x - w / 2}
+          y={y - h / 2}
+          width={w}
+          height={h}
+          rx={h / 4}
+          fill={color}
+        />
+        <text
+          x={x}
+          y={y + font * 0.36}
+          textAnchor="middle"
+          fontSize={font}
+          fontWeight={700}
+          fill="#fff"
+        >
+          {text}
+        </text>
+      </g>
+    );
+  };
+  const tickAt = (x: number, y: number) =>
+    horizontal ? (
+      <line
+        x1={x}
+        y1={y - tick}
+        x2={x}
+        y2={y + tick}
+        stroke={color}
+        strokeWidth={stroke}
+      />
+    ) : (
+      <line
+        x1={x - tick}
+        y1={y}
+        x2={x + tick}
+        y2={y}
+        stroke={color}
+        strokeWidth={stroke}
+      />
+    );
+  const indentTick = (x: number, y: number) =>
+    horizontal ? (
+      <line
+        x1={x - tick}
+        y1={y}
+        x2={x + tick}
+        y2={y}
+        stroke={color}
+        strokeWidth={stroke}
+      />
+    ) : (
+      <line
+        x1={x}
+        y1={y - tick}
+        x2={x}
+        y2={y + tick}
+        stroke={color}
+        strokeWidth={stroke}
+      />
+    );
+  const fmt = (value: number) =>
+    String(Math.round(value * 10) / 10).replace(".", ",");
+  const perpOffset = font * 1.2;
+
+  return (
+    <g pointerEvents="none">
+      {dims.showAlong ? (
+        <g>
+          <line
+            x1={a[0]}
+            y1={a[1]}
+            x2={b[0]}
+            y2={b[1]}
+            stroke={color}
+            strokeWidth={stroke}
+          />
+          {tickAt(a[0], a[1])}
+          {tickAt(b[0], b[1])}
+          {badge(
+            (a[0] + b[0]) / 2 + (horizontal ? 0 : inward[0] * perpOffset),
+            (a[1] + b[1]) / 2 + (horizontal ? inward[1] * perpOffset : 0),
+            fmt(dims.along),
+          )}
+        </g>
+      ) : null}
+      {dims.indent !== null ? (
+        <g>
+          <line
+            x1={cx}
+            y1={cy}
+            x2={center[0]}
+            y2={center[1]}
+            stroke={color}
+            strokeWidth={stroke}
+          />
+          {indentTick(cx, cy)}
+          {indentTick(center[0], center[1])}
+          {badge(
+            (cx + center[0]) / 2 + (horizontal ? perpOffset * 1.6 : 0),
+            (cy + center[1]) / 2 + (horizontal ? 0 : -perpOffset),
+            fmt(dims.indent),
+          )}
+        </g>
+      ) : null}
+    </g>
+  );
+}
+
 // Чертёж детали: вид на лицевую пласть. Щелчок по краю выбирает сторону,
 // к которой добавится фурнитура.
 function PartDrawing({
@@ -131,6 +293,7 @@ function PartDrawing({
   onSide,
   milling,
   role,
+  dims,
 }: {
   length: number;
   width: number;
@@ -140,6 +303,7 @@ function PartDrawing({
   onSide: (side: PartSide) => void;
   milling?: PartMilling;
   role?: PartRole;
+  dims?: DrawingDims | null;
 }) {
   const pad = Math.max(length, width) * 0.08;
   const view = `${-pad} ${-pad} ${length + pad * 2} ${width + pad * 2}`;
@@ -288,6 +452,7 @@ function PartDrawing({
           />
         );
       })}
+      {dims ? <DimLines dims={dims} length={length} width={width} /> : null}
       {/* Подписи краёв: размер, а у выбранного вида детали — и роль края
           («перед», «к дну»), чтобы было понятно, куда что сверлить. */}
       <text
@@ -298,7 +463,9 @@ function PartDrawing({
         fill={edgeLabel("top") ? "var(--accent)" : "#69716d"}
         fontWeight={edgeLabel("top") ? 700 : 400}
       >
-        {edgeLabel("top") ? `${edgeLabel("top")} · ${length} мм` : `${length} мм`}
+        {edgeLabel("top")
+          ? `${edgeLabel("top")} · ${length} мм`
+          : `${length} мм`}
       </text>
       <text
         x={-pad * 0.35}
@@ -309,7 +476,9 @@ function PartDrawing({
         fontWeight={edgeLabel("left") ? 700 : 400}
         transform={`rotate(-90 ${-pad * 0.35} ${width / 2})`}
       >
-        {edgeLabel("left") ? `${edgeLabel("left")} · ${width} мм` : `${width} мм`}
+        {edgeLabel("left")
+          ? `${edgeLabel("left")} · ${width} мм`
+          : `${width} мм`}
       </text>
       {edgeLabel("bottom") ? (
         <text
@@ -340,13 +509,63 @@ function PartDrawing({
   );
 }
 
-// Короткие подписи для компактной строки фурнитуры.
-const SHORT_FIELD_LABELS: Record<HardwareField, string> = {
-  count: "Шт.",
-  offset: "Отступ",
-  indent: "От края",
-  spacing: "Шаг",
+// Подписи полей фурнитуры обычными словами: от чего мерить, видно ещё и
+// по размерам на чертеже.
+function fieldLabel(field: HardwareField, item: HardwareItem) {
+  switch (field) {
+    case "count":
+      return "Сколько";
+    case "offset":
+      if (item.kind === "shelfPins") return "От угла до первого";
+      return Math.round(item.count) === 1 ? "От угла, 0 — центр" : "От угла";
+    case "indent":
+      return "От края до центра";
+    case "spacing":
+      return item.kind === "shelfPins" ? "Шаг" : "Между отверстиями";
+  }
+}
+
+const OPPOSITE_SIDE: Record<PartSide, PartSide> = {
+  top: "bottom",
+  bottom: "top",
+  left: "right",
+  right: "left",
 };
+
+// Фурнитура только в торец: расстояния «от края» у неё нет.
+function hasIndent(item: HardwareItem) {
+  if (item.kind === "confirmatEdge" || item.kind === "dowelEdge") return false;
+  if (item.kind === "hole" && item.edge) return false;
+  return true;
+}
+
+export type DrawingDims = {
+  side: PartSide;
+  // Первое место вдоль края, мм от угла; null — по центру, без размера.
+  along: number;
+  showAlong: boolean;
+  indent: number | null;
+};
+
+// Размеры выбранной фурнитуры для чертежа: от угла до первого места и от
+// края до центра отверстия.
+function drawingDims(
+  item: HardwareItem,
+  length: number,
+  width: number,
+): DrawingDims {
+  const available =
+    item.side === "top" || item.side === "bottom" ? length : width;
+  const count = Math.max(1, Math.round(item.count));
+  const centred =
+    item.kind !== "shelfPins" && count === 1 && !(item.offset > 0);
+  return {
+    side: item.side,
+    along: centred ? available / 2 : item.offset,
+    showAlong: !centred && item.offset > 0,
+    indent: hasIndent(item) && item.indent > 0 ? item.indent : null,
+  };
+}
 
 const SHORT_KIND_LABELS: Partial<Record<HardwareKind, string>> = {
   minifix: "Эксцентрик",
@@ -463,6 +682,7 @@ export function DrillingEditor({
     [length, thickness, value, width],
   );
   const holes = useMemo(() => [...byItem.values()].flat(), [byItem]);
+  const selectedItem = value.find((item) => item.id === selected) ?? null;
   const highlighted = useMemo(
     () => new Set(selected ? (byItem.get(selected) ?? []) : []),
     [byItem, selected],
@@ -626,6 +846,9 @@ export function DrillingEditor({
                 width={width}
                 holes={holes}
                 highlighted={highlighted}
+                dims={
+                  selectedItem ? drawingDims(selectedItem, length, width) : null
+                }
                 side={side}
                 onSide={setSide}
                 milling={milling}
@@ -825,6 +1048,7 @@ export function DrillingEditor({
                   key={item.id}
                   onFocus={() => setSelected(item.id)}
                   onMouseEnter={() => setSelected(item.id)}
+                  onClick={() => setSelected(item.id)}
                   className={cn(
                     "grid gap-2 rounded-xl border px-3 py-2",
                     selected === item.id
@@ -866,11 +1090,11 @@ export function DrillingEditor({
                       <Trash2 className="size-4" />
                     </button>
                   </div>
-                  <div className="grid grid-cols-4 gap-1.5">
+                  <div className="grid grid-cols-4 items-end gap-1.5">
                     {definition.fields.map((field) => (
                       <NumberField
                         key={field}
-                        label={SHORT_FIELD_LABELS[field]}
+                        label={fieldLabel(field, item)}
                         title={FIELD_LABELS[field]}
                         value={item[field]}
                         onChange={(next) => update(item.id, { [field]: next })}
@@ -885,8 +1109,8 @@ export function DrillingEditor({
                       className="text-[var(--muted)] underline underline-offset-2 hover:text-[var(--foreground)]"
                     >
                       {open
-                        ? "Скрыть Ø и глубину"
-                        : `Ø ${item.holes.map((hole) => `${hole.diameter}×${hole.depth || "скв."}`).join(", ")}`}
+                        ? "Скрыть диаметр и глубину"
+                        : `${item.holes.map((hole) => `Ø${String(hole.diameter).replace(".", ",")} ${hole.depth ? `глубина ${hole.depth}` : "насквозь"}`).join(" и ")} · изменить`}
                     </button>
                     <label className="flex items-center gap-1.5">
                       <input
@@ -896,7 +1120,13 @@ export function DrillingEditor({
                           update(item.id, { mirror: event.target.checked })
                         }
                       />
-                      Зеркально
+                      И у противоположного края («
+                      {edgeName(
+                        OPPOSITE_SIDE[item.side],
+                        role,
+                        SIDE_LABELS,
+                      ).replace(" край", "")}
+                      »)
                     </label>
                     {item.kind === "hole" ? (
                       <label className="flex items-center gap-1.5">
@@ -934,7 +1164,7 @@ export function DrillingEditor({
                             }
                           />
                           <NumberField
-                            label="Глубина"
+                            label="Глубина, 0 — насквозь"
                             value={hole.depth}
                             onChange={(next) =>
                               update(item.id, {
@@ -1145,7 +1375,10 @@ export function DrillingEditor({
               <HardwarePicker
                 role={role}
                 side={side}
-                sideName={edgeName(side, role, SIDE_LABELS).replace(" край", "")}
+                sideName={edgeName(side, role, SIDE_LABELS).replace(
+                  " край",
+                  "",
+                )}
                 thickness={thickness}
                 onPick={add}
               />
