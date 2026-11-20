@@ -40,25 +40,27 @@ export const PART_ROLE_LABELS: Record<PartRole, string> = {
 };
 
 // Названия краёв детали на чертеже и в списках.
-export const PART_ROLE_EDGES: Record<PartRole, Partial<Record<PartSide, string>>> =
-  {
-    side: { left: "к дну", right: "к крыше", top: "перед", bottom: "зад" },
-    roof: {
-      left: "к боковине",
-      right: "к боковине",
-      top: "перед",
-      bottom: "зад",
-    },
-    shelf: {
-      left: "к боковине",
-      right: "к боковине",
-      top: "перед",
-      bottom: "зад",
-    },
-    door: { bottom: "петли" },
-    drawerFront: { top: "верх" },
-    other: {},
-  };
+export const PART_ROLE_EDGES: Record<
+  PartRole,
+  Partial<Record<PartSide, string>>
+> = {
+  side: { left: "к дну", right: "к крыше", top: "перед", bottom: "зад" },
+  roof: {
+    left: "к боковине",
+    right: "к боковине",
+    top: "перед",
+    bottom: "зад",
+  },
+  shelf: {
+    left: "к боковине",
+    right: "к боковине",
+    top: "перед",
+    bottom: "зад",
+  },
+  door: { bottom: "петли" },
+  drawerFront: { top: "верх" },
+  other: {},
+};
 
 // Что поставили: строка под выбором детали.
 export const PART_ROLE_HINTS: Record<PartRole, string> = {
@@ -97,6 +99,21 @@ function hingeCount(doorHeight: number) {
 
 const round = (value: number) => Math.round(value * 10) / 10;
 
+// Места крепежа вдоль края длиной edge мм. На коротком крае два отверстия
+// с отступом 130 (или 50) от углов совпали бы или вышли за деталь, поэтому
+// там одно посередине.
+export function dowelPlaces(edge: number) {
+  return edge >= 400
+    ? { count: 2, offset: DOWEL_OFFSET }
+    : { count: 1, offset: 0 };
+}
+
+export function minifixPlaces(edge: number) {
+  return edge >= 150
+    ? { count: 2, offset: MINIFIX_OFFSET }
+    : { count: 1, offset: 0 };
+}
+
 export function partTemplate(
   role: PartRole,
   length: number,
@@ -104,24 +121,22 @@ export function partTemplate(
   thickness: number,
 ): HardwareItem[] {
   const t = thickness > 0 ? thickness : 16;
-  // В неглубоком корпусе один шкант посередине.
-  const dowelPlaces =
-    width >= 400
-      ? { count: 2, offset: DOWEL_OFFSET }
-      : { count: 1, offset: 0 };
+  // Крепёж идёт вдоль глубины корпуса («Ширина»).
+  const dowels = dowelPlaces(width);
+  const minifixes = minifixPlaces(width);
 
   switch (role) {
     case "side": {
       const joints = (side: PartSide): HardwareItem[] => [
         {
           ...createHardware("faceRow", side),
+          ...minifixes,
           indent: round(t / 2),
-          offset: MINIFIX_OFFSET,
           holes: [{ diameter: 5, depth: 12 }],
         },
         {
           ...createHardware("faceRow", side),
-          ...dowelPlaces,
+          ...dowels,
           indent: round(t / 2),
           holes: [{ diameter: 8, depth: 12 }],
         },
@@ -144,12 +159,12 @@ export function partTemplate(
       return [
         {
           ...createHardware("minifix", "left"),
+          ...minifixes,
           mirror: true,
-          offset: MINIFIX_OFFSET,
         },
         {
           ...createHardware("dowelEdge", "left"),
-          ...dowelPlaces,
+          ...dowels,
           mirror: true,
           holes: [{ diameter: 8, depth: 20 }],
         },

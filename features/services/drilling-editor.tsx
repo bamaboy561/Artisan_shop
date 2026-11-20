@@ -889,6 +889,8 @@ export function DrillingEditor({
               side={side}
               sideName={edgeName(side, role, SIDE_LABELS).replace(" край", "")}
               thickness={thickness}
+              length={length}
+              width={width}
               onPick={add}
             />
           </div>
@@ -1380,6 +1382,8 @@ export function DrillingEditor({
                   "",
                 )}
                 thickness={thickness}
+                length={length}
+                width={width}
                 onPick={add}
               />
             </div>
