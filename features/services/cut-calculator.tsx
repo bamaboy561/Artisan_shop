@@ -55,6 +55,11 @@ import type { DetailGroup } from "@/features/services/cut-list-import";
 import { CabinetBuilderDialog } from "@/features/services/cabinet-builder-dialog";
 import { DrillingEditor } from "@/features/services/drilling-editor";
 import {
+  PART_ROLE_LABELS,
+  isPartRole,
+  type PartRole,
+} from "@/features/services/drilling-templates";
+import {
   HARDWARE,
   SIDE_LABELS,
   buildDrillingProgram,
@@ -111,6 +116,10 @@ type DetailRow = {
   hardware?: HardwareItem[];
   // Скругления углов и скосы торцов.
   milling?: PartMilling;
+  // Что это за деталь (боковина, крыша…): типовая присадка и названия краёв.
+  partRole?: PartRole;
+  // Присадка словами, если клиент не знает, какая нужна.
+  drillingNote?: string;
   // Мебель из конструктора: деталировку видит только менеджер.
   group?: DetailGroup;
 };
@@ -599,7 +608,12 @@ function readCalculatorDraft(): CalculatorDraft | null {
       ? parsed.details.filter(isDetailRow).map((row) => {
           const hardware = sanitizeHardware(row.hardware);
           const milling = sanitizeMilling(row.milling);
-          return { ...row, hardware, milling };
+          const partRole = isPartRole(row.partRole) ? row.partRole : undefined;
+          const drillingNote =
+            typeof row.drillingNote === "string" && row.drillingNote.trim()
+              ? row.drillingNote.slice(0, 300)
+              : undefined;
+          return { ...row, hardware, milling, partRole, drillingNote };
         })
       : [];
 
@@ -2242,15 +2256,25 @@ export function CutCalculator({
           ).values(),
         ].concat(
           calculation.rows
-            .filter((row) => row.hardware?.length || hasMilling(row.milling))
+            .filter(
+              (row) =>
+                row.hardware?.length ||
+                hasMilling(row.milling) ||
+                row.drillingNote?.trim(),
+            )
             .map(
               (row) =>
-                `${row.title}: ${[...(row.hardware ?? [])]
+                `${row.title}${row.partRole ? ` (${PART_ROLE_LABELS[row.partRole].toLowerCase()})` : ""}: ${[...(row.hardware ?? [])]
                   .map(
                     (item) =>
                       `${HARDWARE[item.kind].label} ×${item.kind === "handle" ? 1 : item.count} (${SIDE_LABELS[item.side]}${item.mirror ? " и напротив" : ""})`,
                   )
                   .concat(describeMilling(row.milling) || [])
+                  .concat(
+                    row.drillingNote?.trim()
+                      ? `присадка словами клиента: «${row.drillingNote.trim()}»`
+                      : [],
+                  )
                   .join("; ")}`,
             ),
         ),
@@ -3457,6 +3481,7 @@ export function CutCalculator({
                       ids.includes(row.id)
                         ? {
                             ...row,
+                            partRole: drillingRow.partRole,
                             hardware: source.length
                               ? source.map((item) => ({
                                   ...item,
@@ -3485,6 +3510,16 @@ export function CutCalculator({
                 milling={drillingRow.milling}
                 onMillingChange={(milling) =>
                   updateRow(drillingRow.id, { milling })
+                }
+                role={drillingRow.partRole}
+                onRoleChange={(partRole) =>
+                  updateRow(drillingRow.id, { partRole })
+                }
+                note={drillingRow.drillingNote ?? ""}
+                onNoteChange={(note) =>
+                  updateRow(drillingRow.id, {
+                    drillingNote: note.trim() ? note.slice(0, 300) : undefined,
+                  })
                 }
                 onClose={() => setDrillingRowId(null)}
               />
