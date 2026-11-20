@@ -187,6 +187,7 @@ export function AccountCurrentWork({
         {orders.map((order) => {
           const stepIndex = getOrderStepIndex(order.status);
           const isReady = stepIndex === 3;
+          const awaitingPickup = order.status === OrderStatus.READY_FOR_PICKUP;
           const due = order.readyAt ?? order.productionDueAt;
 
           return (
@@ -212,9 +213,9 @@ export function AccountCurrentWork({
               <StepsBar steps={orderSteps} current={stepIndex} />
               <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-[var(--muted)]">
                 <span>{formatPrice(order.total)}</span>
-                {isReady ? (
+                {awaitingPickup ? (
                   <span>Забрать: Кулатова 3/1, Пн-Пт 09:00-17:00</span>
-                ) : due ? (
+                ) : due && !isReady ? (
                   <span>Готовность: {formatDay(due)}</span>
                 ) : null}
               </p>
