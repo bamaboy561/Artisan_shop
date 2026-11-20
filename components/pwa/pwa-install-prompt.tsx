@@ -27,24 +27,28 @@ const revealDelayMs = 6000;
 // Страницы, где клиент занят заказом: полоску там не показываем.
 const quietPathPrefixes = ["/admin", "/cart", "/checkout", "/login", "/register"];
 
-function readStorage(storage: Storage | undefined, key: string) {
+type StorageKind = "localStorage" | "sessionStorage";
+
+// Само обращение к window.localStorage может бросить SecurityError
+// (запрет cookies / приватный режим), поэтому берём его внутри try.
+function readStorage(kind: StorageKind, key: string) {
   try {
-    return storage?.getItem(key) ?? null;
+    return window[kind].getItem(key);
   } catch {
     return null;
   }
 }
 
-function writeStorage(storage: Storage | undefined, key: string, value: string) {
+function writeStorage(kind: StorageKind, key: string, value: string) {
   try {
-    storage?.setItem(key, value);
+    window[kind].setItem(key, value);
   } catch {
     // Без хранилища полоска просто покажется снова в следующий раз.
   }
 }
 
 function wasDismissedRecently() {
-  const dismissedAt = Number(readStorage(window.localStorage, dismissalStorageKey));
+  const dismissedAt = Number(readStorage("localStorage", dismissalStorageKey));
 
   return Number.isFinite(dismissedAt) && dismissedAt > 0
     ? Date.now() - dismissedAt < dismissalDurationMs
@@ -53,15 +57,15 @@ function wasDismissedRecently() {
 
 /** Считает визиты: один раз за сессию браузера. Возвращает номер визита. */
 function countVisit() {
-  const previous = Number(readStorage(window.localStorage, visitCountStorageKey)) || 0;
+  const previous = Number(readStorage("localStorage", visitCountStorageKey)) || 0;
 
-  if (readStorage(window.sessionStorage, sessionCountedKey)) {
+  if (readStorage("sessionStorage", sessionCountedKey)) {
     return previous;
   }
 
   const next = previous + 1;
-  writeStorage(window.localStorage, visitCountStorageKey, String(next));
-  writeStorage(window.sessionStorage, sessionCountedKey, "1");
+  writeStorage("localStorage", visitCountStorageKey, String(next));
+  writeStorage("sessionStorage", sessionCountedKey, "1");
   return next;
 }
 
@@ -78,7 +82,7 @@ export function PwaInstallPrompt() {
 
   useEffect(() => {
     if (pathname.startsWith("/checkout/success")) {
-      writeStorage(window.localStorage, orderedStorageKey, "1");
+      writeStorage("localStorage", orderedStorageKey, "1");
     }
   }, [pathname]);
 
@@ -94,7 +98,7 @@ export function PwaInstallPrompt() {
     const isMobileViewport = window.matchMedia("(max-width: 1023px)").matches;
     const iosDevice = /iphone|ipad|ipod/i.test(navigator.userAgent);
     const visits = countVisit();
-    const hasOrdered = readStorage(window.localStorage, orderedStorageKey) === "1";
+    const hasOrdered = readStorage("localStorage", orderedStorageKey) === "1";
 
     // Первый визит не трогаем: клиент сначала должен увидеть сайт.
     if (
@@ -143,7 +147,7 @@ export function PwaInstallPrompt() {
   }, [isQuietPage]);
 
   function dismiss() {
-    writeStorage(window.localStorage, dismissalStorageKey, String(Date.now()));
+    writeStorage("localStorage", dismissalStorageKey, String(Date.now()));
     setIsVisible(false);
   }
 
