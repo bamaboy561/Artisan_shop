@@ -17,9 +17,7 @@ import { cn } from "@/lib/utils";
 import {
   FIELD_LABELS,
   HARDWARE,
-  HARDWARE_KINDS,
   SIDE_LABELS,
-  createHardware,
   hardwareHoles,
   holesToDrillCounts,
   type HardwareField,
@@ -42,6 +40,7 @@ import {
   type PartMilling,
 } from "./part-milling";
 import { formatSitePrice } from "@/features/cutting/site-prices";
+import { HardwarePicker } from "./drilling-picker";
 import {
   PART_ROLES,
   PART_ROLE_EDGES,
@@ -351,9 +350,23 @@ const SHORT_FIELD_LABELS: Record<HardwareField, string> = {
 
 const SHORT_KIND_LABELS: Partial<Record<HardwareKind, string>> = {
   minifix: "Эксцентрик",
-  faceRow: "Шток / конфирмат в пласть",
+  faceRow: "Отверстия в пласть",
+  confirmatEdge: "Конфирмат в торец",
+  dowelEdge: "Шкант в торец",
   hingePlate: "Планка петли",
 };
+
+// Название фурнитуры в списке. Ряд в пласть по диаметру понятнее:
+// Ø5 — под шток эксцентрика, Ø7 — конфирмат, Ø8 — шкант.
+function itemLabel(item: HardwareItem) {
+  if (item.kind === "faceRow") {
+    const diameter = item.holes[0]?.diameter;
+    if (diameter === 5) return "Под шток эксцентрика";
+    if (diameter === 7) return "Конфирмат в пласть";
+    if (diameter === 8) return "Шкант в пласть";
+  }
+  return SHORT_KIND_LABELS[item.kind] ?? HARDWARE[item.kind].label;
+}
 
 export type DrillingCopyTarget = {
   id: string;
@@ -426,14 +439,18 @@ export function DrillingEditor({
     role: PartRole | undefined;
   } | null>(null);
   const [noteOpen, setNoteOpen] = useState(note.trim() !== "");
+  // На телефоне выбор фурнитуры открывается поверх списка.
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (event.key !== "Escape") return;
+      if (pickerOpen) setPickerOpen(false);
+      else onClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, [onClose, pickerOpen]);
 
   const byItem = useMemo(
     () =>
@@ -487,11 +504,11 @@ export function DrillingEditor({
     onChange(
       value.map((item) => (item.id === id ? { ...item, ...patch } : item)),
     );
-  const add = (kind: HardwareKind) => {
-    const item = createHardware(kind, side);
+  const add = (item: HardwareItem) => {
     onChange([...value, item]);
     setSelected(item.id);
     setNotice(null);
+    setPickerOpen(false);
   };
   const chooseRole = (next: PartRole) => {
     const template = partTemplate(next, length, width, thickness);
@@ -547,7 +564,7 @@ export function DrillingEditor({
       onClick={onClose}
     >
       <div
-        className="flex h-[94dvh] w-full max-w-5xl flex-col overflow-hidden rounded-t-2xl bg-[var(--surface-strong)] shadow-xl sm:h-auto sm:max-h-[94vh] sm:rounded-2xl"
+        className="relative flex h-[94dvh] w-full max-w-5xl flex-col overflow-hidden rounded-t-2xl bg-[var(--surface-strong)] shadow-xl sm:h-auto sm:max-h-[94vh] sm:rounded-2xl"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-center justify-between gap-2 border-b border-[color:var(--line)] px-3 py-2 sm:px-4">
@@ -635,20 +652,22 @@ export function DrillingEditor({
                 </button>
               ))}
             </div>
-            <div className="flex gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:thin] lg:flex-wrap lg:overflow-visible">
-              {HARDWARE_KINDS.map((kind) => (
-                <button
-                  key={kind}
-                  type="button"
-                  onClick={() => add(kind)}
-                  title={HARDWARE[kind].hint}
-                  className="flex shrink-0 items-center gap-1 rounded-full border border-[color:var(--line)] px-2.5 py-1.5 text-[12px] leading-none whitespace-nowrap hover:border-[var(--accent)]"
-                >
-                  <Plus className="size-3.5 shrink-0 text-[var(--accent)]" />
-                  {SHORT_KIND_LABELS[kind] ?? HARDWARE[kind].label}
-                </button>
-              ))}
-            </div>
+            <button
+              type="button"
+              onClick={() => setPickerOpen(true)}
+              className="flex h-10 items-center justify-center gap-1.5 rounded-full border border-dashed border-[var(--accent)] text-[14px] font-semibold text-[var(--accent)] lg:hidden"
+            >
+              <Plus className="size-4" />
+              Добавить фурнитуру
+            </button>
+            <HardwarePicker
+              className="hidden lg:grid"
+              role={role}
+              side={side}
+              sideName={edgeName(side, role, SIDE_LABELS).replace(" край", "")}
+              thickness={thickness}
+              onPick={add}
+            />
           </div>
 
           <div className="grid min-w-0 content-start gap-2 p-3 sm:p-4 lg:overflow-y-auto">
@@ -815,7 +834,7 @@ export function DrillingEditor({
                 >
                   <div className="flex items-center gap-2">
                     <p className="min-w-0 flex-1 truncate text-[13px] font-semibold">
-                      {SHORT_KIND_LABELS[item.kind] ?? definition.label}
+                      {itemLabel(item)}
                       <span className="ml-1.5 font-normal text-[var(--muted)]">
                         {count} отв.
                       </span>
@@ -1088,6 +1107,51 @@ export function DrillingEditor({
             </details>
           </div>
         </div>
+
+        {pickerOpen ? (
+          <div className="absolute inset-x-0 top-0 bottom-0 z-30 flex flex-col bg-[var(--surface-strong)] lg:hidden">
+            <div className="flex items-center gap-2 border-b border-[color:var(--line)] px-3 py-2">
+              <p className="min-w-0 flex-1 text-[15px] font-semibold">
+                Добавить фурнитуру
+              </p>
+              <button
+                type="button"
+                onClick={() => setPickerOpen(false)}
+                aria-label="Закрыть выбор фурнитуры"
+                className="flex size-9 shrink-0 items-center justify-center rounded-lg text-[var(--muted)] hover:bg-[var(--surface)]"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto p-3">
+              <div className="mb-2 flex flex-wrap items-center gap-1 text-[12px]">
+                <span className="pr-1 text-[var(--muted)]">Край:</span>
+                {SIDES.map((item) => (
+                  <button
+                    key={item}
+                    type="button"
+                    onClick={() => setSide(item)}
+                    className={cn(
+                      "rounded-full border px-2.5 py-1 whitespace-nowrap",
+                      item === side
+                        ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-ink)]"
+                        : "border-[color:var(--line)]",
+                    )}
+                  >
+                    {edgeName(item, role, SIDE_LABELS).replace(" край", "")}
+                  </button>
+                ))}
+              </div>
+              <HardwarePicker
+                role={role}
+                side={side}
+                sideName={edgeName(side, role, SIDE_LABELS).replace(" край", "")}
+                thickness={thickness}
+                onPick={add}
+              />
+            </div>
+          </div>
+        ) : null}
 
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[color:var(--line)] px-3 py-2.5 sm:px-4">
           <p className="min-w-0 flex-1 text-[13px] text-[var(--foreground)]">
