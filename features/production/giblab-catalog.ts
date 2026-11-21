@@ -183,11 +183,91 @@ function sheetFolderName(
 
 const rootSheets = "Листовой материал";
 const rootEdges = "Кромочные материалы";
+const rootServices = "Услуги";
+
+export type GibLabService = {
+  path: string[];
+  code: string;
+  name: string;
+  unit: string;
+  price: number;
+};
+
+export type GibLabServicePrices = {
+  sheet: number;
+  edge: number;
+  drilling: Record<number, number>;
+  milling: number;
+  bevel: number;
+  groove: number;
+};
+
+// Работы цеха строками каталога: распил, кромление, присадка по диаметрам,
+// фрезеровка. Коды постоянные, чтобы GibLab узнавал услугу после обновления.
+export function buildGibLabServices(
+  prices: GibLabServicePrices,
+): GibLabService[] {
+  const root = [rootServices];
+  const services: GibLabService[] = [
+    {
+      path: root,
+      code: "SVC-CUT",
+      name: "Распил листа",
+      unit: "лист",
+      price: prices.sheet,
+    },
+    {
+      path: root,
+      code: "SVC-EDGE",
+      name: "Кромление",
+      unit: "м",
+      price: prices.edge,
+    },
+  ];
+  for (const [diameter, price] of Object.entries(prices.drilling)
+    .map(([key, value]) => [Number(key), value] as const)
+    .sort((a, b) => a[0] - b[0])) {
+    services.push({
+      path: [rootServices, "Присадка"],
+      code: `SVC-DRILL-${diameter}`,
+      name: `Сверление Ø${diameter} мм`,
+      unit: "шт",
+      price,
+    });
+  }
+  services.push(
+    {
+      path: root,
+      code: "SVC-MILL",
+      name: "Фрезеровка криволинейная",
+      unit: "м",
+      price: prices.milling,
+    },
+    {
+      path: root,
+      code: "SVC-BEVEL",
+      name: "Пропил под углом",
+      unit: "м",
+      price: prices.bevel,
+    },
+    {
+      path: root,
+      code: "SVC-GROOVE",
+      name: "Паз в пласти",
+      unit: "м",
+      price: prices.groove,
+    },
+  );
+  return services.filter(
+    (service) => Number.isFinite(service.price) && service.price >= 0,
+  );
+}
 
 // Только листовые материалы и кромка — фурнитура в раскрое не нужна.
 export function buildGibLabCatalogRows(
   categories: GibLabCatalogCategory[],
   products: GibLabCatalogProduct[],
+  services: GibLabService[] = [],
 ): GibLabCatalogRow[] {
   const byId = new Map(categories.map((category) => [category.id, category]));
   const used = new Set<number>();
@@ -287,6 +367,24 @@ export function buildGibLabCatalogRows(
       width: edge ? (product.edgeWidthMm ?? "") : (size?.width ?? ""),
       params: edge ? gibLabEdgeParams : "",
       stock: product.stockQuantity ?? "",
+    });
+  }
+
+  // Цены работ — те же, что в калькуляторе и счёте заявки на сайте.
+  for (const service of services) {
+    items.push({
+      id: take(`s:${service.code}`),
+      parentId: folder(service.path),
+      folder: "",
+      code: service.code,
+      name: service.name,
+      unit: service.unit,
+      price: service.price,
+      thickness: "",
+      length: "",
+      width: "",
+      params: "",
+      stock: "",
     });
   }
 

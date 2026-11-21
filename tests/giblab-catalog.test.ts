@@ -3,6 +3,7 @@ import test from "node:test";
 import * as XLSX from "xlsx";
 import {
   buildGibLabCatalogRows,
+  buildGibLabServices,
   buildGibLabCatalogWorkbook,
   normalizeGibLabCatalogSettings,
   parseSheetSizeMm,
@@ -177,4 +178,44 @@ test("catalog path falls back to the default and gets a file name", () => {
       .path,
     "E:\\GibLab\\goods.xls",
   );
+});
+
+test("workshop prices go into an «Услуги» folder with fixed codes", () => {
+  const services = buildGibLabServices({
+    sheet: 300,
+    edge: 28,
+    drilling: { 35: 32, 5: 6 },
+    milling: 200,
+    bevel: 250,
+    groove: 200,
+  });
+  const rows = buildGibLabCatalogRows(categories, products, services);
+  const byName = (name: string) => rows.find((row) => row.name === name)!;
+  assert.equal(byName("Услуги").folder, 1);
+  assert.equal(byName("Присадка").parentId, byName("Услуги").id);
+  const d5 = byName("Сверление Ø5 мм");
+  assert.deepEqual([d5.code, d5.unit, d5.price], ["SVC-DRILL-5", "шт", 6]);
+  assert.equal(d5.parentId, byName("Присадка").id);
+  assert.deepEqual(
+    services.filter((s) => s.path.length === 2).map((s) => s.code),
+    ["SVC-DRILL-5", "SVC-DRILL-35"],
+  );
+  assert.deepEqual(
+    [byName("Распил листа").price, byName("Кромление").unit],
+    [300, "м"],
+  );
+  // Цена поменялась — id услуги тот же.
+  const again = buildGibLabCatalogRows(
+    categories,
+    products,
+    buildGibLabServices({
+      sheet: 350,
+      edge: 28,
+      drilling: { 5: 7 },
+      milling: 200,
+      bevel: 250,
+      groove: 200,
+    }),
+  );
+  assert.equal(again.find((row) => row.code === "SVC-DRILL-5")!.id, d5.id);
 });

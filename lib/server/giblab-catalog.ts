@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 
 import {
   buildGibLabCatalogRows,
+  buildGibLabServices,
   buildGibLabCatalogWorkbook,
   normalizeGibLabCatalogSettings,
   parseGibLabCatalogSettings,
@@ -14,6 +15,10 @@ import { ProductStatus } from "@/generated/prisma";
 import { canManageProduction } from "@/lib/auth/roles";
 import type { SessionPayload } from "@/lib/auth/session";
 import { getDb } from "@/lib/db";
+import {
+  getCuttingPrice,
+  getSiteCuttingPrices,
+} from "@/lib/server/cutting-pricing";
 import {
   prepareMachineFolders,
   readSetting,
@@ -72,7 +77,20 @@ export async function getGibLabCatalogRows(): Promise<GibLabCatalogRow[]> {
       },
     }),
   ]);
-  return buildGibLabCatalogRows(categories, products);
+  const [site, labor] = await Promise.all([
+    getSiteCuttingPrices(),
+    getCuttingPrice().catch(() => null),
+  ]);
+  // Распил и кромка — по прайсу заявок, если он задан, иначе по ценам сайта.
+  const services = buildGibLabServices({
+    sheet: labor?.sheetRate ?? site.sheet,
+    edge: labor?.edgeRate ?? site.edge,
+    drilling: site.drilling,
+    milling: site.milling,
+    bevel: site.bevel,
+    groove: site.groove,
+  });
+  return buildGibLabCatalogRows(categories, products, services);
 }
 
 function hashRows(rows: GibLabCatalogRow[]) {
