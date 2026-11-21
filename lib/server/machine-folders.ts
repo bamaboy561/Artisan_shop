@@ -4,6 +4,7 @@ import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 
 import {
   diffFolder,
+  filterTopLevel,
   findRequestNumbers,
   matchRequestByName,
   normalizeMachineFolders,
@@ -243,7 +244,17 @@ export async function ingestWatcherReport(report: WatcherReport) {
   const db = getDb();
   const folders = parseMachineFolders(await readSetting(foldersSetting));
   const known = new Map(folders.map((f) => [f.id, f]));
-  const reported = report.folders.filter((f) => known.has(f.id));
+  const reported = report.folders
+    .filter((f) => known.has(f.id))
+    .map((f) => (known.get(f.id)!.recurse ? f : filterTopLevel(f)));
+  // Файлы из подпапок, попавшие раньше, убираем молча (без «снят»).
+  const flat = folders.filter((f) => !f.recurse).map((f) => f.id);
+  if (flat.length)
+    // strpos, а не LIKE: обратная косая в LIKE — символ экранирования.
+    await db.$executeRawUnsafe(
+      `DELETE FROM "ProductionMachineFile" WHERE "removedAt" IS NULL AND "folderId" = ANY($1::text[]) AND strpos("fileName", chr(92)) > 0`,
+      flat,
+    );
   const active = await db.productionMachineFile.findMany({
     where: { removedAt: null, folderId: { in: reported.map((f) => f.id) } },
     select: {

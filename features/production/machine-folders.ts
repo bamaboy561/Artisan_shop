@@ -13,6 +13,9 @@ export type MachineFolder = {
   name: string;
   path: string;
   stage: MachineFolderStage;
+  // Смотреть и вложенные папки. По умолчанию нет: в папках станков часто
+  // лежат архивы старых программ.
+  recurse: boolean;
 };
 
 export type ReportedFile = {
@@ -48,13 +51,21 @@ export const defaultMachineFolders: MachineFolder[] = [
     name: "HOLZMA (раскрой)",
     path: "\\\\M0341871836M701\\HolzmaKroy",
     stage: "cutting",
+    recurse: false,
   },
-  { id: "altendorf", name: "Altendorf", path: "Z:\\", stage: "cutting" },
+  {
+    id: "altendorf",
+    name: "Altendorf",
+    path: "Z:\\",
+    stage: "cutting",
+    recurse: false,
+  },
   {
     id: "excitech",
     name: "Excitech (присадка)",
     path: "\\\\DESKTOP-186\\drill_work",
     stage: "",
+    recurse: false,
   },
 ];
 
@@ -102,6 +113,7 @@ export function normalizeMachineFolders(items: unknown[]) {
       name: name || `Станок ${result.length + 1}`,
       path,
       stage: record.stage === "cutting" ? "cutting" : "",
+      recurse: record.recurse === true || record.recurse === "on",
     });
     if (result.length >= maxMachineFolders) break;
   }
@@ -254,6 +266,15 @@ export function matchRequestByName<T extends { contactName: string }>(
   return hits.length === 1 ? hits[0] : null;
 }
 
+// Старая версия программы присылает и файлы из подпапок: отбрасываем их,
+// если для папки подпапки не включены.
+export function filterTopLevel(folder: ReportedFolder): ReportedFolder {
+  return {
+    ...folder,
+    files: folder.files.filter((file) => !file.name.includes("\\")),
+  };
+}
+
 export type ActiveFileRow = {
   id: string;
   folderId: string;
@@ -336,7 +357,8 @@ while ($true) {
       $truncated = $false
       if ($ok) {
         $prefix = (Get-Item -LiteralPath $root).FullName.TrimEnd('\') + '\'
-        $all = @(Get-ChildItem -LiteralPath $root -File -Recurse -ErrorAction SilentlyContinue)
+        if ($f.recurse) { $all = @(Get-ChildItem -LiteralPath $root -File -Recurse -ErrorAction SilentlyContinue) }
+        else { $all = @(Get-ChildItem -LiteralPath $root -File -ErrorAction SilentlyContinue) }
         $truncated = $all.Count -gt ${maxFilesPerFolder}
         $items = @($all | Sort-Object LastWriteTime -Descending | Select-Object -First ${maxFilesPerFolder})
         foreach ($i in $items) {

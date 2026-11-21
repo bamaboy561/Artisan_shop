@@ -36,6 +36,7 @@ export async function saveMachineFoldersAction(formData: FormData) {
     name: text(formData, `name-${index}`),
     path: text(formData, `path-${index}`),
     stage: text(formData, `stage-${index}`),
+    recurse: text(formData, `recurse-${index}`) === "on",
   }));
   const result = await saveMachineFolders(actor, folders);
   done(`folders-${result}`);

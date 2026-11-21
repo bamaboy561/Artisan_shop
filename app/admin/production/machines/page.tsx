@@ -81,7 +81,13 @@ export default async function MachinesPage({
     ...folders,
     ...Array.from(
       { length: Math.max(0, Math.min(2, maxMachineFolders - folders.length)) },
-      () => ({ id: "", name: "", path: "", stage: "" as const }),
+      () => ({
+        id: "",
+        name: "",
+        path: "",
+        stage: "" as const,
+        recurse: false,
+      }),
     ),
   ];
 
@@ -166,6 +172,7 @@ export default async function MachinesPage({
                   <th>Станок</th>
                   <th>Папка</th>
                   <th>Доска распила</th>
+                  <th>Подпапки</th>
                   <th>Состояние</th>
                 </tr>
               </thead>
@@ -208,6 +215,16 @@ export default async function MachinesPage({
                           <option value="cutting">Двигать сама</option>
                           <option value="">Только показывать</option>
                         </select>
+                      </td>
+                      <td>
+                        <label>
+                          <input
+                            type="checkbox"
+                            name={`recurse-${index}`}
+                            defaultChecked={folder.recurse}
+                          />{" "}
+                          смотреть
+                        </label>
                       </td>
                       <td>
                         {!folder.path
