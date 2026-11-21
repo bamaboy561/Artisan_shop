@@ -13,9 +13,12 @@ import s from "./storefront.module.css";
 export function StorefrontGallery({
   images,
   name,
+  cover = false,
 }: {
   images: string[];
   name: string;
+  /** Плиты: декор на всю площадь, без белых полей. */
+  cover?: boolean;
 }) {
   const [index, setIndex] = useState(0);
   const [zoom, setZoom] = useState(false);
@@ -39,7 +42,7 @@ export function StorefrontGallery({
             fill
             priority
             sizes="(max-width: 850px) 100vw, 55vw"
-            className={s.contain}
+            className={cover ? s.cover : s.contain}
           />
           <Maximize2 size={20} />
         </button>
