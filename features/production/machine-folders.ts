@@ -345,6 +345,7 @@ $Host.UI.RawUI.WindowTitle = 'Artisan - papki stankov'
 Write-Host 'Artisan: slezhu za papkami stankov. Okno ne zakryvayte.' -ForegroundColor Green
 $Loop = 0
 $CatHash = ''
+$CatDone = ''
 while ($true) {
   $wait = ${watcherIntervalSeconds}
   try {
@@ -429,7 +430,7 @@ while ($true) {
       $cat = Invoke-RestMethod -Uri ($CatApi + '?hash=' + $CatHash) -Headers $Headers -TimeoutSec 60
       if ($cat.enabled -and $cat.path64) {
         $catPath = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String([string]$cat.path64))
-        if ($CatHash -and -not (Test-Path -LiteralPath $catPath)) {
+        if ($CatHash -and (($catPath -ne $CatDone) -or -not (Test-Path -LiteralPath $catPath))) {
           $CatHash = ''
           $cat = Invoke-RestMethod -Uri $CatApi -Headers $Headers -TimeoutSec 60
         }
@@ -440,8 +441,9 @@ while ($true) {
             if ($catDir -and -not (Test-Path -LiteralPath $catDir)) { $null = [IO.Directory]::CreateDirectory($catDir) }
             $tmp = $catPath + '.tmp'
             [IO.File]::WriteAllBytes($tmp, [Convert]::FromBase64String([string]$cat.content))
-            Move-Item -LiteralPath $tmp -Destination $catPath -Force
+            Move-Item -LiteralPath $tmp -Destination $catPath -Force -ErrorAction Stop
             $CatHash = [string]$cat.hash
+            $CatDone = $catPath
             $catAck.status = 'written'
             Write-Host ((Get-Date -Format 'HH:mm:ss') + ' Katalog GibLab obnovlen: ' + $cat.items + ' strok') -ForegroundColor Cyan
           } catch {
