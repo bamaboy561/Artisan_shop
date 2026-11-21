@@ -2982,18 +2982,16 @@ export function CutCalculator({
                     onClick={() => goToStep(item.step)}
                     aria-current={step === item.step ? "step" : undefined}
                     className={cn(
-                      "flex min-h-11 w-full items-center justify-center gap-1.5 rounded-xl px-2 text-[13px] transition sm:justify-start sm:px-3.5 sm:text-sm",
+                      "flex min-h-11 w-full flex-col items-center justify-center gap-0 rounded-xl px-1 text-[12px] leading-tight transition sm:flex-row sm:justify-start sm:gap-1.5 sm:px-3.5 sm:text-sm",
                       step === item.step
                         ? "bg-[var(--line)] font-semibold text-[var(--foreground)]"
                         : "text-[var(--muted)] hover:text-[var(--foreground)]",
                     )}
                   >
-                    <span className="font-[family-name:var(--font-ibm-plex-mono)] text-[12px]">
+                    <span className="font-[family-name:var(--font-ibm-plex-mono)] text-[11px] sm:text-[12px]">
                       {item.step}
                     </span>
-                    <span className="hidden min-[420px]:inline">
-                      {item.label}
-                    </span>
+                    <span>{item.label}</span>
                   </button>
                 </li>
               ))}
