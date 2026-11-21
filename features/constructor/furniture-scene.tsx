@@ -8,6 +8,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
+import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 import { Box, Maximize2, Minimize2, MoveHorizontal } from "lucide-react";
 
 import type { BazisViewerBox } from "@/components/bazis/bazis-viewer";
@@ -43,6 +44,65 @@ const HIGHLIGHT = 0xf0a070;
 
 const MM = 0.001;
 const BACKGROUND = 0xf3f0ea;
+const WALL = 0xefebe4;
+
+// Паркет рисуется на холсте: доски 180 мм, светлый дуб, швы и волокна.
+// Своя картинка не нужна, и пол всегда в масштабе.
+function parquetTexture() {
+  const canvas = document.createElement("canvas");
+  const size = 1024;
+  canvas.width = size;
+  canvas.height = size;
+  const context = canvas.getContext("2d");
+  const texture = new THREE.CanvasTexture(canvas);
+  if (!context) return texture;
+  // Холст — 1,44 × 1,44 м: 8 досок по 180 мм, доска 1,44 м с двумя
+  // торцевыми стыками вразбежку.
+  const boards = 8;
+  const width = size / boards;
+  let seed = 7;
+  const random = () => {
+    seed = (seed * 9301 + 49297) % 233280;
+    return seed / 233280;
+  };
+  for (let board = 0; board < boards; board += 1) {
+    const joint = random() * size;
+    for (const [from, to] of [
+      [0, joint],
+      [joint, size],
+    ]) {
+      const tone = 196 + random() * 22;
+      context.fillStyle = `rgb(${tone}, ${tone - 22}, ${tone - 52})`;
+      context.fillRect(board * width, from, width, to - from);
+      // Волокна: тонкие полосы вдоль доски.
+      for (let line = 0; line < 26; line += 1) {
+        const x = board * width + random() * width;
+        context.strokeStyle = `rgba(110, 78, 44, ${0.04 + random() * 0.07})`;
+        context.lineWidth = 0.6 + random() * 1.6;
+        context.beginPath();
+        context.moveTo(x, from);
+        context.bezierCurveTo(
+          x + random() * 6 - 3,
+          from + (to - from) / 3,
+          x + random() * 6 - 3,
+          from + ((to - from) * 2) / 3,
+          x + random() * 4 - 2,
+          to,
+        );
+        context.stroke();
+      }
+      context.fillStyle = "rgba(90, 62, 36, 0.35)";
+      context.fillRect(board * width, from, width, 1.5);
+    }
+    context.fillStyle = "rgba(90, 62, 36, 0.45)";
+    context.fillRect(board * width, 0, 1.5, size);
+  }
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(24 / 1.44, 24 / 1.44);
+  return texture;
+}
 const HANDLE_LENGTH = 160;
 const HANDLE_FROM_EDGE = 45;
 const HANDLE_FROM_END = 90;
@@ -139,14 +199,35 @@ function handleMatrix(box: BazisViewerBox, placement: HandlePlacement) {
 }
 
 // Середина фото: по краям у снимков листа часто фон.
+// Фото декора — примерно такой кусок плиты, мм. Текстура ложится в
+// настоящем масштабе: на дверь её больше, на фасад ящика меньше.
+const DECOR_PHOTO_MM = 700;
+// Скругление кромки, мм: на рёбрах появляется блик, как у настоящей
+// кромки, и детали не выглядят чертежом.
+const EDGE_RADIUS = 1.5;
+
 function applyTexture(
   material: THREE.MeshStandardMaterial,
   base: THREE.Texture,
 ) {
   const texture = base.clone();
   texture.needsUpdate = true;
-  texture.repeat.set(0.6, 0.6);
-  texture.offset.set(0.2, 0.2);
+  texture.wrapS = THREE.MirroredRepeatWrapping;
+  texture.wrapT = THREE.MirroredRepeatWrapping;
+  // Текстура идёт вдоль длинной стороны детали, как волокна у плиты.
+  const [sizeX, sizeY] = (material.userData.size as number[] | undefined) ?? [
+    DECOR_PHOTO_MM * 0.6,
+    DECOR_PHOTO_MM * 0.6,
+  ];
+  const across = sizeX > sizeY;
+  texture.center.set(0.5, 0.5);
+  texture.rotation = across ? Math.PI / 2 : 0;
+  const u = (across ? sizeY : sizeX) / DECOR_PHOTO_MM;
+  const v = (across ? sizeX : sizeY) / DECOR_PHOTO_MM;
+  texture.repeat.set(u, v);
+  // Свой кусок фото у каждой детали: соседние двери не одинаковые.
+  const seed = (sizeX * 7 + sizeY * 13) % 97;
+  texture.offset.set((seed / 97) * 0.5, ((seed * 3) % 97) / 194);
   material.map = texture;
   material.color.set(0xffffff);
   material.needsUpdate = true;
@@ -191,7 +272,10 @@ export function FurnitureScene({
   onScenePick,
   overlay,
   viewDirection,
+  backWall = true,
 }: {
+  // Стена за мебелью (у кухни свои стены в модели).
+  backWall?: boolean;
   // Нажатие в макете: деталь и точка (в мм) на детали или на полу.
   onScenePick?: (pick: ScenePick) => void;
   // Своя панель внизу макета (вместо подсказки и карточки детали).
@@ -224,6 +308,10 @@ export function FurnitureScene({
     onScenePickRef.current = onScenePick;
   }, [onBoxClick, onScenePick]);
   const labelsRef = useRef<HTMLDivElement | null>(null);
+  const backWallRef = useRef(backWall);
+  useEffect(() => {
+    backWallRef.current = backWall;
+  }, [backWall]);
   const stateRef = useRef<{
     renderer: THREE.WebGLRenderer;
     scene: THREE.Scene;
@@ -231,6 +319,7 @@ export function FurnitureScene({
     controls: OrbitControls;
     furniture: THREE.Group;
     floor: THREE.Mesh;
+    wall: THREE.Mesh;
     materials: Map<string, THREE.MeshStandardMaterial>;
     textures: Map<string, THREE.Texture | null>;
     handleMaterial: THREE.MeshStandardMaterial;
@@ -301,14 +390,31 @@ export function FurnitureScene({
     sun.shadow.radius = 4;
     scene.add(sun);
 
-    // Пол только принимает тень: фон и пол одного цвета, как в студии.
+    // Комната: светлый паркет и стена за мебелью, дальше всё тает в фон.
+    scene.fog = new THREE.Fog(BACKGROUND, 7, 16);
+    const floorTexture = parquetTexture();
+    floorTexture.anisotropy = renderer.capabilities.getMaxAnisotropy();
     const floor = new THREE.Mesh(
-      new THREE.PlaneGeometry(20, 20),
-      new THREE.ShadowMaterial({ color: 0x3a2e22, opacity: 0.22 }),
+      new THREE.PlaneGeometry(24, 24),
+      new THREE.MeshStandardMaterial({
+        map: floorTexture,
+        roughness: 0.78,
+        metalness: 0,
+      }),
     );
     floor.rotation.x = -Math.PI / 2;
     floor.receiveShadow = true;
     scene.add(floor);
+    const wall = new THREE.Mesh(
+      new THREE.PlaneGeometry(24, 8),
+      new THREE.MeshStandardMaterial({ color: WALL, roughness: 0.95 }),
+    );
+    wall.receiveShadow = true;
+    wall.visible = false;
+    scene.add(wall);
+    const fill = new THREE.DirectionalLight(0xf4f1ff, 0.45);
+    fill.position.set(-3, 2, 2.5);
+    scene.add(fill);
 
     const furniture = new THREE.Group();
     scene.add(furniture);
@@ -468,6 +574,7 @@ export function FurnitureScene({
       controls,
       furniture,
       floor,
+      wall,
       materials: new Map(),
       textures: new Map(),
       handleMaterial: new THREE.MeshStandardMaterial({
@@ -580,12 +687,26 @@ export function FurnitureScene({
       }
       state.meshes = [];
       for (const box of boxes) {
-        const geometry = new THREE.BoxGeometry(
-          box.sizeX * MM,
-          box.sizeY * MM,
-          box.thickness * MM,
-        );
-        const mesh = new THREE.Mesh(geometry, materialFor(box));
+        const smallest = Math.min(box.sizeX, box.sizeY, box.thickness);
+        const radius = Math.min(EDGE_RADIUS, smallest * 0.3);
+        const geometry =
+          radius >= 0.3
+            ? new RoundedBoxGeometry(
+                box.sizeX * MM,
+                box.sizeY * MM,
+                box.thickness * MM,
+                2,
+                radius * MM,
+              )
+            : new THREE.BoxGeometry(
+                box.sizeX * MM,
+                box.sizeY * MM,
+                box.thickness * MM,
+              );
+        const material = materialFor(box);
+        material.userData.size = [box.sizeX, box.sizeY];
+        if (material.map) applyTexture(material, material.map);
+        const mesh = new THREE.Mesh(geometry, material);
         mesh.castShadow = true;
         mesh.receiveShadow = true;
         mesh.matrixAutoUpdate = false;
@@ -595,16 +716,6 @@ export function FurnitureScene({
         mesh.userData.label = kind.charAt(0).toUpperCase() + kind.slice(1);
         state.furniture.add(mesh);
         state.meshes.push(mesh);
-
-        const edges = new THREE.LineSegments(
-          new THREE.EdgesGeometry(geometry),
-          new THREE.LineBasicMaterial({
-            color: 0x3c3026,
-            transparent: true,
-            opacity: 0.18,
-          }),
-        );
-        mesh.add(edges);
 
         if (handleTone !== null && box.tone === handleTone) {
           const handle = makeHandle(state.handleMaterial);
@@ -675,6 +786,13 @@ export function FurnitureScene({
     if (!bounds.isEmpty()) {
       // Изделие стоит на полу: нижняя точка — пол.
       state.floor.position.y = bounds.min.y - 0.0005;
+      // Стена за отдельным шкафом; у кухни свои стены в макете.
+      state.wall.visible = backWallRef.current;
+      state.wall.position.set(
+        (bounds.min.x + bounds.max.x) / 2,
+        bounds.min.y + 4,
+        bounds.min.z - 0.002,
+      );
       const size = bounds.getSize(new THREE.Vector3());
       const view = viewDirection ?? DEFAULT_VIEW;
       const viewKey = view.join(",");

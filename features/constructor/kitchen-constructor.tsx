@@ -550,6 +550,7 @@ export function KitchenConstructor({
       <div className="min-w-0 lg:sticky lg:top-24 lg:self-start">
         <div className="overflow-hidden rounded-2xl border border-[color:var(--line)] bg-[var(--surface-strong)]">
           <FurnitureScene
+            backWall={false}
             boxes={boxes}
             highlight={highlight}
             onBoxClick={clickBox}
