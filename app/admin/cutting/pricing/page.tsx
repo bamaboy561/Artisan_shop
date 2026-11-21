@@ -5,7 +5,7 @@ import {
   getCuttingPrice,
   getSiteCuttingPrices,
 } from "@/lib/server/cutting-pricing";
-import { drillingDiameters } from "@/features/cutting/site-prices";
+import { drillingDiameters, otherWorks } from "@/features/cutting/site-prices";
 import { saveCuttingPriceAction, saveSiteCuttingPricesAction } from "./actions";
 import { Input } from "@/components/ui/input";
 import { AdminSubmitButton } from "@/components/admin/admin-submit-button";
@@ -222,6 +222,22 @@ function SitePricesForm({
           disabled={!canEdit}
         />
       </div>
+      <fieldset className="grid gap-3">
+        <legend className="mb-2 text-sm font-semibold">
+          Другие работы: ХДФ, HPL, столешница, утолщёнка, Gola
+        </legend>
+        <div className="grid gap-5 sm:grid-cols-2">
+          {otherWorks.map((work) => (
+            <PriceField
+              key={work.price}
+              label={`${work.label}, сом за ${work.unit === "sheet" ? "лист" : "метр"}`}
+              name={`site_${work.price}`}
+              value={prices[work.price]}
+              disabled={!canEdit}
+            />
+          ))}
+        </div>
+      </fieldset>
       {canEdit ? (
         <AdminSubmitButton
           type="submit"
