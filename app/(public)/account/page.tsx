@@ -1,5 +1,6 @@
 import { SetupState } from "@/components/admin/setup-state";
 import { AccountActivityPanel } from "@/components/account/account-activity-panel";
+import { AccountCurrentWork } from "@/components/account/account-current-work";
 import { LoyaltyOverview } from "@/components/account/loyalty-overview";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { hasDatabaseUrl } from "@/lib/db";
@@ -69,6 +70,11 @@ export default async function AccountPage() {
 
   return (
     <div className="space-y-3 sm:space-y-4">
+      <AccountCurrentWork
+        orders={summary.activeOrders}
+        requests={summary.activeRequests}
+      />
+
       <LoyaltyOverview
         user={{
           id: user.id,
