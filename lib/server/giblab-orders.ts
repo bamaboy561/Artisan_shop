@@ -13,7 +13,11 @@ import { CuttingStage, RequestStatus, RequestType } from "@/generated/prisma";
 import { canManageProduction } from "@/lib/auth/roles";
 import type { SessionPayload } from "@/lib/auth/session";
 import { getDb } from "@/lib/db";
-import { exportBazisToGibLab } from "@/lib/server/bazis-giblab-export";
+import { readBazisGibLabSource } from "@/lib/bazis-b3d";
+import {
+  describeGibLabCheck,
+  exportBazisToGibLabChecked,
+} from "@/lib/server/bazis-giblab-export";
 import {
   prepareMachineFolders,
   readSetting,
@@ -97,8 +101,11 @@ export async function saveGibLabOrderSettings(
 
 type RequestFileRef = { fileName: string; fileUrl: string; createdAt: Date };
 
-// Что положить в файл: готовый проект GibLab из калькулятора сайта, проект
-// Базиса (переводим в GibLab) или пустой проект с именем заказа.
+// Что положить в файл. Первым идёт проект Базиса: в нём точная присадка
+// и все материалы. Калькулятор сайта считает один материал за раз, а
+// отверстия Базиса знает только числом, поэтому его проект берём, только
+// когда Базиса в заявке нет. Все файлы Базиса заявки собираются в один
+// проект GibLab, чтобы ни одна деталь не потерялась. Затем пустой проект.
 async function buildContent(
   name: string,
   files: RequestFileRef[],
@@ -107,24 +114,31 @@ async function buildContent(
   const sorted = [...files].sort(
     (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
   );
+  const bazisFiles = sorted.filter((f) => /\.b3d$/i.test(f.fileName)).reverse();
+  const bazis: Array<{ name: string; bytes: Buffer }> = [];
+  for (const file of bazisFiles) {
+    const bytes = await readRequestFileBytes(file.fileUrl);
+    if (!bytes) continue;
+    try {
+      readBazisGibLabSource(bytes);
+      bazis.push({ name: file.fileName, bytes });
+    } catch {
+      // Не прочитался — остальные файлы всё равно уйдут.
+    }
+  }
+  if (bazis.length > 0) {
+    const { bytes, check } = exportBazisToGibLabChecked(
+      bazis.map((item) => item.bytes),
+    );
+    return {
+      bytes,
+      source: `Базис ${bazis.map((item) => item.name).join(", ")}: ${describeGibLabCheck(check)}`,
+    };
+  }
   const project = sorted.find((f) => isGibLabProjectFile(f.fileName));
   if (project) {
     const bytes = await readRequestFileBytes(project.fileUrl);
     if (bytes) return { bytes, source: `файл ${project.fileName}` };
-  }
-  const bazis = sorted.find((f) => /\.b3d$/i.test(f.fileName));
-  if (bazis) {
-    const bytes = await readRequestFileBytes(bazis.fileUrl);
-    if (bytes) {
-      try {
-        return {
-          bytes: exportBazisToGibLab(bytes),
-          source: `Базис ${bazis.fileName}`,
-        };
-      } catch {
-        // Не прочитался — положим пустой проект.
-      }
-    }
   }
   return {
     bytes: Buffer.from(emptyGibLabProject(name, comment), "utf8"),
