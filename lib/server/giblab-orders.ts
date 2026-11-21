@@ -34,6 +34,7 @@ async function createTable() {
   await db.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS "ProductionGibLabOrder" (
       "requestId" TEXT NOT NULL,
+      "root" TEXT,
       "folder" TEXT NOT NULL,
       "fileName" TEXT NOT NULL,
       "status" TEXT NOT NULL DEFAULT 'pending',
@@ -45,6 +46,9 @@ async function createTable() {
       CONSTRAINT "ProductionGibLabOrder_pkey" PRIMARY KEY ("requestId")
     )
   `);
+  await db.$executeRawUnsafe(
+    `ALTER TABLE "ProductionGibLabOrder" ADD COLUMN IF NOT EXISTS "root" TEXT`,
+  );
   await db.$executeRawUnsafe(
     `CREATE INDEX IF NOT EXISTS "ProductionGibLabOrder_queuedAt_idx" ON "ProductionGibLabOrder"("queuedAt")`,
   );
@@ -158,8 +162,7 @@ export async function getWatchedGibLabOrders(): Promise<WatchedGibLabOrder[]> {
       status: { in: ["written", "exists"] },
       writtenAt: { gte: new Date(Date.now() - 30 * 86_400_000) },
     },
-    select: { requestId: true, folder: true, fileName: true },
-    take: 300,
+    select: { requestId: true, root: true, folder: true, fileName: true },
   });
   if (!rows.length) return [];
   const open = await db.request.findMany({
@@ -171,11 +174,14 @@ export async function getWatchedGibLabOrders(): Promise<WatchedGibLabOrder[]> {
     select: { id: true },
   });
   const openIds = new Set(open.map((r) => r.id));
+  // Корень — тот, куда файл положили: смена папки в настройках не должна
+  // выглядеть как «файл удалён».
   return rows
     .filter((r) => openIds.has(r.requestId))
+    .slice(0, 500)
     .map((r) => ({
       requestId: r.requestId,
-      root64: b64(settings.root),
+      root64: b64(r.root ?? settings.root),
       folder64: b64(r.folder),
       fileName64: b64(r.fileName),
     }));
@@ -187,6 +193,9 @@ export async function getPendingGibLabOrders(limit = 10) {
   if (!settings.enabled || !settings.since) return [];
   const db = getDb();
   const since = new Date(settings.since);
+  // Файлы заявки (проект калькулятора, Базис) сохраняются уже после самой
+  // заявки: ждём 2 минуты, чтобы не выгрузить пустой проект вместо них.
+  const ready = new Date(Date.now() - 2 * 60_000);
   const done = await db.productionGibLabOrder.findMany({
     where: {
       OR: [
@@ -205,9 +214,13 @@ export async function getPendingGibLabOrders(limit = 10) {
             status: {
               notIn: [RequestStatus.COMPLETED, RequestStatus.CANCELED],
             },
-            createdAt: { gte: since },
+            createdAt: { gte: since, lte: ready },
           }
-        : { status: RequestStatus.IN_PROGRESS, updatedAt: { gte: since } }),
+        : {
+            status: RequestStatus.IN_PROGRESS,
+            updatedAt: { gte: since },
+            createdAt: { lte: ready },
+          }),
     },
     orderBy: { createdAt: "asc" },
     take: limit,
@@ -244,11 +257,17 @@ export async function getPendingGibLabOrders(limit = 10) {
     );
     if (!existing)
       await db.productionGibLabOrder.create({
-        data: { requestId: request.id, folder, fileName, source },
+        data: {
+          requestId: request.id,
+          root: settings.root,
+          folder,
+          fileName,
+          source,
+        },
       });
     result.push({
       requestId: request.id,
-      root64: b64(settings.root),
+      root64: b64(existing?.root ?? settings.root),
       folder64: b64(folder),
       fileName64: b64(fileName),
       content: bytes.toString("base64"),
@@ -323,7 +342,7 @@ export async function ackGibLabOrders(acks: GibLabOrderAck[]) {
           ack.status === "written"
             ? "Заказ передан в GibLab"
             : "Файл заказа в GibLab уже был",
-        description: `${settings.root.replace(/\\+$/, "")}\\${row.folder}\\${row.fileName}`,
+        description: `${(row.root ?? settings.root).replace(/\\+$/, "")}\\${row.folder}\\${row.fileName}`,
         actorName: "Программа цеха",
       });
   }

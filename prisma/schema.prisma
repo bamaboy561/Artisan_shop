@@ -682,6 +682,7 @@ model ProductionMachineFile {
 // lib/server/giblab-orders.ts; модель здесь, чтобы prisma db push её не удалял.
 model ProductionGibLabOrder {
   requestId String    @id
+  root      String?
   folder    String
   fileName  String
   status    String    @default("pending")
