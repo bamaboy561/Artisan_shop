@@ -677,6 +677,24 @@ model ProductionMachineFile {
   @@index([firstSeenAt])
 }
 
+// Заказы, которые программа цеха положила в папку проектов GibLab
+// (projects\2026\Ноябрь\21-11\R-2045 ….project). Таблицу создаёт и
+// lib/server/giblab-orders.ts; модель здесь, чтобы prisma db push её не удалял.
+model ProductionGibLabOrder {
+  requestId String    @id
+  root      String?
+  folder    String
+  fileName  String
+  status    String    @default("pending")
+  source    String?
+  attempts  Int       @default(0)
+  error     String?
+  queuedAt  DateTime  @default(now())
+  writtenAt DateTime?
+
+  @@index([queuedAt])
+}
+
 model RequestFile {
   id                String          @id @default(cuid())
   requestId         String

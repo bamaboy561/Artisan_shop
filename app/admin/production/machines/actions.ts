@@ -6,6 +6,10 @@ import { requireAdminSession } from "@/lib/auth/dal";
 import { canManageProduction } from "@/lib/auth/roles";
 import { maxMachineFolders } from "@/features/production/machine-folders";
 import {
+  resendGibLabOrder,
+  saveGibLabOrderSettings,
+} from "@/lib/server/giblab-orders";
+import {
   linkMachineFile,
   regenerateWatcherKey,
   saveMachineFolders,
@@ -36,6 +40,7 @@ export async function saveMachineFoldersAction(formData: FormData) {
     name: text(formData, `name-${index}`),
     path: text(formData, `path-${index}`),
     stage: text(formData, `stage-${index}`),
+    recurse: text(formData, `recurse-${index}`) === "on",
   }));
   const result = await saveMachineFolders(actor, folders);
   done(`folders-${result}`);
@@ -55,4 +60,23 @@ export async function linkMachineFileAction(formData: FormData) {
     requestNumber: text(formData, "requestNumber").slice(0, 20),
   });
   done(`link-${result}`);
+}
+
+export async function saveGibLabOrderSettingsAction(formData: FormData) {
+  const actor = await managerSession();
+  const result = await saveGibLabOrderSettings(actor, {
+    enabled: text(formData, "enabled") === "on",
+    root: text(formData, "root"),
+    trigger: text(formData, "trigger"),
+  });
+  done(`orders-${result}`);
+}
+
+export async function resendGibLabOrderAction(formData: FormData) {
+  const actor = await managerSession();
+  const result = await resendGibLabOrder(
+    actor,
+    text(formData, "requestId").slice(0, 64),
+  );
+  done(`resend-${result}`);
 }

@@ -13,6 +13,9 @@ export type MachineFolder = {
   name: string;
   path: string;
   stage: MachineFolderStage;
+  // Смотреть и вложенные папки. По умолчанию нет: в папках станков часто
+  // лежат архивы старых программ.
+  recurse: boolean;
 };
 
 export type ReportedFile = {
@@ -48,13 +51,21 @@ export const defaultMachineFolders: MachineFolder[] = [
     name: "HOLZMA (раскрой)",
     path: "\\\\M0341871836M701\\HolzmaKroy",
     stage: "cutting",
+    recurse: false,
   },
-  { id: "altendorf", name: "Altendorf", path: "Z:\\", stage: "cutting" },
+  {
+    id: "altendorf",
+    name: "Altendorf",
+    path: "Z:\\",
+    stage: "cutting",
+    recurse: false,
+  },
   {
     id: "excitech",
     name: "Excitech (присадка)",
     path: "\\\\DESKTOP-186\\drill_work",
     stage: "",
+    recurse: false,
   },
 ];
 
@@ -102,6 +113,7 @@ export function normalizeMachineFolders(items: unknown[]) {
       name: name || `Станок ${result.length + 1}`,
       path,
       stage: record.stage === "cutting" ? "cutting" : "",
+      recurse: record.recurse === true || record.recurse === "on",
     });
     if (result.length >= maxMachineFolders) break;
   }
@@ -254,6 +266,15 @@ export function matchRequestByName<T extends { contactName: string }>(
   return hits.length === 1 ? hits[0] : null;
 }
 
+// Старая версия программы присылает и файлы из подпапок: отбрасываем их,
+// если для папки подпапки не включены.
+export function filterTopLevel(folder: ReportedFolder): ReportedFolder {
+  return {
+    ...folder,
+    files: folder.files.filter((file) => !file.name.includes("\\")),
+  };
+}
+
 export type ActiveFileRow = {
   id: string;
   folderId: string;
@@ -336,7 +357,8 @@ while ($true) {
       $truncated = $false
       if ($ok) {
         $prefix = (Get-Item -LiteralPath $root).FullName.TrimEnd('\') + '\'
-        $all = @(Get-ChildItem -LiteralPath $root -File -Recurse -ErrorAction SilentlyContinue)
+        if ($f.recurse) { $all = @(Get-ChildItem -LiteralPath $root -File -Recurse -ErrorAction SilentlyContinue) }
+        else { $all = @(Get-ChildItem -LiteralPath $root -File -ErrorAction SilentlyContinue) }
         $truncated = $all.Count -gt ${maxFilesPerFolder}
         $items = @($all | Sort-Object LastWriteTime -Descending | Select-Object -First ${maxFilesPerFolder})
         foreach ($i in $items) {
@@ -353,6 +375,50 @@ while ($true) {
     Write-Host ((Get-Date -Format 'HH:mm:ss') + ' OK, papok: ' + $report.Count)
   } catch {
     Write-Host ((Get-Date -Format 'HH:mm:ss') + ' Oshibka: ' + $_.Exception.Message) -ForegroundColor Yellow
+  }
+  # Novye zakazy saita -> papka proektov GibLab (imena v base64: kirillica).
+  try {
+    $OrdersApi = "$Site/api/production/giblab-orders"
+    $res = Invoke-RestMethod -Uri $OrdersApi -Headers $Headers -TimeoutSec 60
+    $acks = @()
+    foreach ($o in @($res.orders)) {
+      if (-not $o -or -not $o.requestId) { continue }
+      try {
+        $u = [Text.Encoding]::UTF8
+        $rootDir = $u.GetString([Convert]::FromBase64String([string]$o.root64))
+        $folder = $u.GetString([Convert]::FromBase64String([string]$o.folder64))
+        $name = $u.GetString([Convert]::FromBase64String([string]$o.fileName64))
+        $dir = Join-Path $rootDir $folder
+        if (-not (Test-Path -LiteralPath $dir)) { $null = [IO.Directory]::CreateDirectory($dir) }
+        $file = Join-Path $dir $name
+        if (Test-Path -LiteralPath $file) {
+          $acks += @{ requestId = [string]$o.requestId; status = 'exists' }
+        } else {
+          [IO.File]::WriteAllBytes($file, [Convert]::FromBase64String([string]$o.content))
+          $acks += @{ requestId = [string]$o.requestId; status = 'written' }
+          Write-Host ((Get-Date -Format 'HH:mm:ss') + ' GibLab: ' + $file) -ForegroundColor Cyan
+        }
+      } catch {
+        $acks += @{ requestId = [string]$o.requestId; status = 'failed'; error = $_.Exception.Message }
+      }
+    }
+    # Fail zakaza udalili v GibLab -> soobshaem saitu (klient peredumal).
+    foreach ($w in @($res.watch)) {
+      if (-not $w -or -not $w.requestId) { continue }
+      try {
+        $u = [Text.Encoding]::UTF8
+        $rootDir = $u.GetString([Convert]::FromBase64String([string]$w.root64))
+        if (-not (Test-Path -LiteralPath $rootDir)) { continue }
+        $wf = Join-Path (Join-Path $rootDir ($u.GetString([Convert]::FromBase64String([string]$w.folder64)))) ($u.GetString([Convert]::FromBase64String([string]$w.fileName64)))
+        if (-not (Test-Path -LiteralPath $wf)) { $acks += @{ requestId = [string]$w.requestId; status = 'missing' } }
+      } catch {}
+    }
+    if ($acks.Count -gt 0) {
+      $ackJson = ConvertTo-Json -InputObject @{ results = $acks } -Depth 4 -Compress
+      $null = Invoke-RestMethod -Uri $OrdersApi -Method Post -Headers $Headers -ContentType 'application/json; charset=utf-8' -Body ([Text.Encoding]::UTF8.GetBytes($ackJson)) -TimeoutSec 60
+    }
+  } catch {
+    Write-Host ((Get-Date -Format 'HH:mm:ss') + ' GibLab oshibka: ' + $_.Exception.Message) -ForegroundColor Yellow
   }
   if ($wait -lt 15) { $wait = 15 }
   Start-Sleep -Seconds $wait

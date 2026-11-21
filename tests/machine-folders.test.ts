@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   buildWatcherScript,
   diffFolder,
+  filterTopLevel,
   findRequestNumbers,
   matchRequestByName,
   nameSkeleton,
@@ -134,5 +135,28 @@ test("a truncated snapshot never marks files as removed", () => {
       flagged!.folders[0],
     ).removedIds,
     [],
+  );
+});
+
+test("subfolder files are dropped unless the folder watches subfolders", () => {
+  const top = filterTopLevel({
+    id: "excitech",
+    ok: true,
+    files: [
+      { name: "R-2045", size: 1, modifiedAt: null },
+      { name: "arhiv\\old1", size: 1, modifiedAt: null },
+    ],
+  });
+  assert.deepEqual(
+    top.files.map((f) => f.name),
+    ["R-2045"],
+  );
+  const [folder] = normalizeMachineFolders([
+    { id: "a", name: "A", path: "x", recurse: true },
+  ]);
+  assert.equal(folder.recurse, true);
+  assert.match(
+    buildWatcherScript({ siteUrl: "https://x", key: "k" }),
+    /if \(\$f\.recurse\)/,
   );
 });

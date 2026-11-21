@@ -34,7 +34,12 @@ export async function GET(request: Request) {
   return Response.json({
     ok: true,
     intervalSeconds: watcherIntervalSeconds,
-    folders: folders.map((f) => ({ id: f.id, name: f.name, path: f.path })),
+    folders: folders.map((f) => ({
+      id: f.id,
+      name: f.name,
+      path: f.path,
+      recurse: f.recurse,
+    })),
   });
 }
 
