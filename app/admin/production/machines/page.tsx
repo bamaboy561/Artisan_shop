@@ -20,6 +20,14 @@ import {
 } from "@/lib/server/machine-folders";
 import { shiftDateTimeFormatter } from "@/lib/server/production-shifts";
 import {
+  gibLabCatalogColumns,
+  gibLabCatalogStartRow,
+} from "@/features/production/giblab-catalog";
+import {
+  getGibLabCatalogSettings,
+  getGibLabCatalogStatus,
+} from "@/lib/server/giblab-catalog";
+import {
   getGibLabOrderSettings,
   getRecentGibLabOrders,
 } from "@/lib/server/giblab-orders";
@@ -28,6 +36,7 @@ import {
   regenerateWatcherKeyAction,
   saveMachineFoldersAction,
   resendGibLabOrderAction,
+  saveGibLabCatalogSettingsAction,
   saveGibLabOrderSettingsAction,
 } from "./actions";
 import styles from "@/features/production/shift.module.css";
@@ -45,6 +54,14 @@ const orderStatusLabels: Record<string, string> = {
 };
 
 const notices: Record<string, { tone: "success" | "error"; text: string }> = {
+  "catalog-saved": {
+    tone: "success",
+    text: "Настройки каталога сохранены. Программа обновит файл в течение 10 минут.",
+  },
+  "catalog-error": {
+    tone: "error",
+    text: "Не удалось сохранить настройки каталога.",
+  },
   "orders-saved": {
     tone: "success",
     text: "Настройки заказов GibLab сохранены.",
@@ -92,15 +109,25 @@ export default async function MachinesPage({
   const notice =
     notices[typeof params.notice === "string" ? params.notice : ""];
   const now = new Date();
-  const [folders, status, current, removed, orderSettings, orders] =
-    await Promise.all([
-      getMachineFolders(),
-      getWatcherStatus(),
-      getCurrentMachineFiles(),
-      getRemovedMachineFiles(new Date(now.getTime() - 7 * 86_400_000)),
-      getGibLabOrderSettings(),
-      getRecentGibLabOrders(),
-    ]);
+  const [
+    folders,
+    status,
+    current,
+    removed,
+    orderSettings,
+    orders,
+    catalogSettings,
+    catalogStatus,
+  ] = await Promise.all([
+    getMachineFolders(),
+    getWatcherStatus(),
+    getCurrentMachineFiles(),
+    getRemovedMachineFiles(new Date(now.getTime() - 7 * 86_400_000)),
+    getGibLabOrderSettings(),
+    getRecentGibLabOrders(),
+    getGibLabCatalogSettings(),
+    getGibLabCatalogStatus(),
+  ]);
   const orderRoot = orderSettings.root.replace(/\\+$/, "");
   const stale = isWatcherStale(status.lastSeenAt, now);
   const rows = [
@@ -376,6 +403,69 @@ export default async function MachinesPage({
         ) : (
           <p className={styles.muted}>Пока ни одного заказа не выгружено.</p>
         )}
+      </section>
+
+      <section className={styles.section}>
+        <h2>Материалы сайта → каталог GibLab</h2>
+        <p className={styles.hint}>
+          Программа цеха раз в 10 минут кладёт файл {catalogSettings.path} со
+          списком плит и кромки магазина в формате каталога GibLab: «Листовой
+          материал» → категория → толщина → формат листа, и «Кромочные
+          материалы». У плит цена за м² (цена листа ÷ площадь), у кромки — за
+          метр. Файл перезаписывается, только когда товары изменились.
+        </p>
+        <form
+          action={saveGibLabCatalogSettingsAction}
+          className={styles.inline}
+        >
+          <label className={styles.field}>
+            <span>
+              <input
+                type="checkbox"
+                name="enabled"
+                defaultChecked={catalogSettings.enabled}
+              />{" "}
+              Включено
+            </span>
+          </label>
+          <label className={styles.field}>
+            Файл каталога
+            <input
+              className={styles.input}
+              name="path"
+              defaultValue={catalogSettings.path}
+              maxLength={300}
+            />
+          </label>
+          <button className={styles.primary} type="submit">
+            Сохранить
+          </button>
+          <a className={styles.secondary} href={`${basePath}/catalog`}>
+            Скачать goods.xls
+          </a>
+        </form>
+        <p className={styles.muted}>
+          {catalogStatus.status === "written"
+            ? `Последний раз записан ${when(catalogStatus.at ? new Date(catalogStatus.at) : null)}, строк: ${catalogStatus.items ?? "—"}.`
+            : catalogStatus.status === "failed"
+              ? `Не удалось записать файл (${when(catalogStatus.at ? new Date(catalogStatus.at) : null)}): ${catalogStatus.error ?? "ошибка"}. Возможно, файл открыт в Excel.`
+              : "Программа цеха ещё не записывала каталог."}
+        </p>
+        <details>
+          <summary>Как один раз настроить GibLab</summary>
+          <p className={styles.hint}>
+            Сервисы → Catalog Excel (двойной щелчок). Файл:{" "}
+            {catalogSettings.path}. Лист: 1. Начальная строка:{" "}
+            {gibLabCatalogStartRow} (в первой строке заголовки). Столбцы:
+          </p>
+          <ul className={styles.hint}>
+            {gibLabCatalogColumns.map((column) => (
+              <li key={column.key}>
+                {column.setting} — {column.letter}
+              </li>
+            ))}
+          </ul>
+        </details>
       </section>
 
       <section className={styles.section}>

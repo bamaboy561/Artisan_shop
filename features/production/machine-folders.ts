@@ -343,6 +343,9 @@ try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::
 $Headers = @{ Authorization = "Bearer $Key" }
 $Host.UI.RawUI.WindowTitle = 'Artisan - papki stankov'
 Write-Host 'Artisan: slezhu za papkami stankov. Okno ne zakryvayte.' -ForegroundColor Green
+$Loop = 0
+$CatHash = ''
+$CatDone = ''
 while ($true) {
   $wait = ${watcherIntervalSeconds}
   try {
@@ -420,6 +423,42 @@ while ($true) {
   } catch {
     Write-Host ((Get-Date -Format 'HH:mm:ss') + ' GibLab oshibka: ' + $_.Exception.Message) -ForegroundColor Yellow
   }
+  # Katalog materialov saita -> goods.xls dlya GibLab (raz v 10 ciklov).
+  if (($Loop % 10) -eq 0) {
+    try {
+      $CatApi = "$Site/api/production/giblab-catalog"
+      $cat = Invoke-RestMethod -Uri ($CatApi + '?hash=' + $CatHash) -Headers $Headers -TimeoutSec 60
+      if ($cat.enabled -and $cat.path64) {
+        $catPath = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String([string]$cat.path64))
+        if ($CatHash -and (($catPath -ne $CatDone) -or -not (Test-Path -LiteralPath $catPath))) {
+          $CatHash = ''
+          $cat = Invoke-RestMethod -Uri $CatApi -Headers $Headers -TimeoutSec 60
+        }
+        if ($cat.content) {
+          $catAck = @{ hash = [string]$cat.hash; items = $cat.items }
+          try {
+            $catDir = Split-Path -Parent $catPath
+            if ($catDir -and -not (Test-Path -LiteralPath $catDir)) { $null = [IO.Directory]::CreateDirectory($catDir) }
+            $tmp = $catPath + '.tmp'
+            [IO.File]::WriteAllBytes($tmp, [Convert]::FromBase64String([string]$cat.content))
+            Move-Item -LiteralPath $tmp -Destination $catPath -Force -ErrorAction Stop
+            $CatHash = [string]$cat.hash
+            $CatDone = $catPath
+            $catAck.status = 'written'
+            Write-Host ((Get-Date -Format 'HH:mm:ss') + ' Katalog GibLab obnovlen: ' + $cat.items + ' strok') -ForegroundColor Cyan
+          } catch {
+            $catAck.status = 'failed'
+            $catAck.error = $_.Exception.Message
+          }
+          $catJson = ConvertTo-Json -InputObject $catAck -Compress
+          $null = Invoke-RestMethod -Uri $CatApi -Method Post -Headers $Headers -ContentType 'application/json; charset=utf-8' -Body ([Text.Encoding]::UTF8.GetBytes($catJson)) -TimeoutSec 60
+        }
+      }
+    } catch {
+      Write-Host ((Get-Date -Format 'HH:mm:ss') + ' Katalog oshibka: ' + $_.Exception.Message) -ForegroundColor Yellow
+    }
+  }
+  $Loop++
   if ($wait -lt 15) { $wait = 15 }
   Start-Sleep -Seconds $wait
 }

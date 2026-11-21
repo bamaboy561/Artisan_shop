@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { requireAdminSession } from "@/lib/auth/dal";
 import { canManageProduction } from "@/lib/auth/roles";
 import { maxMachineFolders } from "@/features/production/machine-folders";
+import { saveGibLabCatalogSettings } from "@/lib/server/giblab-catalog";
 import {
   resendGibLabOrder,
   saveGibLabOrderSettings,
@@ -79,4 +80,13 @@ export async function resendGibLabOrderAction(formData: FormData) {
     text(formData, "requestId").slice(0, 64),
   );
   done(`resend-${result}`);
+}
+
+export async function saveGibLabCatalogSettingsAction(formData: FormData) {
+  const actor = await managerSession();
+  const result = await saveGibLabCatalogSettings(actor, {
+    enabled: text(formData, "enabled") === "on",
+    path: text(formData, "path"),
+  });
+  done(result ? "catalog-saved" : "catalog-error");
 }
