@@ -2659,7 +2659,22 @@ export function CutCalculator({
 
       const savedAt = new Date().toISOString();
 
-      if (isSampleRows(details) && !requestDraft.contactPhone.trim()) {
+      // Пустой черновик не храним: детали как в образце, телефона нет,
+      // материал, лист, кромка и комментарий по умолчанию.
+      const settingsUntouched =
+        (lockedPreset || manualPresetId === defaultPresetId) &&
+        !manualThicknessMm &&
+        !manualSheetWidthMm &&
+        !manualSheetHeightMm &&
+        edgeThicknessMm === "1" &&
+        !edgeWidthMm &&
+        !requestDraft.comment.trim();
+
+      if (
+        isSampleRows(details) &&
+        !requestDraft.contactPhone.trim() &&
+        settingsUntouched
+      ) {
         writeCalculatorDraft(null);
       } else {
         writeCalculatorDraft({
@@ -2733,11 +2748,19 @@ export function CutCalculator({
   useEffect(() => {
     const ui = readCalculatorUi();
     if (!ui || ui.draftSavedAt !== restoredSavedAtRef.current) return;
+    // Ссылка ведёт прямо на заявку или импорт: туда и идём, а не на
+    // сохранённый шаг.
+    if (
+      window.location.hash === "#cut-request-form" ||
+      window.location.hash === "#cut-import"
+    ) {
+      return;
+    }
 
     // Положение на странице живёт в sessionStorage и доступно только после
     // гидратации.
-    setStep(ui.step);
     // eslint-disable-next-line react-hooks/set-state-in-effect
+    setStep(ui.step);
     if (ui.drillingRowId) setDrillingRowId(ui.drillingRowId);
     if (ui.scrollY > 0) {
       const timer = window.setTimeout(
