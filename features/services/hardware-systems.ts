@@ -32,9 +32,19 @@ export type DrawerSystem = {
   maxSide?: number;
   // Товар в каталоге: направляющие этой системы.
   search: RegExp;
-  // Фиксаторы (защёлки) короба к скрытым направляющим, пара на ящик.
+  // Направляющие продаются по одной, левая и правая отдельно.
+  handed?: boolean;
+  // Фиксаторы (защёлки) короба к скрытым направляющим: левый и правый
+  // продаются отдельно.
   catch?: { label: string; search: RegExp };
 };
+
+// Поиск левой или правой детали: и название системы, и сторона.
+export function handedSearch(base: RegExp, side: "left" | "right") {
+  // «L» / «R» только в конце названия: в «Actro YOU L» буква — модель.
+  const hand = side === "left" ? "лев|\\bL\\s*$" : "прав|\\bR\\s*$";
+  return new RegExp(`^(?=.*(?:${base.source}))(?=.*(?:${hand}))`, "i");
+}
 
 const round = (value: number) => Math.round(value * 10) / 10;
 
@@ -59,6 +69,7 @@ const hettichYou = {
   boxWidth: (opening: number, t: number) => round(opening - 42 + 2 * t),
   boxLength: (slide: number) => slide - 10,
   maxSide: 16,
+  handed: true,
   catch: {
     label: "Фиксатор Actro YOU для деревянных ящиков",
     search: /фиксатор\s+actro\s+you/i,

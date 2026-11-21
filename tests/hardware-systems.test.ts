@@ -92,27 +92,65 @@ test("runner length follows the system's lengths and depth reserve", () => {
   assert.equal(buildCabinet({ ...you, depth: 502 }, 16).drawers?.slide, 450);
 });
 
-test("undermount fittings: runners of the brand plus a catch pair per drawer", () => {
+test("undermount fittings: left and right runners and catches as separate lines", () => {
   const spec = { ...base, hardware: { drawers: "hettich-actro-you" as const } };
   const result = buildCabinet(spec, 16);
   const lines = cabinetFittings(spec, result, 16);
-  const slide = lines.find((line) => line.key === "slide")!;
-  assert.match(slide.label, /Actro YOU/);
-  assert.match(slide.note, /скрытого монтажа/);
+  const line = (key: string) => lines.find((item) => item.key === key)!;
+  assert.match(line("slide").label, /Actro YOU.*левая/);
+  assert.match(line("slide").note, /скрытого монтажа, по одной на ящик/);
+  assert.equal(line("slide").count, 3);
+  assert.equal(line("slideRight").count, 3);
+  const left =
+    "Hettich Направляющие полного выдвижения Actro YOU L 40 кг 450 мм левый";
+  const right =
+    "Hettich Направляющие полного выдвижения Actro YOU L 40 кг 450 мм правый";
+  assert.ok(line("slide").search.test(left));
+  assert.ok(!line("slide").search.test(right));
+  assert.ok(line("slideRight").search.test(right));
   assert.ok(
-    slide.search.test(
-      "Hettich Направляющие полного выдвижения Actro YOU L 40 кг",
+    !line("slide").search.test(
+      "Hettich Фиксатор Actro YOU для деревянных ящиков левый",
+    ),
+  );
+  // Фиксаторы: левый и правый — разные товары, по одному на ящик.
+  assert.equal(line("drawerCatch").count, 3);
+  assert.equal(line("drawerCatchRight").count, 3);
+  assert.ok(
+    line("drawerCatchRight").search.test(
+      "Hettich Фиксатор Actro YOU для деревянных ящиков правый 9320332",
     ),
   );
   assert.ok(
-    !slide.search.test(
-      "Hettich Фиксатор Actro YOU для деревянных ящиков, левый",
+    !line("drawerCatch").search.test(
+      "Hettich Фиксатор Actro YOU для деревянных ящиков правый 9320332",
     ),
   );
-  assert.equal(lines.find((line) => line.key === "drawerCatch")?.count, 6);
   const steps = cabinetAssembly(spec, result, lines);
   const runners = steps.find((step) => /направляющие/.test(step.title))!;
   assert.match(runners.text, /фиксаторы/);
+  assert.equal(
+    runners.fittings.filter((item) => /Фиксатор/.test(item.label)).length,
+    2,
+  );
+});
+
+test("kitchen sums left and right lines once", () => {
+  const kitchen = buildKitchen(
+    {
+      ...KITCHEN_DEFAULTS,
+      hardware: { drawers: "hettich-quadro-v6-you" },
+    },
+    16,
+  );
+  const lines = kitchenFittings(kitchen, 16);
+  const keys = lines.map((line) => line.key);
+  assert.equal(new Set(keys).size, keys.length);
+  const left = lines.find((line) => line.key === "slide")!;
+  assert.equal(
+    lines.find((line) => line.key === "slideRight")?.count,
+    left.count,
+  );
 });
 
 test("hinge system sets the cup drilling depth and adds plates", () => {
@@ -159,10 +197,13 @@ test("shelf supports change the product, not the drilling", () => {
 });
 
 test("kitchen passes hardware to every module and sizes the lift", () => {
-  const kitchen = buildKitchen({
-    ...KITCHEN_DEFAULTS,
-    hardware: { drawers: "hettich-quadro-v6-you", lift: "samet-multi-mech" },
-  });
+  const kitchen = buildKitchen(
+    {
+      ...KITCHEN_DEFAULTS,
+      hardware: { drawers: "hettich-quadro-v6-you", lift: "samet-multi-mech" },
+    },
+    16,
+  );
   const drawers = kitchen.modules.find((item) => item.result?.drawers);
   assert.equal(drawers?.result?.drawers?.system, "hettich-quadro-v6-you");
   const lines = kitchenFittings(kitchen, 16);
