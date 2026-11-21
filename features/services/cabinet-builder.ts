@@ -16,6 +16,15 @@
 
 import type { ImportedDetail } from "./cut-list-import";
 import { createHardware, type HardwareItem } from "./drilling-hardware";
+import {
+  drawerSlide,
+  drawerSystem,
+  drawerSystemProblem,
+  hingeSystem,
+  hingeSystemProblem,
+  type CabinetHardware,
+  type DrawerSystemId,
+} from "./hardware-systems";
 import { LED_GROOVE, type PartMilling } from "./part-milling";
 
 export type CabinetKind = "wardrobe" | "base" | "wall" | "kupe";
@@ -408,6 +417,8 @@ export type CabinetSpec = {
   noBack?: boolean;
   // Выдвижной фасад (карго): без петель, крепится к механизму.
   pullOut?: boolean;
+  // Выбранные системы фурнитуры: направляющие, петли, полкодержатели.
+  hardware?: CabinetHardware;
   // Высота открытой ниши над ящиками (openAbove), мм: ящики
   // ужимаются, чтобы ниша была не ниже.
   niche?: number;
@@ -625,14 +636,9 @@ const BACK_OVERLAP_GAP = 2; // ХДФ меньше корпуса с каждо�
 const HINGE_OFFSET = 100; // петля от верха и низа двери, мм
 const DOWEL_OFFSET = 130; // шкант от переднего и заднего торца, мм
 const DRAWER_FRONT = 180; // фасад ящика под дверями, мм
-const DRAWER_SLIDE_GAP = 13; // зазор под шариковую направляющую с каждой стороны
 const DRAWER_LIFT = 10; // короб над нижним краем проёма, мм
 const DRAWER_TOP_GAP = 30; // над коробом до следующего ящика, мм
 const DRAWER_CONFIRMAT_OFFSET = 30; // конфирмат короба от верха и низа
-// Шариковые направляющие продаются этими длинами.
-export const DRAWER_SLIDE_LENGTHS = [250, 300, 350, 400, 450, 500, 550, 600];
-// Hettich KA: внутренняя глубина корпуса — длина направляющей + 4 мм.
-const SLIDE_DEPTH_RESERVE = 4;
 
 export type CabinetDrawers = {
   count: number;
@@ -640,9 +646,11 @@ export type CabinetDrawers = {
   frontWidth: number;
   frontHeight: number;
   frontsAt: number[];
-  // Короб: длина боковин (= длина направляющей), высота, ширина снаружи;
-  // низы коробов от пола.
+  // Направляющая (длина, мм) и система. Короб: длина боковин, высота,
+  // ширина снаружи; низы коробов от пола.
   slide: number;
+  system: DrawerSystemId;
+  boxLength: number;
   boxHeight: number;
   boxWidth: number;
   boxesAt: number[];
@@ -899,11 +907,11 @@ function bodyJoints(joint: CabinetJoint, t: number, D: number, plinth: number) {
   return { sideHardware, roofHardware, confirmatPlaces };
 }
 
-// Короба ящиков: боковины по длине направляющей и две стенки между ними
-// на конфирматах (сквозные Ø7 в боковинах, в торец стенок).
+// Короба ящиков: боковины по длине короба (по системе направляющих) и две
+// стенки между ними на конфирматах (сквозные Ø7 в боковинах, в торец стенок).
 function drawerBoxParts(
   name: string,
-  slide: number,
+  length: number,
   boxHeight: number,
   boxWidth: number,
   t: number,
@@ -921,7 +929,7 @@ function drawerBoxParts(
   return [
     {
       title: `${name}: ${kind} боковина${suffix}`,
-      length: slide,
+      length,
       width: boxHeight,
       quantity: 2 * count,
       edgedSides: ["top"],
@@ -1203,6 +1211,11 @@ export function buildCabinet(
     });
   }
 
+  const hingeKind = hingeSystem(spec.hardware?.hinges);
+  if (doors > 0 && !lift) {
+    const hingeProblem = hingeSystemProblem(hingeKind, t);
+    if (hingeProblem) problems.push(hingeProblem);
+  }
   if (doors > 0) {
     const door = (label: string, hingeSide: "top" | "bottom") => ({
       title: `${name}: дверь${label}`,
@@ -1223,6 +1236,7 @@ export function buildCabinet(
               ...createHardware("hinge", hingeSide),
               count: hinges,
               offset: HINGE_OFFSET,
+              holes: [{ diameter: 35, depth: hingeKind.cupDepth }],
             },
           ],
     });
@@ -1248,13 +1262,18 @@ export function buildCabinet(
   // дно ХДФ снизу, фасад накладной на саморезах изнутри.
   let drawers: CabinetDrawers | null = null;
   if (drawerCount > 0) {
-    const slide =
-      [...DRAWER_SLIDE_LENGTHS]
-        .reverse()
-        .find((length) => length + SLIDE_DEPTH_RESERVE <= D) ?? 0;
+    const system = drawerSystem(spec.hardware?.drawers);
+    const slide = drawerSlide(system, D);
+    const boxLength = slide > 0 ? system.boxLength(slide) : 0;
     const boxHeight = Math.floor((frontHeight - t - DRAWER_TOP_GAP) / 10) * 10;
-    const boxWidth = round(innerWidth - 2 * DRAWER_SLIDE_GAP);
-    if (slide === 0) problems.push("Корпус слишком мелкий для ящиков.");
+    const boxWidth = system.boxWidth(innerWidth, t);
+    if (slide === 0) {
+      problems.push(
+        `Корпус слишком мелкий для ящиков: ${system.label} — от ${system.lengths[0] + system.depthReserve} мм внутри.`,
+      );
+    }
+    const systemProblem = drawerSystemProblem(system, t);
+    if (systemProblem) problems.push(systemProblem);
     if (boxHeight < 60) problems.push("Фасад ящика слишком низкий для короба.");
     const frontsAt = Array.from({ length: drawerCount }, (_, index) =>
       round(plinth + DOOR_GAP + index * (frontHeight + DOOR_GAP)),
@@ -1268,15 +1287,17 @@ export function buildCabinet(
       frontHeight,
       frontsAt,
       slide,
+      system: system.id,
+      boxLength,
       boxHeight,
       boxWidth,
       boxesAt,
-      bottom: { length: slide, width: boxWidth },
+      bottom: { length: boxLength, width: boxWidth },
       shelfAt: fixedShelfAt,
     };
     if (slide > 0 && boxHeight >= 60) {
       parts.push(
-        ...drawerBoxParts(name, slide, boxHeight, boxWidth, t, drawerCount),
+        ...drawerBoxParts(name, boxLength, boxHeight, boxWidth, t, drawerCount),
       );
     }
     parts.push({
@@ -1410,12 +1431,9 @@ function buildKupe(spec: CabinetSpec, t: number): CabinetResult {
 
   // Ящики и выдвижные полки: одна направляющая и одна высота фасада во
   // всех секциях.
-  const slide =
-    [...DRAWER_SLIDE_LENGTHS]
-      .reverse()
-      .find(
-        (length) => length + SLIDE_DEPTH_RESERVE <= D - t - KUPE_FRONT_SETBACK,
-      ) ?? 0;
+  const system = drawerSystem(spec.hardware?.drawers);
+  const slide = drawerSlide(system, D - t - KUPE_FRONT_SETBACK);
+  const boxLength = slide > 0 ? system.boxLength(slide) : 0;
   const frontHeight = KUPE_DRAWER_FRONT;
   const boxHeight = Math.floor((frontHeight - 40) / 10) * 10;
 
@@ -1597,8 +1615,10 @@ function buildKupe(spec: CabinetSpec, t: number): CabinetResult {
       drawer = {
         frontLeft: round(left + spacerLeft + KUPE_FRONT_GAP),
         frontWidth: round(inner - 2 * KUPE_FRONT_GAP),
-        boxLeft: round(left + spacerLeft + DRAWER_SLIDE_GAP),
-        boxWidth: round(inner - 2 * DRAWER_SLIDE_GAP),
+        boxLeft: round(
+          left + spacerLeft + (inner - system.boxWidth(inner, t)) / 2,
+        ),
+        boxWidth: system.boxWidth(inner, t),
         spacerLeft,
         spacerRight,
         frontsAt,
@@ -1870,6 +1890,8 @@ function buildKupe(spec: CabinetSpec, t: number): CabinetResult {
   let drawers: CabinetDrawers | null = null;
   if (drawerCount + trayCount > 0) {
     if (slide === 0) problems.push("Корпус слишком мелкий для ящиков.");
+    const systemProblem = drawerSystemProblem(system, t);
+    if (systemProblem) problems.push(systemProblem);
     const withBoxes = sections.filter((section) => section.drawer);
     const withDrawers = sections.filter((section) => section.drawers > 0);
     const first = withBoxes[0].drawer!;
@@ -1882,16 +1904,18 @@ function buildKupe(spec: CabinetSpec, t: number): CabinetResult {
       frontHeight,
       frontsAt: frontsAll,
       slide,
+      system: system.id,
+      boxLength,
       boxHeight,
       boxWidth: first.boxWidth,
       boxesAt: frontsAll.map((at) => round(at + DRAWER_LIFT)),
-      bottom: { length: slide, width: first.boxWidth },
+      bottom: { length: boxLength, width: first.boxWidth },
       shelfAt: null,
       inset: KUPE_FRONT_SETBACK,
       spacer: first.spacerLeft,
       trays: trayCount,
       bottoms: withBoxes.map((section) => ({
-        length: slide,
+        length: boxLength,
         width: section.drawer!.boxWidth,
         count: section.drawers + section.trays,
       })),
@@ -1904,7 +1928,7 @@ function buildKupe(spec: CabinetSpec, t: number): CabinetResult {
           parts.push(
             ...drawerBoxParts(
               name,
-              slide,
+              boxLength,
               boxHeight,
               box.boxWidth,
               t,
@@ -1928,7 +1952,7 @@ function buildKupe(spec: CabinetSpec, t: number): CabinetResult {
         parts.push(
           ...drawerBoxParts(
             name,
-            slide,
+            boxLength,
             KUPE_TRAY_BOX,
             box.boxWidth,
             t,
