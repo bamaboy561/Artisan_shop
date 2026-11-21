@@ -20,9 +20,15 @@ import {
 } from "@/lib/server/machine-folders";
 import { shiftDateTimeFormatter } from "@/lib/server/production-shifts";
 import {
+  getGibLabOrderSettings,
+  getRecentGibLabOrders,
+} from "@/lib/server/giblab-orders";
+import {
   linkMachineFileAction,
   regenerateWatcherKeyAction,
   saveMachineFoldersAction,
+  resendGibLabOrderAction,
+  saveGibLabOrderSettingsAction,
 } from "./actions";
 import styles from "@/features/production/shift.module.css";
 
@@ -30,7 +36,23 @@ export const dynamic = "force-dynamic";
 
 const basePath = "/admin/production/machines";
 
+const orderStatusLabels: Record<string, string> = {
+  pending: "ждёт программу",
+  written: "положен",
+  exists: "файл уже был",
+  failed: "ошибка",
+  deleted: "удалён в GibLab → заявка отменена",
+};
+
 const notices: Record<string, { tone: "success" | "error"; text: string }> = {
+  "orders-saved": {
+    tone: "success",
+    text: "Настройки заказов GibLab сохранены.",
+  },
+  "resend-saved": {
+    tone: "success",
+    text: "Заказ положат в папку GibLab ещё раз в течение минуты.",
+  },
   "folders-saved": {
     tone: "success",
     text: "Папки сохранены. Наблюдатель подхватит их в течение минуты.",
@@ -70,12 +92,16 @@ export default async function MachinesPage({
   const notice =
     notices[typeof params.notice === "string" ? params.notice : ""];
   const now = new Date();
-  const [folders, status, current, removed] = await Promise.all([
-    getMachineFolders(),
-    getWatcherStatus(),
-    getCurrentMachineFiles(),
-    getRemovedMachineFiles(new Date(now.getTime() - 7 * 86_400_000)),
-  ]);
+  const [folders, status, current, removed, orderSettings, orders] =
+    await Promise.all([
+      getMachineFolders(),
+      getWatcherStatus(),
+      getCurrentMachineFiles(),
+      getRemovedMachineFiles(new Date(now.getTime() - 7 * 86_400_000)),
+      getGibLabOrderSettings(),
+      getRecentGibLabOrders(),
+    ]);
+  const orderRoot = orderSettings.root.replace(/\\+$/, "");
   const stale = isWatcherStale(status.lastSeenAt, now);
   const rows = [
     ...folders,
@@ -253,6 +279,103 @@ export default async function MachinesPage({
             </button>
           </div>
         </form>
+      </section>
+
+      <section className={styles.section}>
+        <h2>Заказы с сайта → GibLab</h2>
+        <p className={styles.hint}>
+          Новая заявка на распил через минуту появляется в папке проектов
+          GibLab: {orderRoot}\год\месяц\день (например 2026\Ноябрь\21-11), файл
+          «R-2045 Имя телефон.project». Если клиент считал распил в калькуляторе
+          — с деталями, иначе пустой проект. Удалили файл в GibLab до начала
+          распила — заявка на сайте становится «Отменена» (её можно вернуть).
+          Работает с программой, скачанной после 21.11 — перекачайте её один
+          раз.
+        </p>
+        <form action={saveGibLabOrderSettingsAction} className={styles.inline}>
+          <label className={styles.field}>
+            <span>
+              <input
+                type="checkbox"
+                name="enabled"
+                defaultChecked={orderSettings.enabled}
+              />{" "}
+              Включено
+            </span>
+          </label>
+          <label className={styles.field}>
+            Папка проектов
+            <input
+              className={styles.input}
+              name="root"
+              defaultValue={orderSettings.root}
+              maxLength={300}
+            />
+          </label>
+          <label className={styles.field}>
+            Когда класть
+            <select
+              className={styles.select}
+              name="trigger"
+              defaultValue={orderSettings.trigger}
+            >
+              <option value="new">Сразу при новой заявке</option>
+              <option value="in-progress">Когда заявка «В работе»</option>
+            </select>
+          </label>
+          <button className={styles.primary} type="submit">
+            Сохранить
+          </button>
+        </form>
+        {orders.length ? (
+          <div className={styles.tableWrap}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>Файл</th>
+                  <th>Папка</th>
+                  <th>Что внутри</th>
+                  <th>Состояние</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {orders.map((order) => (
+                  <tr key={order.requestId}>
+                    <td>
+                      <Link
+                        href={`/admin/requests/${encodeURIComponent(order.requestId)}`}
+                      >
+                        {order.fileName}
+                      </Link>
+                    </td>
+                    <td>{order.folder}</td>
+                    <td>{order.source ?? "—"}</td>
+                    <td>
+                      {orderStatusLabels[order.status] ?? order.status}
+                      {order.writtenAt ? `, ${when(order.writtenAt)}` : ""}
+                      {order.error ? ` (${order.error})` : ""}
+                    </td>
+                    <td>
+                      <form action={resendGibLabOrderAction}>
+                        <input
+                          type="hidden"
+                          name="requestId"
+                          value={order.requestId}
+                        />
+                        <button className={styles.secondary} type="submit">
+                          Положить ещё раз
+                        </button>
+                      </form>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className={styles.muted}>Пока ни одного заказа не выгружено.</p>
+        )}
       </section>
 
       <section className={styles.section}>

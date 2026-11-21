@@ -86,14 +86,14 @@ export async function prepareMachineFolders() {
   }
 }
 
-async function readSetting(key: string) {
+export async function readSetting(key: string) {
   const row = await getDb().productionShiftSetting.findUnique({
     where: { key },
   });
   return row?.value ?? null;
 }
 
-async function writeSetting(key: string, value: string) {
+export async function writeSetting(key: string, value: string) {
   await getDb().productionShiftSetting.upsert({
     where: { key },
     create: { key, value },

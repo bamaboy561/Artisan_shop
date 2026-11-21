@@ -376,6 +376,50 @@ while ($true) {
   } catch {
     Write-Host ((Get-Date -Format 'HH:mm:ss') + ' Oshibka: ' + $_.Exception.Message) -ForegroundColor Yellow
   }
+  # Novye zakazy saita -> papka proektov GibLab (imena v base64: kirillica).
+  try {
+    $OrdersApi = "$Site/api/production/giblab-orders"
+    $res = Invoke-RestMethod -Uri $OrdersApi -Headers $Headers -TimeoutSec 60
+    $acks = @()
+    foreach ($o in @($res.orders)) {
+      if (-not $o -or -not $o.requestId) { continue }
+      try {
+        $u = [Text.Encoding]::UTF8
+        $rootDir = $u.GetString([Convert]::FromBase64String([string]$o.root64))
+        $folder = $u.GetString([Convert]::FromBase64String([string]$o.folder64))
+        $name = $u.GetString([Convert]::FromBase64String([string]$o.fileName64))
+        $dir = Join-Path $rootDir $folder
+        if (-not (Test-Path -LiteralPath $dir)) { $null = [IO.Directory]::CreateDirectory($dir) }
+        $file = Join-Path $dir $name
+        if (Test-Path -LiteralPath $file) {
+          $acks += @{ requestId = [string]$o.requestId; status = 'exists' }
+        } else {
+          [IO.File]::WriteAllBytes($file, [Convert]::FromBase64String([string]$o.content))
+          $acks += @{ requestId = [string]$o.requestId; status = 'written' }
+          Write-Host ((Get-Date -Format 'HH:mm:ss') + ' GibLab: ' + $file) -ForegroundColor Cyan
+        }
+      } catch {
+        $acks += @{ requestId = [string]$o.requestId; status = 'failed'; error = $_.Exception.Message }
+      }
+    }
+    # Fail zakaza udalili v GibLab -> soobshaem saitu (klient peredumal).
+    foreach ($w in @($res.watch)) {
+      if (-not $w -or -not $w.requestId) { continue }
+      try {
+        $u = [Text.Encoding]::UTF8
+        $rootDir = $u.GetString([Convert]::FromBase64String([string]$w.root64))
+        if (-not (Test-Path -LiteralPath $rootDir)) { continue }
+        $wf = Join-Path (Join-Path $rootDir ($u.GetString([Convert]::FromBase64String([string]$w.folder64)))) ($u.GetString([Convert]::FromBase64String([string]$w.fileName64)))
+        if (-not (Test-Path -LiteralPath $wf)) { $acks += @{ requestId = [string]$w.requestId; status = 'missing' } }
+      } catch {}
+    }
+    if ($acks.Count -gt 0) {
+      $ackJson = ConvertTo-Json -InputObject @{ results = $acks } -Depth 4 -Compress
+      $null = Invoke-RestMethod -Uri $OrdersApi -Method Post -Headers $Headers -ContentType 'application/json; charset=utf-8' -Body ([Text.Encoding]::UTF8.GetBytes($ackJson)) -TimeoutSec 60
+    }
+  } catch {
+    Write-Host ((Get-Date -Format 'HH:mm:ss') + ' GibLab oshibka: ' + $_.Exception.Message) -ForegroundColor Yellow
+  }
   if ($wait -lt 15) { $wait = 15 }
   Start-Sleep -Seconds $wait
 }
