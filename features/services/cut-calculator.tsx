@@ -2631,20 +2631,23 @@ export function CutCalculator({
   const drillingIndex = drillingRow
     ? drillableRows.findIndex((row) => row.id === drillingRow.id)
     : -1;
+  // Подпись на кнопке присадки: все отверстия на все штуки и цена по прайсу,
+  // как в итоге окна присадки («28 отв.» и ниже «212 сом»).
   const drillingLabels = Object.fromEntries(
     calculation.rows.map((row) => {
-      const holes = Object.values(row.drill ?? {}).reduce(
-        (sum, count) => sum + count,
-        0,
-      );
+      const price = priceDrilling([row], sitePrices.drilling);
+      const what = [
+        price.holes > 0 ? `${price.holes} отв.` : "",
+        hasMilling(row.milling) ? "фрез." : "",
+      ]
+        .filter(Boolean)
+        .join(" + ");
+      // Вторая строка на кнопке — цена отверстий.
       return [
         row.id,
-        [
-          holes > 0 ? `${Math.round(holes)} отв.` : "",
-          hasMilling(row.milling) ? "фрез." : "",
-        ]
-          .filter(Boolean)
-          .join(" + "),
+        what && price.cost > 0
+          ? `${what}\n${formatPrice(Math.round(price.cost))}`
+          : what,
       ];
     }),
   );
