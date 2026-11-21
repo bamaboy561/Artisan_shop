@@ -7,6 +7,7 @@ import {
   type Prisma,
 } from "@/generated/prisma";
 import { productionStationStages } from "@/features/production/workflow";
+import { getActiveMachinesByRequest } from "@/lib/server/machine-folders";
 import {
   getProductionPage,
   isProductionOverdue,
@@ -292,15 +293,19 @@ export async function getProductionQueue(input: ProductionFilters) {
     });
   }
   const ids = items.map((item) => item.id);
-  const [plans, workflows] = await Promise.all([
+  const [plans, workflows, machines] = await Promise.all([
     planning ? getProductionPlans(ids) : Promise.resolve(new Map()),
     getCuttingWorkflows(ids),
+    getActiveMachinesByRequest(ids),
   ]);
   return {
     items: items.map((item) => ({
       ...item,
       dueDate: (plans.get(item.id)?.dueDate as string | null) ?? null,
-      workflow: workflows.get(item.id) ?? emptyCuttingWorkflow,
+      workflow: {
+        ...(workflows.get(item.id) ?? emptyCuttingWorkflow),
+        machines: machines.get(item.id),
+      },
     })),
     total,
     ...pagination,
@@ -370,7 +375,7 @@ export async function getProductionBoard() {
         )
       : [];
   const ids = requests.map((request) => request.id);
-  const [plans, workflows, issuedToday] = await Promise.all([
+  const [plans, workflows, issuedToday, machines] = await Promise.all([
     planning ? getProductionPlans(ids) : Promise.resolve(new Map()),
     getCuttingWorkflows(ids),
     hasDatabaseUrl()
@@ -384,6 +389,7 @@ export async function getProductionBoard() {
           },
         })
       : Promise.resolve(0),
+    getActiveMachinesByRequest(ids),
   ]);
   const cards = requests
     .map((request) => ({
@@ -404,12 +410,15 @@ export async function getProductionBoard() {
             .join(" ") || request.manager.email
         : null,
       dueDate: (plans.get(request.id)?.dueDate as string | null) ?? null,
-      workflow: workflowReady
-        ? (workflows.get(request.id) ?? emptyCuttingWorkflow)
-        : {
-            ...emptyCuttingWorkflow,
-            isUrgent: isUrgentByText(request.subject, request.message),
-          },
+      workflow: {
+        ...(workflowReady
+          ? (workflows.get(request.id) ?? emptyCuttingWorkflow)
+          : {
+              ...emptyCuttingWorkflow,
+              isUrgent: isUrgentByText(request.subject, request.message),
+            }),
+        machines: machines.get(request.id),
+      },
       column: boardColumnFor(request.cuttingStage, request.status),
     }))
     .sort(

@@ -384,6 +384,19 @@
   background: #b42318;
   color: #fff;
 }
+.machineFlag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 18px;
+  white-space: nowrap;
+  background: #e0f2fe;
+  color: #075985;
+  border: 1px solid #7dd3fc;
+}
 .problemFlag {
   background: #fff3cd;
   color: #7a4b00;

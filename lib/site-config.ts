@@ -95,6 +95,11 @@ export const adminNavigation: NavItem[] = [
     description: "Кто на смене, журнал фактов, итоги и работа станков.",
   },
   {
+    href: "/admin/production/machines",
+    label: "Станки и папки",
+    description: "Какие заказы GibLab сейчас лежат в папках станков.",
+  },
+  {
     href: "/admin/categories",
     label: "Каталог",
     description: "Структура каталога.",

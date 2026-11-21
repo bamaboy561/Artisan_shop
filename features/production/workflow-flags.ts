@@ -31,6 +31,8 @@ export type CuttingWorkflowDto = {
   problemNote: string | null;
   problemAt: Date | null;
   problemByName: string | null;
+  // Станки, в папках которых сейчас лежит файл заявки (из GibLab).
+  machines?: string[];
 };
 
 export const emptyCuttingWorkflow: CuttingWorkflowDto = {
