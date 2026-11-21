@@ -60,10 +60,13 @@ import { CuttingExtrasFields } from "@/components/cutting/cutting-extras-fields"
 import { CuttingQuoteLines } from "@/components/cutting/cutting-quote-lines";
 import { repriceCuttingRequestAction } from "@/app/admin/cutting/pricing/actions";
 import { withBazisAccept } from "@/lib/bazis-file";
+import { MaterialLinesEditor } from "@/components/cutting/material-lines-editor";
+import { MaterialLinesTable } from "@/components/cutting/material-lines-table";
+import { getRequestMaterialLines } from "@/lib/server/request-material-lines";
 
 type AdminRequestDetailPageProps = {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ pricingError?: string }>;
+  searchParams: Promise<{ pricingError?: string; materialsError?: string }>;
 };
 
 function formatBudget(value: number | null) {
@@ -194,7 +197,11 @@ export default async function AdminRequestDetailPage({
       ? (requestQuote?.extras ??
         (await bazisExtrasFromRequestFiles(request.files).catch(() => null)))
       : null;
-  const { pricingError } = await searchParams;
+  const { pricingError, materialsError } = await searchParams;
+  const materialLines =
+    request.type === RequestType.CUTTING_SERVICE
+      ? await getRequestMaterialLines(request.id)
+      : [];
   const canDeleteRequest = canDeleteRequests(session.roleCode);
   const canCreateOrder =
     !cuttingManager &&
@@ -311,12 +318,41 @@ export default async function AdminRequestDetailPage({
                 <p className="text-xs tracking-[0.16em] text-[var(--muted)] uppercase">
                   Материал и бюджет
                 </p>
-                <p className="mt-2 font-medium text-[var(--foreground)]">
-                  {request.material ?? "Не указан"}
-                </p>
-                <p className="mt-1 text-sm text-[var(--muted)]">
-                  Кромка: {request.edgeOption ?? "Уточнить"}
-                </p>
+                {materialLines.length ? (
+                  <p className="mt-2 font-medium text-[var(--foreground)]">
+                    {
+                      materialLines.filter((line) => line.kind === "SHEET")
+                        .length
+                    }{" "}
+                    поз. листов,{" "}
+                    {
+                      materialLines.filter((line) => line.kind === "EDGE")
+                        .length
+                    }{" "}
+                    поз. кромки
+                    {materialLines.some((line) => line.source === "CLIENT")
+                      ? " · есть привозное"
+                      : ""}
+                    <span className="block text-sm font-normal text-[var(--muted)]">
+                      Список — ниже в таблице.
+                    </span>
+                    {request.edgeOption &&
+                    !materialLines.some((line) => line.kind === "EDGE") ? (
+                      <span className="mt-1 block text-sm font-normal text-[var(--muted)]">
+                        Кромка: {request.edgeOption}
+                      </span>
+                    ) : null}
+                  </p>
+                ) : (
+                  <>
+                    <p className="mt-2 font-medium text-[var(--foreground)]">
+                      {request.material ?? "Не указан"}
+                    </p>
+                    <p className="mt-1 text-sm text-[var(--muted)]">
+                      Кромка: {request.edgeOption ?? "Уточнить"}
+                    </p>
+                  </>
+                )}
                 <p className="mt-1 text-sm text-[var(--muted)]">
                   Листов: {request.cuttingSheetCount ?? "не указано"}
                 </p>
@@ -349,65 +385,52 @@ export default async function AdminRequestDetailPage({
               </div>
             </div>
 
+            {materialLines.length ? (
+              <div className="mt-5 border-t border-[color:var(--line)] pt-5">
+                <MaterialLinesTable lines={materialLines} />
+              </div>
+            ) : null}
+
             {request.type === RequestType.CUTTING_SERVICE ? (
-              <form
-                action={updateRequestCuttingDetailsAction}
-                className="mt-5 grid gap-3 border-t border-[color:var(--line)] pt-5 md:grid-cols-2 xl:grid-cols-[minmax(0,1.2fr)_minmax(9rem,0.4fr)_minmax(0,1fr)_minmax(9rem,0.4fr)_auto] xl:items-end"
+              <details
+                id="materials"
+                open={Boolean(materialsError) || undefined}
+                className="mt-5 border-t border-[color:var(--line)] pt-5"
               >
-                <input type="hidden" name="requestId" value={request.id} />
-                <label className="grid gap-2 text-sm font-medium text-[var(--foreground)]">
-                  Материалы / листы
-                  <Input
-                    name="material"
-                    defaultValue={request.material ?? ""}
-                    maxLength={500}
-                    required
-                    placeholder="МДФ 18 мм, Albero A-01"
+                <summary className="cursor-pointer text-sm font-semibold text-[var(--foreground)]">
+                  Изменить листы и кромку
+                </summary>
+                {materialsError ? (
+                  <p
+                    role="alert"
+                    className="mt-3 border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700"
+                  >
+                    {materialsError}
+                  </p>
+                ) : null}
+                <form
+                  action={updateRequestCuttingDetailsAction}
+                  className="mt-4 grid gap-4"
+                >
+                  <input type="hidden" name="requestId" value={request.id} />
+                  <MaterialLinesEditor
+                    initialLines={materialLines}
+                    legacyMaterial={request.material}
+                    legacyEdge={request.edgeOption}
+                    initialSheetCount={request.cuttingSheetCount}
+                    initialEdgeMeters={request.cuttingEdgeMeters}
                   />
-                </label>
-                <label className="grid gap-2 text-sm font-medium text-[var(--foreground)]">
-                  Количество листов
-                  <Input
-                    name="cuttingSheetCount"
-                    type="number"
-                    min={1}
-                    max={10000}
-                    step={1}
-                    inputMode="numeric"
-                    defaultValue={request.cuttingSheetCount ?? ""}
-                    placeholder="12"
-                  />
-                </label>
-                <label className="grid gap-2 text-sm font-medium text-[var(--foreground)]">
-                  Кромка
-                  <Input
-                    name="edgeOption"
-                    defaultValue={request.edgeOption ?? ""}
-                    maxLength={240}
-                    placeholder="Например: 0,8 × 22 мм, белая, код 101"
-                  />
-                </label>
-                <label className="grid gap-2 text-sm font-medium text-[var(--foreground)]">
-                  Кромка, пог. м
-                  <Input
-                    name="cuttingEdgeMeters"
-                    type="number"
-                    min={0}
-                    max={100000}
-                    step={0.1}
-                    inputMode="decimal"
-                    defaultValue={request.cuttingEdgeMeters ?? ""}
-                    placeholder="48,5"
-                  />
-                </label>
-                <AdminSubmitButton
-                  type="submit"
-                  variant="secondary"
-                  size="sm"
-                  idleLabel="Сохранить материалы"
-                  pendingLabel="Сохраняем..."
-                />
-              </form>
+                  <div>
+                    <AdminSubmitButton
+                      type="submit"
+                      variant="secondary"
+                      size="sm"
+                      idleLabel="Сохранить материалы"
+                      pendingLabel="Сохраняем..."
+                    />
+                  </div>
+                </form>
+              </details>
             ) : null}
 
             {request.message ? (

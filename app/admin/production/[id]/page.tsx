@@ -45,6 +45,8 @@ import {
 import { getOperationEvents } from "@/lib/server/operation-events";
 import { getOrdersForRequest } from "@/lib/server/order-inbox";
 import { getRequestDetailById } from "@/lib/server/request-inbox";
+import { MaterialLinesTable } from "@/components/cutting/material-lines-table";
+import { getRequestMaterialLines } from "@/lib/server/request-material-lines";
 import {
   reportCuttingProblemAction,
   resolveCuttingProblemAction,
@@ -174,11 +176,13 @@ export default async function ProductionRequestPage({
     `/login?next=/admin/production/${encodeURIComponent(id)}`,
     `/admin/production/${id}`,
   );
-  const [request, events, resolvedSearchParams] = await Promise.all([
-    getRequestDetailById(id),
-    getOperationEvents("request", id),
-    searchParams,
-  ]);
+  const [request, events, resolvedSearchParams, materialLines] =
+    await Promise.all([
+      getRequestDetailById(id),
+      getOperationEvents("request", id),
+      searchParams,
+      getRequestMaterialLines(id),
+    ]);
 
   if (!request || request.type !== RequestType.CUTTING_SERVICE) {
     notFound();
@@ -393,6 +397,12 @@ export default async function ProductionRequestPage({
             </p>
           </div>
         </div>
+
+        {materialLines.length ? (
+          <div className="mt-4 border-t border-[color:var(--line)] pt-4">
+            <MaterialLinesTable lines={materialLines} compact={operator} />
+          </div>
+        ) : null}
 
         {planning ? (
           <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-[color:var(--line)] pt-3 text-sm">
