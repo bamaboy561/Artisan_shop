@@ -188,7 +188,9 @@ export function canAccessAdminPath(roleCode: RoleCode, pathname: string) {
   // Доска распила и смены цеха только для тех, кто управляет производством.
   if (
     pathname === "/admin/production/board" ||
-    pathname === "/admin/production/shifts"
+    pathname === "/admin/production/shifts" ||
+    pathname === "/admin/production/machines" ||
+    pathname.startsWith("/admin/production/machines/")
   ) {
     return canManageProduction(roleCode);
   }

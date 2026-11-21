@@ -654,6 +654,29 @@ model ProductionShiftSetting {
   updatedAt DateTime @default(now())
 }
 
+// Файлы в сетевых папках станков (HOMAG, Excitech): наблюдатель на
+// компьютере цеха присылает список, появление файла — «передан на станок»,
+// исчезновение — «снят». Таблицу создаёт и lib/server/machine-folders.ts;
+// модель здесь, чтобы prisma db push её не удалял.
+model ProductionMachineFile {
+  id             String    @id
+  folderId       String
+  machine        String
+  fileName       String
+  fileSize       Int?
+  fileModifiedAt DateTime?
+  requestId      String?
+  requestNumber  String?
+  linkedManually Boolean   @default(false)
+  firstSeenAt    DateTime  @default(now())
+  lastSeenAt     DateTime  @default(now())
+  removedAt      DateTime?
+
+  @@index([folderId, removedAt])
+  @@index([requestId])
+  @@index([firstSeenAt])
+}
+
 model RequestFile {
   id                String          @id @default(cuid())
   requestId         String

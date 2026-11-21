@@ -1,5 +1,6 @@
 import Link from "next/link";
 import {
+  HardDrive,
   ArrowRight,
   ChevronLeft,
   ChevronRight,
@@ -437,7 +438,12 @@ export function ProductionQueueView({
 }
 
 export function WorkflowFlags({ workflow }: { workflow: CuttingWorkflowDto }) {
-  if (!workflow.isUrgent && !workflow.problemReason) return null;
+  if (
+    !workflow.isUrgent &&
+    !workflow.problemReason &&
+    !workflow.machines?.length
+  )
+    return null;
   return (
     <span className={styles.flags}>
       {workflow.isUrgent ? (
@@ -451,6 +457,11 @@ export function WorkflowFlags({ workflow }: { workflow: CuttingWorkflowDto }) {
           {cuttingProblemLabel(workflow.problemReason)}
         </span>
       ) : null}
+      {workflow.machines?.map((machine) => (
+        <span key={machine} className={styles.machineFlag}>
+          <HardDrive size={12} /> На станке: {machine}
+        </span>
+      ))}
     </span>
   );
 }
