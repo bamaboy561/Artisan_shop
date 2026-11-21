@@ -2,73 +2,97 @@
 
 import { useEffect, useState } from "react";
 
+import {
+  CABINET_KINDS,
+  type CabinetKind,
+} from "@/features/services/cabinet-builder";
 import { cn } from "@/lib/utils";
 import type {
   ConstructorDecor,
   ConstructorFittingProduct,
 } from "@/lib/server/constructor-decors";
 
+import { BlockIcon } from "./kitchen-blocks";
 import { FurnitureConstructor } from "./furniture-constructor";
 import { KitchenConstructor } from "./kitchen-constructor";
 
-type Tab = "cabinet" | "kitchen";
+type Product = "kitchen" | CabinetKind;
 
-const TABS: Array<{ id: Tab; label: string }> = [
-  { id: "cabinet", label: "Шкафы и тумбы" },
-  { id: "kitchen", label: "Кухня целиком" },
+// Что собираем — первое, что выбирает человек. Порядок: кухня, потом
+// отдельные корпуса. Ссылка /konstruktor#kupe сразу открывает купе.
+const PRODUCTS: Array<{ id: Product; label: string }> = [
+  { id: "kitchen", label: "Кухня" },
+  { id: "wardrobe", label: CABINET_KINDS.wardrobe.label },
+  { id: "kupe", label: CABINET_KINDS.kupe.label },
+  { id: "base", label: CABINET_KINDS.base.label },
+  { id: "wall", label: CABINET_KINDS.wall.label },
 ];
 
-// Вкладки конструктора: отдельный корпус или вся кухня. Ссылка
-// /konstruktor#kitchen открывает кухню.
+const isProduct = (value: string): value is Product =>
+  PRODUCTS.some((item) => item.id === value);
+
+function ProductIcon({ id }: { id: Product }) {
+  const icon =
+    id === "kitchen"
+      ? { row: "base" as const, type: "sink" }
+      : id === "base"
+        ? { row: "base" as const, type: "drawers" }
+        : id === "wall"
+          ? { row: "top" as const, type: "doors" }
+          : { row: "base" as const, type: "tallPantry" };
+  return <BlockIcon row={icon.row} type={icon.type} className="size-7" />;
+}
+
+// Один конструктор: выбор изделия сверху, дальше шаги справа и 3D слева.
 export function ConstructorTabs(props: {
   decors: ConstructorDecor[];
   fittingProducts: ConstructorFittingProduct[];
 }) {
-  const [tab, setTab] = useState<Tab>("cabinet");
+  const [product, setProduct] = useState<Product>("wardrobe");
   useEffect(() => {
-    const fromHash = () =>
-      setTab(window.location.hash === "#kitchen" ? "kitchen" : "cabinet");
+    const fromHash = () => {
+      const hash = window.location.hash.slice(1);
+      setProduct(isProduct(hash) ? hash : "wardrobe");
+    };
     fromHash();
     window.addEventListener("hashchange", fromHash);
     return () => window.removeEventListener("hashchange", fromHash);
   }, []);
-  const choose = (next: Tab) => {
-    setTab(next);
-    window.history.replaceState(
-      null,
-      "",
-      next === "kitchen" ? "#kitchen" : window.location.pathname,
-    );
+  const choose = (next: Product) => {
+    setProduct(next);
+    window.history.replaceState(null, "", `#${next}`);
   };
 
   return (
     <div className="grid gap-5">
       <div
         role="tablist"
-        className="inline-flex w-fit rounded-full border border-[color:var(--line)] bg-[var(--surface-strong)] p-1"
+        aria-label="Что собираем"
+        className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0"
       >
-        {TABS.map((item) => (
+        {PRODUCTS.map((item) => (
           <button
             key={item.id}
             type="button"
             role="tab"
-            aria-selected={tab === item.id}
+            aria-selected={product === item.id}
             onClick={() => choose(item.id)}
             className={cn(
-              "rounded-full px-5 py-2 text-[14px] font-semibold",
-              tab === item.id
-                ? "bg-[var(--foreground)] text-[var(--surface)]"
-                : "text-[var(--muted)] hover:text-[var(--foreground)]",
+              "inline-flex h-12 shrink-0 items-center gap-2 rounded-2xl border px-4 text-[14px] font-semibold",
+              product === item.id
+                ? "border-[var(--foreground)] bg-[var(--foreground)] text-[var(--surface)] [&_svg]:text-[var(--surface)]"
+                : "border-[color:var(--line)] bg-[var(--surface-strong)] text-[var(--foreground)] hover:border-[var(--foreground)]",
             )}
           >
+            <ProductIcon id={item.id} />
             {item.label}
           </button>
         ))}
       </div>
-      {tab === "kitchen" ? (
+      {product === "kitchen" ? (
         <KitchenConstructor {...props} />
       ) : (
-        <FurnitureConstructor {...props} />
+        <FurnitureConstructor key={product} {...props} kind={product} />
       )}
     </div>
   );

@@ -12,7 +12,6 @@ import {
   ListOrdered,
   Scissors,
   Search,
-  Tag,
 } from "lucide-react";
 
 import { guessDecorColor } from "@/features/bazis/decor-color";
@@ -56,6 +55,7 @@ import type {
 } from "@/lib/server/constructor-decors";
 
 import { cabinetAssembly, cabinetFittings, partKind } from "./assembly";
+import { ConstructorStep } from "./constructor-step";
 import {
   AssemblyStepCard,
   FittingsPanel,
@@ -284,13 +284,17 @@ export function sendToCalculator(
 export function FurnitureConstructor({
   decors,
   fittingProducts,
+  kind,
 }: {
   decors: ConstructorDecor[];
   fittingProducts: ConstructorFittingProduct[];
+  // Что собираем: выбирается над конструктором, при смене он
+  // собирается заново с размерами по умолчанию.
+  kind: CabinetKind;
 }) {
   const [spec, setSpec] = useState<CabinetSpec>({
-    kind: "wardrobe",
-    ...CABINET_KINDS.wardrobe.defaults,
+    kind,
+    ...CABINET_KINDS[kind].defaults,
   });
   const defaultDecor =
     decors.find((decor) => /бел/i.test(decor.name) && decor.thickness === 16) ??
@@ -451,7 +455,6 @@ export function FurnitureConstructor({
     [spec, result, fittings],
   );
   // Шаг инструкции сборки; null — обычный просмотр.
-  const [labels, setLabels] = useState(true);
   const sceneApi = useRef<FurnitureSceneApi | null>(null);
   const currentStep = step !== null ? steps[step] : null;
   const stepView = useMemo(() => {
@@ -490,6 +493,15 @@ export function FurnitureConstructor({
     0,
   );
   const partCount = result.parts.reduce((sum, part) => sum + part.quantity, 0);
+  const fillingSummary = isKupe
+    ? `${kupeDoorCount(spec)} двери, секций ${kupeSections(spec).length}`
+    : [
+        spec.shelves ? `полок ${spec.shelves}` : "",
+        spec.doors ? `дверей ${spec.doors}` : "без дверей",
+        spec.kind !== "wall" && spec.drawers ? `ящиков ${spec.drawers}` : "",
+      ]
+        .filter(Boolean)
+        .join(", ");
 
   const set = (patch: Partial<CabinetSpec>) =>
     setSpec((current) => ({ ...current, ...patch }));
@@ -627,7 +639,7 @@ export function FurnitureConstructor({
           <FurnitureScene
             boxes={stepView.boxes}
             highlight={stepView.highlight}
-            labels={labels}
+            labels={false}
             apiRef={sceneApi}
             onBoxClick={step === null && isKupe ? clickBox : undefined}
             hint={
@@ -667,19 +679,6 @@ export function FurnitureConstructor({
             )}
             {shownOpen ? "Закрыть двери" : "Открыть двери"}
           </button>
-          <button
-            type="button"
-            onClick={() => setLabels((current) => !current)}
-            className={cn(
-              "inline-flex h-9 items-center gap-2 rounded-full border px-4 text-[13px] font-medium",
-              labels
-                ? "border-[var(--foreground)]"
-                : "border-[color:var(--line)]",
-            )}
-          >
-            <Tag className="size-4" />
-            {labels ? "Скрыть подписи" : "Подписи деталей"}
-          </button>
           {step === null ? (
             <button
               type="button"
@@ -705,412 +704,424 @@ export function FurnitureConstructor({
       </div>
 
       <div className="grid min-w-0 content-start gap-4">
-        <div className="flex flex-wrap gap-2">
-          {(Object.keys(CABINET_KINDS) as CabinetKind[]).map((kind) => (
-            <button
-              key={kind}
-              type="button"
-              onClick={() =>
-                setSpec((current) => ({
-                  kind,
-                  ...CABINET_KINDS[kind].defaults,
-                  joint: current.joint,
-                  led: kind === "kupe" ? "none" : current.led,
-                }))
-              }
-              className={cn(
-                "rounded-full border px-4 py-2 text-[14px]",
-                spec.kind === kind
-                  ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-ink)]"
-                  : "border-[color:var(--line)] hover:border-[var(--foreground)]",
-              )}
-            >
-              {CABINET_KINDS[kind].label}
-            </button>
-          ))}
-        </div>
+        <ConstructorStep
+          index={1}
+          title="Размеры"
+          summary={`${spec.width} × ${spec.height} × ${spec.depth} мм`}
+          defaultOpen
+        >
+          <label className="grid gap-1 text-[12px] text-[var(--muted)]">
+            Название
+            <input
+              className={inputClass}
+              value={spec.name}
+              onChange={(event) => set({ name: event.target.value })}
+            />
+          </label>
+          <div className="grid grid-cols-3 gap-2">
+            <Field
+              label="Ширина, мм"
+              value={spec.width}
+              onChange={(width) => set({ width })}
+            />
+            <Field
+              label="Высота, мм"
+              value={spec.height}
+              onChange={(height) => set({ height })}
+            />
+            <Field
+              label="Глубина, мм"
+              value={spec.depth}
+              onChange={(depth) => set({ depth })}
+            />
+            <Field
+              label="Цоколь, мм"
+              value={spec.plinth}
+              onChange={(plinth) => set({ plinth })}
+            />
+          </div>
+        </ConstructorStep>
 
-        <label className="grid gap-1 text-[12px] text-[var(--muted)]">
-          Название
-          <input
-            className={inputClass}
-            value={spec.name}
-            onChange={(event) => set({ name: event.target.value })}
-          />
-        </label>
-        <div className="grid grid-cols-3 gap-2">
-          <Field
-            label="Ширина, мм"
-            value={spec.width}
-            onChange={(width) => set({ width })}
-          />
-          <Field
-            label="Высота, мм"
-            value={spec.height}
-            onChange={(height) => set({ height })}
-          />
-          <Field
-            label="Глубина, мм"
-            value={spec.depth}
-            onChange={(depth) => set({ depth })}
-          />
-          <Field
-            label="Цоколь, мм"
-            value={spec.plinth}
-            onChange={(plinth) => set({ plinth })}
-          />
-          {isKupe ? (
-            <label className="grid gap-1 text-[12px] text-[var(--muted)]">
-              Дверей-купе
-              <select
-                className={inputClass}
-                value={kupeDoorCount(spec)}
-                onChange={(event) =>
-                  set({
-                    slidingDoors: Number(event.target.value) as 2 | 3 | 4,
-                    sections,
-                  })
-                }
-              >
-                <option value={2}>2</option>
-                <option value={3}>3</option>
-                <option value={4}>4</option>
-              </select>
-            </label>
-          ) : null}
-          {isKupe ? (
-            <label className="grid gap-1 text-[12px] text-[var(--muted)]">
-              Секций
-              <select
-                className={inputClass}
-                value={sections.length}
-                onChange={(event) => {
-                  const count = Number(event.target.value);
-                  set({
-                    sections: Array.from(
-                      { length: count },
-                      (_, index) =>
-                        sections[index] ?? {
-                          zones: KUPE_SECTION_TEMPLATES[0].zones.map(
-                            (zone) => ({ ...zone }),
-                          ),
-                        },
-                    ),
-                  });
-                }}
-              >
-                {[1, 2, 3, 4, 5].map((count) => (
-                  <option key={count} value={count}>
-                    {count}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : null}
-          {isKupe ? null : (
-            <>
-              <Field
-                label="Полок, шт."
-                value={spec.shelves}
-                onChange={(shelves) => set({ shelves })}
-              />
+        <ConstructorStep index={2} title="Наполнение" summary={fillingSummary}>
+          <div className="grid grid-cols-3 gap-2">
+            {isKupe ? (
               <label className="grid gap-1 text-[12px] text-[var(--muted)]">
-                Дверей
+                Дверей-купе
                 <select
                   className={inputClass}
-                  value={spec.doors}
+                  value={kupeDoorCount(spec)}
                   onChange={(event) =>
-                    set({ doors: Number(event.target.value) as 0 | 1 | 2 })
+                    set({
+                      slidingDoors: Number(event.target.value) as 2 | 3 | 4,
+                      sections,
+                    })
                   }
                 >
-                  <option value={0}>без дверей</option>
-                  <option value={1}>1</option>
                   <option value={2}>2</option>
+                  <option value={3}>3</option>
+                  <option value={4}>4</option>
                 </select>
               </label>
-              {spec.kind !== "wall" ? (
+            ) : null}
+            {isKupe ? (
+              <label className="grid gap-1 text-[12px] text-[var(--muted)]">
+                Секций
+                <select
+                  className={inputClass}
+                  value={sections.length}
+                  onChange={(event) => {
+                    const count = Number(event.target.value);
+                    set({
+                      sections: Array.from(
+                        { length: count },
+                        (_, index) =>
+                          sections[index] ?? {
+                            zones: KUPE_SECTION_TEMPLATES[0].zones.map(
+                              (zone) => ({ ...zone }),
+                            ),
+                          },
+                      ),
+                    });
+                  }}
+                >
+                  {[1, 2, 3, 4, 5].map((count) => (
+                    <option key={count} value={count}>
+                      {count}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+            {isKupe ? null : (
+              <>
+                <Field
+                  label="Полок, шт."
+                  value={spec.shelves}
+                  onChange={(shelves) => set({ shelves })}
+                />
                 <label className="grid gap-1 text-[12px] text-[var(--muted)]">
-                  Ящиков
+                  Дверей
                   <select
                     className={inputClass}
-                    value={spec.drawers ?? 0}
+                    value={spec.doors}
                     onChange={(event) =>
-                      set({ drawers: Number(event.target.value) })
+                      set({ doors: Number(event.target.value) as 0 | 1 | 2 })
                     }
                   >
-                    {[0, 1, 2, 3, 4, 5].map((count) => (
-                      <option key={count} value={count}>
-                        {count === 0 ? "без ящиков" : count}
-                      </option>
-                    ))}
+                    <option value={0}>без дверей</option>
+                    <option value={1}>1</option>
+                    <option value={2}>2</option>
                   </select>
                 </label>
-              ) : null}
-            </>
-          )}
-        </div>
-        {isKupe ? (
-          <div className="grid gap-2">
+                {spec.kind !== "wall" ? (
+                  <label className="grid gap-1 text-[12px] text-[var(--muted)]">
+                    Ящиков
+                    <select
+                      className={inputClass}
+                      value={spec.drawers ?? 0}
+                      onChange={(event) =>
+                        set({ drawers: Number(event.target.value) })
+                      }
+                    >
+                      {[0, 1, 2, 3, 4, 5].map((count) => (
+                        <option key={count} value={count}>
+                          {count === 0 ? "без ящиков" : count}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : null}
+              </>
+            )}
+          </div>
+          {isKupe ? (
+            <div className="grid gap-2">
+              <label className="grid gap-1 text-[12px] text-[var(--muted)]">
+                Готовая схема шкафа
+                <select
+                  className={inputClass}
+                  value=""
+                  onChange={(event) => {
+                    const scheme = KUPE_SCHEMES[Number(event.target.value)];
+                    if (!scheme) return;
+                    set({
+                      sections: kupeSchemeSections(
+                        scheme,
+                        spec.width,
+                        thickness,
+                      ),
+                    });
+                  }}
+                >
+                  <option value="">Выберите схему — заменит секции</option>
+                  {KUPE_SCHEMES.map((scheme, index) => (
+                    <option key={scheme.label} value={index}>
+                      {scheme.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {sections.map((section, index) => {
+                const built = result.kupe?.sections[index];
+                const zones = section.zones ?? [];
+                const template = KUPE_SECTION_TEMPLATES.findIndex(
+                  (entry) =>
+                    JSON.stringify(entry.zones) === JSON.stringify(zones),
+                );
+                const setZones = (next: KupeZone[]) =>
+                  setSection(index, { zones: next });
+                const setZone = (at: number, patch: Partial<KupeZone>) =>
+                  setZones(
+                    zones.map((zone, place) =>
+                      place === at ? { ...zone, ...patch } : zone,
+                    ),
+                  );
+                const moveZone = (at: number, by: number) => {
+                  const next = [...zones];
+                  const [zone] = next.splice(at, 1);
+                  next.splice(at + by, 0, zone);
+                  setZones(next);
+                };
+                return (
+                  <div
+                    key={index}
+                    className="grid gap-2 rounded-xl border border-[color:var(--line)] p-2"
+                  >
+                    <div className="grid grid-cols-3 items-end gap-2">
+                      <label className="col-span-2 grid gap-1 text-[12px] text-[var(--muted)]">
+                        Секция {index + 1}: наполнение
+                        <select
+                          className={inputClass}
+                          value={template}
+                          onChange={(event) => {
+                            const entry =
+                              KUPE_SECTION_TEMPLATES[
+                                Number(event.target.value)
+                              ];
+                            if (entry) {
+                              setZones(
+                                entry.zones.map((zone) => ({ ...zone })),
+                              );
+                            }
+                          }}
+                        >
+                          <option value={-1}>Своё (зоны ниже)</option>
+                          {KUPE_SECTION_TEMPLATES.map((entry, at) => (
+                            <option key={entry.label} value={at}>
+                              {entry.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <Field
+                        label={`Ширина${section.width ? "" : ` (${Math.round(built?.width ?? 0)})`}`}
+                        value={section.width ?? 0}
+                        onChange={(width) => setSection(index, { width })}
+                      />
+                    </div>
+                    <p className="text-[11px] leading-4 text-[var(--muted)]">
+                      Зоны сверху вниз, между зонами полка. Высота 0 — поровну.
+                    </p>
+                    {zones.map((zone, at) => {
+                      const limits = ZONE_KINDS[zone.kind].count;
+                      const placed = built?.zones[at];
+                      return (
+                        <div
+                          key={at}
+                          className="grid grid-cols-[1fr_4.5rem_4.5rem_auto] items-end gap-1.5"
+                        >
+                          <label className="grid gap-1 text-[12px] text-[var(--muted)]">
+                            {at + 1}.
+                            <select
+                              className={inputClass}
+                              value={zone.kind}
+                              onChange={(event) => {
+                                const kind = event.target.value as ZoneKind;
+                                setZone(at, {
+                                  kind,
+                                  count: ZONE_KINDS[kind].count?.default,
+                                  height: kind === "antresol" ? 400 : 0,
+                                });
+                              }}
+                            >
+                              {(Object.keys(ZONE_KINDS) as ZoneKind[]).map(
+                                (kind) => (
+                                  <option key={kind} value={kind}>
+                                    {ZONE_KINDS[kind].label}
+                                  </option>
+                                ),
+                              )}
+                            </select>
+                          </label>
+                          {limits ? (
+                            <label className="grid gap-1 text-[12px] text-[var(--muted)]">
+                              Шт.
+                              <select
+                                className={inputClass}
+                                value={zone.count ?? limits.default}
+                                onChange={(event) =>
+                                  setZone(at, {
+                                    count: Number(event.target.value),
+                                  })
+                                }
+                              >
+                                {Array.from(
+                                  { length: limits.max - limits.min + 1 },
+                                  (_, step) => limits.min + step,
+                                ).map((count) => (
+                                  <option key={count} value={count}>
+                                    {count}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                          ) : (
+                            <span />
+                          )}
+                          <Field
+                            label={`Выс.${zone.height ? "" : ` ${Math.round(placed?.height ?? 0)}`}`}
+                            value={zone.height ?? 0}
+                            onChange={(height) => setZone(at, { height })}
+                          />
+                          <div className="flex gap-0.5 pb-1">
+                            <button
+                              type="button"
+                              aria-label="Выше"
+                              disabled={at === 0}
+                              onClick={() => moveZone(at, -1)}
+                              className="grid size-7 place-items-center rounded-full border border-[color:var(--line)] disabled:opacity-30"
+                            >
+                              <ArrowUp className="size-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              aria-label="Ниже"
+                              disabled={at === zones.length - 1}
+                              onClick={() => moveZone(at, 1)}
+                              className="grid size-7 place-items-center rounded-full border border-[color:var(--line)] disabled:opacity-30"
+                            >
+                              <ArrowDown className="size-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              aria-label="Убрать зону"
+                              disabled={zones.length === 1}
+                              onClick={() =>
+                                setZones(
+                                  zones.filter((_, place) => place !== at),
+                                )
+                              }
+                              className="grid size-7 place-items-center rounded-full border border-[color:var(--line)] disabled:opacity-30"
+                            >
+                              <X className="size-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {zones.length < 8 ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setZones([
+                            ...zones,
+                            { kind: "shelves", count: 1, height: 0 },
+                          ])
+                        }
+                        className="inline-flex h-8 w-fit items-center gap-1.5 rounded-full border border-[color:var(--line)] px-3 text-[12px] font-medium"
+                      >
+                        <Plus className="size-3.5" />
+                        Добавить зону
+                      </button>
+                    ) : null}
+                  </div>
+                );
+              })}
+              <p className="text-[11px] leading-4 text-[var(--muted)]">
+                Ширина секции 0 — секции делят остаток поровну.
+              </p>
+              <p className="text-[11px] leading-4 text-[var(--muted)]">
+                Двери-купе Hettich TopLine L перед корпусом:{" "}
+                {result.kupe
+                  ? `${sizeFormatter.format(result.kupe.doors.height)} × ${sizeFormatter.format(result.kupe.doors.width)} мм`
+                  : ""}
+                , перехлёст {KUPE_OVERLAP} мм: верх на {KUPE_DOOR_OVER_ROOF} мм
+                выше крыши, низ в {KUPE_DOOR_FLOOR_GAP} мм от пола, цоколь
+                отступает на {KUPE_PLINTH_SETBACK} мм под нижнюю направляющую.
+                Ящики с вкладными фасадами, направляющие{" "}
+                {result.drawers?.slide || "—"} мм.
+              </p>
+            </div>
+          ) : null}
+          {(spec.drawers ?? 0) > 0 && spec.kind !== "wall" && !isKupe ? (
+            <p className="-mt-2 text-[11px] leading-4 text-[var(--muted)]">
+              {spec.kind === "base" && spec.doors === 0
+                ? "Фасады ящиков на всю высоту тумбы."
+                : "Ящики внизу под накладными фасадами по 180 мм, над ними полка и двери."}{" "}
+              Направляющие шариковые {result.drawers?.slide || "—"} мм.
+            </p>
+          ) : null}
+          {isKupe ? null : (
             <label className="grid gap-1 text-[12px] text-[var(--muted)]">
-              Готовая схема шкафа
+              Подсветка (паз под LED-профиль 10×10)
               <select
                 className={inputClass}
-                value=""
-                onChange={(event) => {
-                  const scheme = KUPE_SCHEMES[Number(event.target.value)];
-                  if (!scheme) return;
-                  set({
-                    sections: kupeSchemeSections(scheme, spec.width, thickness),
-                  });
-                }}
+                value={spec.led ?? "none"}
+                onChange={(event) =>
+                  set({ led: event.target.value as CabinetLed })
+                }
               >
-                <option value="">Выберите схему — заменит секции</option>
-                {KUPE_SCHEMES.map((scheme, index) => (
-                  <option key={scheme.label} value={index}>
-                    {scheme.label}
+                {(Object.keys(CABINET_LEDS) as CabinetLed[]).map((led) => (
+                  <option key={led} value={led}>
+                    {CABINET_LEDS[led].label}
                   </option>
                 ))}
               </select>
+              {CABINET_LEDS[spec.led ?? "none"].hint ? (
+                <span className="text-[11px] leading-4">
+                  {CABINET_LEDS[spec.led ?? "none"].hint}
+                </span>
+              ) : null}
             </label>
-            {sections.map((section, index) => {
-              const built = result.kupe?.sections[index];
-              const zones = section.zones ?? [];
-              const template = KUPE_SECTION_TEMPLATES.findIndex(
-                (entry) =>
-                  JSON.stringify(entry.zones) === JSON.stringify(zones),
-              );
-              const setZones = (next: KupeZone[]) =>
-                setSection(index, { zones: next });
-              const setZone = (at: number, patch: Partial<KupeZone>) =>
-                setZones(
-                  zones.map((zone, place) =>
-                    place === at ? { ...zone, ...patch } : zone,
-                  ),
-                );
-              const moveZone = (at: number, by: number) => {
-                const next = [...zones];
-                const [zone] = next.splice(at, 1);
-                next.splice(at + by, 0, zone);
-                setZones(next);
-              };
-              return (
-                <div
-                  key={index}
-                  className="grid gap-2 rounded-xl border border-[color:var(--line)] p-2"
-                >
-                  <div className="grid grid-cols-3 items-end gap-2">
-                    <label className="col-span-2 grid gap-1 text-[12px] text-[var(--muted)]">
-                      Секция {index + 1}: наполнение
-                      <select
-                        className={inputClass}
-                        value={template}
-                        onChange={(event) => {
-                          const entry =
-                            KUPE_SECTION_TEMPLATES[Number(event.target.value)];
-                          if (entry) {
-                            setZones(entry.zones.map((zone) => ({ ...zone })));
-                          }
-                        }}
-                      >
-                        <option value={-1}>Своё (зоны ниже)</option>
-                        {KUPE_SECTION_TEMPLATES.map((entry, at) => (
-                          <option key={entry.label} value={at}>
-                            {entry.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <Field
-                      label={`Ширина${section.width ? "" : ` (${Math.round(built?.width ?? 0)})`}`}
-                      value={section.width ?? 0}
-                      onChange={(width) => setSection(index, { width })}
-                    />
-                  </div>
-                  <p className="text-[11px] leading-4 text-[var(--muted)]">
-                    Зоны сверху вниз, между зонами полка. Высота 0 — поровну.
-                  </p>
-                  {zones.map((zone, at) => {
-                    const limits = ZONE_KINDS[zone.kind].count;
-                    const placed = built?.zones[at];
-                    return (
-                      <div
-                        key={at}
-                        className="grid grid-cols-[1fr_4.5rem_4.5rem_auto] items-end gap-1.5"
-                      >
-                        <label className="grid gap-1 text-[12px] text-[var(--muted)]">
-                          {at + 1}.
-                          <select
-                            className={inputClass}
-                            value={zone.kind}
-                            onChange={(event) => {
-                              const kind = event.target.value as ZoneKind;
-                              setZone(at, {
-                                kind,
-                                count: ZONE_KINDS[kind].count?.default,
-                                height: kind === "antresol" ? 400 : 0,
-                              });
-                            }}
-                          >
-                            {(Object.keys(ZONE_KINDS) as ZoneKind[]).map(
-                              (kind) => (
-                                <option key={kind} value={kind}>
-                                  {ZONE_KINDS[kind].label}
-                                </option>
-                              ),
-                            )}
-                          </select>
-                        </label>
-                        {limits ? (
-                          <label className="grid gap-1 text-[12px] text-[var(--muted)]">
-                            Шт.
-                            <select
-                              className={inputClass}
-                              value={zone.count ?? limits.default}
-                              onChange={(event) =>
-                                setZone(at, {
-                                  count: Number(event.target.value),
-                                })
-                              }
-                            >
-                              {Array.from(
-                                { length: limits.max - limits.min + 1 },
-                                (_, step) => limits.min + step,
-                              ).map((count) => (
-                                <option key={count} value={count}>
-                                  {count}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-                        ) : (
-                          <span />
-                        )}
-                        <Field
-                          label={`Выс.${zone.height ? "" : ` ${Math.round(placed?.height ?? 0)}`}`}
-                          value={zone.height ?? 0}
-                          onChange={(height) => setZone(at, { height })}
-                        />
-                        <div className="flex gap-0.5 pb-1">
-                          <button
-                            type="button"
-                            aria-label="Выше"
-                            disabled={at === 0}
-                            onClick={() => moveZone(at, -1)}
-                            className="grid size-7 place-items-center rounded-full border border-[color:var(--line)] disabled:opacity-30"
-                          >
-                            <ArrowUp className="size-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            aria-label="Ниже"
-                            disabled={at === zones.length - 1}
-                            onClick={() => moveZone(at, 1)}
-                            className="grid size-7 place-items-center rounded-full border border-[color:var(--line)] disabled:opacity-30"
-                          >
-                            <ArrowDown className="size-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            aria-label="Убрать зону"
-                            disabled={zones.length === 1}
-                            onClick={() =>
-                              setZones(zones.filter((_, place) => place !== at))
-                            }
-                            className="grid size-7 place-items-center rounded-full border border-[color:var(--line)] disabled:opacity-30"
-                          >
-                            <X className="size-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                  {zones.length < 8 ? (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setZones([
-                          ...zones,
-                          { kind: "shelves", count: 1, height: 0 },
-                        ])
-                      }
-                      className="inline-flex h-8 w-fit items-center gap-1.5 rounded-full border border-[color:var(--line)] px-3 text-[12px] font-medium"
-                    >
-                      <Plus className="size-3.5" />
-                      Добавить зону
-                    </button>
-                  ) : null}
-                </div>
-              );
-            })}
-            <p className="text-[11px] leading-4 text-[var(--muted)]">
-              Ширина секции 0 — секции делят остаток поровну.
-            </p>
-            <p className="text-[11px] leading-4 text-[var(--muted)]">
-              Двери-купе Hettich TopLine L перед корпусом:{" "}
-              {result.kupe
-                ? `${sizeFormatter.format(result.kupe.doors.height)} × ${sizeFormatter.format(result.kupe.doors.width)} мм`
-                : ""}
-              , перехлёст {KUPE_OVERLAP} мм: верх на {KUPE_DOOR_OVER_ROOF} мм
-              выше крыши, низ в {KUPE_DOOR_FLOOR_GAP} мм от пола, цоколь
-              отступает на {KUPE_PLINTH_SETBACK} мм под нижнюю направляющую.
-              Ящики с вкладными фасадами, направляющие{" "}
-              {result.drawers?.slide || "—"} мм.
-            </p>
-          </div>
-        ) : null}
-        {(spec.drawers ?? 0) > 0 && spec.kind !== "wall" && !isKupe ? (
-          <p className="-mt-2 text-[11px] leading-4 text-[var(--muted)]">
-            {spec.kind === "base" && spec.doors === 0
-              ? "Фасады ящиков на всю высоту тумбы."
-              : "Ящики внизу под накладными фасадами по 180 мм, над ними полка и двери."}{" "}
-            Направляющие шариковые {result.drawers?.slide || "—"} мм.
-          </p>
-        ) : null}
-        <label className="grid gap-1 text-[12px] text-[var(--muted)]">
-          Соединение корпуса
-          <select
-            className={inputClass}
-            value={spec.joint ?? "minifix"}
-            onChange={(event) =>
-              set({ joint: event.target.value as CabinetJoint })
-            }
-          >
-            {(Object.keys(CABINET_JOINTS) as CabinetJoint[]).map((joint) => (
-              <option key={joint} value={joint}>
-                {CABINET_JOINTS[joint].label}
-              </option>
-            ))}
-          </select>
-          <span className="text-[11px] leading-4">
-            {CABINET_JOINTS[spec.joint ?? "minifix"].hint}
-          </span>
-        </label>
-        {isKupe ? null : (
+          )}
+        </ConstructorStep>
+
+        <ConstructorStep
+          index={3}
+          title="Фурнитура"
+          summary={CABINET_JOINTS[spec.joint ?? "minifix"].label}
+        >
           <label className="grid gap-1 text-[12px] text-[var(--muted)]">
-            Подсветка (паз под LED-профиль 10×10)
+            Соединение корпуса
             <select
               className={inputClass}
-              value={spec.led ?? "none"}
+              value={spec.joint ?? "minifix"}
               onChange={(event) =>
-                set({ led: event.target.value as CabinetLed })
+                set({ joint: event.target.value as CabinetJoint })
               }
             >
-              {(Object.keys(CABINET_LEDS) as CabinetLed[]).map((led) => (
-                <option key={led} value={led}>
-                  {CABINET_LEDS[led].label}
+              {(Object.keys(CABINET_JOINTS) as CabinetJoint[]).map((joint) => (
+                <option key={joint} value={joint}>
+                  {CABINET_JOINTS[joint].label}
                 </option>
               ))}
             </select>
-            {CABINET_LEDS[spec.led ?? "none"].hint ? (
-              <span className="text-[11px] leading-4">
-                {CABINET_LEDS[spec.led ?? "none"].hint}
-              </span>
-            ) : null}
+            <span className="text-[11px] leading-4">
+              {CABINET_JOINTS[spec.joint ?? "minifix"].hint}
+            </span>
           </label>
-        )}
+        </ConstructorStep>
 
         {decors.length > 0 ? (
-          <>
+          <ConstructorStep
+            index={4}
+            title="Декор"
+            summary={
+              sameDecor
+                ? bodyDecor?.name
+                : `${bodyDecor?.name ?? ""} + ${facadeDecor?.name ?? ""}`
+            }
+          >
             <DecorPicker
               title="Декор корпуса"
               decors={decors}
@@ -1133,7 +1144,7 @@ export function FurnitureConstructor({
                 onChange={setFacadeId}
               />
             ) : null}
-          </>
+          </ConstructorStep>
         ) : null}
 
         {result.problems.length > 0 ? (
@@ -1142,156 +1153,161 @@ export function FurnitureConstructor({
           </p>
         ) : null}
 
-        <div className="grid grid-cols-3 gap-2 text-center">
-          {[
-            {
-              label: "Габариты",
-              value: `${spec.width}×${spec.height}×${spec.depth}`,
-            },
-            { label: "Деталей", value: String(partCount) },
-            { label: "Отверстий", value: String(holes) },
-          ].map((item) => (
-            <div
-              key={item.label}
-              className="rounded-xl border border-[color:var(--line)] p-3"
-            >
-              <p className="text-[11px] text-[var(--muted)]">{item.label}</p>
-              <p className="mt-1 text-sm font-semibold">{item.value}</p>
-            </div>
-          ))}
-        </div>
-
-        <details
-          className="rounded-xl border border-[color:var(--line)] p-3"
-          open
+        <ConstructorStep
+          index={decors.length > 0 ? 5 : 4}
+          title="Итог и распил"
+          summary={`${partCount} деталей`}
+          defaultOpen
         >
-          <summary className="cursor-pointer text-sm font-semibold">
-            Детали
-          </summary>
-          <table className="mt-2 w-full text-[13px]">
-            <thead className="text-left text-[11px] text-[var(--muted)]">
-              <tr>
-                <th className="py-1 font-normal">Деталь</th>
-                <th className="py-1 font-normal">Размер, мм</th>
-                <th className="py-1 font-normal">Кромка</th>
-                <th className="py-1 text-right font-normal">Шт.</th>
-              </tr>
-            </thead>
-            <tbody>
-              {result.parts.map((part) => (
-                <tr
-                  key={part.title}
-                  className="border-t border-[color:var(--line)]"
-                >
-                  <td className="py-1.5 pr-2">
-                    {partLabel(part.title)}
-                    {isDoor(part) && !sameDecor ? (
-                      <span className="text-[var(--muted)]"> · фасад</span>
-                    ) : null}
-                    {part.milling ? (
-                      <span className="block text-[11px] text-[var(--muted)]">
-                        {grooveNote(part)}
-                      </span>
-                    ) : null}
-                  </td>
-                  <td className="py-1.5 whitespace-nowrap tabular-nums">
-                    {sizeFormatter.format(part.length)} ×{" "}
-                    {sizeFormatter.format(part.width)}
-                  </td>
-                  <td className="py-1.5 pr-2 text-[12px] leading-4">
-                    {edgeDescription(part.edgedSides)}
-                  </td>
-                  <td className="py-1.5 text-right tabular-nums">
-                    {part.quantity}
-                  </td>
-                </tr>
-              ))}
-              {result.back ? (
-                <tr className="border-t border-[color:var(--line)] text-[var(--muted)]">
-                  <td className="py-1.5 pr-2">Задняя стенка, ХДФ</td>
-                  <td className="py-1.5 whitespace-nowrap tabular-nums">
-                    {sizeFormatter.format(result.back.length)} ×{" "}
-                    {sizeFormatter.format(result.back.width)}
-                  </td>
-                  <td className="py-1.5 pr-2 text-[12px]">без кромки</td>
-                  <td className="py-1.5 text-right">1</td>
-                </tr>
-              ) : null}
-              {drawerBottoms.map((bottom, index) => (
-                <tr
-                  key={`bottom-${index}`}
-                  className="border-t border-[color:var(--line)] text-[var(--muted)]"
-                >
-                  <td className="py-1.5 pr-2">Дно ящика, ХДФ</td>
-                  <td className="py-1.5 whitespace-nowrap tabular-nums">
-                    {sizeFormatter.format(bottom.length)} ×{" "}
-                    {sizeFormatter.format(bottom.width)}
-                  </td>
-                  <td className="py-1.5 pr-2 text-[12px]">без кромки</td>
-                  <td className="py-1.5 text-right">{bottom.count}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <p className="mt-2 text-[12px] leading-5 text-[var(--muted)]">
-            Размер: длина (вдоль текстуры) × ширина. Кромка уже стоит в раскрое.
-            Присадка тоже готова: крепёж корпуса и коробов ящиков, евровинты
-            цоколя, полкодержатели, петли и планки петель. Пазы под подсветку
-            уходят в программу станка фрезеровкой.
-          </p>
-        </details>
+          <div className="grid grid-cols-3 gap-2 text-center">
+            {[
+              {
+                label: "Габариты",
+                value: `${spec.width}×${spec.height}×${spec.depth}`,
+              },
+              { label: "Деталей", value: String(partCount) },
+              { label: "Отверстий", value: String(holes) },
+            ].map((item) => (
+              <div
+                key={item.label}
+                className="rounded-xl border border-[color:var(--line)] p-3"
+              >
+                <p className="text-[11px] text-[var(--muted)]">{item.label}</p>
+                <p className="mt-1 text-sm font-semibold">{item.value}</p>
+              </div>
+            ))}
+          </div>
 
-        {fittings.length > 0 ? (
-          <FittingsPanel lines={fittings} products={fittingProducts} />
-        ) : null}
+          <details className="rounded-xl border border-[color:var(--line)] p-3">
+            <summary className="cursor-pointer text-sm font-semibold">
+              Детали ({partCount} шт.)
+            </summary>
+            <table className="mt-2 w-full text-[13px]">
+              <thead className="text-left text-[11px] text-[var(--muted)]">
+                <tr>
+                  <th className="py-1 font-normal">Деталь</th>
+                  <th className="py-1 font-normal">Размер, мм</th>
+                  <th className="py-1 font-normal">Кромка</th>
+                  <th className="py-1 text-right font-normal">Шт.</th>
+                </tr>
+              </thead>
+              <tbody>
+                {result.parts.map((part) => (
+                  <tr
+                    key={part.title}
+                    className="border-t border-[color:var(--line)]"
+                  >
+                    <td className="py-1.5 pr-2">
+                      {partLabel(part.title)}
+                      {isDoor(part) && !sameDecor ? (
+                        <span className="text-[var(--muted)]"> · фасад</span>
+                      ) : null}
+                      {part.milling ? (
+                        <span className="block text-[11px] text-[var(--muted)]">
+                          {grooveNote(part)}
+                        </span>
+                      ) : null}
+                    </td>
+                    <td className="py-1.5 whitespace-nowrap tabular-nums">
+                      {sizeFormatter.format(part.length)} ×{" "}
+                      {sizeFormatter.format(part.width)}
+                    </td>
+                    <td className="py-1.5 pr-2 text-[12px] leading-4">
+                      {edgeDescription(part.edgedSides)}
+                    </td>
+                    <td className="py-1.5 text-right tabular-nums">
+                      {part.quantity}
+                    </td>
+                  </tr>
+                ))}
+                {result.back ? (
+                  <tr className="border-t border-[color:var(--line)] text-[var(--muted)]">
+                    <td className="py-1.5 pr-2">Задняя стенка, ХДФ</td>
+                    <td className="py-1.5 whitespace-nowrap tabular-nums">
+                      {sizeFormatter.format(result.back.length)} ×{" "}
+                      {sizeFormatter.format(result.back.width)}
+                    </td>
+                    <td className="py-1.5 pr-2 text-[12px]">без кромки</td>
+                    <td className="py-1.5 text-right">1</td>
+                  </tr>
+                ) : null}
+                {drawerBottoms.map((bottom, index) => (
+                  <tr
+                    key={`bottom-${index}`}
+                    className="border-t border-[color:var(--line)] text-[var(--muted)]"
+                  >
+                    <td className="py-1.5 pr-2">Дно ящика, ХДФ</td>
+                    <td className="py-1.5 whitespace-nowrap tabular-nums">
+                      {sizeFormatter.format(bottom.length)} ×{" "}
+                      {sizeFormatter.format(bottom.width)}
+                    </td>
+                    <td className="py-1.5 pr-2 text-[12px]">без кромки</td>
+                    <td className="py-1.5 text-right">{bottom.count}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="mt-2 text-[12px] leading-5 text-[var(--muted)]">
+              Размер: длина (вдоль текстуры) × ширина. Кромка уже стоит в
+              раскрое. Присадка тоже готова: крепёж корпуса и коробов ящиков,
+              евровинты цоколя, полкодержатели, петли и планки петель. Пазы под
+              подсветку уходят в программу станка фрезеровкой.
+            </p>
+          </details>
 
-        {error ? (
-          <p className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">
-            {error}
-          </p>
-        ) : null}
+          {fittings.length > 0 ? (
+            <FittingsPanel lines={fittings} products={fittingProducts} />
+          ) : null}
 
-        <div className="grid gap-2 rounded-2xl bg-[var(--surface-strong)] p-4">
-          {sameDecor ? (
-            <button
-              type="button"
-              disabled={result.problems.length > 0}
-              onClick={() => send("all")}
-              className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-[var(--accent)] px-6 text-[15px] font-semibold text-[var(--accent-ink)] disabled:opacity-40"
-            >
-              <Scissors className="size-4" />
-              Отправить в распил
-            </button>
-          ) : (
-            <>
-              <p className="text-[13px] leading-5 text-[var(--muted)]">
-                Корпус и фасады из разных декоров — это две заявки на распил.
-                Отправьте сначала корпус, потом вернитесь сюда за фасадами.
-              </p>
+          {error ? (
+            <p className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+              {error}
+            </p>
+          ) : null}
+
+          <div className="grid gap-2 rounded-2xl bg-[var(--surface-strong)] p-4">
+            {sameDecor ? (
               <button
                 type="button"
                 disabled={result.problems.length > 0}
-                onClick={() => send("body")}
+                onClick={() => send("all")}
                 className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-[var(--accent)] px-6 text-[15px] font-semibold text-[var(--accent-ink)] disabled:opacity-40"
               >
                 <Scissors className="size-4" />
-                Корпус в распил
+                Отправить в распил
               </button>
-              <button
-                type="button"
-                disabled={result.problems.length > 0}
-                onClick={() => send("facade")}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-[color:var(--line-strong)] px-6 text-[14px] font-semibold disabled:opacity-40"
-              >
-                Фасады в распил
-              </button>
-            </>
-          )}
-          <p className="text-[12px] leading-5 text-[var(--muted)]">
-            Детали откроются в калькуляторе распила: там будет карта раскроя,
-            цена и кнопка заявки. Список, который был в калькуляторе, заменится.
-          </p>
-        </div>
+            ) : (
+              <>
+                <p className="text-[13px] leading-5 text-[var(--muted)]">
+                  Корпус и фасады из разных декоров — это две заявки на распил.
+                  Отправьте сначала корпус, потом вернитесь сюда за фасадами.
+                </p>
+                <button
+                  type="button"
+                  disabled={result.problems.length > 0}
+                  onClick={() => send("body")}
+                  className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-[var(--accent)] px-6 text-[15px] font-semibold text-[var(--accent-ink)] disabled:opacity-40"
+                >
+                  <Scissors className="size-4" />
+                  Корпус в распил
+                </button>
+                <button
+                  type="button"
+                  disabled={result.problems.length > 0}
+                  onClick={() => send("facade")}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-[color:var(--line-strong)] px-6 text-[14px] font-semibold disabled:opacity-40"
+                >
+                  Фасады в распил
+                </button>
+              </>
+            )}
+            <p className="text-[12px] leading-5 text-[var(--muted)]">
+              Детали откроются в калькуляторе распила: там будет карта раскроя,
+              цена и кнопка заявки. Список, который был в калькуляторе,
+              заменится.
+            </p>
+          </div>
+        </ConstructorStep>
       </div>
     </div>
   );
