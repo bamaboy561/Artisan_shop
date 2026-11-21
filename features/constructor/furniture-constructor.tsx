@@ -56,6 +56,7 @@ import type {
 
 import { cabinetAssembly, cabinetFittings, partKind } from "./assembly";
 import { ConstructorStep } from "./constructor-step";
+import { HardwarePicker, hardwareSummary } from "./hardware-picker";
 import {
   AssemblyStepCard,
   FittingsPanel,
@@ -1089,7 +1090,12 @@ export function FurnitureConstructor({
         <ConstructorStep
           index={3}
           title="Фурнитура"
-          summary={CABINET_JOINTS[spec.joint ?? "minifix"].label}
+          summary={[
+            CABINET_JOINTS[spec.joint ?? "minifix"].label,
+            hardwareSummary(spec.hardware),
+          ]
+            .filter(Boolean)
+            .join(" · ")}
         >
           <label className="grid gap-1 text-[12px] text-[var(--muted)]">
             Соединение корпуса
@@ -1110,6 +1116,12 @@ export function FurnitureConstructor({
               {CABINET_JOINTS[spec.joint ?? "minifix"].hint}
             </span>
           </label>
+          <HardwarePicker
+            value={spec.hardware}
+            onChange={(hardware) => set({ hardware })}
+            drawers={Boolean(result.drawers)}
+            hinges={spec.kind !== "kupe" && spec.doors > 0}
+          />
         </ConstructorStep>
 
         {decors.length > 0 ? (

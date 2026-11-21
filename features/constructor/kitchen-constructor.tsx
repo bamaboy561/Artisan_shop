@@ -38,6 +38,7 @@ import type {
 
 import { kitchenFittings } from "./assembly";
 import { ConstructorStep } from "./constructor-step";
+import { HardwarePicker, hardwareSummary } from "./hardware-picker";
 import {
   BlockCatalog,
   BlockIcon,
@@ -1093,6 +1094,20 @@ export function KitchenConstructor({
 
         <ConstructorStep
           index={3}
+          title="Фурнитура"
+          summary={hardwareSummary(spec.hardware) || "на все блоки"}
+        >
+          <HardwarePicker
+            value={spec.hardware}
+            onChange={(hardware) => set({ hardware })}
+            drawers={result.modules.some((item) => item.result?.drawers)}
+            hinges={result.modules.some((item) => (item.spec?.doors ?? 0) > 0)}
+            lift={result.modules.some((item) => item.type === "lift")}
+          />
+        </ConstructorStep>
+
+        <ConstructorStep
+          index={4}
           title="Декор"
           summary={
             sameDecor
@@ -1131,7 +1146,7 @@ export function KitchenConstructor({
         ) : null}
 
         <ConstructorStep
-          index={4}
+          index={5}
           title="Итог и распил"
           summary={`${partCount} деталей`}
           defaultOpen
