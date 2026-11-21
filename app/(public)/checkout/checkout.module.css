@@ -72,9 +72,9 @@
 .checkout textarea {
   width: 100%;
   min-height: 48px;
-  border: 1px solid #cbd2cd;
-  border-radius: 4px;
-  padding: 12px;
+  border: 1px solid #ddd6ca;
+  border-radius: 14px;
+  padding: 12px 14px;
   background: white;
   color: #252b29;
   font: inherit;
@@ -86,6 +86,11 @@
 .checkout :is(input, textarea, button, a, summary):focus-visible {
   outline: 2px solid #a94730;
   outline-offset: 3px;
+}
+.checkout input:focus,
+.checkout textarea:focus {
+  border-color: #252b29;
+  outline: none;
 }
 .checkout input[aria-invalid="true"] {
   border-color: #b42318;
@@ -107,6 +112,96 @@
   font-size: 13px;
   font-weight: 500;
   color: #28674b;
+}
+.steps {
+  display: flex;
+  gap: 8px;
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  font-size: 13px;
+  color: #69716d;
+}
+.steps li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 12px 0 6px;
+  border-radius: 999px;
+  border: 1px solid #ddd6ca;
+  background: white;
+}
+.steps li span,
+.steps li svg {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #efebe4;
+  font-size: 11px;
+  font-weight: 700;
+}
+.stepDone {
+  color: #28674b;
+}
+.steps .stepDone svg {
+  background: #28674b;
+  color: white;
+  padding: 3px;
+}
+.stepCurrent {
+  color: #252b29;
+  font-weight: 600;
+}
+.steps .stepCurrent {
+  border-color: #c4532b;
+}
+.steps .stepCurrent span {
+  background: #c4532b;
+  color: white;
+}
+.pickupOptions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 16px 0 12px;
+}
+.pickupOption {
+  display: grid;
+  justify-items: start;
+  gap: 2px;
+  padding: 12px;
+  border: 1.5px solid #ddd6ca;
+  border-radius: 14px;
+  background: white;
+  color: #252b29;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.pickupOption svg {
+  color: #69716d;
+  margin-bottom: 4px;
+}
+.pickupOption strong {
+  font-size: 14px;
+}
+.pickupOption span {
+  font-size: 12px;
+  color: #69716d;
+}
+.pickupOption[aria-checked="true"] {
+  border-color: #c4532b;
+  background: #fbede7;
+}
+.pickupOption[aria-checked="true"] svg {
+  color: #c4532b;
+}
+.muted a {
+  color: #a94730;
 }
 .muted {
   color: #69716d;
@@ -230,16 +325,21 @@
   justify-content: center;
   gap: 10px;
   min-height: 48px;
-  padding: 12px 16px;
-  border-radius: 4px;
-  border: 1px solid #252b29;
+  padding: 12px 20px;
+  border-radius: 999px;
+  border: 1px solid #ddd6ca;
   font: inherit;
-  font-size: 14px;
+  font-size: 15px;
+  font-weight: 600;
   cursor: pointer;
 }
 .primary {
-  background: #252b29;
+  background: #c4532b;
+  border-color: #c4532b;
   color: white;
+}
+.primary:hover:not(:disabled) {
+  background: #a94730;
 }
 .submitBar .primary {
   width: 100%;
@@ -347,6 +447,16 @@
   }
   .fields {
     grid-template-columns: minmax(0, 1fr);
+  }
+  .pickupOptions {
+    gap: 8px;
+  }
+  .pickupOption {
+    padding: 10px;
+  }
+  .steps {
+    gap: 6px;
+    font-size: 12px;
   }
   .submitBar {
     padding-inline: 16px;
