@@ -198,13 +198,39 @@ function handleMatrix(box: BazisViewerBox, placement: HandlePlacement) {
   );
 }
 
-// Середина фото: по краям у снимков листа часто фон.
 // Фото декора — примерно такой кусок плиты, мм. Текстура ложится в
 // настоящем масштабе: на дверь её больше, на фасад ящика меньше.
 const DECOR_PHOTO_MM = 700;
 // Скругление кромки, мм: на рёбрах появляется блик, как у настоящей
 // кромки, и детали не выглядят чертежом.
 const EDGE_RADIUS = 1.5;
+
+// Развёртка в миллиметрах для каждой грани: у боковины 600×2000 фото
+// ложится на широкую грань в настоящем масштабе, а не тянется по
+// толщине. Волокна (ось v фото) идут вдоль длинной стороны грани.
+function sheetUvs(geometry: THREE.BufferGeometry) {
+  geometry.computeBoundingBox();
+  const size = new THREE.Vector3();
+  geometry.boundingBox?.getSize(size);
+  const extent = [size.x, size.y, size.z];
+  const position = geometry.getAttribute("position");
+  const normal = geometry.getAttribute("normal");
+  const uv = new Float32Array(position.count * 2);
+  for (let i = 0; i < position.count; i += 1) {
+    const n = [
+      Math.abs(normal.getX(i)),
+      Math.abs(normal.getY(i)),
+      Math.abs(normal.getZ(i)),
+    ];
+    const facing = n[0] >= n[1] && n[0] >= n[2] ? 0 : n[1] >= n[2] ? 1 : 2;
+    const [a, b] = [0, 1, 2].filter((axis) => axis !== facing);
+    const [across, along] = extent[a] > extent[b] ? [b, a] : [a, b];
+    const point = [position.getX(i), position.getY(i), position.getZ(i)];
+    uv[i * 2] = point[across] / MM / DECOR_PHOTO_MM;
+    uv[i * 2 + 1] = point[along] / MM / DECOR_PHOTO_MM;
+  }
+  geometry.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
+}
 
 function applyTexture(
   material: THREE.MeshStandardMaterial,
@@ -214,19 +240,12 @@ function applyTexture(
   texture.needsUpdate = true;
   texture.wrapS = THREE.MirroredRepeatWrapping;
   texture.wrapT = THREE.MirroredRepeatWrapping;
-  // Текстура идёт вдоль длинной стороны детали, как волокна у плиты.
-  const [sizeX, sizeY] = (material.userData.size as number[] | undefined) ?? [
-    DECOR_PHOTO_MM * 0.6,
-    DECOR_PHOTO_MM * 0.6,
-  ];
-  const across = sizeX > sizeY;
-  texture.center.set(0.5, 0.5);
-  texture.rotation = across ? Math.PI / 2 : 0;
-  const u = (across ? sizeY : sizeX) / DECOR_PHOTO_MM;
-  const v = (across ? sizeX : sizeY) / DECOR_PHOTO_MM;
-  texture.repeat.set(u, v);
-  // Свой кусок фото у каждой детали: соседние двери не одинаковые.
-  const seed = (sizeX * 7 + sizeY * 13) % 97;
+  // Масштаб и направление задаёт развёртка (sheetUvs); здесь только
+  // свой кусок фото у каждой детали, чтобы соседние двери не были одинаковые.
+  const [sizeX, sizeY, sizeZ] = (material.userData.size as
+    | number[]
+    | undefined) ?? [0, 0, 0];
+  const seed = (sizeX * 7 + sizeY * 13 + sizeZ * 5) % 97;
   texture.offset.set((seed / 97) * 0.5, ((seed * 3) % 97) / 194);
   material.map = texture;
   material.color.set(0xffffff);
@@ -703,8 +722,9 @@ export function FurnitureScene({
                 box.sizeY * MM,
                 box.thickness * MM,
               );
+        sheetUvs(geometry);
         const material = materialFor(box);
-        material.userData.size = [box.sizeX, box.sizeY];
+        material.userData.size = [box.sizeX, box.sizeY, box.thickness];
         if (material.map) applyTexture(material, material.map);
         const mesh = new THREE.Mesh(geometry, material);
         mesh.castShadow = true;
