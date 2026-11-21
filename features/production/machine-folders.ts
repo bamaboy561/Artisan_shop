@@ -24,6 +24,9 @@ export type ReportedFile = {
 export type ReportedFolder = {
   id: string;
   ok: boolean;
+  // Список неполный (файлов больше лимита): по нему нельзя судить, что
+  // файл убран.
+  truncated?: boolean;
   files: ReportedFile[];
 };
 
@@ -130,8 +133,13 @@ export function parseWatcherReport(body: unknown): WatcherReport | null {
     if (!id) continue;
     const names = new Set<string>();
     const files: ReportedFile[] = [];
-    for (const entry of asArray(folder.files)) {
-      if (files.length >= maxFilesPerFolder) break;
+    const entries = asArray(folder.files);
+    let truncated = folder.truncated === true;
+    for (const entry of entries) {
+      if (files.length >= maxFilesPerFolder) {
+        truncated = true;
+        break;
+      }
       if (!entry || typeof entry !== "object") continue;
       const file = entry as Record<string, unknown>;
       const name = cleanText(file.name, 300).replace(/\//g, "\\");
@@ -144,7 +152,7 @@ export function parseWatcherReport(body: unknown): WatcherReport | null {
         modifiedAt: parseDate(file.modified),
       });
     }
-    folders.push({ id, ok: folder.ok !== false, files });
+    folders.push({ id, ok: folder.ok !== false, truncated, files });
   }
   return { computer: cleanText(record.computer, 80) || null, folders };
 }
@@ -282,7 +290,10 @@ export function diffFolder(
   return {
     added: reported.ok ? added : [],
     kept,
-    removedIds: reported.ok ? [...byName.values()].map((row) => row.id) : [],
+    removedIds:
+      reported.ok && !reported.truncated
+        ? [...byName.values()].map((row) => row.id)
+        : [],
   };
 }
 
@@ -322,17 +333,19 @@ while ($true) {
       $root = [string]$f.path
       $ok = Test-Path -LiteralPath $root
       $files = @()
+      $truncated = $false
       if ($ok) {
         $prefix = (Get-Item -LiteralPath $root).FullName.TrimEnd('\') + '\'
-        $items = @(Get-ChildItem -LiteralPath $root -File -Recurse -ErrorAction SilentlyContinue |
-          Sort-Object LastWriteTime -Descending | Select-Object -First ${maxFilesPerFolder})
+        $all = @(Get-ChildItem -LiteralPath $root -File -Recurse -ErrorAction SilentlyContinue)
+        $truncated = $all.Count -gt ${maxFilesPerFolder}
+        $items = @($all | Sort-Object LastWriteTime -Descending | Select-Object -First ${maxFilesPerFolder})
         foreach ($i in $items) {
           $rel = $i.FullName
           if ($rel.StartsWith($prefix)) { $rel = $rel.Substring($prefix.Length) }
           $files += @{ name = $rel; size = $i.Length; modified = $i.LastWriteTimeUtc.ToString('o') }
         }
       }
-      $report += @{ id = $f.id; ok = $ok; files = $files }
+      $report += @{ id = $f.id; ok = $ok; truncated = $truncated; files = $files }
     }
     $json = ConvertTo-Json -InputObject @{ computer = $env:COMPUTERNAME; folders = $report } -Depth 6 -Compress
     $bytes = [Text.Encoding]::UTF8.GetBytes($json)

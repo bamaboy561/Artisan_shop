@@ -111,10 +111,16 @@ export async function saveMachineFolders(
 ) {
   if (!canManageProduction(actor.roleCode)) return "forbidden" as const;
   if (!(await prepareMachineFolders())) return "unavailable" as const;
-  await writeSetting(
-    foldersSetting,
-    JSON.stringify(normalizeMachineFolders(folders)),
-  );
+  const normalized = normalizeMachineFolders(folders);
+  await writeSetting(foldersSetting, JSON.stringify(normalized));
+  // Станок убрали — его файлы больше не считаются лежащими на станке.
+  await getDb().productionMachineFile.updateMany({
+    where: {
+      removedAt: null,
+      folderId: { notIn: normalized.filter((f) => f.path).map((f) => f.id) },
+    },
+    data: { removedAt: new Date() },
+  });
   return "saved" as const;
 }
 
@@ -505,13 +511,29 @@ export async function linkMachineFile(input: {
     select: { id: true, number: true },
   });
   if (!request) return "not-found" as const;
-  const updated = await db.productionMachineFile.updateMany({
+  const file = await db.productionMachineFile.findUnique({
     where: { id: input.fileId },
+    select: { id: true, folderId: true, machine: true, removedAt: true },
+  });
+  if (!file) return "not-found" as const;
+  await db.productionMachineFile.update({
+    where: { id: file.id },
     data: {
       requestId: request.id,
       requestNumber: request.number,
       linkedManually: true,
     },
   });
-  return updated.count ? ("linked" as const) : ("not-found" as const);
+  // Файл уже лежит в папке пилы — двигаем заявку так же, как при появлении.
+  const folders = parseMachineFolders(await readSetting(foldersSetting));
+  if (
+    !file.removedAt &&
+    folders.some((f) => f.id === file.folderId && f.stage === "cutting")
+  )
+    await autoAdvance({
+      started: new Map([[request.id, file.machine]]),
+      finished: new Map(),
+      folders,
+    });
+  return "linked" as const;
 }

@@ -109,3 +109,30 @@ test("normalizes folder settings and the watcher script embeds key once", () => 
   assert.equal(script.split("#PSSTART").length, 2);
   assert.match(script, /^@echo off\r\n/);
 });
+
+test("a truncated snapshot never marks files as removed", () => {
+  const many = Array.from({ length: 1001 }, (_, i) => ({
+    name: `f${i}`,
+    size: 1,
+  }));
+  const report = parseWatcherReport({
+    folders: [{ id: "holzma", ok: true, files: many }],
+  });
+  assert.equal(report?.folders[0].truncated, true);
+  assert.equal(report?.folders[0].files.length, 1000);
+  const diff = diffFolder(
+    [{ id: "x", folderId: "holzma", fileName: "old" }],
+    report!.folders[0],
+  );
+  assert.deepEqual(diff.removedIds, []);
+  const flagged = parseWatcherReport({
+    folders: [{ id: "holzma", truncated: true, files: [] }],
+  });
+  assert.deepEqual(
+    diffFolder(
+      [{ id: "x", folderId: "holzma", fileName: "old" }],
+      flagged!.folders[0],
+    ).removedIds,
+    [],
+  );
+});
