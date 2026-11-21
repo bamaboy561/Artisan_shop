@@ -234,9 +234,9 @@ function SitePricesForm({
             disabled={!canEdit}
           />
           <PriceField
-            label="Распил HPL, сом за лист"
-            name="siteHplSheet"
-            value={prices.hplSheet}
+            label="Пропил HPL, сом за метр"
+            name="siteHplCut"
+            value={prices.hplCut}
             disabled={!canEdit}
           />
           <PriceField
@@ -249,6 +249,12 @@ function SitePricesForm({
             label="Закатка столешницы, сом за метр"
             name="siteCountertopEdge"
             value={prices.countertopEdge}
+            disabled={!canEdit}
+          />
+          <PriceField
+            label="Вырез под мойку, сом за метр реза"
+            name="siteSinkCut"
+            value={prices.sinkCut}
             disabled={!canEdit}
           />
         </div>

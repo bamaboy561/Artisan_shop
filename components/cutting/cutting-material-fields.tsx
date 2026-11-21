@@ -11,10 +11,10 @@ const fields = [
     mode: "numeric",
   },
   {
-    name: "hplSheets",
-    label: "HPL, листов",
-    step: 1,
-    mode: "numeric",
+    name: "hplCutMeters",
+    label: "Пропил HPL, м",
+    step: 0.01,
+    mode: "decimal",
   },
   {
     name: "countertopCutMeters",
@@ -28,6 +28,12 @@ const fields = [
     step: 0.01,
     mode: "decimal",
   },
+  {
+    name: "sinkCutMeters",
+    label: "Вырез под мойку, м реза",
+    step: 0.01,
+    mode: "decimal",
+  },
 ] as const;
 
 export function CuttingMaterialFields({
@@ -36,7 +42,7 @@ export function CuttingMaterialFields({
   extras?: CuttingExtras | null;
 }) {
   return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
       {fields.map((field) => (
         <label
           key={field.name}

@@ -18,7 +18,8 @@ const price = {
     bevel: 250,
     groove: 200,
     hdfSheet: 100,
-    hplSheet: 400,
+    hplCut: 500,
+    sinkCut: 1500,
     countertopCut: 100,
     countertopEdge: 250,
   }),
@@ -30,7 +31,8 @@ test("ХДФ, HPL and countertop works get their own lines", () => {
     curveMeters: 0,
     bevelMeters: 0,
     hdfSheets: 3,
-    hplSheets: 1,
+    hplCutMeters: 1.2,
+    sinkCutMeters: 2.1,
     countertopCutMeters: 2.5,
     countertopEdgeMeters: 4,
     source: "manager",
@@ -41,12 +43,13 @@ test("ХДФ, HPL and countertop works get their own lines", () => {
     [
       ["sheets", 600],
       ["hdfSheets", 300],
-      ["hplSheets", 400],
+      ["hplCutMeters", 600],
       ["countertopCutMeters", 250],
       ["countertopEdgeMeters", 1000],
+      ["sinkCutMeters", 3150],
     ],
   );
-  assert.equal(quote.total, 2550);
+  assert.equal(quote.total, 5900);
 });
 
 test("countertop-only order is priced without ЛДСП sheets", () => {
@@ -79,5 +82,31 @@ test("bad sheet counts are rejected, old prices get defaults", () => {
   const old = parseSiteCuttingPrices({ sheet: 300 });
   assert.equal(old.hdfSheet, 100);
   assert.equal(old.countertopCut, 100);
+  assert.equal(old.hplCut, 500);
+  assert.equal(old.sinkCut, 1500);
   assert.equal(parseCuttingExtrasPrice({ drilling: {} }).hdfSheet, 100);
+});
+
+test("materials typed by hand keep drilling from the Bazis project", async () => {
+  const { mergeMaterialWork, hasMachiningExtras } =
+    await import("../features/cutting/quote");
+  const bazis = parseCuttingExtras({
+    drilling: { 5: 40 },
+    curveMeters: 0,
+    bevelMeters: 0,
+    source: "bazis",
+  });
+  const typed = parseCuttingExtras({
+    drilling: {},
+    curveMeters: 0,
+    bevelMeters: 0,
+    hdfSheets: 2,
+    source: "manager",
+  });
+  assert.equal(hasMachiningExtras(typed), false);
+  const merged = mergeMaterialWork(bazis, typed)!;
+  assert.deepEqual(merged.drilling, { "5": 40 });
+  assert.equal(merged.hdfSheets, 2);
+  assert.equal(merged.source, "bazis");
+  assert.equal(mergeMaterialWork(null, typed)?.hdfSheets, 2);
 });

@@ -77,14 +77,12 @@ export async function saveSiteCuttingPricesAction(form: FormData) {
     "siteHdfSheet",
     defaultSiteCuttingPrices.hdfSheet,
   );
-  const hplSheet = optionalRate(
-    "siteHplSheet",
-    defaultSiteCuttingPrices.hplSheet,
-  );
+  const hplCut = optionalRate("siteHplCut", defaultSiteCuttingPrices.hplCut);
   const countertopCut = optionalRate(
     "siteCountertopCut",
     defaultSiteCuttingPrices.countertopCut,
   );
+  const sinkCut = optionalRate("siteSinkCut", defaultSiteCuttingPrices.sinkCut);
   const countertopEdge = optionalRate(
     "siteCountertopEdge",
     defaultSiteCuttingPrices.countertopEdge,
@@ -105,9 +103,10 @@ export async function saveSiteCuttingPricesAction(form: FormData) {
     bevel === null ||
     groove === null ||
     hdfSheet === null ||
-    hplSheet === null ||
+    hplCut === null ||
     countertopCut === null ||
     countertopEdge === null ||
+    sinkCut === null ||
     !drillingValid ||
     !hasDatabaseUrl()
   )
@@ -122,9 +121,10 @@ export async function saveSiteCuttingPricesAction(form: FormData) {
     bevel,
     groove,
     hdfSheet,
-    hplSheet,
+    hplCut,
     countertopCut,
     countertopEdge,
+    sinkCut,
   };
   await getDb().siteSetting.upsert({
     where: { key: siteCuttingPricesKey },
