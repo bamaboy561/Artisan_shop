@@ -57,6 +57,7 @@ import {
 } from "@/lib/server/cutting-pricing";
 import { bazisExtrasFromRequestFiles } from "@/lib/server/cutting-bazis-extras";
 import { CuttingExtrasFields } from "@/components/cutting/cutting-extras-fields";
+import { CuttingMaterialFields } from "@/components/cutting/cutting-material-fields";
 import { CuttingQuoteLines } from "@/components/cutting/cutting-quote-lines";
 import { repriceCuttingRequestAction } from "@/app/admin/cutting/pricing/actions";
 import { withBazisAccept } from "@/lib/bazis-file";
@@ -366,7 +367,7 @@ export default async function AdminRequestDetailPage({
                   />
                 </label>
                 <label className="grid gap-2 text-sm font-medium text-[var(--foreground)]">
-                  Количество листов
+                  Количество листов ЛДСП
                   <Input
                     name="cuttingSheetCount"
                     type="number"
@@ -605,6 +606,12 @@ export default async function AdminRequestDetailPage({
                 >
                   <input type="hidden" name="requestId" value={request.id} />
                   <input type="hidden" name="extrasForm" value="1" />
+                  <div className="grid gap-2 border border-[color:var(--line)] p-3">
+                    <p className="text-sm font-semibold">
+                      ХДФ, HPL, столешница
+                    </p>
+                    <CuttingMaterialFields extras={extrasForForm} />
+                  </div>
                   <details
                     open={!requestQuote?.extras}
                     className="border border-[color:var(--line)] p-3"

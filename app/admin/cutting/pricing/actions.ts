@@ -73,6 +73,22 @@ export async function saveSiteCuttingPricesAction(form: FormData) {
   const milling = optionalRate("siteMilling", defaultSiteCuttingPrices.milling);
   const bevel = optionalRate("siteBevel", defaultSiteCuttingPrices.bevel);
   const groove = optionalRate("siteGroove", defaultSiteCuttingPrices.groove);
+  const hdfSheet = optionalRate(
+    "siteHdfSheet",
+    defaultSiteCuttingPrices.hdfSheet,
+  );
+  const hplSheet = optionalRate(
+    "siteHplSheet",
+    defaultSiteCuttingPrices.hplSheet,
+  );
+  const countertopCut = optionalRate(
+    "siteCountertopCut",
+    defaultSiteCuttingPrices.countertopCut,
+  );
+  const countertopEdge = optionalRate(
+    "siteCountertopEdge",
+    defaultSiteCuttingPrices.countertopEdge,
+  );
   const drilling: Record<number, number> = {};
   let drillingValid = true;
   for (const diameter of drillingDiameters) {
@@ -88,6 +104,10 @@ export async function saveSiteCuttingPricesAction(form: FormData) {
     milling === null ||
     bevel === null ||
     groove === null ||
+    hdfSheet === null ||
+    hplSheet === null ||
+    countertopCut === null ||
+    countertopEdge === null ||
     !drillingValid ||
     !hasDatabaseUrl()
   )
@@ -101,6 +121,10 @@ export async function saveSiteCuttingPricesAction(form: FormData) {
     milling,
     bevel,
     groove,
+    hdfSheet,
+    hplSheet,
+    countertopCut,
+    countertopEdge,
   };
   await getDb().siteSetting.upsert({
     where: { key: siteCuttingPricesKey },

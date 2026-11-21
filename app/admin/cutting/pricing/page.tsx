@@ -222,6 +222,37 @@ function SitePricesForm({
           disabled={!canEdit}
         />
       </div>
+      <fieldset className="grid gap-3">
+        <legend className="mb-2 text-sm font-semibold">
+          Другие материалы: ХДФ, HPL, столешница
+        </legend>
+        <div className="grid gap-5 sm:grid-cols-2">
+          <PriceField
+            label="Распил ХДФ, сом за лист"
+            name="siteHdfSheet"
+            value={prices.hdfSheet}
+            disabled={!canEdit}
+          />
+          <PriceField
+            label="Распил HPL, сом за лист"
+            name="siteHplSheet"
+            value={prices.hplSheet}
+            disabled={!canEdit}
+          />
+          <PriceField
+            label="Пропил столешницы, сом за метр"
+            name="siteCountertopCut"
+            value={prices.countertopCut}
+            disabled={!canEdit}
+          />
+          <PriceField
+            label="Закатка столешницы, сом за метр"
+            name="siteCountertopEdge"
+            value={prices.countertopEdge}
+            disabled={!canEdit}
+          />
+        </div>
+      </fieldset>
       {canEdit ? (
         <AdminSubmitButton
           type="submit"

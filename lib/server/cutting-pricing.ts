@@ -61,6 +61,10 @@ async function readCurrentExtrasPrice(db: PricingDb) {
     milling: prices.milling,
     bevel: prices.bevel,
     groove: prices.groove,
+    hdfSheet: prices.hdfSheet,
+    hplSheet: prices.hplSheet,
+    countertopCut: prices.countertopCut,
+    countertopEdge: prices.countertopEdge,
   };
 }
 

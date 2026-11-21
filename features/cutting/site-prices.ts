@@ -17,6 +17,12 @@ export type SiteCuttingPrices = {
   bevel: number;
   // Паз в пласти (под LED-профиль и т. п.), сом за погонный метр.
   groove: number;
+  // Другие материалы: ХДФ и HPL — сом за лист, столешница — пропил и
+  // закатка, сом за метр.
+  hdfSheet: number;
+  hplSheet: number;
+  countertopCut: number;
+  countertopEdge: number;
 };
 
 // Ø5 — как отверстие под полкодержатель, Ø8 — как отверстие D8.
@@ -43,6 +49,10 @@ export const defaultSiteCuttingPrices: SiteCuttingPrices = {
   milling: 200,
   bevel: 250,
   groove: 200,
+  hdfSheet: 100,
+  hplSheet: 300,
+  countertopCut: 100,
+  countertopEdge: 300,
 };
 
 export function isValidSitePrice(value: unknown): value is number {
@@ -70,7 +80,11 @@ export function parseSiteCuttingPrices(value: unknown): SiteCuttingPrices {
       | "edgeRegular"
       | "milling"
       | "bevel"
-      | "groove",
+      | "groove"
+      | "hdfSheet"
+      | "hplSheet"
+      | "countertopCut"
+      | "countertopEdge",
   ) => {
     const price = saved[key];
     return isValidSitePrice(price) ? price : defaultSiteCuttingPrices[key];
@@ -97,6 +111,10 @@ export function parseSiteCuttingPrices(value: unknown): SiteCuttingPrices {
     milling: pick("milling"),
     bevel: pick("bevel"),
     groove: pick("groove"),
+    hdfSheet: pick("hdfSheet"),
+    hplSheet: pick("hplSheet"),
+    countertopCut: pick("countertopCut"),
+    countertopEdge: pick("countertopEdge"),
   };
 }
 
