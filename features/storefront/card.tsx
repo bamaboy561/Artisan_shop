@@ -9,14 +9,14 @@ import { formatPrice } from "@/lib/commerce";
 import s from "./storefront.module.css";
 
 // «2800 × 2070 мм, 16 мм» → площадь листа в м², чтобы сравнивать форматы.
-function sheetArea(format: string) {
+export function sheetArea(format: string) {
   const match = format.match(/(\d{3,4})\s*[×xх*]\s*(\d{3,4})/i);
   if (!match) return null;
   const area = (Number(match[1]) * Number(match[2])) / 1_000_000;
   return area >= 1 ? area : null;
 }
 
-function formatChips(format: string) {
+export function formatChips(format: string) {
   return (
     format
       .split(",")

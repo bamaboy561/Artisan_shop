@@ -55,6 +55,11 @@ import type { DetailGroup } from "@/features/services/cut-list-import";
 import { CabinetBuilderDialog } from "@/features/services/cabinet-builder-dialog";
 import { DrillingEditor } from "@/features/services/drilling-editor";
 import {
+  PART_ROLE_LABELS,
+  isPartRole,
+  type PartRole,
+} from "@/features/services/drilling-templates";
+import {
   HARDWARE,
   SIDE_LABELS,
   buildDrillingProgram,
@@ -111,6 +116,8 @@ type DetailRow = {
   hardware?: HardwareItem[];
   // Скругления углов и скосы торцов.
   milling?: PartMilling;
+  // Что это за деталь (боковина, крыша…): типовая присадка и названия краёв.
+  partRole?: PartRole;
   // Мебель из конструктора: деталировку видит только менеджер.
   group?: DetailGroup;
 };
@@ -599,7 +606,8 @@ function readCalculatorDraft(): CalculatorDraft | null {
       ? parsed.details.filter(isDetailRow).map((row) => {
           const hardware = sanitizeHardware(row.hardware);
           const milling = sanitizeMilling(row.milling);
-          return { ...row, hardware, milling };
+          const partRole = isPartRole(row.partRole) ? row.partRole : undefined;
+          return { ...row, hardware, milling, partRole };
         })
       : [];
 
@@ -2245,7 +2253,9 @@ export function CutCalculator({
             .filter((row) => row.hardware?.length || hasMilling(row.milling))
             .map(
               (row) =>
-                `${row.title}: ${[...(row.hardware ?? [])]
+                `${row.title}${row.partRole ? ` (${PART_ROLE_LABELS[row.partRole].toLowerCase()})` : ""}: ${[
+                  ...(row.hardware ?? []),
+                ]
                   .map(
                     (item) =>
                       `${HARDWARE[item.kind].label} ×${item.kind === "handle" ? 1 : item.count} (${SIDE_LABELS[item.side]}${item.mirror ? " и напротив" : ""})`,
@@ -2985,18 +2995,16 @@ export function CutCalculator({
                     onClick={() => goToStep(item.step)}
                     aria-current={step === item.step ? "step" : undefined}
                     className={cn(
-                      "flex min-h-11 w-full items-center justify-center gap-1.5 rounded-xl px-2 text-[13px] transition sm:justify-start sm:px-3.5 sm:text-sm",
+                      "flex min-h-11 w-full flex-col items-center justify-center gap-0 rounded-xl px-1 text-[12px] leading-tight transition sm:flex-row sm:justify-start sm:gap-1.5 sm:px-3.5 sm:text-sm",
                       step === item.step
                         ? "bg-[var(--line)] font-semibold text-[var(--foreground)]"
                         : "text-[var(--muted)] hover:text-[var(--foreground)]",
                     )}
                   >
-                    <span className="font-[family-name:var(--font-ibm-plex-mono)] text-[12px]">
+                    <span className="font-[family-name:var(--font-ibm-plex-mono)] text-[11px] sm:text-[12px]">
                       {item.step}
                     </span>
-                    <span className="hidden min-[420px]:inline">
-                      {item.label}
-                    </span>
+                    <span>{item.label}</span>
                   </button>
                 </li>
               ))}
@@ -3457,6 +3465,7 @@ export function CutCalculator({
                       ids.includes(row.id)
                         ? {
                             ...row,
+                            partRole: drillingRow.partRole,
                             hardware: source.length
                               ? source.map((item) => ({
                                   ...item,
@@ -3485,6 +3494,10 @@ export function CutCalculator({
                 milling={drillingRow.milling}
                 onMillingChange={(milling) =>
                   updateRow(drillingRow.id, { milling })
+                }
+                role={drillingRow.partRole}
+                onRoleChange={(partRole) =>
+                  updateRow(drillingRow.id, { partRole })
                 }
                 onClose={() => setDrillingRowId(null)}
               />

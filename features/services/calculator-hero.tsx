@@ -68,7 +68,7 @@ export function CalculatorHero({ prices }: { prices: SiteCuttingPrices }) {
               <br />
               <em>Это быстрее и дешевле.</em>
             </h1>
-            <p className="mt-4 max-w-[36rem] text-[15px] leading-7 text-white/75 sm:text-base">
+            <p className="mt-4 hidden max-w-[36rem] text-[15px] leading-7 text-white/75 sm:block sm:text-base">
               Вставьте список деталей, и калькулятор сразу покажет карту
               раскроя, число листов и ориентир цены. Заявка уходит менеджеру.
             </p>
@@ -92,31 +92,34 @@ export function CalculatorHero({ prices }: { prices: SiteCuttingPrices }) {
               менеджер.
             </p>
 
-            <div className="mt-7 grid gap-3 sm:flex sm:flex-wrap">
+            <div className="mt-6 sm:mt-7">
               <a
                 href="#cut-calculator"
-                className="inline-flex items-center justify-center gap-2.5 rounded-full bg-[#c4532b] px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-[#a8431f]"
+                className="flex w-full items-center justify-center gap-2.5 rounded-full bg-[#c4532b] px-6 py-3.5 text-[15px] font-semibold text-white transition hover:bg-[#a8431f] sm:inline-flex sm:w-auto"
               >
-                Начать раскрой <ArrowDown className="size-4" />
+                Ввести детали <ArrowDown className="size-4" />
               </a>
-              <a
-                href="#cabinet"
-                className="inline-flex items-center justify-center gap-2.5 rounded-full border border-white/60 bg-white/10 px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-white/20"
-              >
-                <LayoutGrid className="size-4" /> Собрать шкаф по размерам
-              </a>
-              <a
-                href="#cut-request-form"
-                className="inline-flex items-center justify-center gap-2.5 rounded-full border border-white/25 px-6 py-3.5 text-sm font-semibold text-white transition hover:border-white/60"
-              >
-                <Paperclip className="size-4" /> Есть файл Базиса или фото
-              </a>
-              <a
-                href="/bazis"
-                className="inline-flex items-center justify-center gap-2.5 rounded-full border border-white/25 px-6 py-3.5 text-sm font-semibold text-white transition hover:border-white/60"
-              >
-                Открыть проект Базиса: макет и детали
-              </a>
+              <p className="mt-4 text-[13px] text-white/60">Или начните иначе:</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <a
+                  href="#cut-request-form"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-white/25 px-3.5 py-2 text-[13px] font-medium text-white transition hover:border-white/60"
+                >
+                  <Paperclip className="size-3.5" /> Файл Базиса, Excel или фото
+                </a>
+                <a
+                  href="#cabinet"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-white/25 px-3.5 py-2 text-[13px] font-medium text-white transition hover:border-white/60"
+                >
+                  <LayoutGrid className="size-3.5" /> Собрать шкаф по размерам
+                </a>
+                <a
+                  href="/bazis"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-white/25 px-3.5 py-2 text-[13px] font-medium text-white transition hover:border-white/60"
+                >
+                  Проект Базиса в 3D
+                </a>
+              </div>
             </div>
           </div>
 

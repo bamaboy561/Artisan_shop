@@ -79,6 +79,8 @@ export async function getAccountSummary(user: CustomerOrderIdentity) {
     recentOrders,
     recentRequests,
     recentTransactions,
+    activeOrders,
+    activeRequests,
   ] = await Promise.all([
     db.order.count({ where: orderWhere }),
     db.order.count({
@@ -146,6 +148,38 @@ export async function getAccountSummary(user: CustomerOrderIdentity) {
         },
       },
     }),
+    // То, зачем клиент чаще всего открывает кабинет: «где мой заказ».
+    db.order.findMany({
+      where: { AND: [orderWhere, { status: { in: activeOrderStatuses } }] },
+      orderBy: { createdAt: "desc" },
+      take: 3,
+      select: {
+        id: true,
+        number: true,
+        status: true,
+        total: true,
+        productionDueAt: true,
+        readyAt: true,
+        createdAt: true,
+      },
+    }),
+    db.request.findMany({
+      where: { userId: user.id, status: { in: activeRequestStatuses } },
+      orderBy: { createdAt: "desc" },
+      take: 3,
+      select: {
+        id: true,
+        number: true,
+        type: true,
+        status: true,
+        quotedTotal: true,
+        cuttingStage: true,
+        cuttingPickupCell: true,
+        cuttingStageUpdatedAt: true,
+        productionPlan: { select: { dueDate: true } },
+        createdAt: true,
+      },
+    }),
   ]);
 
   return {
@@ -157,6 +191,8 @@ export async function getAccountSummary(user: CustomerOrderIdentity) {
     recentOrders,
     recentRequests,
     recentTransactions,
+    activeOrders,
+    activeRequests,
   };
 }
 

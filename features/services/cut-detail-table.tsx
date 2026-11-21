@@ -59,6 +59,11 @@ type CutDetailTableProps = {
 };
 
 const ALL_SIDES: EdgeSide[] = ["top", "right", "bottom", "left"];
+const edgePresets: Array<{ label: string; sides: EdgeSide[] }> = [
+  { label: "Без кромки", sides: [] },
+  { label: "Кругом", sides: ALL_SIDES },
+  { label: "Длинные", sides: ["top", "bottom"] },
+];
 const sideTitles: Record<EdgeSide, string> = {
   top: "верхняя длинная сторона",
   bottom: "нижняя длинная сторона",
@@ -119,7 +124,6 @@ function EdgePicker({
           onClick={() => onSetAll(allActive ? [] : [...ALL_SIDES])}
           className="absolute inset-4 flex items-center justify-center rounded-[3px] bg-[var(--surface)] text-[11px] text-[var(--muted)] hover:bg-[#e9e1d5] sm:inset-[7px]"
         >
-          <span className="sm:hidden">{allActive ? "убрать" : "кругом"}</span>
         </button>
         {ALL_SIDES.map((side) => {
           const active = row.edgedSides.includes(side);
@@ -154,6 +158,32 @@ function EdgePicker({
                     : "bg-[#d9cfc1] hover:bg-[#bfae99]",
                 )}
               />
+            </button>
+          );
+        })}
+      </div>
+      {/* На узком экране — понятные кнопки рядом со схемой сторон. */}
+      <div className="flex flex-1 flex-wrap gap-1.5 @min-[780px]:hidden">
+        {edgePresets.map((preset) => {
+          const active =
+            preset.sides.length === row.edgedSides.length &&
+            preset.sides.every((side) => row.edgedSides.includes(side));
+
+          return (
+            <button
+              key={preset.label}
+              type="button"
+              disabled={disabled}
+              aria-pressed={active}
+              onClick={() => onSetAll([...preset.sides])}
+              className={cn(
+                "h-8 rounded-full border px-3 text-[12.5px] font-medium transition disabled:opacity-40",
+                active
+                  ? "border-[#1f2b25] bg-[#1f2b25] text-white"
+                  : "border-[color:var(--line)] bg-[var(--surface-strong)] text-[var(--foreground)]",
+              )}
+            >
+              {preset.label}
             </button>
           );
         })}
@@ -432,8 +462,11 @@ export function CutDetailTable({
                 </label>
               </div>
 
-              <div className="order-1 col-span-3 flex items-center justify-between gap-x-3 @min-[780px]:order-none @min-[780px]:contents">
-                <div title={edgeLabels[row.id]}>
+              <div className="order-1 col-span-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 @min-[780px]:order-none @min-[780px]:contents">
+                <div
+                  title={edgeLabels[row.id]}
+                  className="w-full @min-[780px]:w-auto"
+                >
                   <EdgePicker
                     row={row}
                     index={index}
@@ -538,8 +571,8 @@ export function CutDetailTable({
       {onDrilling ? (
         <p className="mt-2 text-[13px] leading-5 text-[var(--foreground)]">
           <span className="font-semibold">Нужны отверстия под фурнитуру?</span>{" "}
-          Нажмите «+ Присадка» у детали: выберите фурнитуру на чертеже, цена
-          посчитается сразу.
+          Нажмите «+ Присадка» у детали и выберите, что это за деталь: мы
+          поставим обычные отверстия, цена посчитается сразу.
         </p>
       ) : null}
       <p className="mt-2 hidden text-[12px] leading-5 text-[var(--muted)] sm:block">
