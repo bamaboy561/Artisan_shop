@@ -17,9 +17,7 @@ import { cn } from "@/lib/utils";
 import {
   FIELD_LABELS,
   HARDWARE,
-  HARDWARE_KINDS,
   SIDE_LABELS,
-  createHardware,
   hardwareHoles,
   holesToDrillCounts,
   type HardwareField,
@@ -42,6 +40,16 @@ import {
   type PartMilling,
 } from "./part-milling";
 import { formatSitePrice } from "@/features/cutting/site-prices";
+import { HardwarePicker } from "./drilling-picker";
+import {
+  PART_ROLES,
+  PART_ROLE_EDGES,
+  PART_ROLE_HINTS,
+  PART_ROLE_LABELS,
+  edgeName,
+  partTemplate,
+  type PartRole,
+} from "./drilling-templates";
 
 const SIDES: PartSide[] = ["top", "right", "bottom", "left"];
 
@@ -122,6 +130,7 @@ function PartDrawing({
   side,
   onSide,
   milling,
+  role,
 }: {
   length: number;
   width: number;
@@ -130,6 +139,7 @@ function PartDrawing({
   side: PartSide;
   onSide: (side: PartSide) => void;
   milling?: PartMilling;
+  role?: PartRole;
 }) {
   const pad = Math.max(length, width) * 0.08;
   const view = `${-pad} ${-pad} ${length + pad * 2} ${width + pad * 2}`;
@@ -137,6 +147,8 @@ function PartDrawing({
   const hit = Math.max(length, width) / 25;
   // y в детали идёт вверх, в SVG — вниз.
   const flip = (y: number) => width - y;
+  const edgeLabel = (item: PartSide) =>
+    role ? PART_ROLE_EDGES[role][item] : undefined;
   const edgeLine: Record<PartSide, [number, number, number, number]> = {
     top: [0, 0, length, 0],
     bottom: [0, width, length, width],
@@ -225,7 +237,7 @@ function PartDrawing({
               className="cursor-pointer"
               onClick={() => onSide(item)}
             >
-              <title>{`Выбрать ${SIDE_LABELS[item]}`}</title>
+              <title>{`Выбрать край: ${edgeName(item, role, SIDE_LABELS)}`}</title>
             </line>
           </g>
         );
@@ -276,25 +288,58 @@ function PartDrawing({
           />
         );
       })}
+      {/* Подписи краёв: размер, а у выбранного вида детали — и роль края
+          («перед», «к дну»), чтобы было понятно, куда что сверлить. */}
       <text
         x={length / 2}
         y={-pad * 0.35}
         textAnchor="middle"
         fontSize={pad * 0.45}
-        fill="#69716d"
+        fill={edgeLabel("top") ? "var(--accent)" : "#69716d"}
+        fontWeight={edgeLabel("top") ? 700 : 400}
       >
-        {length} мм
+        {edgeLabel("top")
+          ? `${edgeLabel("top")} · ${length} мм`
+          : `${length} мм`}
       </text>
       <text
         x={-pad * 0.35}
         y={width / 2}
         textAnchor="middle"
         fontSize={pad * 0.45}
-        fill="#69716d"
+        fill={edgeLabel("left") ? "var(--accent)" : "#69716d"}
+        fontWeight={edgeLabel("left") ? 700 : 400}
         transform={`rotate(-90 ${-pad * 0.35} ${width / 2})`}
       >
-        {width} мм
+        {edgeLabel("left")
+          ? `${edgeLabel("left")} · ${width} мм`
+          : `${width} мм`}
       </text>
+      {edgeLabel("bottom") ? (
+        <text
+          x={length / 2}
+          y={width + pad * 0.7}
+          textAnchor="middle"
+          fontSize={pad * 0.45}
+          fill="var(--accent)"
+          fontWeight={700}
+        >
+          {edgeLabel("bottom")}
+        </text>
+      ) : null}
+      {edgeLabel("right") ? (
+        <text
+          x={length + pad * 0.35}
+          y={width / 2}
+          textAnchor="middle"
+          fontSize={pad * 0.45}
+          fill="var(--accent)"
+          fontWeight={700}
+          transform={`rotate(90 ${length + pad * 0.35} ${width / 2})`}
+        >
+          {edgeLabel("right")}
+        </text>
+      ) : null}
     </svg>
   );
 }
@@ -309,9 +354,23 @@ const SHORT_FIELD_LABELS: Record<HardwareField, string> = {
 
 const SHORT_KIND_LABELS: Partial<Record<HardwareKind, string>> = {
   minifix: "Эксцентрик",
-  faceRow: "Шток / конфирмат в пласть",
+  faceRow: "Отверстия в пласть",
+  confirmatEdge: "Конфирмат в торец",
+  dowelEdge: "Шкант в торец",
   hingePlate: "Планка петли",
 };
+
+// Название фурнитуры в списке. Ряд в пласть по диаметру понятнее:
+// Ø5 — под шток эксцентрика, Ø7 — конфирмат, Ø8 — шкант.
+function itemLabel(item: HardwareItem) {
+  if (item.kind === "faceRow") {
+    const diameter = item.holes[0]?.diameter;
+    if (diameter === 5) return "Под шток эксцентрика";
+    if (diameter === 7) return "Конфирмат в пласть";
+    if (diameter === 8) return "Шкант в пласть";
+  }
+  return SHORT_KIND_LABELS[item.kind] ?? HARDWARE[item.kind].label;
+}
 
 export type DrillingCopyTarget = {
   id: string;
@@ -338,6 +397,8 @@ export function DrillingEditor({
   onNext,
   copyTargets = [],
   onCopyTo,
+  role,
+  onRoleChange,
 }: {
   title: string;
   length: number;
@@ -355,6 +416,9 @@ export function DrillingEditor({
   onNext?: () => void;
   copyTargets?: DrillingCopyTarget[];
   onCopyTo?: (ids: string[]) => void;
+  /** Что это за деталь: от этого типовая присадка и названия краёв. */
+  role?: PartRole;
+  onRoleChange?: (role: PartRole | undefined) => void;
 }) {
   const prices = useSiteCuttingPrices();
   const [side, setSide] = useState<PartSide>("left");
@@ -368,14 +432,23 @@ export function DrillingEditor({
       ),
   );
   const [notice, setNotice] = useState<string | null>(null);
+  // Присадка до шаблона: можно вернуть, если шаблон заменил свою.
+  const [beforeTemplate, setBeforeTemplate] = useState<{
+    items: HardwareItem[];
+    role: PartRole | undefined;
+  } | null>(null);
+  // На телефоне выбор фурнитуры открывается поверх списка.
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (event.key !== "Escape") return;
+      if (pickerOpen) setPickerOpen(false);
+      else onClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, [onClose, pickerOpen]);
 
   const byItem = useMemo(
     () =>
@@ -429,11 +502,30 @@ export function DrillingEditor({
     onChange(
       value.map((item) => (item.id === id ? { ...item, ...patch } : item)),
     );
-  const add = (kind: HardwareKind) => {
-    const item = createHardware(kind, side);
+  const add = (item: HardwareItem) => {
     onChange([...value, item]);
     setSelected(item.id);
     setNotice(null);
+    setPickerOpen(false);
+  };
+  const chooseRole = (next: PartRole) => {
+    const template = partTemplate(next, length, width, thickness);
+    // Пустой шаблон (полка, «другая») свою присадку не трогает.
+    if (template.length > 0) {
+      setBeforeTemplate(value.length > 0 ? { items: value, role } : null);
+      onChange(template);
+      setSelected(null);
+    } else {
+      setBeforeTemplate(null);
+    }
+    onRoleChange?.(next);
+    setNotice(null);
+  };
+  const undoTemplate = () => {
+    if (!beforeTemplate) return;
+    onChange(beforeTemplate.items);
+    onRoleChange?.(beforeTemplate.role);
+    setBeforeTemplate(null);
   };
   const toggleExpanded = (id: string) =>
     setExpanded((current) => {
@@ -470,7 +562,7 @@ export function DrillingEditor({
       onClick={onClose}
     >
       <div
-        className="flex h-[94dvh] w-full max-w-5xl flex-col overflow-hidden rounded-t-2xl bg-[var(--surface-strong)] shadow-xl sm:h-auto sm:max-h-[94vh] sm:rounded-2xl"
+        className="relative flex h-[94dvh] w-full max-w-5xl flex-col overflow-hidden rounded-t-2xl bg-[var(--surface-strong)] shadow-xl sm:h-auto sm:max-h-[94vh] sm:rounded-2xl"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-center justify-between gap-2 border-b border-[color:var(--line)] px-3 py-2 sm:px-4">
@@ -535,6 +627,7 @@ export function DrillingEditor({
                 side={side}
                 onSide={setSide}
                 milling={milling}
+                role={role}
               />
             </div>
             <div className="flex items-center gap-1 overflow-x-auto text-[12px] [scrollbar-width:none]">
@@ -553,24 +646,28 @@ export function DrillingEditor({
                       : "border-[color:var(--line)] hover:border-[var(--foreground)]",
                   )}
                 >
-                  {SIDE_LABELS[item].replace(" край", "")}
+                  {edgeName(item, role, SIDE_LABELS).replace(" край", "")}
                 </button>
               ))}
             </div>
-            <div className="flex gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:thin] lg:flex-wrap lg:overflow-visible">
-              {HARDWARE_KINDS.map((kind) => (
-                <button
-                  key={kind}
-                  type="button"
-                  onClick={() => add(kind)}
-                  title={HARDWARE[kind].hint}
-                  className="flex shrink-0 items-center gap-1 rounded-full border border-[color:var(--line)] px-2.5 py-1.5 text-[12px] leading-none whitespace-nowrap hover:border-[var(--accent)]"
-                >
-                  <Plus className="size-3.5 shrink-0 text-[var(--accent)]" />
-                  {SHORT_KIND_LABELS[kind] ?? HARDWARE[kind].label}
-                </button>
-              ))}
-            </div>
+            <button
+              type="button"
+              onClick={() => setPickerOpen(true)}
+              className="flex h-10 items-center justify-center gap-1.5 rounded-full border border-dashed border-[var(--accent)] text-[14px] font-semibold text-[var(--accent)] lg:hidden"
+            >
+              <Plus className="size-4" />
+              Добавить фурнитуру
+            </button>
+            <HardwarePicker
+              className="hidden lg:grid"
+              role={role}
+              side={side}
+              sideName={edgeName(side, role, SIDE_LABELS).replace(" край", "")}
+              thickness={thickness}
+              length={length}
+              width={width}
+              onPick={add}
+            />
           </div>
 
           <div className="grid min-w-0 content-start gap-2 p-3 sm:p-4 lg:overflow-y-auto">
@@ -640,7 +737,55 @@ export function DrillingEditor({
               </div>
             ) : null}
 
-            {value.length === 0 ? (
+            {onRoleChange ? (
+              <div className="grid gap-2 rounded-xl bg-[var(--surface)] p-3">
+                <p className="text-[13px] font-semibold text-[var(--foreground)]">
+                  Что это за деталь?
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {PART_ROLES.map((item) => (
+                    <button
+                      key={item}
+                      type="button"
+                      onClick={() => chooseRole(item)}
+                      aria-pressed={role === item}
+                      className={cn(
+                        "rounded-full border px-3 py-1.5 text-[13px] leading-none whitespace-nowrap transition",
+                        role === item
+                          ? "border-[var(--foreground)] bg-[var(--foreground)] text-[var(--background)]"
+                          : "border-[color:var(--line)] bg-[var(--surface-strong)] hover:border-[var(--foreground)]",
+                      )}
+                    >
+                      {role === item ? "✓ " : ""}
+                      {PART_ROLE_LABELS[item]}
+                    </button>
+                  ))}
+                </div>
+                <p
+                  className={cn(
+                    "text-[12px] leading-5",
+                    role ? "text-[#1f5a37]" : "text-[var(--muted)]",
+                  )}
+                >
+                  {role
+                    ? PART_ROLE_HINTS[role]
+                    : "Выберите — и мы поставим обычную присадку для такой детали. Отступы, диаметры и глубину потом можно поменять."}
+                  {beforeTemplate ? (
+                    <>
+                      {" "}
+                      <button
+                        type="button"
+                        onClick={undoTemplate}
+                        className="font-semibold text-[var(--accent)] underline underline-offset-2"
+                      >
+                        Вернуть как было
+                      </button>
+                    </>
+                  ) : null}
+                </p>
+              </div>
+            ) : null}
+            {value.length === 0 && !onRoleChange ? (
               <p className="rounded-xl bg-[var(--surface)] p-3 text-[13px] leading-5 text-[var(--muted)]">
                 Нажмите на край детали на чертеже (или выберите сторону) и
                 добавьте фурнитуру кнопками «+». Отступы, диаметры и глубину
@@ -665,7 +810,7 @@ export function DrillingEditor({
                 >
                   <div className="flex items-center gap-2">
                     <p className="min-w-0 flex-1 truncate text-[13px] font-semibold">
-                      {SHORT_KIND_LABELS[item.kind] ?? definition.label}
+                      {itemLabel(item)}
                       <span className="ml-1.5 font-normal text-[var(--muted)]">
                         {count} отв.
                       </span>
@@ -682,7 +827,7 @@ export function DrillingEditor({
                     >
                       {SIDES.map((option) => (
                         <option key={option} value={option}>
-                          {SIDE_LABELS[option]}
+                          {edgeName(option, role, SIDE_LABELS)}
                         </option>
                       ))}
                     </select>
@@ -939,6 +1084,56 @@ export function DrillingEditor({
           </div>
         </div>
 
+        {pickerOpen ? (
+          <div className="absolute inset-x-0 top-0 bottom-0 z-30 flex flex-col bg-[var(--surface-strong)] lg:hidden">
+            <div className="flex items-center gap-2 border-b border-[color:var(--line)] px-3 py-2">
+              <p className="min-w-0 flex-1 text-[15px] font-semibold">
+                Добавить фурнитуру
+              </p>
+              <button
+                type="button"
+                onClick={() => setPickerOpen(false)}
+                aria-label="Закрыть выбор фурнитуры"
+                className="flex size-9 shrink-0 items-center justify-center rounded-lg text-[var(--muted)] hover:bg-[var(--surface)]"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto p-3">
+              <div className="mb-2 flex flex-wrap items-center gap-1 text-[12px]">
+                <span className="pr-1 text-[var(--muted)]">Край:</span>
+                {SIDES.map((item) => (
+                  <button
+                    key={item}
+                    type="button"
+                    onClick={() => setSide(item)}
+                    className={cn(
+                      "rounded-full border px-2.5 py-1 whitespace-nowrap",
+                      item === side
+                        ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-ink)]"
+                        : "border-[color:var(--line)]",
+                    )}
+                  >
+                    {edgeName(item, role, SIDE_LABELS).replace(" край", "")}
+                  </button>
+                ))}
+              </div>
+              <HardwarePicker
+                role={role}
+                side={side}
+                sideName={edgeName(side, role, SIDE_LABELS).replace(
+                  " край",
+                  "",
+                )}
+                thickness={thickness}
+                length={length}
+                width={width}
+                onPick={add}
+              />
+            </div>
+          </div>
+        ) : null}
+
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[color:var(--line)] px-3 py-2.5 sm:px-4">
           <p className="min-w-0 flex-1 text-[13px] text-[var(--foreground)]">
             {price.holes > 0 ? (
@@ -950,7 +1145,7 @@ export function DrillingEditor({
                   : ""}
               </>
             ) : (
-              "Отверстий пока нет. Глубина 0 — сквозное."
+              "Отверстий пока нет."
             )}
           </p>
           <div className="flex gap-2">

@@ -571,8 +571,8 @@ export function CutDetailTable({
       {onDrilling ? (
         <p className="mt-2 text-[13px] leading-5 text-[var(--foreground)]">
           <span className="font-semibold">Нужны отверстия под фурнитуру?</span>{" "}
-          Нажмите «+ Присадка» у детали: выберите фурнитуру на чертеже, цена
-          посчитается сразу.
+          Нажмите «+ Присадка» у детали и выберите, что это за деталь: мы
+          поставим обычные отверстия, цена посчитается сразу.
         </p>
       ) : null}
       <p className="mt-2 hidden text-[12px] leading-5 text-[var(--muted)] sm:block">
