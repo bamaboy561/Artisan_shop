@@ -58,6 +58,7 @@ const checkoutSchema = z.object({
     .optional()
     .default(""),
   comment: z.string().trim().optional().default(""),
+  pickupPlan: z.string().trim().max(80).optional().default(""),
   cartSnapshot: z.string().trim().min(2, "Корзина пуста."),
 });
 
@@ -107,6 +108,7 @@ export async function submitCheckoutAction(
     promoCode: getFormString(formData, "promoCode"),
     redeemPoints: getFormString(formData, "redeemPoints"),
     comment: getFormString(formData, "comment"),
+    pickupPlan: getFormString(formData, "pickupPlan"),
     cartSnapshot: getFormString(formData, "cartSnapshot"),
   });
 
@@ -397,7 +399,10 @@ export async function submitCheckoutAction(
       )
     : 0;
 
-  const commentParts = [parsed.data.comment].filter(Boolean);
+  const commentParts = [
+    parsed.data.pickupPlan ? `Получение: ${parsed.data.pickupPlan}` : "",
+    parsed.data.comment,
+  ].filter(Boolean);
 
   let orderNumber = buildOrderNumber();
 
