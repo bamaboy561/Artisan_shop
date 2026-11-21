@@ -321,7 +321,7 @@ export function StockReconciliationTable({
                       href={newProductHref(entry)}
                       target="_blank"
                       rel="noopener"
-                      className="mt-2 inline-flex rounded-full bg-[#171613] px-2.5 py-1 font-medium whitespace-nowrap text-white hover:bg-black"
+                      className="mt-2 inline-flex rounded-full bg-[var(--solid)] px-2.5 py-1 font-medium whitespace-nowrap text-white hover:bg-black"
                     >
                       Добавить на сайт
                     </a>

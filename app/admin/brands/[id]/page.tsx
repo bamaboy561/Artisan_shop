@@ -66,12 +66,12 @@ export default async function EditBrandPage({ params }: EditBrandPageProps) {
 
   return (
     <div className="space-y-4">
-      <section className="surface-glow rounded-[24px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-6 sm:p-8">
+      <section className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-[var(--surface-strong)] p-6 sm:p-8">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <Link
               href="/admin/brands"
-              className="text-xs font-medium text-[var(--accent)] transition hover:text-[#9d573d]"
+              className="text-xs font-medium text-[var(--accent)] transition hover:text-[var(--accent-strong)]"
             >
               ← К списку брендов
             </Link>
@@ -110,10 +110,10 @@ export default async function EditBrandPage({ params }: EditBrandPageProps) {
         </div>
       </section>
 
-      <section className="surface-glow rounded-[24px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-6 sm:p-8">
-        <div className="mb-6 flex flex-col gap-4 rounded-[22px] border border-[color:var(--line)] bg-white/70 p-4 sm:flex-row sm:items-center">
+      <section className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-[var(--surface-strong)] p-6 sm:p-8">
+        <div className="mb-6 flex flex-col gap-4 rounded-[var(--radius-card)] border border-[color:var(--line)] bg-white/70 p-4 sm:flex-row sm:items-center">
           <div
-            className="flex h-16 w-36 shrink-0 items-center justify-center rounded-2xl border border-[color:var(--line)] bg-[#171614] bg-contain bg-center bg-no-repeat text-lg font-semibold text-white"
+            className="flex h-16 w-36 shrink-0 items-center justify-center rounded-2xl border border-[color:var(--line)] bg-[var(--solid)] bg-contain bg-center bg-no-repeat text-lg font-semibold text-white"
             style={logoStyle}
             aria-label={`Логотип ${brand.name}`}
           >
@@ -174,7 +174,7 @@ export default async function EditBrandPage({ params }: EditBrandPageProps) {
             />
           </label>
 
-          <div className="grid gap-3 rounded-[18px] border border-[color:var(--line)] bg-white/55 p-4">
+          <div className="grid gap-3 rounded-[var(--radius-inner)] border border-[color:var(--line)] bg-white/55 p-4">
             <div>
               <p className="text-xs font-medium text-[var(--accent)]">
                 Баннер на главной

@@ -189,10 +189,10 @@ function MiniStat({
   tone?: "neutral" | "success" | "warning" | "accent";
 }) {
   const toneClass = {
-    neutral: "bg-[#f7f4ef] text-[var(--foreground)]",
+    neutral: "bg-[var(--surface)] text-[var(--foreground)]",
     success: "bg-emerald-50 text-emerald-800",
     warning: "bg-amber-50 text-amber-800",
-    accent: "bg-[#f4e7df] text-[#9d573d]",
+    accent: "bg-[var(--accent-soft)] text-[var(--accent)]",
   }[tone];
 
   return (
@@ -402,7 +402,7 @@ export default async function AdminProductsPage({
 
   return (
     <div className="space-y-4">
-      <section className="overflow-hidden rounded-[24px] border border-[#1f2b25] bg-[#1f2b25] text-white shadow-[0_22px_70px_rgba(20,20,17,0.18)]">
+      <section className="overflow-hidden rounded-[var(--radius-card)] border border-[color:var(--solid)] bg-[var(--solid)] text-white shadow-[0_22px_70px_rgba(20,20,17,0.18)]">
         <div className="grid gap-4 p-4 sm:p-5 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
           <div className="min-w-0">
             <p className="text-xs font-medium text-white/42">
@@ -432,21 +432,21 @@ export default async function AdminProductsPage({
         <div className="flex flex-wrap gap-2 border-t border-white/8 px-4 py-3 sm:px-5">
           <Link
             href="#new-product"
-            className="inline-flex h-9 items-center gap-2 rounded-full bg-white px-3.5 text-xs font-semibold text-[#151513] transition hover:bg-[#f2ece3]"
+            className="inline-flex h-9 items-center gap-2 rounded-[var(--radius-control)] bg-white px-3.5 text-xs font-semibold text-[var(--foreground)] transition hover:bg-[var(--surface-muted)]"
           >
             <PackagePlus className="size-4" strokeWidth={1.8} />
             Новый товар
           </Link>
           <Link
             href="#catalog-list"
-            className="inline-flex h-9 items-center gap-2 rounded-full border border-white/12 px-3.5 text-xs font-semibold text-white/76 transition hover:border-white/28 hover:text-white"
+            className="inline-flex h-9 items-center gap-2 rounded-[var(--radius-control)] border border-white/12 px-3.5 text-xs font-semibold text-white/76 transition hover:border-white/28 hover:text-white"
           >
             <ListFilter className="size-4" strokeWidth={1.8} />
             Список
           </Link>
           <Link
             href="#import-products"
-            className="inline-flex h-9 items-center gap-2 rounded-full border border-white/12 px-3.5 text-xs font-semibold text-white/76 transition hover:border-white/28 hover:text-white"
+            className="inline-flex h-9 items-center gap-2 rounded-[var(--radius-control)] border border-white/12 px-3.5 text-xs font-semibold text-white/76 transition hover:border-white/28 hover:text-white"
           >
             <UploadCloud className="size-4" strokeWidth={1.8} />
             Импорт Excel
@@ -499,11 +499,11 @@ export default async function AdminProductsPage({
 
       <section
         id="new-product"
-        className="surface-glow overflow-hidden rounded-[26px] border border-[color:var(--line)] bg-white/92"
+        className="surface-glow overflow-hidden rounded-[var(--radius-card)] border border-[color:var(--line)] bg-white/92"
       >
-        <div className="flex flex-col gap-3 border-b border-[color:var(--line)] bg-[#fbfaf7] p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+        <div className="flex flex-col gap-3 border-b border-[color:var(--line)] bg-[var(--surface)] p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
           <div className="flex min-w-0 items-start gap-3">
-            <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-[#171613] text-white">
+            <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-[var(--solid)] text-white">
               <PackagePlus className="size-5" strokeWidth={1.8} />
             </span>
             <div className="min-w-0">
@@ -518,7 +518,7 @@ export default async function AdminProductsPage({
           </div>
           <Link
             href="#catalog-list"
-            className="inline-flex h-9 shrink-0 items-center justify-center rounded-full border border-[color:var(--line)] px-4 text-xs font-semibold text-[var(--muted)] transition hover:border-[color:var(--foreground)] hover:text-[var(--foreground)]"
+            className="inline-flex h-9 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-[color:var(--line)] px-4 text-xs font-semibold text-[var(--muted)] transition hover:border-[color:var(--foreground)] hover:text-[var(--foreground)]"
           >
             К списку
           </Link>
@@ -557,7 +557,7 @@ export default async function AdminProductsPage({
         >
           <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
             <span className="flex min-w-0 items-center gap-3">
-              <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-[#171613] text-white">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-[var(--solid)] text-white">
                 <UploadCloud className="size-5" strokeWidth={1.8} />
               </span>
               <span className="min-w-0">
@@ -583,10 +583,10 @@ export default async function AdminProductsPage({
 
         <StockThresholdsForm thresholds={stockThresholds} />
 
-        <details className="surface-glow rounded-[22px] border border-[color:var(--line)] bg-white/88 p-3 sm:p-4">
+        <details className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-white/88 p-3 sm:p-4">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
             <span className="flex min-w-0 items-center gap-3">
-              <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-[#f4e7df] text-[#9d573d]">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-[var(--accent-soft)] text-[var(--accent)]">
                 <UploadCloud className="size-5" strokeWidth={1.8} />
               </span>
               <span className="min-w-0">
@@ -614,7 +614,7 @@ export default async function AdminProductsPage({
       </section>
 
       <section id="catalog-list" className="min-w-0 space-y-3">
-        <section className="surface-glow rounded-[22px] border border-[color:var(--line)] bg-white/88 p-3 sm:p-4">
+        <section className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-white/88 p-3 sm:p-4">
           <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
             <SectionHeading
               title="Список товаров"
@@ -885,7 +885,7 @@ export default async function AdminProductsPage({
               return (
                 <article
                   key={product.id}
-                  className="surface-glow group grid gap-3 rounded-[18px] border border-[color:var(--line)] bg-white/90 p-2.5 transition hover:border-[color:var(--line-strong)] sm:grid-cols-[auto_64px_minmax(0,1fr)] xl:grid-cols-[auto_68px_minmax(0,1fr)_180px_190px] xl:items-center"
+                  className="surface-glow group grid gap-3 rounded-[var(--radius-inner)] border border-[color:var(--line)] bg-white/90 p-2.5 transition hover:border-[color:var(--line-strong)] sm:grid-cols-[auto_64px_minmax(0,1fr)] xl:grid-cols-[auto_68px_minmax(0,1fr)_180px_190px] xl:items-center"
                 >
                   <div className="flex items-start">
                     <input
@@ -900,7 +900,7 @@ export default async function AdminProductsPage({
                   </div>
 
                   <div
-                    className="flex aspect-square w-full items-center justify-center rounded-[14px] border border-[color:var(--line)] bg-[#f3efe8] bg-cover bg-center text-xl font-semibold text-[var(--muted)] sm:w-[64px] xl:w-[68px]"
+                    className="flex aspect-square w-full items-center justify-center rounded-[14px] border border-[color:var(--line)] bg-[var(--surface)] bg-cover bg-center text-xl font-semibold text-[var(--muted)] sm:w-[64px] xl:w-[68px]"
                     style={imageStyle}
                     aria-label={product.images[0]?.alt ?? product.name}
                   >
@@ -911,7 +911,7 @@ export default async function AdminProductsPage({
                     <div className="flex flex-wrap items-center gap-2">
                       <Link
                         href={`/admin/products/${product.id}`}
-                        className="text-base font-semibold tracking-[-0.02em] text-[var(--foreground)] transition hover:text-[#9d573d]"
+                        className="text-base font-semibold tracking-[-0.02em] text-[var(--foreground)] transition hover:text-[var(--accent-strong)]"
                       >
                         {product.name}
                       </Link>
@@ -945,7 +945,7 @@ export default async function AdminProductsPage({
                     </div>
                   </div>
 
-                  <div className="rounded-2xl border border-[color:var(--line)] bg-[#faf8f4] p-2.5">
+                  <div className="rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] p-2.5">
                     <p className="text-sm font-semibold text-[var(--foreground)]">
                       {formatPrice(product.price)}
                     </p>
@@ -1010,7 +1010,7 @@ export default async function AdminProductsPage({
             ) : null}
           </div>
         ) : (
-          <div className="surface-glow rounded-[22px] border border-[color:var(--line)] bg-white/88 p-8 text-center">
+          <div className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-white/88 p-8 text-center">
             <h3 className="text-xl font-semibold text-[var(--foreground)]">
               По текущим фильтрам ничего не найдено
             </h3>

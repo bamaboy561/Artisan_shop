@@ -199,7 +199,7 @@ export default async function AdminOrderDetailPage({
 
   return (
     <div className="space-y-5">
-      <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-6 sm:p-7">
+      <section className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-white/82 p-6 sm:p-7">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-3xl">
             <SectionHeading
@@ -226,13 +226,13 @@ export default async function AdminOrderDetailPage({
           <div className="flex flex-wrap gap-2">
             <Link
               href={`/admin/orders/${order.id}/print`}
-              className="inline-flex h-11 items-center justify-center bg-[var(--foreground)] px-5 font-mono text-[11px] font-semibold tracking-[0.14em] text-white uppercase transition hover:bg-[var(--accent)]"
+              className="inline-flex h-11 items-center justify-center rounded-[var(--radius-control)] bg-[var(--foreground)] px-5 text-sm font-semibold text-white transition hover:bg-[var(--accent)]"
             >
               Печать заказа
             </Link>
             <Link
               href="/admin/orders"
-              className="inline-flex h-11 items-center justify-center border border-[color:var(--line-strong)] px-5 font-mono text-[11px] font-semibold tracking-[0.14em] text-[var(--foreground)] uppercase transition hover:border-[color:var(--foreground)] hover:bg-[var(--foreground)] hover:text-white"
+              className="inline-flex h-11 items-center justify-center rounded-[var(--radius-control)] border border-[color:var(--line-strong)] px-5 text-sm font-semibold text-[var(--foreground)] transition hover:border-[color:var(--foreground)] hover:bg-[var(--foreground)] hover:text-white"
             >
               К очереди заказов
             </Link>
@@ -242,7 +242,7 @@ export default async function AdminOrderDetailPage({
 
       <section className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
         <div className="space-y-5">
-          <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-6">
+          <section className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-white/82 p-6">
             <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
               <div>
                 <h2 className="text-lg font-semibold text-[var(--foreground)]">
@@ -260,7 +260,7 @@ export default async function AdminOrderDetailPage({
 
             <div className="mt-5 grid gap-4 md:grid-cols-2">
               <div>
-                <p className="text-xs tracking-[0.16em] text-[var(--muted)] uppercase">
+                <p className="text-xs font-semibold text-[var(--muted)]">
                   Клиент
                 </p>
                 <p className="mt-2 font-medium text-[var(--foreground)]">
@@ -290,7 +290,7 @@ export default async function AdminOrderDetailPage({
               </div>
 
               <div>
-                <p className="text-xs tracking-[0.16em] text-[var(--muted)] uppercase">
+                <p className="text-xs font-semibold text-[var(--muted)]">
                   Доставка
                 </p>
                 <p className="mt-2 font-medium text-[var(--foreground)]">
@@ -306,7 +306,7 @@ export default async function AdminOrderDetailPage({
 
             <div className="mt-5 grid gap-3 md:grid-cols-4">
               <div className="rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] p-4">
-                <p className="text-xs tracking-[0.16em] text-[var(--muted)] uppercase">
+                <p className="text-xs font-semibold text-[var(--muted)]">
                   План готовности
                 </p>
                 <p className="mt-2 text-sm font-medium text-[var(--foreground)]">
@@ -314,7 +314,7 @@ export default async function AdminOrderDetailPage({
                 </p>
               </div>
               <div className="rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] p-4">
-                <p className="text-xs tracking-[0.16em] text-[var(--muted)] uppercase">
+                <p className="text-xs font-semibold text-[var(--muted)]">
                   Готов к выдаче
                 </p>
                 <p className="mt-2 text-sm font-medium text-[var(--foreground)]">
@@ -322,7 +322,7 @@ export default async function AdminOrderDetailPage({
                 </p>
               </div>
               <div className="rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] p-4">
-                <p className="text-xs tracking-[0.16em] text-[var(--muted)] uppercase">
+                <p className="text-xs font-semibold text-[var(--muted)]">
                   Закрыт
                 </p>
                 <p className="mt-2 text-sm font-medium text-[var(--foreground)]">
@@ -330,7 +330,7 @@ export default async function AdminOrderDetailPage({
                 </p>
               </div>
               <div className="rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] p-4">
-                <p className="text-xs tracking-[0.16em] text-[var(--muted)] uppercase">
+                <p className="text-xs font-semibold text-[var(--muted)]">
                   Кассовый чек
                 </p>
                 <p className="mt-2 text-sm font-medium text-[var(--foreground)]">
@@ -341,7 +341,7 @@ export default async function AdminOrderDetailPage({
 
             {order.fulfillmentComment ? (
               <div className="mt-5 rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] p-4">
-                <p className="text-xs tracking-[0.16em] text-[var(--muted)] uppercase">
+                <p className="text-xs font-semibold text-[var(--muted)]">
                   Комментарий выдачи
                 </p>
                 <p className="mt-2 text-sm leading-6 whitespace-pre-wrap text-[var(--foreground)]">
@@ -352,7 +352,7 @@ export default async function AdminOrderDetailPage({
 
             {order.sourceRequestId ? (
               <div className="mt-5 rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] p-4">
-                <p className="text-xs tracking-[0.16em] text-[var(--muted)] uppercase">
+                <p className="text-xs font-semibold text-[var(--muted)]">
                   Источник
                 </p>
                 <Link
@@ -365,7 +365,7 @@ export default async function AdminOrderDetailPage({
             ) : null}
           </section>
 
-          <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-6">
+          <section className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-white/82 p-6">
             <h2 className="text-lg font-semibold text-[var(--foreground)]">
               Редактирование заказа
             </h2>
@@ -436,7 +436,7 @@ export default async function AdminOrderDetailPage({
             </form>
           </section>
 
-          <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-6">
+          <section className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-white/82 p-6">
             <h2 className="text-lg font-semibold text-[var(--foreground)]">
               Производство и выдача
             </h2>
@@ -489,7 +489,7 @@ export default async function AdminOrderDetailPage({
             </form>
           </section>
 
-          <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-6">
+          <section className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-white/82 p-6">
             <h2 className="text-lg font-semibold text-[var(--foreground)]">
               Состав заказа
             </h2>
@@ -607,7 +607,7 @@ export default async function AdminOrderDetailPage({
           </section>
 
           {order.comment ? (
-            <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-6">
+            <section className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-white/82 p-6">
               <h2 className="text-lg font-semibold text-[var(--foreground)]">
                 Комментарий к заказу
               </h2>
@@ -624,10 +624,10 @@ export default async function AdminOrderDetailPage({
         </div>
 
         <div className="space-y-5">
-          <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-6">
+          <section className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-white/82 p-6">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="font-mono text-[10px] tracking-[0.24em] text-[var(--accent)] uppercase">
+                <p className="text-xs font-semibold text-[var(--accent)]">
                   Маршрут заказа
                 </p>
                 <h2 className="mt-3 text-lg font-semibold text-[var(--foreground)]">
@@ -643,7 +643,7 @@ export default async function AdminOrderDetailPage({
             </div>
           </section>
 
-          <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-6">
+          <section className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-white/82 p-6">
             <h2 className="text-lg font-semibold text-[var(--foreground)]">
               Управление заказом
             </h2>
@@ -699,7 +699,7 @@ export default async function AdminOrderDetailPage({
 
             {orderQuickTransitions[order.status].length > 0 ? (
               <div className="mt-5 border-t border-[color:var(--line)] pt-5">
-                <p className="font-mono text-[10px] tracking-[0.2em] text-[var(--muted)] uppercase">
+                <p className="text-xs font-semibold text-[var(--muted)]">
                   Следующий шаг
                 </p>
                 <div className="mt-3 grid gap-2">
@@ -735,7 +735,7 @@ export default async function AdminOrderDetailPage({
             ) : null}
           </section>
 
-          <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-6">
+          <section className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-white/82 p-6">
             <h2 className="text-lg font-semibold text-[var(--foreground)]">
               Заметки по заказу
             </h2>

@@ -413,7 +413,7 @@ export default async function AdminLoyaltyPage({
 
   return (
     <div className="space-y-4">
-      <section className="surface-glow rounded-[24px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-6 sm:p-8">
+      <section className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-[var(--surface-strong)] p-6 sm:p-8">
         <SectionHeading
           title="Бонусная система"
           description="Здесь собраны правила уровней, начисления и списания бонусов. Статусы пересчитываются каждый месяц по накопленному оплаченному обороту отдельно для плит и фурнитуры."
@@ -470,7 +470,7 @@ export default async function AdminLoyaltyPage({
       </section>
 
       <section className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
-        <div className="rounded-[22px] border border-[color:var(--line)] bg-white p-4 shadow-[0_18px_50px_rgba(30,28,25,0.04)] sm:p-5">
+        <div className="rounded-[var(--radius-card)] border border-[color:var(--line)] bg-white p-4 shadow-[0_18px_50px_rgba(30,28,25,0.04)] sm:p-5">
           <SectionHeading
             title="Правила уровней"
             description="Только начисление бонусов: 1 балл равен 1 сому при списании, за один заказ можно оплатить бонусами не больше 50% суммы. Пороги считаются от накопленной суммы оплаченных закупок."
@@ -497,7 +497,7 @@ export default async function AdminLoyaltyPage({
             action={updateLoyaltyProgramSettingsAction}
             className="mt-5 grid gap-4"
           >
-            <div className="rounded-[18px] border border-[color:var(--line)] bg-[var(--surface)] p-4">
+            <div className="rounded-[var(--radius-inner)] border border-[color:var(--line)] bg-[var(--surface)] p-4">
               <p className="text-sm font-semibold text-[var(--foreground)]">
                 Оплата бонусами до {loyaltyConfig.maxRedeemPercent}% заказа
               </p>
@@ -514,7 +514,7 @@ export default async function AdminLoyaltyPage({
                 return (
                   <fieldset
                     key={tier}
-                    className="rounded-[18px] border border-[color:var(--line)] bg-[var(--surface)] p-4"
+                    className="rounded-[var(--radius-inner)] border border-[color:var(--line)] bg-[var(--surface)] p-4"
                   >
                     <legend className="px-1 text-sm font-semibold text-[var(--foreground)]">
                       {getLoyaltyTierLabel(tier, loyaltyConfig)}
@@ -608,7 +608,7 @@ export default async function AdminLoyaltyPage({
           {actionCards.map((card) => (
             <article
               key={card.href}
-              className="rounded-[22px] border border-[color:var(--line)] bg-white p-4 shadow-[0_18px_50px_rgba(30,28,25,0.04)]"
+              className="rounded-[var(--radius-card)] border border-[color:var(--line)] bg-white p-4 shadow-[0_18px_50px_rgba(30,28,25,0.04)]"
             >
               <p className="text-base font-semibold text-[var(--foreground)]">
                 {card.title}
@@ -629,7 +629,7 @@ export default async function AdminLoyaltyPage({
             </article>
           ))}
 
-          <article className="rounded-[22px] border border-[color:var(--line)] bg-[var(--surface)] p-4">
+          <article className="rounded-[var(--radius-card)] border border-[color:var(--line)] bg-[var(--surface)] p-4">
             <p className="text-base font-semibold text-[var(--foreground)]">
               Интеграция с 1C
             </p>

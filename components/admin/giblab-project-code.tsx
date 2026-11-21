@@ -43,10 +43,10 @@ export async function GibLabProjectCode({
   const example = `${(clientName ?? "Клиент").trim().split(/\s+/)[0] || "Клиент"}_${code}`;
 
   return (
-    <div className="border border-[color:var(--line-strong)] bg-[#faf8f4] p-4 text-sm leading-6">
+    <div className="border border-[color:var(--line-strong)] bg-[var(--surface)] p-4 text-sm leading-6">
       <p className="font-semibold">
         Код для GibLab:
-        <span className="ml-2 bg-[#252b29] px-2 py-1 font-mono text-base tracking-[0.2em] text-white">
+        <span className="ml-2 bg-[var(--solid)] px-2 py-1 font-mono text-base tracking-[0.2em] text-white">
           {code}
         </span>
       </p>

@@ -410,7 +410,7 @@ export default async function AdminPromotionsPage({
 
   return (
     <div className="space-y-5">
-      <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-6 sm:p-7">
+      <section className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-white/82 p-6 sm:p-7">
         <SectionHeading
           title="Акции и скидки"
           description="Рабочий контур для промокодов, выделенных кампаний и коммерческих сценариев по товарам, категориям и заказам. Здесь команда может быстро запускать промо-механику без перехода в отдельные экраны."
@@ -420,10 +420,10 @@ export default async function AdminPromotionsPage({
       </section>
 
       {telegramPromo ? (
-        <section className="overflow-hidden rounded-[24px] border border-[#f0a17f]/45 bg-[#fff7f1] p-5 shadow-[0_16px_48px_rgba(198,91,58,0.12)]">
+        <section className="overflow-hidden rounded-[var(--radius-card)] border border-[color:var(--accent)]/45 bg-[var(--surface)] p-5 shadow-[0_16px_48px_rgba(198,91,58,0.12)]">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-xs font-medium text-[#c4532b]">
+              <p className="text-xs font-medium text-[var(--accent)]">
                 Telegram промо
               </p>
               <p className="mt-2 text-base font-semibold text-[var(--foreground)]">
@@ -467,7 +467,7 @@ export default async function AdminPromotionsPage({
         />
       </section>
 
-      <section className="overflow-hidden rounded-[24px] border border-[#1f2b25]/10 bg-[#1f2b25] text-white shadow-[0_28px_80px_rgba(21,17,13,0.18)]">
+      <section className="overflow-hidden rounded-[var(--radius-card)] border border-[color:var(--solid)]/10 bg-[var(--solid)] text-white shadow-[0_28px_80px_rgba(21,17,13,0.18)]">
         <div className="grid gap-6 p-5 sm:p-7 xl:grid-cols-[0.86fr_1.14fr] xl:items-end">
           <div>
             <p className="text-xs font-medium text-white/44">Витрина промо</p>
@@ -486,7 +486,7 @@ export default async function AdminPromotionsPage({
               showcasePromotions.map((promotion) => (
                 <article
                   key={promotion.id}
-                  className="grid min-h-[14rem] content-between rounded-[24px] border border-white/12 bg-white/[0.08] p-4 backdrop-blur-sm"
+                  className="grid min-h-[14rem] content-between rounded-[var(--radius-card)] border border-white/12 bg-white/[0.08] p-4 backdrop-blur-sm"
                 >
                   <div>
                     <p className="text-xs font-medium text-[#f0a17f]">
@@ -517,7 +517,7 @@ export default async function AdminPromotionsPage({
                 </article>
               ))
             ) : (
-              <div className="rounded-[24px] border border-dashed border-white/16 p-5 text-sm leading-6 text-white/58 md:col-span-3">
+              <div className="rounded-[var(--radius-card)] border border-dashed border-white/16 p-5 text-sm leading-6 text-white/58 md:col-span-3">
                 Выделите активную акцию галочкой «Показывать на витрине» — она
                 появится здесь и на публичном сайте.
               </div>
@@ -526,7 +526,7 @@ export default async function AdminPromotionsPage({
         </div>
       </section>
 
-      <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-6">
+      <section className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-white/82 p-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-2xl">
             <p className="text-xs font-medium text-[var(--accent)]">
@@ -679,7 +679,7 @@ export default async function AdminPromotionsPage({
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
-        <article className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-6">
+        <article className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-white/82 p-6">
           <SectionHeading
             title="Новая акция"
             description="Создайте промокод, скидку по товару или категорийную кампанию и сразу отправьте её в рабочий контур."
@@ -844,7 +844,7 @@ export default async function AdminPromotionsPage({
         </article>
 
         <article className="space-y-4">
-          <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-6">
+          <section className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-white/82 p-6">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div className="max-w-2xl">
                 <p className="text-xs font-medium text-[var(--accent)]">

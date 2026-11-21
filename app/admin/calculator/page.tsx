@@ -305,7 +305,7 @@ export default async function AdminCalculatorPage() {
 
   return (
     <div className="space-y-5">
-      <section className="surface-glow rounded-[24px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-6 sm:p-8">
+      <section className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-[var(--surface-strong)] p-6 sm:p-8">
         <SectionHeading
           title="Калькулятор распила"
           description="Материалы, цены и форматы листов, которые видит публичный калькулятор. Изменения мгновенно подхватываются."
@@ -315,7 +315,7 @@ export default async function AdminCalculatorPage() {
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
-        <article className="surface-glow rounded-[24px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-6">
+        <article className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-[var(--surface-strong)] p-6">
           <SectionHeading
             title="Новый материал"
             description="ЛДСП, МДФ, фанера и другие плитные материалы для расчёта."
@@ -414,7 +414,7 @@ export default async function AdminCalculatorPage() {
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
-        <article className="surface-glow rounded-[24px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-6">
+        <article className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-[var(--surface-strong)] p-6">
           <SectionHeading
             title="Новый формат листа"
             description="Стандартные размеры листа: 2800 × 2070, 2750 × 1830 и т.д."

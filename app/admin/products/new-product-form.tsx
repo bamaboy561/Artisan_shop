@@ -131,7 +131,7 @@ function CompactPanel({
   return (
     <section
       className={cn(
-        "rounded-[18px] border border-[color:var(--line)] bg-white/74 p-3.5 sm:p-4",
+        "rounded-[var(--radius-inner)] border border-[color:var(--line)] bg-white/74 p-3.5 sm:p-4",
         className,
       )}
     >
@@ -151,7 +151,7 @@ function CompactDetails({
   children: ReactNode;
 }) {
   return (
-    <details className="rounded-[18px] border border-[color:var(--line)] bg-white/70 p-3.5 open:bg-white/86 sm:p-4">
+    <details className="rounded-[var(--radius-inner)] border border-[color:var(--line)] bg-white/70 p-3.5 open:bg-white/86 sm:p-4">
       <summary className="cursor-pointer list-none">
         <span className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
           <span className="text-xs font-medium text-[var(--accent)]">
@@ -384,8 +384,8 @@ function BundleCatalogPicker({
           className={cn(
             "grid gap-1 rounded-2xl border p-4 text-left transition",
             !enabled
-              ? "border-[#111] bg-[#111] text-white shadow-[0_16px_36px_rgba(17,17,17,0.16)]"
-              : "border-[color:var(--line)] bg-white text-[var(--foreground)] hover:border-[#c4532b]",
+              ? "border-[color:var(--solid)] bg-[var(--solid)] text-white shadow-[0_16px_36px_rgba(17,17,17,0.16)]"
+              : "border-[color:var(--line)] bg-white text-[var(--foreground)] hover:border-[color:var(--accent)]",
           )}
         >
           <span className="text-sm font-semibold">Обычный товар</span>
@@ -405,8 +405,8 @@ function BundleCatalogPicker({
           className={cn(
             "grid gap-1 rounded-2xl border p-4 text-left transition",
             enabled
-              ? "border-[#111] bg-[#111] text-white shadow-[0_16px_36px_rgba(17,17,17,0.16)]"
-              : "border-[color:var(--line)] bg-white text-[var(--foreground)] hover:border-[#c4532b]",
+              ? "border-[color:var(--solid)] bg-[var(--solid)] text-white shadow-[0_16px_36px_rgba(17,17,17,0.16)]"
+              : "border-[color:var(--line)] bg-white text-[var(--foreground)] hover:border-[color:var(--accent)]",
           )}
         >
           <span className="text-sm font-semibold">Комплект из каталога</span>
@@ -422,7 +422,7 @@ function BundleCatalogPicker({
       </div>
 
       {!enabled ? (
-        <div className="rounded-2xl border border-[color:var(--line)] bg-[#faf8f4] p-4 text-sm leading-6 text-[var(--muted)]">
+        <div className="rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] p-4 text-sm leading-6 text-[var(--muted)]">
           Сценарий комплекта выключен. Если это петля, направляющая, ручка,
           столешница или любой самостоятельный товар, оставьте режим «Обычный
           товар».
@@ -430,7 +430,7 @@ function BundleCatalogPicker({
       ) : (
         <div className="grid gap-4 xl:grid-cols-[minmax(280px,0.9fr)_minmax(0,1.1fr)]">
           <div className="grid content-start gap-3">
-            <div className="rounded-2xl border border-[color:var(--line)] bg-[#faf8f4] p-4">
+            <div className="rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] p-4">
               <p className="text-sm font-semibold text-[var(--foreground)]">
                 Как работает комплект
               </p>
@@ -465,7 +465,7 @@ function BundleCatalogPicker({
                     key={product.id}
                     type="button"
                     onClick={() => addProduct(product.id)}
-                    className="grid w-full gap-2 border-b border-[color:var(--line)] px-3 py-3 text-left transition last:border-b-0 hover:bg-[#f8f5ef]"
+                    className="grid w-full gap-2 border-b border-[color:var(--line)] px-3 py-3 text-left transition last:border-b-0 hover:bg-[var(--surface)]"
                   >
                     <span className="text-sm font-semibold text-[var(--foreground)]">
                       {product.name}
@@ -476,7 +476,7 @@ function BundleCatalogPicker({
                         .join(" · ")}
                     </span>
                     <span className="flex flex-wrap items-center gap-2 text-xs">
-                      <span className="rounded-full bg-[#f1eee8] px-2.5 py-1 text-[var(--foreground)]">
+                      <span className="rounded-full bg-[var(--surface)] px-2.5 py-1 text-[var(--foreground)]">
                         {formatBundlePrice(product.price)}
                       </span>
                       <span className="rounded-full bg-white px-2.5 py-1 text-[var(--muted)] ring-1 ring-[color:var(--line)]">
@@ -524,7 +524,7 @@ function BundleCatalogPicker({
               </div>
             </div>
 
-            <div className="rounded-2xl border border-[color:var(--line)] bg-[#f8f5ef] p-3 text-xs leading-5 text-[var(--muted)]">
+            <div className="rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] p-3 text-xs leading-5 text-[var(--muted)]">
               Сумма компонентов теперь используется как цена комплекта для
               клиента, если отдельная цена в поле «Цена» выше не указана.
             </div>
@@ -1114,7 +1114,7 @@ export function NewProductForm({
             defaultChecked={defaults?.isFeatured ?? false}
             label="Показывать в подборках"
             description="Для главной, брендов и ручных витрин."
-            className="rounded-2xl border border-[color:var(--line)] bg-[#faf8f4] px-3 py-3"
+            className="rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] px-3 py-3"
           />
         </div>
       </CompactDetails>
@@ -1250,7 +1250,7 @@ export function NewProductForm({
 
       <div
         className={cn(
-          "z-10 flex flex-col gap-2 rounded-[18px] border border-[color:var(--line)] bg-[rgba(250,248,244,0.94)] p-3 shadow-[0_18px_45px_rgba(27,24,20,0.12)] backdrop-blur md:flex-row md:items-center md:justify-between",
+          "z-10 flex flex-col gap-2 rounded-[var(--radius-inner)] border border-[color:var(--line)] bg-[rgba(250,248,244,0.94)] p-3 shadow-[0_18px_45px_rgba(27,24,20,0.12)] backdrop-blur md:flex-row md:items-center md:justify-between",
           compact ? "static" : "sticky bottom-3",
         )}
       >

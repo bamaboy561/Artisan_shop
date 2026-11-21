@@ -335,7 +335,7 @@ export default async function AdminCuttingPage({
 
   return (
     <div className="space-y-5">
-      <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-6 sm:p-7">
+      <section className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-white/82 p-6 sm:p-7">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <SectionHeading
             title="Распил"
@@ -382,7 +382,7 @@ export default async function AdminCuttingPage({
         />
       </section>
 
-      <section className="surface-glow space-y-3 rounded-[28px] border border-[color:var(--line)] bg-white/82 p-6">
+      <section className="surface-glow space-y-3 rounded-[var(--radius-card)] border border-[color:var(--line)] bg-white/82 p-6">
         <Form
           action="/admin/cutting"
           className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(240px,1.5fr)_180px_155px_155px_190px_auto] xl:items-end"

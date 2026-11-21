@@ -137,7 +137,7 @@ export function StockPendingList({
                         <div className="flex flex-wrap justify-end gap-1.5">
                           <Link
                             href={`/admin/products?fromPending=${encodeURIComponent(item.id)}#new-product`}
-                            className="rounded-full bg-[#171613] px-2.5 py-1 font-medium whitespace-nowrap text-white hover:bg-black"
+                            className="rounded-full bg-[var(--solid)] px-2.5 py-1 font-medium whitespace-nowrap text-white hover:bg-black"
                           >
                             Добавить
                           </Link>

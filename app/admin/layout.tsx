@@ -61,7 +61,10 @@ export default async function AdminLayout({
           : "Админка Artisan";
   if (productionWorkspace) {
     return (
-      <div className="theme-light min-h-screen">
+      <div
+        className="theme-light theme-admin min-h-screen"
+       
+      >
         <ProductionFrame
           title={workspaceTitle}
           name={adminName}
@@ -75,7 +78,10 @@ export default async function AdminLayout({
   }
   // Админка остаётся светлой: сайт для покупателей — «Тёмный орех».
   return (
-    <div className="theme-light min-h-screen">
+    <div
+      className="theme-light theme-admin min-h-screen"
+     
+    >
       <DashboardFrame
         eyebrow={productionWorkspace ? "Производство" : "Панель управления"}
         title={workspaceTitle}
@@ -89,14 +95,14 @@ export default async function AdminLayout({
         actions={
           <div className="space-y-3">
             <div className="flex items-center gap-3 rounded-xl px-2 py-2">
-              <span className="flex size-10 items-center justify-center rounded-full bg-[#c65b3a] text-sm font-bold text-white">
+              <span className="flex size-10 items-center justify-center rounded-full bg-[var(--sidebar-hover)] text-sm font-bold text-[var(--sidebar-fg)]">
                 {adminName.charAt(0).toUpperCase()}
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-semibold text-white">
+                <span className="block truncate text-sm font-semibold text-[var(--sidebar-fg)]">
                   {adminName}
                 </span>
-                <span className="block truncate text-xs text-white/52">
+                <span className="block truncate text-xs text-[var(--sidebar-muted)]">
                   {roleDefinitions[session.roleCode].label}
                 </span>
               </span>
@@ -105,7 +111,7 @@ export default async function AdminLayout({
             <form action={signOutAction}>
               <button
                 type="submit"
-                className="flex h-10 w-full items-center justify-center rounded-lg border border-white/10 text-sm font-medium text-white/70 transition hover:border-white/30 hover:bg-white/8 hover:text-white"
+                className="flex h-10 w-full items-center justify-center rounded-lg border border-[color:var(--sidebar-border)] text-sm font-medium text-[var(--sidebar-muted)] transition hover:bg-[var(--sidebar-hover)] hover:text-[var(--sidebar-fg)]"
               >
                 Выйти
               </button>

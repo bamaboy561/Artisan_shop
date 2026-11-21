@@ -31,7 +31,19 @@ html {
 
 * {
   box-sizing: border-box;
+}
+
+/* На сайте рамки по-прежнему берут цвет --line поверх утилит.
+   В админке правило лежит в слое base, чтобы border-[color:…] работали. */
+*:not(.theme-admin, .theme-admin *) {
   border-color: var(--line);
+}
+
+@layer base {
+  .theme-admin,
+  .theme-admin * {
+    border-color: var(--line);
+  }
 }
 
 body {

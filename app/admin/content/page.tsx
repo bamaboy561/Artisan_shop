@@ -63,7 +63,7 @@ function formatDate(date: Date | null) {
 
 function PageEditor({ page }: { page: SitePage }) {
   return (
-    <article className="rounded-[24px] border border-[color:var(--line)] bg-white/86 p-4 shadow-[0_18px_50px_rgba(30,28,25,0.04)]">
+    <article className="rounded-[var(--radius-card)] border border-[color:var(--line)] bg-white/86 p-4 shadow-[0_18px_50px_rgba(30,28,25,0.04)]">
       <form action={updateSitePageAction} className="grid gap-3">
         <input type="hidden" name="id" value={page.id} />
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -160,11 +160,11 @@ function PageEditor({ page }: { page: SitePage }) {
 
 function BannerEditor({ banner }: { banner: Banner }) {
   return (
-    <article className="rounded-[24px] border border-[color:var(--line)] bg-white/86 p-4 shadow-[0_18px_50px_rgba(30,28,25,0.04)]">
+    <article className="rounded-[var(--radius-card)] border border-[color:var(--line)] bg-white/86 p-4 shadow-[0_18px_50px_rgba(30,28,25,0.04)]">
       <form action={updateBannerAction} className="grid gap-3">
         <input type="hidden" name="id" value={banner.id} />
         <div className="grid gap-3 lg:grid-cols-[1fr_13rem]">
-          <div className="rounded-[20px] border border-[#1f2b25]/10 bg-[#1f2b25] p-4 text-white">
+          <div className="rounded-[var(--radius-inner)] border border-[color:var(--solid)]/10 bg-[var(--solid)] p-4 text-white">
             <p className="text-xs font-medium text-white/48">
               {bannerPlacementLabels[banner.placement]}
             </p>
@@ -182,7 +182,7 @@ function BannerEditor({ banner }: { banner: Banner }) {
               </p>
             ) : null}
           </div>
-          <div className="rounded-[20px] border border-[color:var(--line)] bg-[var(--surface)] p-3 text-sm text-[var(--muted)]">
+          <div className="rounded-[var(--radius-inner)] border border-[color:var(--line)] bg-[var(--surface)] p-3 text-sm text-[var(--muted)]">
             <p className="font-semibold text-[var(--foreground)]">
               {banner.isActive ? "Активен" : "Выключен"}
             </p>
@@ -342,7 +342,7 @@ export default async function AdminContentPage() {
 
   return (
     <div className="space-y-5">
-      <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-6 sm:p-7">
+      <section className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-white/82 p-6 sm:p-7">
         <SectionHeading
           title="Контент сайта"
           description="Единое место для текстов, SEO, баннеров и визуальных блоков. Менеджер меняет контент без правки кода."
@@ -370,7 +370,7 @@ export default async function AdminContentPage() {
       </section>
 
       <section className="grid gap-4 xl:grid-cols-2">
-        <article className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-6">
+        <article className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-white/82 p-6">
           <SectionHeading
             title="Новая страница"
             description="Создайте страницу, черновик или SEO-заготовку."
@@ -412,7 +412,7 @@ export default async function AdminContentPage() {
           </form>
         </article>
 
-        <article className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-6">
+        <article className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-white/82 p-6">
           <SectionHeading
             title="Новый баннер"
             description="Баннеры нужны для главной, каталога, услуг и контактных блоков."
@@ -486,7 +486,7 @@ export default async function AdminContentPage() {
               ))}
             </div>
           ) : (
-            <div className="rounded-[24px] border border-dashed border-[color:var(--line)] bg-white/66 p-8 text-sm text-[var(--muted)]">
+            <div className="rounded-[var(--radius-card)] border border-dashed border-[color:var(--line)] bg-white/66 p-8 text-sm text-[var(--muted)]">
               Страницы появятся после создания первого материала.
             </div>
           )}
@@ -506,7 +506,7 @@ export default async function AdminContentPage() {
               ))}
             </div>
           ) : (
-            <div className="rounded-[24px] border border-dashed border-[color:var(--line)] bg-white/66 p-8 text-sm text-[var(--muted)]">
+            <div className="rounded-[var(--radius-card)] border border-dashed border-[color:var(--line)] bg-white/66 p-8 text-sm text-[var(--muted)]">
               Баннеры появятся после создания первого визуального блока.
             </div>
           )}

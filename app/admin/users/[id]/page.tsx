@@ -182,7 +182,7 @@ export default async function AdminUserProfilePage({
         </StatusBadge>
       </div>
 
-      <section className="rounded-[18px] border border-[color:var(--line)] bg-white p-4 sm:p-5">
+      <section className="rounded-[var(--radius-inner)] border border-[color:var(--line)] bg-white p-4 sm:p-5">
         <h2 className="text-lg font-semibold text-[var(--foreground)]">
           Контакты
         </h2>
@@ -265,7 +265,7 @@ export default async function AdminUserProfilePage({
       </section>
 
       {mayManageClient ? (
-        <section className="rounded-[18px] border border-[color:var(--line)] bg-white p-4 sm:p-5">
+        <section className="rounded-[var(--radius-inner)] border border-[color:var(--line)] bg-white p-4 sm:p-5">
           <h2 className="text-lg font-semibold text-[var(--foreground)]">
             Пароль для входа
           </h2>

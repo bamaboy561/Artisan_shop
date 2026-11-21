@@ -39,7 +39,7 @@ export async function ClientTelegramConnect({
   }
 
   return (
-    <div className="flex items-center gap-4 border border-[color:var(--line-strong)] bg-[#faf8f4] p-4 print:hidden">
+    <div className="flex items-center gap-4 border border-[color:var(--line-strong)] bg-[var(--surface)] p-4 print:hidden">
       <div
         className="size-28 shrink-0 bg-white p-1.5 [&>svg]:size-full"
         dangerouslySetInnerHTML={{ __html: qrSvg }}

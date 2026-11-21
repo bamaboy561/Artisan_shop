@@ -35,7 +35,7 @@ export default async function AdminBrandsPage() {
 
   return (
     <div className="space-y-4">
-      <section className="surface-glow rounded-[24px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-6 sm:p-8">
+      <section className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-[var(--surface-strong)] p-6 sm:p-8">
         <SectionHeading
           title="Бренды и поставщики"
           description="Здесь формируется пул производителей для каталога, карточек товара и будущей фильтрации."
@@ -45,7 +45,7 @@ export default async function AdminBrandsPage() {
       </section>
 
       <section className="grid items-start gap-4 2xl:grid-cols-[420px_minmax(0,1fr)]">
-        <article className="surface-glow rounded-[24px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-5 sm:p-6 2xl:sticky 2xl:top-24">
+        <article className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-[var(--surface-strong)] p-5 sm:p-6 2xl:sticky 2xl:top-24">
           <SectionHeading
             title="Новый бренд"
             description="Добавьте производителя, сайт и логотип. Подробности можно доработать в карточке бренда."
@@ -88,7 +88,7 @@ export default async function AdminBrandsPage() {
               </label>
             </div>
 
-            <div className="grid gap-3 rounded-[18px] border border-[color:var(--line)] bg-white/55 p-4">
+            <div className="grid gap-3 rounded-[var(--radius-inner)] border border-[color:var(--line)] bg-white/55 p-4">
               <div>
                 <p className="text-xs font-medium text-[var(--accent)]">
                   Баннер на главной
@@ -130,7 +130,7 @@ export default async function AdminBrandsPage() {
           </form>
         </article>
 
-        <article className="surface-glow min-w-0 overflow-hidden rounded-[24px] border border-[color:var(--line)] bg-[var(--surface-strong)]">
+        <article className="surface-glow min-w-0 overflow-hidden rounded-[var(--radius-card)] border border-[color:var(--line)] bg-[var(--surface-strong)]">
           <div className="flex flex-col gap-4 border-b border-[color:var(--line)] p-5 sm:p-6 lg:flex-row lg:items-start lg:justify-between">
             <SectionHeading
               title="Список брендов"
@@ -156,11 +156,11 @@ export default async function AdminBrandsPage() {
                 return (
                   <section
                     key={brand.id}
-                    className="grid min-w-0 gap-4 rounded-[22px] border border-[color:var(--line)] bg-white/78 p-4 transition hover:border-[#d8cec2] hover:bg-white sm:p-5 xl:grid-cols-[minmax(0,1fr)_auto]"
+                    className="grid min-w-0 gap-4 rounded-[var(--radius-card)] border border-[color:var(--line)] bg-white/78 p-4 transition hover:border-[color:var(--line-strong)] hover:bg-white sm:p-5 xl:grid-cols-[minmax(0,1fr)_auto]"
                   >
                     <div className="flex min-w-0 flex-col gap-4 sm:flex-row">
                       <div
-                        className="flex h-16 w-32 shrink-0 items-center justify-center rounded-2xl border border-[color:var(--line)] bg-[#171614] bg-contain bg-center bg-no-repeat text-lg font-semibold text-white shadow-[0_14px_34px_rgba(17,17,17,0.08)] sm:h-[4.5rem] sm:w-36"
+                        className="flex h-16 w-32 shrink-0 items-center justify-center rounded-2xl border border-[color:var(--line)] bg-[var(--solid)] bg-contain bg-center bg-no-repeat text-lg font-semibold text-white shadow-[0_14px_34px_rgba(17,17,17,0.08)] sm:h-[4.5rem] sm:w-36"
                         style={logoStyle}
                         aria-label={`Логотип ${brand.name}`}
                       >
@@ -171,11 +171,11 @@ export default async function AdminBrandsPage() {
                         <div className="flex flex-wrap items-center gap-2">
                           <Link
                             href={`/admin/brands/${brand.id}`}
-                            className="text-xl font-semibold tracking-[-0.03em] text-[var(--foreground)] transition hover:text-[#9d573d]"
+                            className="text-xl font-semibold tracking-[-0.03em] text-[var(--foreground)] transition hover:text-[var(--accent-strong)]"
                           >
                             {brand.name}
                           </Link>
-                          <span className="rounded-full border border-[color:var(--line)] bg-[#f7f4ef] px-3 py-1 text-xs font-medium text-[var(--muted)]">
+                          <span className="rounded-full border border-[color:var(--line)] bg-[var(--surface)] px-3 py-1 text-xs font-medium text-[var(--muted)]">
                             {brand.slug}
                           </span>
                         </div>

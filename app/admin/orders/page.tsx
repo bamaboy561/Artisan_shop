@@ -283,7 +283,7 @@ export default async function AdminOrdersPage({
         <div className="flex items-center gap-2">
           <Link
             href={`/admin/orders/${order.id}`}
-            className="inline-flex h-8 items-center justify-center border border-[color:var(--line-strong)] px-3 text-[11px] font-semibold tracking-[0.12em] text-[var(--foreground)] uppercase transition hover:border-[color:var(--foreground)] hover:bg-[var(--foreground)] hover:text-white"
+            className="inline-flex h-8 items-center justify-center rounded-[var(--radius-control)] border border-[color:var(--line-strong)] px-3 text-sm font-semibold text-[var(--foreground)] transition hover:border-[color:var(--foreground)] hover:bg-[var(--foreground)] hover:text-white"
           >
             Редактировать
           </Link>
@@ -402,7 +402,7 @@ export default async function AdminOrdersPage({
 
   return (
     <div className="space-y-5">
-      <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-6 sm:p-7">
+      <section className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-white/82 p-6 sm:p-7">
         <SectionHeading
           title="Заказы"
           description="Операционная очередь по подтверждению, производству, выдаче и отгрузке. Команда может быстро находить проблемные заказы и управлять ими пакетно."
@@ -434,10 +434,10 @@ export default async function AdminOrdersPage({
         />
       </section>
 
-      <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-6">
+      <section className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-white/82 p-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-2xl">
-            <p className="font-mono text-[10px] tracking-[0.24em] text-[var(--accent)] uppercase">
+            <p className="text-xs font-semibold text-[var(--accent)]">
               Фильтры очереди
             </p>
             <h3 className="mt-3 text-xl font-semibold text-[var(--foreground)]">
@@ -452,25 +452,25 @@ export default async function AdminOrdersPage({
           <div className="flex flex-wrap gap-2">
             <Link
               href={getStateHref(state, { assignment: "unassigned" })}
-              className="rounded-full border border-[color:var(--line)] bg-[var(--surface)] px-3 py-1.5 text-[11px] font-semibold tracking-[0.14em] text-[var(--muted)] uppercase transition hover:border-[color:var(--line-strong)]"
+              className="rounded-full border border-[color:var(--line)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[var(--muted)] transition hover:border-[color:var(--line-strong)]"
             >
               Без менеджера
             </Link>
             <Link
               href={getStateHref(state, { status: OrderStatus.NEW })}
-              className="rounded-full border border-[color:var(--line)] bg-[var(--surface)] px-3 py-1.5 text-[11px] font-semibold tracking-[0.14em] text-[var(--muted)] uppercase transition hover:border-[color:var(--line-strong)]"
+              className="rounded-full border border-[color:var(--line)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[var(--muted)] transition hover:border-[color:var(--line-strong)]"
             >
               Новые
             </Link>
             <Link
               href={getStateHref(state, { status: OrderStatus.IN_PRODUCTION })}
-              className="rounded-full border border-[color:var(--line)] bg-[var(--surface)] px-3 py-1.5 text-[11px] font-semibold tracking-[0.14em] text-[var(--muted)] uppercase transition hover:border-[color:var(--line-strong)]"
+              className="rounded-full border border-[color:var(--line)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[var(--muted)] transition hover:border-[color:var(--line-strong)]"
             >
               Производство
             </Link>
             <Link
               href={getStateHref(state, { delivery: "delivery" })}
-              className="rounded-full border border-[color:var(--line)] bg-[var(--surface)] px-3 py-1.5 text-[11px] font-semibold tracking-[0.14em] text-[var(--muted)] uppercase transition hover:border-[color:var(--line-strong)]"
+              className="rounded-full border border-[color:var(--line)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[var(--muted)] transition hover:border-[color:var(--line-strong)]"
             >
               С доставкой
             </Link>
@@ -566,7 +566,7 @@ export default async function AdminOrdersPage({
             />
             <Link
               href="/admin/orders"
-              className="inline-flex h-11 items-center justify-center border border-[color:var(--line-strong)] px-5 font-mono text-[11px] font-semibold tracking-[0.14em] text-[var(--foreground)] uppercase transition hover:border-[color:var(--foreground)] hover:bg-[var(--foreground)] hover:text-white"
+              className="inline-flex h-11 items-center justify-center rounded-[var(--radius-control)] border border-[color:var(--line-strong)] px-5 text-sm font-semibold text-[var(--foreground)] transition hover:border-[color:var(--foreground)] hover:bg-[var(--foreground)] hover:text-white"
             >
               Сбросить всё
             </Link>
@@ -597,10 +597,10 @@ export default async function AdminOrdersPage({
       </section>
 
       <section className="space-y-4">
-        <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-6">
+        <section className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-white/82 p-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="max-w-2xl">
-              <p className="font-mono text-[10px] tracking-[0.24em] text-[var(--accent)] uppercase">
+              <p className="text-xs font-semibold text-[var(--accent)]">
                 Массовые действия
               </p>
               <h3 className="mt-3 text-xl font-semibold text-[var(--foreground)]">

@@ -40,10 +40,12 @@ function Group({
   children: ReactNode;
 }) {
   return (
-    <section className="overflow-hidden rounded-xl border border-[#e3ddd2] bg-white">
-      <div className="flex items-baseline justify-between gap-3 border-b border-[#e3ddd2] px-5 py-3">
-        <h2 className="text-base font-semibold text-[#1b1c19]">{title}</h2>
-        <span className="text-xs text-[#6b665e]">
+    <section className="overflow-hidden rounded-xl border border-[color:var(--line)] bg-white">
+      <div className="flex items-baseline justify-between gap-3 border-b border-[color:var(--line)] px-5 py-3">
+        <h2 className="text-base font-semibold text-[var(--foreground)]">
+          {title}
+        </h2>
+        <span className="text-xs text-[var(--muted)]">
           {count === 0
             ? "ничего не найдено"
             : count >= limit
@@ -52,7 +54,7 @@ function Group({
         </span>
       </div>
       {count > 0 ? (
-        <ul className="divide-y divide-[#eee9df]">{children}</ul>
+        <ul className="divide-y divide-[color:var(--line)]">{children}</ul>
       ) : null}
     </section>
   );
@@ -73,17 +75,17 @@ function Row({
     <li>
       <Link
         href={href}
-        className="flex items-center justify-between gap-4 px-5 py-3 transition hover:bg-[#faf8f4]"
+        className="flex items-center justify-between gap-4 px-5 py-3 transition hover:bg-[var(--surface)]"
       >
         <span className="min-w-0">
-          <span className="block truncate text-sm font-semibold text-[#1b1c19]">
+          <span className="block truncate text-sm font-semibold text-[var(--foreground)]">
             {title}
           </span>
-          <span className="mt-0.5 block truncate text-xs text-[#6b665e]">
+          <span className="mt-0.5 block truncate text-xs text-[var(--muted)]">
             {detail}
           </span>
         </span>
-        <span className="shrink-0 text-right text-xs text-[#6b665e]">
+        <span className="shrink-0 text-right text-xs text-[var(--muted)]">
           {aside}
         </span>
       </Link>
@@ -117,7 +119,7 @@ export default async function AdminSearchPage({
       <AdminSearchForm defaultValue={query} autoFocus className="max-w-xl" />
 
       {!result ? (
-        <p className="text-sm text-[#6b665e]">
+        <p className="text-sm text-[var(--muted)]">
           {query.trim()
             ? "Введите хотя бы два знака."
             : "Введите имя, телефон или номер."}
