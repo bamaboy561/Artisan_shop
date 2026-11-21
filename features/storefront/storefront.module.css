@@ -3772,3 +3772,60 @@
     line-clamp: 3;
   }
 }
+
+/* Карточка товара на телефоне: цена и кнопка на первом экране. */
+.formatDetail .specChips {
+  margin: 0;
+}
+.detailPrice .unitPrice {
+  font-size: 13px;
+}
+@media (max-width: 600px) {
+  /* Назад ведут нижнее меню и кнопка браузера, крошки занимают место. */
+  .productPage .breadcrumbs {
+    display: none;
+  }
+  .productPage .thumbnails {
+    display: none;
+  }
+  .productPage .productDetail {
+    gap: 12px;
+  }
+  .productPage .mainImage {
+    aspect-ratio: 16 / 10;
+  }
+  .productPage .detailInfo {
+    padding: 16px 18px 20px;
+  }
+  .productPage .detailInfo h1 {
+    font-size: 23px;
+    margin-block: 2px 4px;
+  }
+  .productPage .detailBrand {
+    margin-block: 0 4px;
+  }
+  .productPage .sku {
+    margin-block: 0 4px;
+  }
+  .productPage .detailInfo .availability {
+    margin-block: 2px 0;
+  }
+  .productPage .formatDetail {
+    padding-block: 8px;
+    margin-block: 6px 0;
+  }
+  .productPage .formatDetail > span {
+    display: none;
+  }
+  /* В карточках каталога третий чип скрыт; на странице товара места хватает. */
+  .productPage .formatDetail .specChips span {
+    display: block;
+  }
+  .productPage .detailPrice {
+    padding-top: 10px;
+    margin-bottom: 8px;
+  }
+  .productPage .detailPrice strong {
+    font-size: 26px;
+  }
+}
