@@ -415,8 +415,16 @@ export default async function AdminRequestDetailPage({
                   <input type="hidden" name="requestId" value={request.id} />
                   <MaterialLinesEditor
                     initialLines={materialLines}
-                    legacyMaterial={request.material}
-                    legacyEdge={request.edgeOption}
+                    legacyMaterial={
+                      materialLines.some((line) => line.kind === "SHEET")
+                        ? null
+                        : request.material
+                    }
+                    legacyEdge={
+                      materialLines.some((line) => line.kind === "EDGE")
+                        ? null
+                        : request.edgeOption
+                    }
                     initialSheetCount={request.cuttingSheetCount}
                     initialEdgeMeters={request.cuttingEdgeMeters}
                   />

@@ -4757,15 +4757,18 @@ export async function updateRequestCuttingDetailsAction(formData: FormData) {
     const linesInput = await materialLinesFromForm(formData);
     if (!linesInput.ok) errorRedirect(linesInput.message);
     materialLines = linesInput.ok ? linesInput.lines : [];
-    const hadLines = (await getRequestMaterialLines(requestId)).length > 0;
+    // Старый заказ переводят на строки по частям: листы и кромку считаем
+    // отдельно, чтобы правка одного вида не стёрла текст другого.
+    const savedLines = await getRequestMaterialLines(requestId);
+    const hadSheetLines = savedLines.some((line) => line.kind === "SHEET");
+    const hadEdgeLines = savedLines.some((line) => line.kind === "EDGE");
     const summary = summarizeMaterialLines(materialLines);
-    // Старый заказ без строк: пока строк листов/кромки не добавили, прежняя
-    // текстовая запись остаётся.
     material =
       summary.material ??
-      (hadLines ? "" : (request.material ?? "").slice(0, 500));
+      (hadSheetLines ? "" : (request.material ?? "").slice(0, 500));
     edgeOption =
-      summary.edgeOption ?? (hadLines ? null : (request.edgeOption ?? null));
+      summary.edgeOption ??
+      (hadEdgeLines ? null : (request.edgeOption ?? null));
     cuttingSheetCount = summary.sheetCount ?? cuttingSheetCount;
     cuttingEdgeMeters = summary.edgeMeters ?? cuttingEdgeMeters;
     if (material.length < 2) {

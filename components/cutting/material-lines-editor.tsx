@@ -516,13 +516,21 @@ export function MaterialLinesEditor({
 }) {
   const [rows, setRows] = useState<EditorRow[]>(() => {
     const fromLines = (initialLines ?? []).map(rowFromLine);
-    if (fromLines.length || legacyMaterial) return fromLines;
+    if (fromLines.length || legacyMaterial || legacyEdge) return fromLines;
     return [emptyRow("SHEET"), emptyRow("EDGE")];
   });
-  const [manualSheets, setManualSheets] = useState(
-    numberText(initialSheetCount),
+  // Итог, посчитанный из строк, не становится «ручным»: если строки этого
+  // вида убрать, старый метраж не должен остаться в заказе и в счёте.
+  const derivedFromLines = (kind: MaterialLineKind) =>
+    (initialLines ?? []).some(
+      (line) => line.kind === kind && line.quantity !== null,
+    );
+  const [manualSheets, setManualSheets] = useState(() =>
+    derivedFromLines("SHEET") ? "" : numberText(initialSheetCount),
   );
-  const [manualEdge, setManualEdge] = useState(numberText(initialEdgeMeters));
+  const [manualEdge, setManualEdge] = useState(() =>
+    derivedFromLines("EDGE") ? "" : numberText(initialEdgeMeters),
+  );
 
   const sheetRows = rows.filter((row) => row.kind === "SHEET");
   const edgeRows = rows.filter((row) => row.kind === "EDGE");
@@ -563,9 +571,8 @@ export function MaterialLinesEditor({
     );
   }
 
-  const showLegacy = Boolean(
-    (legacyMaterial || legacyEdge) && !(initialLines ?? []).length,
-  );
+  // Страница передаёт текст только того вида, у которого ещё нет строк.
+  const showLegacy = Boolean(legacyMaterial || legacyEdge);
 
   return (
     <div className="@container grid gap-5">
