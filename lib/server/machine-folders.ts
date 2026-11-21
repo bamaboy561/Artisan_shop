@@ -8,7 +8,9 @@ import {
   findRequestNumbers,
   matchRequestByName,
   normalizeMachineFolders,
+  mergeNewDefaultFolders,
   parseMachineFolders,
+  defaultMachineFolders,
   type MachineFolder,
   type ReportedFile,
   type WatcherReport,
@@ -28,6 +30,7 @@ import { prepareShifts } from "@/lib/server/production-shifts";
 
 const keySetting = "machineWatcherKey";
 const foldersSetting = "machineFolders";
+const offeredSetting = "machineFoldersOffered";
 const statusSetting = "machineWatcherStatus";
 
 let schemaReady = false;
@@ -103,7 +106,27 @@ export async function writeSetting(key: string, value: string) {
 
 export async function getMachineFolders(): Promise<MachineFolder[]> {
   if (!(await prepareMachineFolders())) return parseMachineFolders(null);
-  return parseMachineFolders(await readSetting(foldersSetting));
+  const raw = await readSetting(foldersSetting);
+  const saved = parseMachineFolders(raw);
+  // Без сохранённых папок и так показывается полный список по умолчанию.
+  if (!raw) return saved;
+  let offered: string[] | null = null;
+  try {
+    const value = JSON.parse((await readSetting(offeredSetting)) ?? "null");
+    if (Array.isArray(value))
+      offered = value.filter(
+        (item): item is string => typeof item === "string",
+      );
+  } catch {
+    offered = null;
+  }
+  const merged = mergeNewDefaultFolders(saved, offered);
+  if (merged.changed) {
+    if (merged.folders.length !== saved.length)
+      await writeSetting(foldersSetting, JSON.stringify(merged.folders));
+    await writeSetting(offeredSetting, JSON.stringify(merged.offered));
+  }
+  return merged.folders;
 }
 
 export async function saveMachineFolders(
@@ -114,6 +137,11 @@ export async function saveMachineFolders(
   if (!(await prepareMachineFolders())) return "unavailable" as const;
   const normalized = normalizeMachineFolders(folders);
   await writeSetting(foldersSetting, JSON.stringify(normalized));
+  // Список сохранён руками: все станки по умолчанию уже были на экране.
+  await writeSetting(
+    offeredSetting,
+    JSON.stringify(defaultMachineFolders.map((folder) => folder.id)),
+  );
   // Станок убрали — его файлы больше не считаются лежащими на станке.
   await getDb().productionMachineFile.updateMany({
     where: {

@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  defaultMachineFolders,
+  mergeNewDefaultFolders,
   buildWatcherScript,
   diffFolder,
   filterTopLevel,
@@ -159,4 +161,34 @@ test("subfolder files are dropped unless the folder watches subfolders", () => {
     buildWatcherScript({ siteUrl: "https://x", key: "k" }),
     /if \(\$f\.recurse\)/,
   );
+});
+
+test("a new default machine is added once to saved folders", () => {
+  const saved = defaultMachineFolders.slice(0, 3);
+  const first = mergeNewDefaultFolders(saved, null);
+  assert.deepEqual(
+    first.folders.map((folder) => folder.id),
+    ["holzma", "altendorf", "excitech", "nesting"],
+  );
+  assert.equal(first.folders[3].path, "\\\\DESKTOP-1866\\NESTING_WORK");
+  assert.equal(first.changed, true);
+  // Удалили Nesting руками — назад не возвращается.
+  const again = mergeNewDefaultFolders(saved, first.offered);
+  assert.equal(again.folders.length, 3);
+  assert.equal(again.changed, false);
+  // Уже вписан вручную под другим id — не дублируем.
+  const manual = mergeNewDefaultFolders(
+    [
+      ...saved,
+      {
+        id: "x1",
+        name: "Nesting",
+        path: "\\\\desktop-1866\\nesting_work",
+        stage: "",
+        recurse: false,
+      },
+    ],
+    null,
+  );
+  assert.equal(manual.folders.length, 4);
 });

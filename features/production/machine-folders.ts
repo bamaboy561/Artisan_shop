@@ -67,7 +67,46 @@ export const defaultMachineFolders: MachineFolder[] = [
     stage: "",
     recurse: false,
   },
+  {
+    id: "nesting",
+    name: "Nesting (фрезеровка)",
+    path: "\\\\DESKTOP-1866\\NESTING_WORK",
+    stage: "",
+    recurse: false,
+  },
 ];
+
+// Станки, которые были в списке по умолчанию до появления этой функции:
+// их уже показали, и если их удалили — назад не возвращаем.
+const originalDefaultIds = ["holzma", "altendorf", "excitech"];
+
+// Новый станок из списка по умолчанию дописываем к уже сохранённым папкам
+// один раз. Удалили его потом руками — больше не появится.
+export function mergeNewDefaultFolders(
+  saved: MachineFolder[],
+  offered: string[] | null,
+) {
+  const known = new Set(offered ?? originalDefaultIds);
+  const folders = [...saved];
+  const added: string[] = [];
+  for (const folder of defaultMachineFolders) {
+    if (known.has(folder.id)) continue;
+    known.add(folder.id);
+    added.push(folder.id);
+    const samePath = (item: MachineFolder) =>
+      item.path.toLowerCase() === folder.path.toLowerCase();
+    if (
+      folders.length < maxMachineFolders &&
+      !folders.some((item) => item.id === folder.id || samePath(item))
+    )
+      folders.push({ ...folder });
+  }
+  return {
+    folders,
+    offered: [...known],
+    changed: added.length > 0 || offered == null,
+  };
+}
 
 function cleanText(value: unknown, max: number) {
   return typeof value === "string"
