@@ -8,6 +8,9 @@ import {
 import {
   defaultSiteCuttingPrices,
   isValidSitePrice,
+  otherWorks,
+  type OtherWorkKey,
+  type OtherWorkPriceKey,
 } from "@/features/cutting/site-prices";
 
 // Работы сверх распила и кромки: отверстия по диаметрам и метры фрезеровки.
@@ -17,16 +20,11 @@ export type CuttingExtras = {
   bevelMeters: number;
   // Пазы в пласти; в старых заявках поля нет.
   grooveMeters?: number;
-  // Другие материалы со своими ценами (ЛДСП — cuttingSheetCount заявки).
-  // В старых заявках полей нет.
-  hdfSheets?: number;
-  hplCutMeters?: number;
-  countertopCutMeters?: number;
-  countertopEdgeMeters?: number;
-  sinkCutMeters?: number;
   // Откуда взяты данные: калькулятор, проект Базиса или менеджер.
   source: "calculator" | "bazis" | "manager";
-};
+  // Другие работы со своими ценами (ЛДСП — cuttingSheetCount заявки):
+  // ХДФ, HPL, столешница, утолщёнка, Gola. В старых заявках полей нет.
+} & Partial<Record<OtherWorkKey, number>>;
 
 // Цены присадки и фрезеровки: из «Прайс работ» (цены сайта).
 export type CuttingExtrasPrice = {
@@ -34,23 +32,11 @@ export type CuttingExtrasPrice = {
   milling: number;
   bevel: number;
   groove: number;
-  // ХДФ — сом за лист; HPL, столешница и вырез под мойку — сом за метр.
-  hdfSheet: number;
-  hplCut: number;
-  countertopCut: number;
-  countertopEdge: number;
-  sinkCut: number;
-};
+} & Record<OtherWorkPriceKey, number>;
 
-// Поля материалов, кроме ЛДСП: листы ХДФ, метры HPL и столешницы.
-export const materialWorkKeys = [
-  "hdfSheets",
-  "hplCutMeters",
-  "countertopCutMeters",
-  "countertopEdgeMeters",
-  "sinkCutMeters",
-] as const;
-type MaterialWorkKey = (typeof materialWorkKeys)[number];
+// Поля других работ: листы ХДФ и метры остальных.
+export const materialWorkKeys = otherWorks.map((work) => work.key);
+type MaterialWorkKey = OtherWorkKey;
 
 function validSheets(value: unknown) {
   return typeof value === "number" &&
@@ -62,7 +48,7 @@ function validSheets(value: unknown) {
 }
 
 function isSheetKey(key: MaterialWorkKey) {
-  return key === "hdfSheets";
+  return otherWorks.some((work) => work.key === key && work.unit === "sheet");
 }
 
 export function hasMaterialWork(extras: CuttingExtras | null | undefined) {
@@ -226,15 +212,15 @@ export function parseCuttingExtrasPrice(
     milling: isValidSitePrice(raw.milling) ? raw.milling : fallback.milling,
     bevel: isValidSitePrice(raw.bevel) ? raw.bevel : fallback.bevel,
     groove: isValidSitePrice(raw.groove) ? raw.groove : fallback.groove,
-    hdfSheet: isValidSitePrice(raw.hdfSheet) ? raw.hdfSheet : fallback.hdfSheet,
-    hplCut: isValidSitePrice(raw.hplCut) ? raw.hplCut : fallback.hplCut,
-    countertopCut: isValidSitePrice(raw.countertopCut)
-      ? raw.countertopCut
-      : fallback.countertopCut,
-    countertopEdge: isValidSitePrice(raw.countertopEdge)
-      ? raw.countertopEdge
-      : fallback.countertopEdge,
-    sinkCut: isValidSitePrice(raw.sinkCut) ? raw.sinkCut : fallback.sinkCut,
+    ...(Object.fromEntries(
+      otherWorks.map((work) => {
+        const saved = raw[work.price];
+        return [
+          work.price,
+          isValidSitePrice(saved) ? saved : fallback[work.price],
+        ];
+      }),
+    ) as Record<OtherWorkPriceKey, number>),
   };
 }
 
@@ -307,21 +293,8 @@ export function buildCuttingQuote(
   let extrasCents = 0;
   let unpricedHoles = 0;
 
-  const materialRows: Array<
-    [MaterialWorkKey, string, number, "sheets" | "meters"]
-  > = [
-    ["hdfSheets", "Распил ХДФ", price.hdfSheet, "sheets"],
-    ["hplCutMeters", "Пропил HPL", price.hplCut, "meters"],
-    ["countertopCutMeters", "Пропил столешницы", price.countertopCut, "meters"],
-    [
-      "countertopEdgeMeters",
-      "Закатка столешницы",
-      price.countertopEdge,
-      "meters",
-    ],
-    ["sinkCutMeters", "Вырез под мойку", price.sinkCut, "meters"],
-  ];
-  for (const [key, label, rate, unit] of materialRows) {
+  for (const { key, label, unit, price: priceKey } of otherWorks) {
+    const rate = price[priceKey];
     const amount = extras?.[key] ?? 0;
     if (!(amount > 0)) continue;
     const cents = Math.round(amount * Math.round(rate * 100));
@@ -330,7 +303,7 @@ export function buildCuttingQuote(
       key,
       label,
       detail:
-        unit === "sheets"
+        unit === "sheet"
           ? `${amount} ${plural(amount, ["лист", "листа", "листов"])} × ${money(rate)}`
           : `${numberFormatter.format(amount)} м × ${money(rate)}`,
       amount: cents / 100,
@@ -449,7 +422,7 @@ export function cuttingExtrasFromForm(
         ok: false,
         message: isSheetKey(key)
           ? "Листов ХДФ — целое число от 0 до 10 000."
-          : "Проверьте метры HPL и столешницы.",
+          : "Проверьте метры в «Другие работы».",
       };
     if (amount > 0) materialWork[key] = amount;
   }

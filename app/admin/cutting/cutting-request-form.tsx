@@ -389,7 +389,7 @@ export function CuttingRequestForm({ customers }: CuttingRequestFormProps) {
           </label>
           <div className="grid gap-2 border border-[color:var(--line)] p-3">
             <p className="text-sm font-medium">
-              ХДФ, HPL, столешница
+              Другие работы: ХДФ, HPL, столешница, утолщёнка, Gola
               <span className="ml-2 text-xs font-normal text-[var(--muted)]">
                 свои цены, входят в счёт клиента
               </span>

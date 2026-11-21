@@ -33,6 +33,7 @@ test("ХДФ, HPL and countertop works get their own lines", () => {
     hdfSheets: 3,
     hplCutMeters: 1.2,
     sinkCutMeters: 2.1,
+    golaCMeters: 3,
     countertopCutMeters: 2.5,
     countertopEdgeMeters: 4,
     source: "manager",
@@ -45,11 +46,12 @@ test("ХДФ, HPL and countertop works get their own lines", () => {
       ["hdfSheets", 300],
       ["hplCutMeters", 600],
       ["countertopCutMeters", 250],
-      ["countertopEdgeMeters", 1000],
       ["sinkCutMeters", 3150],
+      ["countertopEdgeMeters", 1000],
+      ["golaCMeters", 210],
     ],
   );
-  assert.equal(quote.total, 5900);
+  assert.equal(quote.total, 6110);
 });
 
 test("countertop-only order is priced without ЛДСП sheets", () => {
@@ -84,6 +86,8 @@ test("bad sheet counts are rejected, old prices get defaults", () => {
   assert.equal(old.countertopCut, 100);
   assert.equal(old.hplCut, 500);
   assert.equal(old.sinkCut, 1500);
+  assert.equal(old.countertopEdge, 60);
+  assert.equal(old.golaL, 50);
   assert.equal(parseCuttingExtrasPrice({ drilling: {} }).hdfSheet, 100);
 });
 

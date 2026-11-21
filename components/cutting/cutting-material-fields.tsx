@@ -1,41 +1,10 @@
 import { Input } from "@/components/ui/input";
 import type { CuttingExtras } from "@/features/cutting/quote";
+import { otherWorks } from "@/features/cutting/site-prices";
 
-// ХДФ, HPL и столешница: у каждого своя цена в «Прайс работ». Листы ЛДСП —
-// в поле «Количество листов». Имена полей читает cuttingExtrasFromForm.
-const fields = [
-  {
-    name: "hdfSheets",
-    label: "ХДФ, листов",
-    step: 1,
-    mode: "numeric",
-  },
-  {
-    name: "hplCutMeters",
-    label: "Пропил HPL, м",
-    step: 0.01,
-    mode: "decimal",
-  },
-  {
-    name: "countertopCutMeters",
-    label: "Пропил столешницы, м",
-    step: 0.01,
-    mode: "decimal",
-  },
-  {
-    name: "countertopEdgeMeters",
-    label: "Закатка столешницы, м",
-    step: 0.01,
-    mode: "decimal",
-  },
-  {
-    name: "sinkCutMeters",
-    label: "Вырез под мойку, м реза",
-    step: 0.01,
-    mode: "decimal",
-  },
-] as const;
-
+// Другие работы: ХДФ, HPL, столешница, утолщёнка, Gola — у каждой своя
+// цена в «Прайс работ». Листы ЛДСП — в поле «Количество листов».
+// Имена полей читает cuttingExtrasFromForm.
 export function CuttingMaterialFields({
   extras,
 }: {
@@ -43,19 +12,19 @@ export function CuttingMaterialFields({
 }) {
   return (
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-      {fields.map((field) => (
+      {otherWorks.map((work) => (
         <label
-          key={field.name}
+          key={work.key}
           className="grid gap-1 text-xs font-medium text-[var(--foreground)]"
         >
-          {field.label}
+          {work.label}, {work.unit === "sheet" ? "листов" : "м"}
           <Input
-            name={field.name}
+            name={work.key}
             type="number"
             min={0}
-            step={field.step}
-            inputMode={field.mode}
-            defaultValue={extras?.[field.name] || ""}
+            step={work.unit === "sheet" ? 1 : 0.01}
+            inputMode={work.unit === "sheet" ? "numeric" : "decimal"}
+            defaultValue={extras?.[work.key] || ""}
             placeholder="0"
             className="h-9 px-2 sm:h-9 sm:px-2"
           />

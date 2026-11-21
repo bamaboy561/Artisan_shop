@@ -9,7 +9,9 @@ import {
 } from "@/features/cutting/labor-price";
 import {
   defaultSiteCuttingPrices,
+  otherWorks,
   parseSiteCuttingPrices,
+  type OtherWorkPriceKey,
 } from "@/features/cutting/site-prices";
 import {
   buildCuttingQuote,
@@ -61,11 +63,9 @@ async function readCurrentExtrasPrice(db: PricingDb) {
     milling: prices.milling,
     bevel: prices.bevel,
     groove: prices.groove,
-    hdfSheet: prices.hdfSheet,
-    hplCut: prices.hplCut,
-    countertopCut: prices.countertopCut,
-    countertopEdge: prices.countertopEdge,
-    sinkCut: prices.sinkCut,
+    ...(Object.fromEntries(
+      otherWorks.map((work) => [work.price, prices[work.price]]),
+    ) as Record<OtherWorkPriceKey, number>),
   };
 }
 

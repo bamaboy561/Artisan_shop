@@ -608,7 +608,7 @@ export default async function AdminRequestDetailPage({
                   <input type="hidden" name="extrasForm" value="1" />
                   <div className="grid gap-2 border border-[color:var(--line)] p-3">
                     <p className="text-sm font-semibold">
-                      ХДФ, HPL, столешница
+                      Другие работы: ХДФ, HPL, столешница, утолщёнка, Gola
                     </p>
                     <CuttingMaterialFields extras={extrasForForm} />
                   </div>

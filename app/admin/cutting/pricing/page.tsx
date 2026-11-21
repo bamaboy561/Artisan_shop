@@ -5,7 +5,7 @@ import {
   getCuttingPrice,
   getSiteCuttingPrices,
 } from "@/lib/server/cutting-pricing";
-import { drillingDiameters } from "@/features/cutting/site-prices";
+import { drillingDiameters, otherWorks } from "@/features/cutting/site-prices";
 import { saveCuttingPriceAction, saveSiteCuttingPricesAction } from "./actions";
 import { Input } from "@/components/ui/input";
 import { AdminSubmitButton } from "@/components/admin/admin-submit-button";
@@ -224,39 +224,18 @@ function SitePricesForm({
       </div>
       <fieldset className="grid gap-3">
         <legend className="mb-2 text-sm font-semibold">
-          Другие материалы: ХДФ, HPL, столешница
+          Другие работы: ХДФ, HPL, столешница, утолщёнка, Gola
         </legend>
         <div className="grid gap-5 sm:grid-cols-2">
-          <PriceField
-            label="Распил ХДФ, сом за лист"
-            name="siteHdfSheet"
-            value={prices.hdfSheet}
-            disabled={!canEdit}
-          />
-          <PriceField
-            label="Пропил HPL, сом за метр"
-            name="siteHplCut"
-            value={prices.hplCut}
-            disabled={!canEdit}
-          />
-          <PriceField
-            label="Пропил столешницы, сом за метр"
-            name="siteCountertopCut"
-            value={prices.countertopCut}
-            disabled={!canEdit}
-          />
-          <PriceField
-            label="Закатка столешницы, сом за метр"
-            name="siteCountertopEdge"
-            value={prices.countertopEdge}
-            disabled={!canEdit}
-          />
-          <PriceField
-            label="Вырез под мойку, сом за метр реза"
-            name="siteSinkCut"
-            value={prices.sinkCut}
-            disabled={!canEdit}
-          />
+          {otherWorks.map((work) => (
+            <PriceField
+              key={work.price}
+              label={`${work.label}, сом за ${work.unit === "sheet" ? "лист" : "метр"}`}
+              name={`site_${work.price}`}
+              value={prices[work.price]}
+              disabled={!canEdit}
+            />
+          ))}
         </div>
       </fieldset>
       {canEdit ? (
