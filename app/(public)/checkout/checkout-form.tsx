@@ -12,9 +12,11 @@ import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   ArrowRight,
+  Check,
   ChevronDown,
   LoaderCircle,
   Store,
+  Truck,
 } from "lucide-react";
 import { submitCheckoutAction } from "./actions";
 import type { CheckoutFormState } from "./types";
@@ -24,6 +26,49 @@ import { formatPrice } from "@/lib/commerce";
 import s from "./checkout.module.css";
 
 const initialState: CheckoutFormState = {};
+
+const weekdayShort = ["вс", "пн", "вт", "ср", "чт", "пт", "сб"];
+const weekdayFull = [
+  "Воскресенье",
+  "Понедельник",
+  "Вторник",
+  "Среда",
+  "Четверг",
+  "Пятница",
+  "Суббота",
+];
+
+/** Ближайшие рабочие дни (Пн-Пт) по времени Бишкека, начиная с завтра. */
+function nextWorkingDays(count: number) {
+  const todayInBishkek = new Date(
+    new Date().toLocaleString("en-US", { timeZone: "Asia/Bishkek" }),
+  );
+  const days: { value: string; title: string; hint: string }[] = [];
+  const cursor = new Date(todayInBishkek);
+
+  while (days.length < count) {
+    cursor.setDate(cursor.getDate() + 1);
+    const weekday = cursor.getDay();
+    if (weekday === 0 || weekday === 6) continue;
+
+    const diff = Math.round(
+      (cursor.getTime() - todayInBishkek.getTime()) / 86_400_000,
+    );
+    const date = `${String(cursor.getDate()).padStart(2, "0")}.${String(
+      cursor.getMonth() + 1,
+    ).padStart(2, "0")}`;
+    const title =
+      diff === 1 ? "Завтра" : diff === 2 ? "Послезавтра" : weekdayFull[weekday];
+    const label = `${weekdayShort[weekday]}, ${date}`;
+    days.push({
+      value: `Самовывоз ${label}`,
+      title,
+      hint: diff <= 2 ? label : date,
+    });
+  }
+
+  return days;
+}
 type CheckoutCustomer = {
   email: string;
   name: string;
@@ -70,6 +115,10 @@ export function CheckoutForm({
     promoCode: "",
     redeemPoints: "",
   });
+  const [pickupOptions] = useState(() => nextWorkingDays(2));
+  const [pickupPlan, setPickupPlan] = useState(
+    () => pickupOptions[0]?.value ?? "",
+  );
   const handledSuccessRef = useRef(false);
   const errorRef = useRef<HTMLDivElement>(null);
   const detailsRef = useRef<HTMLDetailsElement>(null);
@@ -149,6 +198,17 @@ export function CheckoutForm({
       <Link href="/cart" className={s.back}>
         <ArrowLeft size={17} /> Корзина
       </Link>
+      <ol className={s.steps} aria-label="Шаги оформления">
+        <li className={s.stepDone}>
+          <Check size={14} aria-hidden="true" /> Корзина
+        </li>
+        <li className={s.stepCurrent} aria-current="step">
+          <span>2</span> Контакты
+        </li>
+        <li>
+          <span>3</span> Готово
+        </li>
+      </ol>
       <h1>Оформление заказа</h1>
       {isLoading ? (
         <p role="status" className={s.empty}>
@@ -234,18 +294,44 @@ export function CheckoutForm({
                 </label>
               </div>
             </section>
-            <section
-              className={`${s.section} ${s.pickup}`}
-              aria-label="Получение заказа"
-            >
-              <Store size={23} />
-              <div>
-                <h2>Самовывоз</h2>
-                <Link href="/contacts" target="_blank" rel="noreferrer">
-                  Адреса магазинов
-                </Link>
+            <section className={s.section} aria-labelledby="checkout-pickup">
+              <h2 id="checkout-pickup">Когда заберёте?</h2>
+              <input type="hidden" name="pickupPlan" value={pickupPlan} />
+              <div className={s.pickupOptions} role="radiogroup" aria-labelledby="checkout-pickup">
+                {pickupOptions.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={pickupPlan === option.value}
+                    className={s.pickupOption}
+                    onClick={() => setPickupPlan(option.value)}
+                  >
+                    <Store size={18} aria-hidden="true" />
+                    <strong>{option.title}</strong>
+                    <span>{option.hint}</span>
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={pickupPlan === "Нужна доставка"}
+                  className={s.pickupOption}
+                  onClick={() => setPickupPlan("Нужна доставка")}
+                >
+                  <Truck size={18} aria-hidden="true" />
+                  <strong>Доставка</strong>
+                  <span>менеджер посчитает</span>
+                </button>
               </div>
-              <strong>Бесплатно</strong>
+              <p className={s.muted}>
+                Самовывоз бесплатно: {" "}
+                <Link href="/contacts" target="_blank" rel="noreferrer">
+                  г. Бишкек, ул. Кулатова 3/1
+                </Link>
+                , Пн-Пт 09:00-17:00. Оплата при получении: менеджер позвонит в
+                рабочее время, подтвердит наличие и сумму.
+              </p>
             </section>
             {customer && (
               <section className={s.section} aria-labelledby="checkout-bonuses">
@@ -387,8 +473,14 @@ export function CheckoutForm({
                 </div>
               )}
               <div>
-                <dt>Самовывоз</dt>
-                <dd>Бесплатно</dd>
+                <dt>
+                  {pickupPlan === "Нужна доставка" ? "Доставка" : "Самовывоз"}
+                </dt>
+                <dd>
+                  {pickupPlan === "Нужна доставка"
+                    ? "посчитает менеджер"
+                    : "Бесплатно"}
+                </dd>
               </div>
               {redeemablePoints > 0 && (
                 <div>

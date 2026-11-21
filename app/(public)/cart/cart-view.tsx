@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Minus, Plus } from "lucide-react";
+import { MessageCircle, Minus, Plus, Scissors } from "lucide-react";
 import { useState } from "react";
 
 import { ProductImage } from "@/components/catalog/product-image";
@@ -15,6 +15,28 @@ import { SectionHeading } from "@/components/ui/section-heading";
 import type { FeaturedProduct } from "@/features/catalog/types";
 import { formatPrice } from "@/lib/commerce";
 import { PurchaseInfo } from "@/components/ecommerce/purchase-info";
+import { isSheetFormat } from "@/features/storefront/plate-gallery";
+import { companyContacts } from "@/lib/site-config";
+
+function buildWhatsappCartText(
+  rows: { quantity: number; product: FeaturedProduct }[],
+  subtotal: number,
+) {
+  const lines = rows.map((row, index) => {
+    const sku = row.product.sku ? ` (арт. ${row.product.sku})` : "";
+    const price =
+      typeof row.product.price === "number"
+        ? ` — ${formatPrice(row.product.price * row.quantity)}`
+        : "";
+    return `${index + 1}. ${row.product.name}${sku} × ${row.quantity}${price}`;
+  });
+
+  return [
+    "Здравствуйте! Хочу заказать с сайта artisan.shop.kg:",
+    ...lines,
+    `Итого: ${formatPrice(subtotal)}`,
+  ].join("\n");
+}
 
 function CartQuantityInput({
   productName,
@@ -124,6 +146,14 @@ export function CartView() {
   const beforeDiscountSubtotal = totals.beforeDiscountSubtotal;
   const subtotal = totals.subtotal;
   const promotionDiscountTotal = Math.max(0, beforeDiscountSubtotal - subtotal);
+  // Плиты, которые можно сразу отправить в калькулятор распила.
+  const sheetRow = rows.find(
+    (row) =>
+      isSheetFormat(row.product.format) && row.product.categorySlug !== "kromka",
+  );
+  const whatsappHref = `${companyContacts.whatsapp}?text=${encodeURIComponent(
+    buildWhatsappCartText(rows, subtotal),
+  )}`;
   const hasStockIssues =
     missingItems.length > 0 ||
     rows.some(
@@ -134,7 +164,11 @@ export function CartView() {
     );
 
   return (
-    <Container className="space-y-8 py-10 sm:py-14">
+    <Container
+      className={`space-y-8 py-10 sm:py-14 ${
+        rows.length > 0 ? "pb-40 sm:pb-40 xl:pb-14" : ""
+      }`}
+    >
       <SectionHeading
         title="Корзина"
         description="Проверьте товары, количество и переходите к оформлению заказа."
@@ -247,7 +281,9 @@ export function CartView() {
                       </h3>
                       <p className="mt-1 text-sm text-[var(--muted)]">
                         {typeof row.product.price === "number"
-                          ? formatPrice(row.product.price)
+                          ? row.quantity > 1
+                            ? `${formatPrice(row.product.price)} × ${row.quantity} = ${formatPrice(row.product.price * row.quantity)}`
+                            : formatPrice(row.product.price)
                           : row.product.action}
                       </p>
                       {row.product.isPromotional &&
@@ -327,6 +363,36 @@ export function CartView() {
                 </article>
               );
             })}
+
+            {sheetRow ? (
+              <div className="flex items-center gap-4 rounded-[24px] bg-[#1f2b25] p-5 text-white">
+                <Scissors className="size-6 shrink-0 text-[#f09a78]" aria-hidden="true" />
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold">Нужен распил этих плит?</p>
+                  <p className="mt-0.5 text-sm text-white/70">
+                    Соберите детали онлайн, через сайт распил дешевле.
+                  </p>
+                </div>
+                <Link
+                  href={`/calculator?product=${encodeURIComponent(sheetRow.product.slug)}`}
+                  className="inline-flex h-10 shrink-0 items-center rounded-full bg-[#c4532b] px-4 text-sm font-semibold text-white hover:bg-[#a94730]"
+                >
+                  Добавить
+                </Link>
+              </div>
+            ) : null}
+
+            {rows.length > 0 ? (
+              <a
+                href={whatsappHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex h-12 items-center justify-center gap-2 rounded-full border border-[color:var(--line)] bg-[var(--surface-strong)] text-sm font-semibold text-[var(--foreground)] transition hover:border-[color:var(--foreground)]"
+              >
+                <MessageCircle className="size-4 text-[#25D366]" aria-hidden="true" />
+                Отправить список в WhatsApp
+              </a>
+            ) : null}
           </section>
 
           <aside className="surface-glow h-fit rounded-[24px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-6">
@@ -367,6 +433,29 @@ export function CartView() {
             )}
             <PurchaseInfo className="mt-6" />
           </aside>
+
+          {rows.length > 0 ? (
+            <div className="fixed inset-x-0 bottom-[calc(65px+env(safe-area-inset-bottom))] z-30 flex items-center gap-3 border-t border-[color:var(--line)] bg-white/95 px-4 py-2.5 shadow-[0_-10px_24px_rgba(27,28,25,0.07)] backdrop-blur xl:hidden">
+              <div className="min-w-0 flex-1">
+                <p className="text-xs text-[var(--muted)]">Итого · без предоплаты</p>
+                <p className="text-lg leading-tight font-bold text-[var(--foreground)]">
+                  {formatPrice(subtotal)}
+                </p>
+              </div>
+              {hasStockIssues ? (
+                <span className="text-right text-xs font-semibold text-rose-700">
+                  Проверьте количество
+                </span>
+              ) : (
+                <Link
+                  href="/checkout"
+                  className={getButtonClassName("accent", "md", "shrink-0 px-6")}
+                >
+                  Оформить
+                </Link>
+              )}
+            </div>
+          ) : null}
         </div>
       )}
     </Container>
