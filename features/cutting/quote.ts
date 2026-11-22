@@ -8,6 +8,9 @@ import {
 import {
   defaultSiteCuttingPrices,
   isValidSitePrice,
+  otherWorks,
+  type OtherWorkKey,
+  type OtherWorkPriceKey,
 } from "@/features/cutting/site-prices";
 
 // Работы сверх распила и кромки: отверстия по диаметрам и метры фрезеровки.
@@ -19,7 +22,9 @@ export type CuttingExtras = {
   grooveMeters?: number;
   // Откуда взяты данные: калькулятор, проект Базиса или менеджер.
   source: "calculator" | "bazis" | "manager";
-};
+  // Другие работы со своими ценами (ЛДСП — cuttingSheetCount заявки):
+  // ХДФ, HPL, столешница, утолщёнка, Gola. В старых заявках полей нет.
+} & Partial<Record<OtherWorkKey, number>>;
 
 // Цены присадки и фрезеровки: из «Прайс работ» (цены сайта).
 export type CuttingExtrasPrice = {
@@ -27,7 +32,55 @@ export type CuttingExtrasPrice = {
   milling: number;
   bevel: number;
   groove: number;
-};
+} & Record<OtherWorkPriceKey, number>;
+
+// Поля других работ: листы ХДФ и метры остальных.
+export const materialWorkKeys = otherWorks.map((work) => work.key);
+type MaterialWorkKey = OtherWorkKey;
+
+function validSheets(value: unknown) {
+  return typeof value === "number" &&
+    Number.isInteger(value) &&
+    value >= 0 &&
+    value <= 10000
+    ? value
+    : null;
+}
+
+function isSheetKey(key: MaterialWorkKey) {
+  return otherWorks.some((work) => work.key === key && work.unit === "sheet");
+}
+
+export function hasMaterialWork(extras: CuttingExtras | null | undefined) {
+  return materialWorkKeys.some((key) => (extras?.[key] ?? 0) > 0);
+}
+
+// Присадка и фрезеровка без учёта ХДФ, HPL и столешницы.
+export function hasMachiningExtras(extras: CuttingExtras | null | undefined) {
+  return Boolean(
+    extras &&
+    (Object.keys(extras.drilling).length > 0 ||
+      extras.curveMeters > 0 ||
+      extras.bevelMeters > 0 ||
+      (extras.grooveMeters ?? 0) > 0),
+  );
+}
+
+// Присадка из проекта Базиса + материалы, которые менеджер ввёл руками.
+export function mergeMaterialWork(
+  base: CuttingExtras | null | undefined,
+  from: CuttingExtras | null | undefined,
+): CuttingExtras | null {
+  if (!hasMaterialWork(from)) return base ?? null;
+  const merged: CuttingExtras = base
+    ? { ...base, drilling: { ...base.drilling } }
+    : { drilling: {}, curveMeters: 0, bevelMeters: 0, source: "manager" };
+  for (const key of materialWorkKeys) {
+    const amount = from?.[key] ?? 0;
+    if (amount > 0) merged[key] = amount;
+  }
+  return merged;
+}
 
 export type CuttingQuotePrice = CuttingLaborPrice & CuttingExtrasPrice;
 
@@ -98,6 +151,14 @@ export function parseCuttingExtras(value: unknown): CuttingExtras | null {
   const grooveMeters = validMeters(raw.grooveMeters ?? 0);
   if (curveMeters === null || bevelMeters === null || grooveMeters === null)
     return null;
+  const materialWork: Partial<Record<MaterialWorkKey, number>> = {};
+  for (const key of materialWorkKeys) {
+    const amount = isSheetKey(key)
+      ? validSheets(raw[key] ?? 0)
+      : validMeters(raw[key] ?? 0);
+    if (amount === null) return null;
+    if (amount > 0) materialWork[key] = amount;
+  }
   const source = sources.has(raw.source as CuttingExtras["source"])
     ? (raw.source as CuttingExtras["source"])
     : "manager";
@@ -107,6 +168,7 @@ export function parseCuttingExtras(value: unknown): CuttingExtras | null {
     curveMeters,
     bevelMeters,
     ...(grooveMeters > 0 ? { grooveMeters } : {}),
+    ...materialWork,
     source,
   };
 }
@@ -117,7 +179,8 @@ export function hasCuttingExtras(extras: CuttingExtras | null | undefined) {
     (Object.keys(extras.drilling).length > 0 ||
       extras.curveMeters > 0 ||
       extras.bevelMeters > 0 ||
-      (extras.grooveMeters ?? 0) > 0),
+      (extras.grooveMeters ?? 0) > 0 ||
+      hasMaterialWork(extras)),
   );
 }
 
@@ -149,6 +212,15 @@ export function parseCuttingExtrasPrice(
     milling: isValidSitePrice(raw.milling) ? raw.milling : fallback.milling,
     bevel: isValidSitePrice(raw.bevel) ? raw.bevel : fallback.bevel,
     groove: isValidSitePrice(raw.groove) ? raw.groove : fallback.groove,
+    ...(Object.fromEntries(
+      otherWorks.map((work) => {
+        const saved = raw[work.price];
+        return [
+          work.price,
+          isValidSitePrice(saved) ? saved : fallback[work.price],
+        ];
+      }),
+    ) as Record<OtherWorkPriceKey, number>),
   };
 }
 
@@ -186,24 +258,28 @@ export function buildCuttingQuote(
   },
   extras: CuttingExtras | null | undefined,
 ): CuttingQuote | null {
+  // Заказ только из ХДФ, HPL или столешницы — без листов ЛДСП.
+  const onlyOtherMaterials =
+    !request.cuttingSheetCount && hasMaterialWork(extras);
   const labor = calculateCuttingLaborTotal(
     price,
-    request.cuttingSheetCount,
+    onlyOtherMaterials ? 1 : request.cuttingSheetCount,
     request.cuttingEdgeMeters,
     request.edgeOption,
   );
   if (labor === null) return null;
 
-  const sheets = request.cuttingSheetCount ?? 0;
+  const sheets = onlyOtherMaterials ? 0 : (request.cuttingSheetCount ?? 0);
   const edgeMeters = request.cuttingEdgeMeters ?? 0;
-  const lines: CuttingQuoteLine[] = [
-    {
+  const lines: CuttingQuoteLine[] = [];
+  if (sheets > 0) {
+    lines.push({
       key: "sheets",
       label: "Распил листов",
       detail: `${sheets} ${plural(sheets, ["лист", "листа", "листов"])} × ${money(price.sheetRate)}`,
       amount: (sheets * Math.round(price.sheetRate * 100)) / 100,
-    },
-  ];
+    });
+  }
 
   if (edgeMeters > 0) {
     lines.push({
@@ -216,6 +292,23 @@ export function buildCuttingQuote(
 
   let extrasCents = 0;
   let unpricedHoles = 0;
+
+  for (const { key, label, unit, price: priceKey } of otherWorks) {
+    const rate = price[priceKey];
+    const amount = extras?.[key] ?? 0;
+    if (!(amount > 0)) continue;
+    const cents = Math.round(amount * Math.round(rate * 100));
+    extrasCents += cents;
+    lines.push({
+      key,
+      label,
+      detail:
+        unit === "sheet"
+          ? `${amount} ${plural(amount, ["лист", "листа", "листов"])} × ${money(rate)}`
+          : `${numberFormatter.format(amount)} м × ${money(rate)}`,
+      amount: cents / 100,
+    });
+  }
   const drillingRows = Object.entries(extras?.drilling ?? {})
     .map(([key, holes]) => ({ diameter: Number(key), holes }))
     .filter((row) => row.diameter > 0 && row.holes > 0)
@@ -315,6 +408,25 @@ export function cuttingExtrasFromForm(
   if (curveMeters === null || bevelMeters === null || grooveMeters === null)
     return { ok: false, message: "Проверьте метры фрезеровки." };
 
+  const materialWork: Partial<Record<MaterialWorkKey, number>> = {};
+  for (const key of materialWorkKeys) {
+    const raw = form.get(key);
+    const value = typeof raw === "string" ? raw.trim().replace(",", ".") : "";
+    if (!value) continue;
+    touched = true;
+    const amount = isSheetKey(key)
+      ? validSheets(Number(value))
+      : validMeters(Number(value));
+    if (amount === null)
+      return {
+        ok: false,
+        message: isSheetKey(key)
+          ? "Листов ХДФ — целое число от 0 до 10 000."
+          : "Проверьте метры в «Другие работы».",
+      };
+    if (amount > 0) materialWork[key] = amount;
+  }
+
   return {
     ok: true,
     extras: touched
@@ -323,6 +435,7 @@ export function cuttingExtrasFromForm(
           curveMeters,
           bevelMeters,
           ...(grooveMeters > 0 ? { grooveMeters } : {}),
+          ...materialWork,
           source: "manager",
         }
       : null,

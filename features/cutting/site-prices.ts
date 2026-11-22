@@ -2,6 +2,81 @@
 // плашка «Раскрой через сайт дешевле». Меняются в админке на странице
 // «Прайс работ»; пока там ничего не сохранено, действуют эти значения.
 
+// Другие работы со своей ценой: ХДФ, HPL, столешница, утолщёнка, Gola.
+// key — количество в заявке, price — цена в «Цены на сайте».
+export const otherWorks = [
+  {
+    key: "hdfSheets",
+    price: "hdfSheet",
+    label: "Распил ХДФ",
+    unit: "sheet",
+    fallback: 100,
+  },
+  {
+    key: "hplCutMeters",
+    price: "hplCut",
+    label: "Пропил HPL",
+    unit: "m",
+    fallback: 500,
+  },
+  {
+    key: "countertopCutMeters",
+    price: "countertopCut",
+    label: "Пропил столешницы",
+    unit: "m",
+    fallback: 100,
+  },
+  {
+    key: "sinkCutMeters",
+    price: "sinkCut",
+    label: "Вырез под мойку",
+    unit: "m",
+    fallback: 1500,
+  },
+  {
+    key: "thickeningMeters",
+    price: "thickening",
+    label: "Изготовление утолщёнки",
+    unit: "m",
+    fallback: 100,
+  },
+  {
+    key: "countertopEdgeMeters",
+    price: "countertopEdge",
+    label: "Закатка утолщёнки / столешницы",
+    unit: "m",
+    fallback: 60,
+  },
+  {
+    key: "hdfGrooveMeters",
+    price: "hdfGroove",
+    label: "Паз под ХДФ 4 мм",
+    unit: "m",
+    fallback: 100,
+  },
+  {
+    key: "golaCMeters",
+    price: "golaC",
+    label: "Фрезеровка под Gola C",
+    unit: "m",
+    fallback: 70,
+  },
+  {
+    key: "golaLMeters",
+    price: "golaL",
+    label: "Фрезеровка под Gola L",
+    unit: "m",
+    fallback: 50,
+  },
+] as const;
+export type OtherWork = (typeof otherWorks)[number];
+export type OtherWorkKey = OtherWork["key"];
+export type OtherWorkPriceKey = OtherWork["price"];
+
+const otherWorkFallbacks = Object.fromEntries(
+  otherWorks.map((work) => [work.price, work.fallback]),
+) as Record<OtherWorkPriceKey, number>;
+
 export type SiteCuttingPrices = {
   // Распил и кромление для раскроя, собранного на сайте.
   sheet: number;
@@ -17,7 +92,7 @@ export type SiteCuttingPrices = {
   bevel: number;
   // Паз в пласти (под LED-профиль и т. п.), сом за погонный метр.
   groove: number;
-};
+} & Record<OtherWorkPriceKey, number>;
 
 // Ø5 — как отверстие под полкодержатель, Ø8 — как отверстие D8.
 // Отверстие другого диаметра цену не получает: его посчитает менеджер.
@@ -27,7 +102,7 @@ export const defaultSiteCuttingPrices: SiteCuttingPrices = {
   sheet: 300,
   sheetRegular: 350,
   edge: 28,
-  edgeRegular: 35,
+  edgeRegular: 30,
   drilling: {
     3: 4,
     5: 6,
@@ -43,6 +118,7 @@ export const defaultSiteCuttingPrices: SiteCuttingPrices = {
   milling: 200,
   bevel: 250,
   groove: 200,
+  ...otherWorkFallbacks,
 };
 
 export function isValidSitePrice(value: unknown): value is number {
@@ -70,7 +146,8 @@ export function parseSiteCuttingPrices(value: unknown): SiteCuttingPrices {
       | "edgeRegular"
       | "milling"
       | "bevel"
-      | "groove",
+      | "groove"
+      | OtherWorkPriceKey,
   ) => {
     const price = saved[key];
     return isValidSitePrice(price) ? price : defaultSiteCuttingPrices[key];
@@ -97,6 +174,9 @@ export function parseSiteCuttingPrices(value: unknown): SiteCuttingPrices {
     milling: pick("milling"),
     bevel: pick("bevel"),
     groove: pick("groove"),
+    ...(Object.fromEntries(
+      otherWorks.map((work) => [work.price, pick(work.price)]),
+    ) as Record<OtherWorkPriceKey, number>),
   };
 }
 
