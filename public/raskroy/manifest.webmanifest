@@ -1,0 +1,14 @@
+{
+  "name": "Artisan Раскрой",
+  "short_name": "Раскрой",
+  "description": "Раскрой листов, кромка, ЧПУ и этикетки для мебельного производства",
+  "lang": "ru",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#eef1f3",
+  "theme_color": "#1f2a24",
+  "icons": [
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

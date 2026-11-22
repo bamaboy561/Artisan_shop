@@ -68,5 +68,3 @@ next-env.d.ts
 /android/releases/*.aab
 /android/app/src/main/res/mipmap-xxxhdpi/
 
-# Программа раскроя копируется при выкладке (scripts/sync-raskroy.mjs), код в закрытом репозитории raspil
-/public/raskroy/

@@ -1,5 +1,5 @@
-// Копирует программу раскроя (репозиторий raspil) в public/raskroy.
-// Запуск: node scripts/sync-raskroy.mjs ../raspil
+// Копирует программу раскроя (репозиторий raspil) в public/raskroy, копия лежит в репозитории сайта.
+// После изменений в программе: node scripts/sync-raskroy.mjs ../raspil и закоммитить public/raskroy.
 // В index.html добавляется <base href="/raskroy/">, потому что сайт открывает
 // программу по адресу /raskroy без косой черты в конце.
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
