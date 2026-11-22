@@ -146,13 +146,14 @@ import {
   bulkUpdateRequestInboxItems,
   createCuttingRequest,
   deleteDemoRequestInboxItem,
-  getRequestInbox,
   getRequestDetailById,
   getRequestInboxItemById,
   isAllowedRequestFile,
   updateRequestCuttingDetails,
   updateRequestInboxItem,
 } from "@/lib/server/request-inbox";
+import { getRequestsByIds } from "@/lib/server/request-list";
+import { ADMIN_CREATED_REQUEST_MARKER } from "@/features/admin/request-origin";
 import {
   addRequestManagerNote,
   addRequestResultFiles,
@@ -4567,7 +4568,7 @@ export async function createAdminCuttingRequestAction(
   }
 
   const requestMessage = [
-    "Создано менеджером в админке.",
+    ADMIN_CREATED_REQUEST_MARKER,
     // Строку «Приоритет: срочно» очередь превращает во флажок «Срочно».
     getString(formData, "urgent") === "1" ? "Приоритет: срочно" : null,
     deadline ? `Плановая готовность: ${deadline}.` : "",
@@ -5127,15 +5128,13 @@ export async function bulkUpdateRequestsAction(formData: FormData) {
   }
 
   const previousRequestMap = new Map(
-    (await getRequestInbox())
-      .filter((request) => requestIds.includes(request.id))
-      .map((request) => [
-        request.id,
-        {
-          previousStatus: request.status,
-          previousManager: request.manager,
-        } satisfies TransitionSnapshot,
-      ]),
+    (await getRequestsByIds(requestIds)).map((request) => [
+      request.id,
+      {
+        previousStatus: request.status,
+        previousManager: request.manager,
+      } satisfies TransitionSnapshot,
+    ]),
   );
 
   switch (bulkAction) {
