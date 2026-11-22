@@ -513,7 +513,8 @@ export function buildDrillingProgram(
 
 // Отверстия фурнитуры, у которых в прайсе своя цена за отверстие:
 // корпус минификса Ø15 (отверстие под шток в торец — по диаметру),
-// конфирмат и шкант в торец. Остальные считаются по диаметру.
+// конфирмат и шкант в торец, наметки под саморезы планки петли («сверление
+// под метку»). Остальные считаются по диаметру.
 export function hardwareWorkHoles(
   items: HardwareItem[] | undefined,
   length: number,
@@ -529,7 +530,9 @@ export function hardwareWorkHoles(
           ? "confirmatHoles"
           : item.kind === "dowelEdge"
             ? "dowelHoles"
-            : null;
+            : item.kind === "hingePlate"
+              ? "markHoles"
+              : null;
     if (!key) continue;
     for (const hole of hardwareHoles([item], length, width, thickness)) {
       // У минификса своя цена только у корпуса в пласти.

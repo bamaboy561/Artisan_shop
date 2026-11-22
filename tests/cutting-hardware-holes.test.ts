@@ -110,3 +110,23 @@ test("manager form reads hardware holes as whole numbers", () => {
   const wrong = cuttingExtrasFromForm(bad);
   assert.equal(wrong.ok, false);
 });
+
+test("calculator: hinge plate marks are «сверление под метку», 3 each", () => {
+  const items = [createHardware("hingePlate", "left")];
+  const holes = hardwareHoles(items, 700, 500, 16);
+  const result = priceDrilling(
+    [
+      {
+        drill: holesToDrillCounts(holes),
+        work: hardwareWorkHoles(items, 700, 500, 16),
+      },
+    ],
+    defaultSiteCuttingPrices.drilling,
+    defaultSiteCuttingPrices,
+  );
+  assert.equal(result.rows.length, 0);
+  assert.deepEqual(
+    result.workRows.map((row) => [row.key, row.holes, row.price]),
+    [["markHoles", holes.length, 3]],
+  );
+});
