@@ -16,6 +16,7 @@ import {
 } from "@/app/admin/actions";
 import { BazisFilePreview } from "@/components/bazis/bazis-file-preview";
 import { CuttingExtrasFields } from "@/components/cutting/cutting-extras-fields";
+import { CuttingMaterialFields } from "@/components/cutting/cutting-material-fields";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -370,7 +371,7 @@ export function CuttingRequestForm({ customers }: CuttingRequestFormProps) {
             />
           </label>
           <label className="grid gap-2 text-sm font-medium">
-            Количество листов
+            Количество листов ЛДСП
             <Input
               name="cuttingSheetCount"
               type="number"
@@ -384,6 +385,15 @@ export function CuttingRequestForm({ customers }: CuttingRequestFormProps) {
               Можно заполнить позже в карточке заявки.
             </span>
           </label>
+          <div className="grid gap-2 border border-[color:var(--line)] p-3">
+            <p className="text-sm font-medium">
+              Другие работы: ХДФ, HPL, столешница, утолщёнка, Gola
+              <span className="ml-2 text-xs font-normal text-[var(--muted)]">
+                свои цены, входят в счёт клиента
+              </span>
+            </p>
+            <CuttingMaterialFields />
+          </div>
           <label className="grid gap-2 text-sm font-medium">
             Кромка
             <Input

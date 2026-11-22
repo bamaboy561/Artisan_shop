@@ -466,12 +466,12 @@ test("GibLab export writes parts, sheet with code, edges and drilling", () => {
     ),
   );
 
-  // Две одинаковые двери — одна строка с количеством 2: петля стоит только
-  // в одной, поэтому строк две.
+  // Две одинаковые двери стоят на одном месте. Скрипт Базиса отдал бы
+  // петлю только первой, у нас присадку получают обе: одна строка, 2 шт.
   assert.match(xml, /<project importBMV="1\.86">/);
   assert.match(
     xml,
-    /name="Дверь" dl="500\.00" dw="300\.00" count="1" txt="false" code="1"/,
+    /name="Дверь" dl="500\.00" dw="300\.00" count="2" txt="false" code="1"/,
   );
   assert.match(
     xml,
@@ -483,4 +483,30 @@ test("GibLab export writes parts, sheet with code, edges and drilling", () => {
     xml,
     /&lt;bf x=&quot;100&quot; y=&quot;200&quot; dp=&quot;13&quot; name=&quot;Bore35&quot;/,
   );
+});
+
+test("GibLab export joins several Bazis files without mixing their holes", () => {
+  const furniture = object("FurnList", [
+    object("F7", [
+      int("FastID", 7),
+      object("Holes", [hole([100, 100, 16], [0, 0, -1], 35, 13)]),
+    ]),
+  ]);
+  const fastener = object("Obj", [
+    int("Type", 3001),
+    text("Name", "Петля"),
+    int("FastID", 7),
+  ]);
+  const withHinge = readBazisGibLabSource(
+    project([panel("Дверь", 500, 300, [0, 2]), fastener], [furniture]),
+  );
+  const plain = readBazisGibLabSource(
+    project([panel("Дверь", 500, 300, [0, 2])]),
+  );
+  const xml = buildGibLabProject([withHinge, plain]);
+
+  // Дверь второго файла лежит там же, где первая, но петли у неё нет.
+  assert.equal((xml.match(/<part id="\d+" name="Дверь"/g) ?? []).length, 2);
+  assert.equal((xml.match(/Bore35/g) ?? []).length, 2);
+  assert.equal((xml.match(/typeId="sheet"/g) ?? []).length, 1);
 });
