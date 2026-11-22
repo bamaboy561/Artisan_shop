@@ -46,13 +46,19 @@ export const hardwareWorkKeys = otherWorks
   .map((work) => work.key);
 type MaterialWorkKey = OtherWorkKey;
 
-function validSheets(value: unknown) {
+function validSheets(value: unknown, max = 10000) {
   return typeof value === "number" &&
     Number.isInteger(value) &&
     value >= 0 &&
-    value <= 10000
+    value <= max
     ? value
     : null;
+}
+
+// Отверстий может быть много, как в присадке по диаметрам.
+function validCount(key: MaterialWorkKey, value: unknown) {
+  const unit = otherWorks.find((work) => work.key === key)?.unit;
+  return validSheets(value, unit === "pcs" ? 1_000_000 : 10000);
 }
 
 // Листы и штуки — целые числа, метры — с сотыми.
@@ -168,7 +174,7 @@ export function parseCuttingExtras(value: unknown): CuttingExtras | null {
   const materialWork: Partial<Record<MaterialWorkKey, number>> = {};
   for (const key of allWorkKeys) {
     const amount = isSheetKey(key)
-      ? validSheets(raw[key] ?? 0)
+      ? validCount(key, raw[key] ?? 0)
       : validMeters(raw[key] ?? 0);
     if (amount === null) return null;
     if (amount > 0) materialWork[key] = amount;
@@ -439,13 +445,13 @@ export function cuttingExtrasFromForm(
     if (!value) continue;
     touched = true;
     const amount = isSheetKey(key)
-      ? validSheets(Number(value))
+      ? validCount(key, Number(value))
       : validMeters(Number(value));
     if (amount === null)
       return {
         ok: false,
         message: isSheetKey(key)
-          ? `${otherWorks.find((work) => work.key === key)?.label ?? "Количество"}: целое число от 0 до 10 000.`
+          ? `${otherWorks.find((work) => work.key === key)?.label ?? "Количество"}: целое число от 0.`
           : "Проверьте метры в «Другие работы».",
       };
     if (amount > 0) materialWork[key] = amount;
