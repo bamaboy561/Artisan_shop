@@ -2,14 +2,17 @@
 // плашка «Раскрой через сайт дешевле». Меняются в админке на странице
 // «Прайс работ»; пока там ничего не сохранено, действуют эти значения.
 
-// Другие работы со своей ценой: ХДФ, HPL, столешница, утолщёнка, Gola.
+// Другие работы со своей ценой: ХДФ, HPL, столешница, утолщёнка, Gola
+// (group "material") и отверстия под фурнитуру (group "hardware").
 // key — количество в заявке, price — цена в «Цены на сайте».
+// unit: sheet — листов, m — погонных метров, pcs — отверстий.
 export const otherWorks = [
   {
     key: "hdfSheets",
     price: "hdfSheet",
     label: "Распил ХДФ",
     unit: "sheet",
+    group: "material",
     fallback: 100,
   },
   {
@@ -17,6 +20,7 @@ export const otherWorks = [
     price: "hplCut",
     label: "Пропил HPL",
     unit: "m",
+    group: "material",
     fallback: 500,
   },
   {
@@ -24,6 +28,7 @@ export const otherWorks = [
     price: "countertopCut",
     label: "Пропил столешницы",
     unit: "m",
+    group: "material",
     fallback: 100,
   },
   {
@@ -31,6 +36,7 @@ export const otherWorks = [
     price: "sinkCut",
     label: "Вырез под мойку",
     unit: "m",
+    group: "material",
     fallback: 1500,
   },
   {
@@ -38,6 +44,7 @@ export const otherWorks = [
     price: "thickening",
     label: "Изготовление утолщёнки",
     unit: "m",
+    group: "material",
     fallback: 100,
   },
   {
@@ -45,6 +52,7 @@ export const otherWorks = [
     price: "countertopEdge",
     label: "Закатка утолщёнки / столешницы",
     unit: "m",
+    group: "material",
     fallback: 60,
   },
   {
@@ -52,6 +60,7 @@ export const otherWorks = [
     price: "hdfGroove",
     label: "Паз под ХДФ 4 мм",
     unit: "m",
+    group: "material",
     fallback: 100,
   },
   {
@@ -59,6 +68,7 @@ export const otherWorks = [
     price: "golaC",
     label: "Фрезеровка под Gola C",
     unit: "m",
+    group: "material",
     fallback: 70,
   },
   {
@@ -66,12 +76,70 @@ export const otherWorks = [
     price: "golaL",
     label: "Фрезеровка под Gola L",
     unit: "m",
+    group: "material",
     fallback: 50,
+  },
+  // Прайс-лист: отверстия под фурнитуру — своя цена за каждое отверстие,
+  // а не по диаметру (минификс D15 — 25 сом, простое D15 — 13).
+  {
+    key: "minifixHoles",
+    price: "minifix",
+    label: "Отверстие под минификс D15",
+    unit: "pcs",
+    group: "hardware",
+    fallback: 25,
+  },
+  {
+    key: "confirmatHoles",
+    price: "confirmat",
+    label: "Отверстие под конфирмат",
+    unit: "pcs",
+    group: "hardware",
+    fallback: 14,
+  },
+  {
+    key: "dowelHoles",
+    price: "dowel",
+    label: "Отверстие под шкант",
+    unit: "pcs",
+    group: "hardware",
+    fallback: 14,
+  },
+  {
+    key: "rafixHoles",
+    price: "rafix",
+    label: "Отверстие под рафикс D5/D20",
+    unit: "pcs",
+    group: "hardware",
+    fallback: 28,
+  },
+  {
+    key: "tofikHoles",
+    price: "tofik",
+    label: "Отверстие под тофик D5/D25",
+    unit: "pcs",
+    group: "hardware",
+    fallback: 33,
+  },
+  {
+    key: "markHoles",
+    price: "mark",
+    label: "Сверление под метку",
+    unit: "pcs",
+    group: "hardware",
+    fallback: 3,
   },
 ] as const;
 export type OtherWork = (typeof otherWorks)[number];
 export type OtherWorkKey = OtherWork["key"];
 export type OtherWorkPriceKey = OtherWork["price"];
+
+// Подписи единиц: «сом за лист», «5 шт.».
+export const workUnitLabel = {
+  sheet: { per: "лист", count: "листов" },
+  m: { per: "метр", count: "м" },
+  pcs: { per: "отверстие", count: "отв." },
+} as const;
 
 const otherWorkFallbacks = Object.fromEntries(
   otherWorks.map((work) => [work.price, work.fallback]),

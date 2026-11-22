@@ -64,6 +64,7 @@ import {
   SIDE_LABELS,
   buildDrillingProgram,
   hardwareHoles,
+  hardwareWorkHoles,
   holesToDrillCounts,
   mergeDrillCounts,
   rotateHoles,
@@ -87,7 +88,11 @@ import type {
   CalculatorSheetFormatDto,
 } from "@/lib/server/calculator-config";
 import { formatPrice } from "@/lib/commerce";
-import { priceDrilling, type DrillCounts } from "@/lib/drilling-price";
+import {
+  priceDrilling,
+  type DrillCounts,
+  type HardwareWorkHoles,
+} from "@/lib/drilling-price";
 import {
   buildCuttingSiteIncentive,
   formatSitePrice,
@@ -130,6 +135,8 @@ type CalculatedDetailRow = Omit<DetailRow, "width" | "height" | "quantity"> & {
   perimeterMeters: number;
   edgeMeters: number;
   lineTotal: number;
+  // Отверстия фурнитуры со своей ценой (минификс, конфирмат, шкант).
+  work?: HardwareWorkHoles[];
 };
 
 type CutMapPiece = {
@@ -624,7 +631,9 @@ function writeCalculatorUi(state: CalculatorUiState | null) {
   }
 }
 
-function readDraftSettings(value: unknown): CalculatorDraftSettings | undefined {
+function readDraftSettings(
+  value: unknown,
+): CalculatorDraftSettings | undefined {
   if (!value || typeof value !== "object") return undefined;
   const raw = value as Record<string, unknown>;
   const text = (key: string, fallback = "") =>
@@ -1740,6 +1749,11 @@ function buildCuttingRequestMessage({
               (row) =>
                 `Ø${row.diameter} × ${row.holes}${row.price === null ? ", без цены" : ""}`,
             )
+            .concat(
+              estimate.drilling.workRows.map(
+                (row) => `${row.label} × ${row.holes}`,
+              ),
+            )
             .join("; ")})`,
         ]
       : []),
@@ -2065,12 +2079,22 @@ export function CutCalculator({
             ),
           )
         : undefined;
+      // Минификс, конфирмат и шкант в торец — по своей цене из прайса.
+      const work = detail.hardware?.length
+        ? hardwareWorkHoles(
+            detail.hardware,
+            width,
+            height,
+            material.thicknessMm ?? 16,
+          )
+        : undefined;
 
       return {
         ...detail,
         ...(hardwareDrill
           ? { drill: mergeDrillCounts(detail.drill, hardwareDrill) }
           : {}),
+        ...(work?.length ? { work } : {}),
         width,
         height,
         quantity,
@@ -2112,7 +2136,11 @@ export function CutCalculator({
     const edgeCost = calculation.totalEdgeMeters * sitePrices.edge;
     const setupFee = 0;
     // Присадка по прайсу: отверстия приходят из проекта Базиса.
-    const drilling = priceDrilling(calculation.rows, sitePrices.drilling);
+    const drilling = priceDrilling(
+      calculation.rows,
+      sitePrices.drilling,
+      sitePrices,
+    );
     // Скругления и скосы с чертежа детали, за погонный метр.
     const milling = calculation.rows.reduce(
       (sum, row) => {
@@ -2362,6 +2390,9 @@ export function CutCalculator({
         curveMeters: Math.round(estimate.milling.curve * 100) / 100,
         bevelMeters: Math.round(estimate.milling.bevel * 100) / 100,
         grooveMeters: Math.round(estimate.milling.groove * 100) / 100,
+        ...Object.fromEntries(
+          estimate.drilling.workRows.map((row) => [row.key, row.holes]),
+        ),
         source: "calculator",
       },
     }),
@@ -2837,7 +2868,7 @@ export function CutCalculator({
   // как в итоге окна присадки («28 отв.» и ниже «212 сом»).
   const drillingLabels = Object.fromEntries(
     calculation.rows.map((row) => {
-      const price = priceDrilling([row], sitePrices.drilling);
+      const price = priceDrilling([row], sitePrices.drilling, sitePrices);
       const what = [
         price.holes > 0 ? `${price.holes} отв.` : "",
         hasMilling(row.milling) ? "фрез." : "",
@@ -4533,6 +4564,12 @@ export function CutCalculator({
                     .map(
                       (row) =>
                         `Ø${row.diameter} — ${row.holes} шт.${row.price === null ? " (цену назовёт менеджер)" : ` × ${row.price} сом`}`,
+                    )
+                    .concat(
+                      estimate.drilling.workRows.map(
+                        (row) =>
+                          `${row.label} — ${row.holes} шт. × ${row.price} сом`,
+                      ),
                     )
                     .join(" · ")}
                 </p>

@@ -200,6 +200,15 @@ export type GibLabServicePrices = {
   milling: number;
   bevel: number;
   groove: number;
+  // Работы со своей ценой из прайса: ХДФ, утолщёнка, Gola, отверстия под
+  // минификс, конфирмат… (otherWorks в «Цены на сайте»).
+  works?: Array<{
+    price: string;
+    label: string;
+    unit: "sheet" | "m" | "pcs";
+    group: "material" | "hardware";
+    rate: number;
+  }>;
 };
 
 // Работы цеха строками каталога: распил, кромление, присадка по диаметрам,
@@ -258,6 +267,15 @@ export function buildGibLabServices(
       price: prices.groove,
     },
   );
+  for (const work of prices.works ?? []) {
+    services.push({
+      path: work.group === "hardware" ? [rootServices, "Присадка"] : root,
+      code: `SVC-${work.price.toUpperCase()}`,
+      name: work.label,
+      unit: work.unit === "sheet" ? "лист" : work.unit === "m" ? "м" : "шт",
+      price: work.rate,
+    });
+  }
   return services.filter(
     (service) => Number.isFinite(service.price) && service.price >= 0,
   );
