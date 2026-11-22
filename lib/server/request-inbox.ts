@@ -14,6 +14,8 @@ import type { AdminRequestItem } from "@/features/admin/operations-filters";
 import {
   buildCuttingQuote,
   hasCuttingExtras,
+  hasMachiningExtras,
+  mergeMaterialWork,
   parseCuttingExtras,
   type CuttingExtras,
 } from "@/features/cutting/quote";
@@ -710,12 +712,16 @@ export async function createCuttingRequest(
 
     // Присадка: из калькулятора, иначе из приложенного проекта Базиса.
     const submittedExtras = parseCuttingExtras(input.cuttingExtras);
-    const extras = hasCuttingExtras(submittedExtras)
+    // ХДФ, HPL и столешница из формы не отменяют присадку из проекта.
+    const extras = hasMachiningExtras(submittedExtras)
       ? submittedExtras
-      : await bazisExtrasFromUploads(uploadedFiles).catch((error) => {
-          console.error("[cutting:bazis-extras]", error);
-          return null;
-        });
+      : mergeMaterialWork(
+          await bazisExtrasFromUploads(uploadedFiles).catch((error) => {
+            console.error("[cutting:bazis-extras]", error);
+            return null;
+          }),
+          submittedExtras,
+        );
 
     const createdRequest = await db.$transaction(async (tx) => {
       const price = await readCuttingQuotePrice(tx);

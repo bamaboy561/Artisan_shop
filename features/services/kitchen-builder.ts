@@ -18,6 +18,7 @@ import {
   type CabinetResult,
   type CabinetSpec,
 } from "./cabinet-builder";
+import { liftSystemProblem, type CabinetHardware } from "./hardware-systems";
 
 export type KitchenLayout = "line" | "corner" | "u";
 
@@ -167,6 +168,8 @@ export type KitchenSpec = {
   topBottom: number;
   // Шкаф над вытяжкой, мм.
   hoodHeight: number;
+  // Системы фурнитуры на все модули: направляющие, петли, подъёмник.
+  hardware?: CabinetHardware;
 };
 
 export const KITCHEN_DEFAULTS: KitchenSpec = {
@@ -471,6 +474,7 @@ export function buildKitchen(
     shelves: 1,
     doors: width >= 500 ? 2 : 1,
     joint: "confirmat",
+    ...(spec.hardware ? { hardware: spec.hardware } : {}),
     ...extra,
   });
 
@@ -661,6 +665,13 @@ export function buildKitchen(
             doors: 1,
             lift: true,
           });
+          {
+            const liftProblem = liftSystemProblem(
+              spec.hardware?.lift ?? "any",
+              height,
+            );
+            if (liftProblem) problems.push(`${code}: ${liftProblem}`);
+          }
           break;
         case "dryer":
           cabinetSpec = cabinet(code, "wall", width, height, spec.topDepth, {
