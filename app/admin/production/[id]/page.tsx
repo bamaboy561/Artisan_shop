@@ -54,6 +54,7 @@ import {
   setCuttingUrgentAction,
 } from "@/app/admin/production/actions";
 import { getCuttingWorkflow } from "@/lib/server/cutting-workflow";
+import { getMachineFilesForRequest } from "@/lib/server/machine-folders";
 import { WorkflowFlags } from "@/features/production/queue-view";
 import { StageJournal } from "@/features/production/stage-journal";
 import {
@@ -221,10 +222,18 @@ export default async function ProductionRequestPage({
   const returnTo = safeProductionReturn(
     getSearchValue(resolvedSearchParams, "returnTo"),
   );
-  const [planning, workflow] = await Promise.all([
+  const [planning, workflow, machineFiles] = await Promise.all([
     productionPlanningAvailable(),
     getCuttingWorkflow(id),
+    getMachineFilesForRequest(id).catch(() => []),
   ]);
+  const machineTime = new Intl.DateTimeFormat("ru-RU", {
+    timeZone: "Asia/Bishkek",
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
   const plan = planning ? (await getProductionPlans([id])).get(id) : undefined;
   const normDueDate = standardCuttingDueDate(request.createdAt);
   const overNorm = Boolean(plan?.dueDate && plan.dueDate > normDueDate);
@@ -598,6 +607,38 @@ export default async function ProductionRequestPage({
               />
             )}
           </form>
+        </section>
+      ) : null}
+
+      {machineFiles.length ? (
+        <section className="border-y border-[color:var(--line)] bg-white p-4 sm:p-5">
+          <h2 className="text-base font-semibold">На станках (из GibLab)</h2>
+          <ul className="mt-3 grid gap-2 text-sm">
+            {machineFiles.map((file) => (
+              <li
+                key={file.id}
+                className="flex flex-wrap items-baseline gap-x-3 gap-y-1"
+              >
+                <strong>{file.machine}</strong>
+                <span className="break-all text-[var(--muted)]">
+                  {file.fileName}
+                </span>
+                <span>
+                  передан{" "}
+                  {machineTime.format(file.fileModifiedAt ?? file.firstSeenAt)}
+                </span>
+                {file.removedAt ? (
+                  <span className="text-emerald-700">
+                    снят {machineTime.format(file.removedAt)}
+                  </span>
+                ) : (
+                  <span className="font-semibold text-amber-700">
+                    лежит на станке
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
         </section>
       ) : null}
 

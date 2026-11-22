@@ -233,6 +233,14 @@ function joinLimited(parts: string[], max: number) {
   return text.length > max ? `${text.slice(0, max - 1)}…` : text;
 }
 
+// «Количество листов ЛДСП» идёт в счёт по цене распила листа. ХДФ/ДВП,
+// HPL и столешницы считаются отдельно в «Другие работы», поэтому их строки
+// в этот итог не входят.
+export function isLdspSheet(name: string, thicknessMm: number | null) {
+  if (/хдф|двп|hdf|hpl|столешниц/i.test(name)) return false;
+  return thicknessMm === null || thicknessMm > 5;
+}
+
 export type MaterialSummary = {
   material: string | null;
   edgeOption: string | null;
@@ -244,6 +252,7 @@ export function summarizeMaterialLines(lines: MaterialLine[]): MaterialSummary {
   const sheets = lines.filter((line) => line.kind === "SHEET");
   const edges = lines.filter((line) => line.kind === "EDGE");
   const sheetQuantities = sheets
+    .filter((line) => isLdspSheet(line.name, line.thicknessMm))
     .map((line) => line.quantity)
     .filter((value): value is number => value !== null);
   const edgeQuantities = edges

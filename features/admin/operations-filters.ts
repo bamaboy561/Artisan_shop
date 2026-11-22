@@ -62,6 +62,7 @@ export type AdminRequestFilterState = {
   managerId: string;
   assignment: AdminAssignmentFilter;
   files: "all" | "with-files" | "without-files";
+  origin: "all" | "site";
   sort: AdminRequestSort;
 };
 
@@ -206,8 +207,8 @@ export const adminRequestSortOptions: Array<{
   value: AdminRequestSort;
   label: string;
 }> = [
-  { value: "updated-desc", label: "Сначала обновленные" },
   { value: "created-desc", label: "Сначала новые" },
+  { value: "updated-desc", label: "Сначала обновленные" },
   { value: "budget-desc", label: "Бюджет: по убыванию" },
   { value: "files-desc", label: "Сначала с файлами" },
 ];
@@ -457,9 +458,11 @@ export function parseAdminRequestSearchParams(
       filesCandidate === "with-files" || filesCandidate === "without-files"
         ? filesCandidate
         : "all",
+    origin:
+      getFirstSearchValue(searchParams, "origin") === "site" ? "site" : "all",
     sort: validRequestSorts.has(sortCandidate as AdminRequestSort)
       ? (sortCandidate as AdminRequestSort)
-      : "updated-desc",
+      : "created-desc",
   };
 }
 
@@ -594,7 +597,11 @@ export function buildAdminRequestsHref(
     params.set("files", state.files);
   }
 
-  if (state.sort !== "updated-desc") {
+  if (state.origin !== "all") {
+    params.set("origin", state.origin);
+  }
+
+  if (state.sort !== "created-desc") {
     params.set("sort", state.sort);
   }
 

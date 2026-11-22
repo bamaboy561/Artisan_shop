@@ -561,8 +561,85 @@ type CalculatorDraft = {
     | "messengerType"
     | "messengerHandle"
   >;
+  // Материал, лист, кромка и комментарий. Черновик из Базиса или
+  // конструктора приходит без них, тогда остаются значения по умолчанию.
+  settings?: CalculatorDraftSettings;
   savedAt: string;
 };
+
+type CalculatorDraftSettings = {
+  presetId: string | null;
+  manualThicknessMm: string;
+  manualSheetWidthMm: string;
+  manualSheetHeightMm: string;
+  edgeThicknessMm: string;
+  edgeWidthMm: string;
+  comment: string;
+};
+
+// Где клиент был на странице: шаг, открытая присадка, прокрутка. Живёт в
+// sessionStorage этой вкладки, чтобы после сворачивания телефон, выгрузивший
+// страницу из памяти, вернул клиента туда же, а не на начало.
+const UI_STORAGE_KEY = "artisan:cut-calculator:ui:v1";
+
+type CalculatorUiState = {
+  step: 1 | 2 | 3 | 4;
+  drillingRowId: string | null;
+  scrollY: number;
+  // Совпадает с savedAt черновика: если черновик подменили (Базис,
+  // конструктор), старое положение не применяем.
+  draftSavedAt: string;
+};
+
+function readCalculatorUi(): CalculatorUiState | null {
+  try {
+    const raw = window.sessionStorage.getItem(UI_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<CalculatorUiState>;
+    const step = parsed.step;
+    return {
+      step: step === 1 || step === 2 || step === 3 || step === 4 ? step : 2,
+      drillingRowId:
+        typeof parsed.drillingRowId === "string" ? parsed.drillingRowId : null,
+      scrollY:
+        typeof parsed.scrollY === "number" && parsed.scrollY > 0
+          ? parsed.scrollY
+          : 0,
+      draftSavedAt: String(parsed.draftSavedAt ?? ""),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writeCalculatorUi(state: CalculatorUiState | null) {
+  try {
+    if (state) {
+      window.sessionStorage.setItem(UI_STORAGE_KEY, JSON.stringify(state));
+    } else {
+      window.sessionStorage.removeItem(UI_STORAGE_KEY);
+    }
+  } catch {
+    // Хранилище недоступно: положение на странице просто не запоминаем.
+  }
+}
+
+function readDraftSettings(value: unknown): CalculatorDraftSettings | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const raw = value as Record<string, unknown>;
+  const text = (key: string, fallback = "") =>
+    typeof raw[key] === "string" ? (raw[key] as string) : fallback;
+
+  return {
+    presetId: typeof raw.presetId === "string" ? raw.presetId : null,
+    manualThicknessMm: text("manualThicknessMm"),
+    manualSheetWidthMm: text("manualSheetWidthMm"),
+    manualSheetHeightMm: text("manualSheetHeightMm"),
+    edgeThicknessMm: text("edgeThicknessMm", "1"),
+    edgeWidthMm: text("edgeWidthMm"),
+    comment: text("comment"),
+  };
+}
 
 function isDetailRow(value: unknown): value is DetailRow {
   if (!value || typeof value !== "object") return false;
@@ -626,6 +703,7 @@ function readCalculatorDraft(): CalculatorDraft | null {
             : "",
         messengerHandle: String(parsed.contact?.messengerHandle ?? ""),
       },
+      settings: readDraftSettings(parsed.settings),
       savedAt: String(parsed.savedAt ?? ""),
     };
   } catch {
@@ -1757,6 +1835,10 @@ export function CutCalculator({
   const [isPreparingAttachments, setIsPreparingAttachments] = useState(false);
   const [restoredDraftAt, setRestoredDraftAt] = useState<string | null>(null);
   const draftReadyRef = useRef(false);
+  // savedAt черновика, который подняли при открытии: по нему сверяем,
+  // относится ли сохранённое положение на странице к этому раскрою.
+  const restoredSavedAtRef = useRef("");
+  const persistRef = useRef<() => void>(() => {});
   const attachmentInputRef = useRef<HTMLInputElement>(null);
   const calculatorSectionRef = useRef<HTMLElement>(null);
   const [showStickySummary, setShowStickySummary] = useState(false);
@@ -1791,8 +1873,28 @@ export function CutCalculator({
       // Черновик живёт в localStorage и доступен только после гидратации.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setDetails(draft.details);
-      setRequestDraft((current) => ({ ...current, ...draft.contact }));
+      setRequestDraft((current) => ({
+        ...current,
+        ...draft.contact,
+        comment: draft.settings?.comment ?? current.comment,
+      }));
       setRestoredDraftAt(draft.savedAt || null);
+      restoredSavedAtRef.current = draft.savedAt;
+
+      const settings = draft.settings;
+      if (settings) {
+        if (
+          settings.presetId &&
+          presets.some((preset) => preset.id === settings.presetId)
+        ) {
+          setManualPresetId(settings.presetId);
+        }
+        setManualThicknessMm(settings.manualThicknessMm);
+        setManualSheetWidthMm(settings.manualSheetWidthMm);
+        setManualSheetHeightMm(settings.manualSheetHeightMm);
+        setEdgeThicknessMm(settings.edgeThicknessMm);
+        setEdgeWidthMm(settings.edgeWidthMm);
+      }
     }
 
     try {
@@ -1816,37 +1918,6 @@ export function CutCalculator({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    if (!draftReadyRef.current) return;
-
-    const timer = window.setTimeout(() => {
-      if (isSampleRows(details) && !requestDraft.contactPhone.trim()) {
-        writeCalculatorDraft(null);
-        return;
-      }
-
-      writeCalculatorDraft({
-        details,
-        contact: {
-          contactName: requestDraft.contactName,
-          contactPhone: requestDraft.contactPhone,
-          contactEmail: requestDraft.contactEmail,
-          messengerType: requestDraft.messengerType,
-          messengerHandle: requestDraft.messengerHandle,
-        },
-        savedAt: new Date().toISOString(),
-      });
-    }, 400);
-
-    return () => window.clearTimeout(timer);
-  }, [
-    details,
-    requestDraft.contactEmail,
-    requestDraft.contactName,
-    requestDraft.contactPhone,
-    requestDraft.messengerHandle,
-    requestDraft.messengerType,
-  ]);
   const cartProductSlugs = useMemo(
     () => new Set(cartItems.map((item) => item.productSlug)),
     [cartItems],
@@ -2578,6 +2649,127 @@ export function CutCalculator({
     window.addEventListener("hashchange", fromHash);
     return () => window.removeEventListener("hashchange", fromHash);
   }, []);
+
+  // Сохраняем раскрой, материал и место на странице. Телефон при сворачивании
+  // браузера или приложения может выгрузить страницу, и без этого клиент
+  // начинал заново.
+  useEffect(() => {
+    persistRef.current = () => {
+      if (!draftReadyRef.current) return;
+
+      const savedAt = new Date().toISOString();
+
+      // Пустой черновик не храним: детали как в образце, телефона нет,
+      // материал, лист, кромка и комментарий по умолчанию.
+      const settingsUntouched =
+        (lockedPreset || manualPresetId === defaultPresetId) &&
+        !manualThicknessMm &&
+        !manualSheetWidthMm &&
+        !manualSheetHeightMm &&
+        edgeThicknessMm === "1" &&
+        !edgeWidthMm &&
+        !requestDraft.comment.trim();
+
+      if (
+        isSampleRows(details) &&
+        !requestDraft.contactPhone.trim() &&
+        settingsUntouched
+      ) {
+        writeCalculatorDraft(null);
+      } else {
+        writeCalculatorDraft({
+          details,
+          contact: {
+            contactName: requestDraft.contactName,
+            contactPhone: requestDraft.contactPhone,
+            contactEmail: requestDraft.contactEmail,
+            messengerType: requestDraft.messengerType,
+            messengerHandle: requestDraft.messengerHandle,
+          },
+          settings: {
+            presetId: manualPresetId,
+            manualThicknessMm,
+            manualSheetWidthMm,
+            manualSheetHeightMm,
+            edgeThicknessMm,
+            edgeWidthMm,
+            comment: requestDraft.comment,
+          },
+          savedAt,
+        });
+      }
+
+      writeCalculatorUi({
+        step,
+        drillingRowId,
+        scrollY: Math.round(window.scrollY),
+        draftSavedAt: savedAt,
+      });
+      restoredSavedAtRef.current = savedAt;
+    };
+  });
+
+  useEffect(() => {
+    if (!draftReadyRef.current) return;
+
+    const timer = window.setTimeout(() => persistRef.current(), 400);
+    return () => window.clearTimeout(timer);
+  }, [
+    details,
+    requestDraft,
+    manualPresetId,
+    manualThicknessMm,
+    manualSheetWidthMm,
+    manualSheetHeightMm,
+    edgeThicknessMm,
+    edgeWidthMm,
+    step,
+    drillingRowId,
+  ]);
+
+  // Сворачивание, переключение на другое приложение, закрытие вкладки:
+  // сохраняем сразу, не дожидаясь паузы после ввода.
+  useEffect(() => {
+    const flush = () => persistRef.current();
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") flush();
+    };
+
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("pagehide", flush);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("pagehide", flush);
+    };
+  }, []);
+
+  // Страницу перезагрузили после сворачивания: возвращаем тот же шаг,
+  // открытую присадку и прокрутку.
+  useEffect(() => {
+    const ui = readCalculatorUi();
+    if (!ui || ui.draftSavedAt !== restoredSavedAtRef.current) return;
+    // Ссылка ведёт прямо на заявку или импорт: туда и идём, а не на
+    // сохранённый шаг.
+    if (
+      window.location.hash === "#cut-request-form" ||
+      window.location.hash === "#cut-import"
+    ) {
+      return;
+    }
+
+    // Положение на странице живёт в sessionStorage и доступно только после
+    // гидратации.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setStep(ui.step);
+    if (ui.drillingRowId) setDrillingRowId(ui.drillingRowId);
+    if (ui.scrollY > 0) {
+      const timer = window.setTimeout(
+        () => window.scrollTo({ top: ui.scrollY, behavior: "instant" }),
+        80,
+      );
+      return () => window.clearTimeout(timer);
+    }
+  }, []);
   // Мебель из конструктора: строки скрыты, в карте — без размеров.
   const lockedRowIds = new Set(
     details.filter((row) => row.group).map((row) => row.id),
@@ -2797,6 +2989,10 @@ export function CutCalculator({
     setManualThicknessMm("");
     setManualSheetWidthMm("");
     setManualSheetHeightMm("");
+    setEdgeThicknessMm("1");
+    setEdgeWidthMm("");
+    setRequestDraft((current) => ({ ...current, comment: "" }));
+    setDrillingRowId(null);
     setDetails(createInitialRows());
     setRemovedRow(null);
     setRequestFeedback(null);

@@ -17,6 +17,7 @@ import {
 } from "@/app/admin/actions";
 import { BazisFilePreview } from "@/components/bazis/bazis-file-preview";
 import { CuttingExtrasFields } from "@/components/cutting/cutting-extras-fields";
+import { CuttingMaterialFields } from "@/components/cutting/cutting-material-fields";
 import { MaterialLinesEditor } from "@/components/cutting/material-lines-editor";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -364,6 +365,15 @@ export function CuttingRequestForm({ customers }: CuttingRequestFormProps) {
         </div>
 
         <div className="mt-5 grid gap-4">
+          <div className="grid gap-2 border border-[color:var(--line)] p-3">
+            <p className="text-sm font-medium">
+              Другие работы: ХДФ, HPL, столешница, утолщёнка, Gola
+              <span className="ml-2 text-xs font-normal text-[var(--muted)]">
+                свои цены, входят в счёт клиента
+              </span>
+            </p>
+            <CuttingMaterialFields />
+          </div>
           <details className="border border-[color:var(--line)] p-3">
             <summary className="cursor-pointer text-sm font-medium">
               Присадка и фрезеровка

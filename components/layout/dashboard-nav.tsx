@@ -11,6 +11,7 @@ import {
   FileStack,
   Factory,
   FolderTree,
+  HardDrive,
   Gift,
   Layers3,
   LayoutDashboard,
@@ -50,6 +51,7 @@ const iconMap = {
   "/admin/production/board": LayoutGrid,
   "/admin/production/shift": ClipboardCheck,
   "/admin/production/shifts": ClipboardList,
+  "/admin/production/machines": HardDrive,
   "/admin/promotions": BadgePercent,
   "/admin/content": FileText,
   "/calculator": Calculator,
@@ -66,6 +68,7 @@ function isItemActive(pathname: string, href: string) {
       "/admin/production/board",
       "/admin/production/shift",
       "/admin/production/shifts",
+      "/admin/production/machines",
     ].includes(pathname)
   )
     return false;

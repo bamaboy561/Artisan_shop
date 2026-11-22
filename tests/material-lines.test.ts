@@ -107,3 +107,34 @@ test("edge and sheet sizes from product names", () => {
   assert.equal(sheetThicknessFromName("МДФ 18мм"), 18);
   assert.equal(sheetThicknessFromName("Кашемир U6933 VL"), null);
 });
+
+test("ХДФ, HPL and столешница rows are not counted as ЛДСП sheets", () => {
+  const parsed = parseMaterialLines(
+    JSON.stringify([
+      { kind: "SHEET", source: "CLIENT", name: "ЛДСП белая", quantity: "4" },
+      {
+        kind: "SHEET",
+        source: "CLIENT",
+        name: "ХДФ белый",
+        thicknessMm: "3",
+        quantity: "2",
+      },
+      {
+        kind: "SHEET",
+        source: "CLIENT",
+        name: "Задняя стенка",
+        thicknessMm: "3",
+        quantity: "1",
+      },
+      {
+        kind: "SHEET",
+        source: "CLIENT",
+        name: "Столешница 38 мм",
+        quantity: "1",
+      },
+    ]),
+  );
+  assert.equal(parsed.ok, true);
+  if (!parsed.ok) return;
+  assert.equal(summarizeMaterialLines(parsed.lines).sheetCount, 4);
+});

@@ -12,6 +12,8 @@ import {
   defaultSiteCuttingPrices,
   drillingDiameters,
   isValidSitePrice,
+  otherWorks,
+  type OtherWorkPriceKey,
   type SiteCuttingPrices,
 } from "@/features/cutting/site-prices";
 import {
@@ -73,6 +75,13 @@ export async function saveSiteCuttingPricesAction(form: FormData) {
   const milling = optionalRate("siteMilling", defaultSiteCuttingPrices.milling);
   const bevel = optionalRate("siteBevel", defaultSiteCuttingPrices.bevel);
   const groove = optionalRate("siteGroove", defaultSiteCuttingPrices.groove);
+  const otherPrices: Partial<Record<OtherWorkPriceKey, number>> = {};
+  let otherValid = true;
+  for (const work of otherWorks) {
+    const rate = optionalRate(`site_${work.price}`, work.fallback);
+    if (rate === null) otherValid = false;
+    else otherPrices[work.price] = rate;
+  }
   const drilling: Record<number, number> = {};
   let drillingValid = true;
   for (const diameter of drillingDiameters) {
@@ -88,6 +97,7 @@ export async function saveSiteCuttingPricesAction(form: FormData) {
     milling === null ||
     bevel === null ||
     groove === null ||
+    !otherValid ||
     !drillingValid ||
     !hasDatabaseUrl()
   )
@@ -101,6 +111,7 @@ export async function saveSiteCuttingPricesAction(form: FormData) {
     milling,
     bevel,
     groove,
+    ...(otherPrices as Record<OtherWorkPriceKey, number>),
   };
   await getDb().siteSetting.upsert({
     where: { key: siteCuttingPricesKey },

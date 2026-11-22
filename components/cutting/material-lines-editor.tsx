@@ -6,6 +6,7 @@ import { Check, Plus, Search, Trash2, Truck, Store } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
   formatMaterialNumber,
+  isLdspSheet,
   MAX_MATERIAL_LINES,
   type MaterialLine,
   type MaterialLineKind,
@@ -484,6 +485,14 @@ function MaterialRow({
           </label>
         </div>
       </div>
+      {!isEdge &&
+      (row.name || row.thicknessMm) &&
+      !isLdspSheet(row.name, parseNumber(row.thicknessMm)) ? (
+        <p className="text-xs text-amber-800">
+          Не ЛДСП: в «Листов ЛДСП» не входит. Цену распила укажите в «Другие
+          работы».
+        </p>
+      ) : null}
       <Input
         value={row.note}
         maxLength={200}
@@ -537,6 +546,7 @@ export function MaterialLinesEditor({
 
   const totals = useMemo(() => {
     const sheetValues = sheetRows
+      .filter((row) => isLdspSheet(row.name, parseNumber(row.thicknessMm)))
       .map((row) => parseNumber(row.quantity))
       .filter((value): value is number => value !== null);
     const edgeValues = edgeRows
@@ -635,7 +645,7 @@ export function MaterialLinesEditor({
 
       <div className="grid gap-3 border-t border-[color:var(--line)] pt-4 sm:grid-cols-2">
         <label className="grid gap-1.5 text-sm font-medium">
-          Листов всего
+          Листов ЛДСП всего
           <Input
             name="cuttingSheetCount"
             type="number"
@@ -653,7 +663,7 @@ export function MaterialLinesEditor({
           />
           <span className="text-xs font-normal text-[var(--muted)]">
             {totals.sheets !== null
-              ? "Считается из строк."
+              ? "Считается из строк ЛДСП. ХДФ, HPL и столешницу укажите в «Другие работы»."
               : "Можно заполнить позже."}
           </span>
         </label>
