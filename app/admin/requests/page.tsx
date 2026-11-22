@@ -364,8 +364,8 @@ export default async function AdminRequestsPage({
           })}
           className={
             metrics.siteNew > 0
-              ? "min-w-0 rounded-[20px] border-2 border-red-500 bg-red-50 p-3.5 transition hover:bg-red-100 sm:p-4"
-              : "min-w-0 rounded-[20px] border border-[color:var(--line)] bg-white p-3.5 transition hover:border-[color:var(--line-strong)] sm:p-4"
+              ? "min-w-0 rounded-[var(--radius-inner)] border-2 border-red-500 bg-red-50 p-3.5 transition hover:bg-red-100 sm:p-4"
+              : "min-w-0 rounded-[var(--radius-inner)] border border-[color:var(--line)] bg-white p-3.5 transition hover:border-[color:var(--line-strong)] sm:p-4"
           }
         >
           <p
@@ -432,7 +432,7 @@ export default async function AdminRequestsPage({
           <div className="flex flex-wrap gap-2">
             <Link
               href={getStateHref(state, { origin: "site" })}
-              className="rounded-full border border-red-300 bg-red-50 px-3 py-1.5 text-[11px] font-semibold tracking-[0.14em] text-red-700 uppercase transition hover:border-red-500"
+              className="rounded-full border border-red-300 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 transition hover:border-red-500"
             >
               С сайта
             </Link>

@@ -327,7 +327,7 @@ export default async function AdminCuttingPage({
       {metrics.siteNew > 0 ? (
         <Link
           href="/admin/cutting?status=NEW"
-          className="flex items-center justify-between gap-3 rounded-[20px] border-2 border-red-500 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 transition hover:bg-red-100"
+          className="flex items-center justify-between gap-3 rounded-[var(--radius-inner)] border-2 border-red-500 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 transition hover:bg-red-100"
         >
           <span>
             Новых заявок с сайта: {metrics.siteNew} — их ещё никто не взял в
