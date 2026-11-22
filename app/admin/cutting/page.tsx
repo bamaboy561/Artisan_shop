@@ -308,6 +308,13 @@ export default async function AdminCuttingPage({
             titleClassName="text-2xl sm:text-3xl"
             descriptionClassName="max-w-3xl text-sm leading-7"
           />
+          {/* Статическая программа из public/raskroy — обычная ссылка, не Link. */}
+          <a
+            href="/raskroy"
+            className={getButtonClassName("secondary", "md", "shrink-0")}
+          >
+            Программа раскроя
+          </a>
           <Link
             href="/admin/cutting/pricing"
             className={getButtonClassName("secondary", "md", "shrink-0")}

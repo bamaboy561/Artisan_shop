@@ -67,3 +67,4 @@ next-env.d.ts
 /android/releases/*.apk
 /android/releases/*.aab
 /android/app/src/main/res/mipmap-xxxhdpi/
+

@@ -9,6 +9,10 @@ const nextConfig: NextConfig = {
       "./public/**/*",
     ],
   },
+  // Программа раскроя лежит в public/raskroy (см. scripts/sync-raskroy.mjs).
+  async rewrites() {
+    return [{ source: "/raskroy", destination: "/raskroy/index.html" }];
+  },
   async headers() {
     return [
       {
