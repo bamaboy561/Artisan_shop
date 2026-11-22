@@ -4,6 +4,7 @@ import { RequestStatus, RequestType } from "@/generated/prisma";
 import { getDb } from "@/lib/db";
 import { gibLabOrderFileName } from "@/features/production/giblab-orders";
 import { buildContent } from "@/lib/server/giblab-orders";
+import { updateRequestCuttingDetails } from "@/lib/server/request-inbox";
 
 // Программа раскроя цеха (/raskroy): заявки на распил открываются в ней
 // как проекты, а сохранённый проект и итог раскроя (листы, кромка)
@@ -189,7 +190,13 @@ export async function saveRaskroyOrder(
   const db = getDb();
   const exists = await db.request.findFirst({
     where: { id, type: RequestType.CUTTING_SERVICE },
-    select: { id: true },
+    select: {
+      id: true,
+      material: true,
+      edgeOption: true,
+      cuttingSheetCount: true,
+      cuttingEdgeMeters: true,
+    },
   });
   if (!exists) return "missing" as const;
   const data = JSON.stringify(input.project);
@@ -208,14 +215,21 @@ export async function saveRaskroyOrder(
     actor.userId,
     actor.name,
   );
-  await db.request.update({
-    where: { id },
-    data: {
-      ...(input.sheets != null ? { cuttingSheetCount: input.sheets } : {}),
-      ...(input.edgeMeters != null
-        ? { cuttingEdgeMeters: Math.round(input.edgeMeters * 10) / 10 }
-        : {}),
-    },
-  });
+  // Количества пишем тем же путём, что и форма заявки: если у заявки
+  // зафиксированы цены распила, сумма расчёта пересчитается по ним.
+  const sheets = input.sheets ?? exists.cuttingSheetCount;
+  const edgeMeters =
+    input.edgeMeters != null
+      ? Math.round(input.edgeMeters * 10) / 10
+      : exists.cuttingEdgeMeters;
+  if (sheets !== exists.cuttingSheetCount || edgeMeters !== exists.cuttingEdgeMeters) {
+    await updateRequestCuttingDetails({
+      id,
+      material: exists.material ?? "",
+      cuttingSheetCount: sheets,
+      cuttingEdgeMeters: edgeMeters,
+      edgeOption: exists.edgeOption,
+    });
+  }
   return "ok" as const;
 }
