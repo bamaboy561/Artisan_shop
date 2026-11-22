@@ -305,8 +305,26 @@ type ExportState = {
   operationId: number;
   edges: Edge[];
   sheets: Sheet[];
-  holes: Array<GibLabSourceHole & { used: boolean }>;
+  // usedBy — место детали, которая забрала отверстие (см. placeKey).
+  holes: Array<GibLabSourceHole & { used: boolean; usedBy?: string }>;
 };
+
+// Место детали в модели: матрица, толщина и габарит контура. Две детали
+// с одним местом — двойник (в Базисе деталь скопировали и оставили на том
+// же месте). Скрипт Базиса отдаёт присадку только первой из них, и вторая
+// уходила в GibLab без отверстий. Двойнику даём те же отверстия.
+function placeKey(panel: GibLabSourcePanel, bounds: Bounds) {
+  return [
+    ...panel.matrix,
+    panel.thickness,
+    bounds.minX,
+    bounds.minY,
+    bounds.maxX,
+    bounds.maxY,
+  ]
+    .map((value) => (Math.round(value * 100) / 100 || 0).toFixed(2))
+    .join(" ");
+}
 
 function boundsOf(elements: GibLabContourElement[]): Bounds {
   const b = { minX: 1e6, minY: 1e6, maxX: -1e6, maxY: -1e6 };
@@ -1002,9 +1020,16 @@ function collectBores(
   const elements = panel.elements;
   const thick = panel.thickness;
   const cw = part.cw;
+  const place = placeKey(panel, bounds);
 
   for (const hole of state.holes) {
-    if (hole.used) continue;
+    if (hole.used && hole.usedBy !== place) continue;
+    const wasUsed = hole.used;
+    const markUsed = (used: boolean) => {
+      if (wasUsed) return;
+      hole.used = used;
+      if (used) hole.usedBy = place;
+    };
     const pos = toLocal(panel.matrix, hole.start, true);
     if (pos[2] < -(hole.depth + thick) || pos[2] > hole.depth + thick) continue;
     const dir = toLocal(panel.matrix, hole.direction, false);
@@ -1028,7 +1053,7 @@ function collectBores(
           if (Math.round(thick * 10) > Math.round(Number(bore.dp) * 10))
             part.bBack.push(bore);
           else bThrough.push(bore);
-          hole.used = isEqualFloat(hz, 0) && thick >= hole.depth;
+          markUsed(isEqualFloat(hz, 0) && thick >= hole.depth);
         }
         continue;
       }
@@ -1046,7 +1071,7 @@ function collectBores(
         if (Math.round(thick * 10) > Math.round(Number(bore.dp) * 10))
           part.bFront.push(bore);
         else bThrough.push(bore);
-        hole.used = isEqualFloat(hz, thick) && thick >= hole.depth;
+        markUsed(isEqualFloat(hz, thick) && thick >= hole.depth);
       }
       continue;
     }
@@ -1121,7 +1146,7 @@ function collectBores(
           });
         }
       }
-      hole.used = isEqualFloat(Number(dp), hole.depth);
+      markUsed(isEqualFloat(Number(dp), hole.depth));
       break;
     }
   }
@@ -1618,21 +1643,36 @@ const sortParts = (a: Part, b: Part) =>
   a.code > b.code ? 1 : a.code < b.code ? -1 : 0;
 const pad = (value: string, length: number) => value.padStart(length, "0");
 
-export function buildGibLabProject(source: GibLabSource) {
+// Несколько проектов Базиса одной заявки собираются в один проект GibLab:
+// листы и кромки общие, а отверстия каждого файла ищутся только в его
+// деталях (модели лежат в одних координатах и иначе перепутались бы).
+export function buildGibLabProject(input: GibLabSource | GibLabSource[]) {
+  const sources = Array.isArray(input) ? input : [input];
+  if (sources.length === 0) throw new Error("Нет проекта для GibLab.");
+  const names = (pick: (item: GibLabSource) => string) =>
+    [...new Set(sources.map(pick).filter(Boolean))].join(" + ");
+  const source: Omit<GibLabSource, "panels" | "holes"> = {
+    modelName: names((item) => item.modelName),
+    orderName: names((item) => item.orderName),
+    modelCode: sources.length === 1 ? sources[0].modelCode : "",
+  };
   const state: ExportState = {
     operationId: 1,
     edges: [],
     sheets: [],
-    holes: source.holes.map((hole) => ({ ...hole, used: false })),
+    holes: [],
   };
   const parts: Part[] = [];
 
-  for (const panel of source.panels) {
-    const part = createPart(state, panel);
-    if (!part) continue;
-    const same = parts.find((item) => isEqualPart(item, part));
-    if (same) same.count += 1;
-    else parts.push(part);
+  for (const item of sources) {
+    state.holes = item.holes.map((hole) => ({ ...hole, used: false }));
+    for (const panel of item.panels) {
+      const part = createPart(state, panel);
+      if (!part) continue;
+      const same = parts.find((other) => isEqualPart(other, part));
+      if (same) same.count += 1;
+      else parts.push(part);
+    }
   }
 
   let goodId = 1;
@@ -1785,4 +1825,25 @@ export function encodeWindows1251(text: string) {
   }
 
   return Buffer.from(bytes);
+}
+
+// Сколько деталей и отверстий оказалось в готовом проекте GibLab: детали
+// с количеством, отверстия всех программ станка тоже с количеством детали.
+export function countGibLabProject(xml: string) {
+  const counts = new Map<string, number>();
+  let parts = 0;
+  for (const match of xml.matchAll(
+    /<part id="(\d+)" name="[^"]*" dl="[^"]*" dw="[^"]*" count="(\d+)"/g,
+  )) {
+    counts.set(match[1], Number(match[2]));
+    parts += Number(match[2]);
+  }
+  let holes = 0;
+  for (const match of xml.matchAll(
+    /<operation typeId="XNC"[^>]*program="([^"]*)"><part id="(\d+)"\/>/g,
+  )) {
+    const bores = match[1].match(/&lt;(?:bf|bl|br|bt|bb)\b/g)?.length ?? 0;
+    holes += bores * (counts.get(match[2]) ?? 1);
+  }
+  return { parts, holes };
 }
