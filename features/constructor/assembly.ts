@@ -10,6 +10,14 @@ import {
   type CabinetSpec,
 } from "../services/cabinet-builder";
 import { hardwareHoles } from "../services/drilling-hardware";
+import {
+  LIFT_SYSTEMS,
+  SHELF_SUPPORTS,
+  drawerSystem,
+  handedSearch,
+  hingeSystem,
+  type CabinetHardware,
+} from "../services/hardware-systems";
 import { kitchenLegs, type KitchenResult } from "../services/kitchen-builder";
 
 export type FittingKey =
@@ -20,6 +28,7 @@ export type FittingKey =
   | "shelfPin"
   | "hinge"
   | "hingeScrew"
+  | "hingePlate"
   | "handle"
   | "handleScrew"
   | "backNail"
@@ -28,6 +37,9 @@ export type FittingKey =
   | "ledStrip"
   | "slide"
   | "slideScrew"
+  | "slideRight"
+  | "drawerCatch"
+  | "drawerCatchRight"
   | "frontScrew"
   | "topTrack"
   | "bottomTrack"
@@ -98,6 +110,11 @@ const FITTING_INFO: Record<
     note: "чашка Ø35 мм",
     search: /петл/i,
   },
+  hingePlate: {
+    label: "Монтажная планка петли",
+    note: "на боковину, по одной на петлю",
+    search: /планк.*петл|петл.*планк|монтажн.*планк/i,
+  },
   hingeScrew: {
     label: "Саморез для петель и планок",
     note: "3,5×16 мм",
@@ -127,6 +144,21 @@ const FITTING_INFO: Record<
     label: "Направляющие шариковые",
     note: "полного выдвижения, пара на ящик",
     search: /направляющ/i,
+  },
+  drawerCatch: {
+    label: "Фиксатор ящика к направляющей",
+    note: "левый и правый на ящик",
+    search: /фиксатор|креплени.*ящик/i,
+  },
+  drawerCatchRight: {
+    label: "Фиксатор ящика к направляющей, правый",
+    note: "по одному на ящик",
+    search: /фиксатор.*прав|креплени.*ящик.*прав/i,
+  },
+  slideRight: {
+    label: "Направляющая, правая",
+    note: "по одной на ящик",
+    search: /направляющ.*прав/i,
   },
   slideScrew: {
     label: "Саморез для направляющих",
@@ -274,8 +306,12 @@ const FITTING_ORDER: FittingKey[] = [
   "dowel",
   "shelfPin",
   "hinge",
+  "hingePlate",
   "hingeScrew",
   "slide",
+  "slideRight",
+  "drawerCatch",
+  "drawerCatchRight",
   "slideScrew",
   "spacerScrew",
   "frontScrew",
@@ -319,6 +355,99 @@ function kupeRollerNote(doors: number, thickness: number) {
   return `на 2 двери, для дверей ${range}: арт. ${two}`;
 }
 
+// Товар и подпись строки по выбранной системе фурнитуры: направляющие
+// Hettich ищем среди Hettich, петли Samet — среди Samet и т. д.
+function hardwareInfo(
+  key: FittingKey,
+  hardware: CabinetHardware | undefined,
+): Partial<FittingLine> {
+  switch (key) {
+    case "slide": {
+      const system = drawerSystem(hardware?.drawers);
+      if (system.id === "ball") return {};
+      return { label: `Направляющие ${system.label}`, search: system.search };
+    }
+    case "drawerCatch": {
+      const system = drawerSystem(hardware?.drawers);
+      return system.catch
+        ? { label: system.catch.label, search: system.catch.search }
+        : {};
+    }
+    case "hinge": {
+      const system = hingeSystem(hardware?.hinges);
+      if (system.id === "standard") return {};
+      return { label: `Петля ${system.label}`, search: system.search };
+    }
+    case "hingePlate": {
+      const plate = hingeSystem(hardware?.hinges).plate;
+      return plate ? { label: plate.label, search: plate.search } : {};
+    }
+    case "shelfPin": {
+      const support = SHELF_SUPPORTS[hardware?.shelves ?? "pin"];
+      if (!support || hardware?.shelves === "pin" || !hardware?.shelves) {
+        return {};
+      }
+      return {
+        label: support.label,
+        note: support.note,
+        search: support.search,
+      };
+    }
+    case "lift": {
+      const system = LIFT_SYSTEMS[hardware?.lift ?? "any"];
+      if (!system || !hardware?.lift || hardware.lift === "any") return {};
+      return { label: system.label, search: system.search };
+    }
+    default:
+      return {};
+  }
+}
+
+// Левые и правые детали, которые продаются по одной: строка «пара на
+// ящик» становится двумя строками, у каждой свой товар.
+function splitHanded(
+  lines: FittingLine[],
+  hardware: CabinetHardware | undefined,
+): FittingLine[] {
+  const system = drawerSystem(hardware?.drawers);
+  return lines.flatMap((line): FittingLine[] => {
+    const handed =
+      (line.key === "slide" && system.handed) ||
+      (line.key === "drawerCatch" && system.catch);
+    if (!handed) return [line];
+    const right: FittingKey =
+      line.key === "slide" ? "slideRight" : "drawerCatchRight";
+    const [left, rightWord] =
+      line.key === "slide" ? ["левая", "правая"] : ["левый", "правый"];
+    const note = line.note
+      .replace(/,?\s*пара на ящик/, "")
+      .replace(/^левый и правый на ящик$/, "");
+    const each =
+      line.key === "slide" ? "по одной на ящик" : "по одному на ящик";
+    const noteFor = note ? `${note}, ${each}` : each;
+    return [
+      {
+        ...line,
+        label: `${line.label}, ${left}`,
+        note: noteFor,
+        search: handedSearch(line.search, "left"),
+      },
+      {
+        ...line,
+        key: right,
+        label: `${line.label}, ${rightWord}`,
+        note: noteFor,
+        search: handedSearch(line.search, "right"),
+      },
+    ];
+  });
+}
+
+const slideNoteFor = (hardware: CabinetHardware | undefined) =>
+  drawerSystem(hardware?.drawers).kind === "undermount"
+    ? "скрытого монтажа, пара на ящик"
+    : "полного выдвижения, пара на ящик";
+
 export function cabinetFittings(
   spec: CabinetSpec,
   result: CabinetResult,
@@ -356,6 +485,9 @@ export function cabinetFittings(
           break;
         case "hinge":
           add("hinge", total);
+          if (hingeSystem(spec.hardware?.hinges).plate) {
+            add("hingePlate", total);
+          }
           // Петля 2 самореза в чашку + планка 2 самореза.
           add("hingeScrew", total * 4);
           break;
@@ -379,6 +511,11 @@ export function cabinetFittings(
     const trays = result.drawers.trays ?? 0;
     add("slide", trays);
     add("slideScrew", trays * 12);
+    // Скрытые направляющие: короб защёлкивается фиксаторами, левый и
+    // правый на каждый короб.
+    if (drawerSystem(spec.hardware?.drawers).catch) {
+      add("drawerCatch", drawers + trays);
+    }
   }
 
   if (result.back) {
@@ -439,7 +576,7 @@ export function cabinetFittings(
   }
 
   const slideNote = result.drawers
-    ? `${result.drawers.slide} мм, полного выдвижения, пара на ящик`
+    ? `${result.drawers.slide} мм, ${slideNoteFor(spec.hardware)}`
     : "";
   const notes: Partial<Record<FittingKey, string>> = {
     ...(slideNote ? { slide: slideNote } : {}),
@@ -460,12 +597,16 @@ export function cabinetFittings(
         }
       : {}),
   };
-  return FITTING_ORDER.filter((key) => counts.has(key)).map((key) => ({
-    key,
-    ...FITTING_INFO[key],
-    ...(notes[key] ? { note: notes[key] } : {}),
-    count: counts.get(key)!,
-  }));
+  return splitHanded(
+    FITTING_ORDER.filter((key) => counts.has(key)).map((key) => ({
+      key,
+      ...FITTING_INFO[key],
+      ...hardwareInfo(key, spec.hardware),
+      ...(notes[key] ? { note: notes[key] } : {}),
+      count: counts.get(key)!,
+    })),
+    spec.hardware,
+  );
 }
 
 export type AssemblyStep = {
@@ -494,7 +635,9 @@ export function cabinetAssembly(
     value > 0
       ? [
           {
-            label: FITTING_INFO[key].label,
+            label:
+              fittings.find((line) => line.key === key)?.label ??
+              FITTING_INFO[key].label,
             count: value,
             ...(FITTING_INFO[key].unit ? { unit: FITTING_INFO[key].unit } : {}),
           },
@@ -755,9 +898,11 @@ export function cabinetAssembly(
       )
       .join(", ");
     const boxes = drawers.count + trays;
+    const system = drawerSystem(spec.hardware?.drawers);
+    const undermount = system.kind === "undermount";
     steps.push({
       title: "Соберите короба ящиков",
-      text: `Соберите ${boxes} ${boxes === 1 ? "короб" : boxes < 5 ? "короба" : "коробов"}: стенки между боковинами на конфирматах через отверстия Ø7. Проверьте диагонали и прибейте снизу дно ХДФ ${bottoms}.${trays > 0 ? ` Низкие короба по ${KUPE_TRAY_BOX} мм — выдвижные полки без фасада.` : ""}`,
+      text: `Соберите ${boxes} ${boxes === 1 ? "короб" : boxes < 5 ? "короба" : "коробов"}: стенки между боковинами на конфирматах через отверстия Ø7. Проверьте диагонали и прибейте снизу дно ХДФ ${bottoms}.${undermount ? ` Направляющие ${system.label} идут под коробом: вырез в задней стенке и место под фиксаторы — по шаблону производителя.` : ""}${trays > 0 ? ` Низкие короба по ${KUPE_TRAY_BOX} мм — выдвижные полки без фасада.` : ""}`,
       shown: boxKinds,
       added: boxKinds,
       fittings: [
@@ -784,17 +929,34 @@ export function cabinetAssembly(
           ),
         ])
       : drawers.boxesAt.map((at) => at + drawers.boxHeight / 2);
+    const boxBottoms = kupe
+      ? kupe.sections.flatMap((section) => [
+          ...(section.drawer?.boxesAt ?? []),
+          ...(section.drawer?.traysAt ?? []),
+        ])
+      : drawers.boxesAt;
     steps.push({
       title: "Поставьте ящики на направляющие",
-      text: `Разделите направляющие ${drawers.slide} мм на половины. Узкие прикрутите к боковинам коробов по центру высоты, широкие — к ${kupe ? "стенкам секции (или проставкам)" : "боковинам корпуса"} по разметке, центр направляющей от пола: ${[
-        ...new Set(centers.map((at) => Math.round(at))),
-      ]
-        .sort((a, b) => a - b)
-        .join(", ")} мм (снизу вверх). Вставьте короба до щелчка.`,
+      text: undermount
+        ? `Прикрутите направляющие ${drawers.slide} мм к ${kupe ? "стенкам секции (или проставкам)" : "боковинам корпуса"} по разметке, низ направляющей на уровне низа короба: ${[
+            ...new Set(boxBottoms.map((at) => Math.round(at))),
+          ]
+            .sort((a, b) => a - b)
+            .join(
+              ", ",
+            )} мм от пола (снизу вверх). Прикрутите фиксаторы снизу короба спереди, положите короб на выдвинутые направляющие и задвиньте до щелчка.`
+        : `Разделите направляющие ${drawers.slide} мм на половины. Узкие прикрутите к боковинам коробов по центру высоты, широкие — к ${kupe ? "стенкам секции (или проставкам)" : "боковинам корпуса"} по разметке, центр направляющей от пола: ${[
+            ...new Set(centers.map((at) => Math.round(at))),
+          ]
+            .sort((a, b) => a - b)
+            .join(", ")} мм (снизу вверх). Вставьте короба до щелчка.`,
       shown: [...withShelves, ...spacerKinds, ...boxKinds],
       added: boxKinds,
       fittings: [
         ...item("slide", count("slide")),
+        ...item("slideRight", count("slideRight")),
+        ...item("drawerCatch", count("drawerCatch")),
+        ...item("drawerCatchRight", count("drawerCatchRight")),
         ...item("slideScrew", count("slideScrew")),
       ],
     });
@@ -847,6 +1009,7 @@ export function cabinetAssembly(
       added: doorKinds,
       fittings: [
         ...item("hinge", count("hinge")),
+        ...item("hingePlate", count("hingePlate")),
         ...item("hingeScrew", count("hingeScrew")),
       ],
       doorsOpen: true,
@@ -901,6 +1064,8 @@ export function kitchenFittings(
   const modules = only
     ? result.modules.filter((item) => item.code === only)
     : result.modules;
+  const hardware = result.modules.find((item) => item.spec?.hardware)?.spec
+    ?.hardware;
   const counts = new Map<FittingKey, number>();
   const notes = new Map<FittingKey, Map<string, number>>();
   const add = (key: FittingKey, count: number, note?: string) => {
@@ -915,6 +1080,10 @@ export function kitchenFittings(
   for (const item of modules) {
     if (item.spec && item.result) {
       for (const line of cabinetFittings(item.spec, item.result, thickness)) {
+        // Правые строки соберём заново из общей суммы (splitHanded ниже).
+        if (line.key === "slideRight" || line.key === "drawerCatchRight") {
+          continue;
+        }
         add(
           line.key,
           line.count,
@@ -924,7 +1093,15 @@ export function kitchenFittings(
         );
       }
     }
-    if (item.type === "lift" && item.row === "top") add("lift", 1);
+    if (item.type === "lift" && item.row === "top") {
+      const size = LIFT_SYSTEMS[hardware?.lift ?? "any"]?.size;
+      const height = item.spec?.height ?? 0;
+      add(
+        "lift",
+        1,
+        size && height ? `размер ${size(height)} — корпус ${height} мм` : "",
+      );
+    }
     if (item.type === "dryer" && item.row === "top") add("dishDryer", 1);
     if (item.type === "bottle" && item.row === "base") add("cargo", 1);
     if (item.facade) {
@@ -962,22 +1139,30 @@ export function kitchenFittings(
     if (!byNote) return null;
     if (key === "slide") {
       const lengths = [...byNote];
+      const kind = slideNoteFor(hardware);
       return lengths.length === 1
-        ? `${lengths[0][0]}, полного выдвижения, пара на ящик`
-        : `полного выдвижения, пара на ящик: ${lengths
+        ? `${lengths[0][0]}, ${kind}`
+        : `${kind}: ${lengths
             .map(([length, count]) => `${length} — ${count}`)
             .join(", ")}`;
     }
-    return null;
+    const all = [...byNote];
+    return all.length > 0
+      ? all.map(([note, count]) => `${note} (${count} шт.)`).join(", ")
+      : null;
   };
-  return FITTING_ORDER.filter((key) => counts.has(key)).map((key) => ({
-    key,
-    ...FITTING_INFO[key],
-    ...(key === "kitchenLeg"
-      ? { note: `${result.legs} мм, под цоколь` }
-      : noteFor(key)
-        ? { note: noteFor(key)! }
-        : {}),
-    count: counts.get(key)!,
-  }));
+  return splitHanded(
+    FITTING_ORDER.filter((key) => counts.has(key)).map((key) => ({
+      key,
+      ...FITTING_INFO[key],
+      ...hardwareInfo(key, hardware),
+      ...(key === "kitchenLeg"
+        ? { note: `${result.legs} мм, под цоколь` }
+        : noteFor(key)
+          ? { note: noteFor(key)! }
+          : {}),
+      count: counts.get(key)!,
+    })),
+    hardware,
+  );
 }

@@ -265,7 +265,7 @@ export function buildCabinetModel(
       if (!boxSide || !boxWall) return;
       const y = drawers.boxesAt[index];
       const h = drawers.boxHeight;
-      const back = z - drawers.slide;
+      const back = z - drawers.boxLength;
       boxes.push(
         brick(
           left,
@@ -273,7 +273,7 @@ export function buildCabinetModel(
           back,
           t,
           h,
-          drawers.slide,
+          drawers.boxLength,
           TONE_BODY,
           info(boxSide, "Ящик", body),
         ),
@@ -283,7 +283,7 @@ export function buildCabinetModel(
           back,
           t,
           h,
-          drawers.slide,
+          drawers.boxLength,
           TONE_BODY,
           info(boxSide, "Ящик", body),
         ),
@@ -313,7 +313,7 @@ export function buildCabinetModel(
           back,
           drawers.boxWidth,
           BACK_THICKNESS,
-          drawers.slide,
+          drawers.boxLength,
           TONE_BACK,
           {
             name: `${spec.name || "Корпус"}: дно ящика`,
@@ -694,7 +694,7 @@ function kupeInterior(
       const boxSide = byTitle(`${kind} боковина${suffix}`);
       const boxWall = byTitle(`${kind} стенка${suffix}`);
       if (!boxSide || !boxWall) return;
-      const back = z - drawers.slide;
+      const back = z - drawers.boxLength;
       const left = box.boxLeft;
       const label = kind === "ящик" ? "Ящик" : "Выдвижная полка";
       boxes.push(
@@ -704,7 +704,7 @@ function kupeInterior(
           back,
           t,
           h,
-          drawers.slide,
+          drawers.boxLength,
           TONE_BODY,
           info(boxSide, label, body),
         ),
@@ -714,7 +714,7 @@ function kupeInterior(
           back,
           t,
           h,
-          drawers.slide,
+          drawers.boxLength,
           TONE_BODY,
           info(boxSide, label, body),
         ),
@@ -744,12 +744,12 @@ function kupeInterior(
           back,
           box.boxWidth,
           BACK_THICKNESS,
-          drawers.slide,
+          drawers.boxLength,
           TONE_BACK,
           {
             name: `${name}: ${kind === "ящик" ? "дно ящика" : "дно выдвижной полки"}${suffix}`,
             material: "ХДФ (считает менеджер)",
-            length: drawers.slide,
+            length: drawers.boxLength,
             width: box.boxWidth,
             thickness: BACK_THICKNESS,
           },
