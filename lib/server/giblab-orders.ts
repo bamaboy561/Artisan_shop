@@ -99,14 +99,14 @@ export async function saveGibLabOrderSettings(
   return "saved" as const;
 }
 
-type RequestFileRef = { fileName: string; fileUrl: string; createdAt: Date };
+export type RequestFileRef = { fileName: string; fileUrl: string; createdAt: Date };
 
 // Что положить в файл. Первым идёт проект Базиса: в нём точная присадка
 // и все материалы. Калькулятор сайта считает один материал за раз, а
 // отверстия Базиса знает только числом, поэтому его проект берём, только
 // когда Базиса в заявке нет. Все файлы Базиса заявки собираются в один
 // проект GibLab, чтобы ни одна деталь не потерялась. Затем пустой проект.
-async function buildContent(
+export async function buildContent(
   name: string,
   files: RequestFileRef[],
   comment: string,
