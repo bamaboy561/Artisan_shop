@@ -39,7 +39,7 @@ function TotalRow({
 }) {
   return (
     <div
-      className={`flex justify-between gap-6 py-1 ${strong ? "border-t-2 border-[#171714] pt-2 text-[14px] font-bold" : "text-[11px]"}`}
+      className={`flex justify-between gap-6 py-1 ${strong ? "border-t-2 border-[color:var(--solid)] pt-2 text-[14px] font-bold" : "text-[11px]"}`}
     >
       <span>{label}</span>
       <span className="whitespace-nowrap">{value}</span>
@@ -66,7 +66,7 @@ export default async function OrderPrintPage({ params }: OrderPrintPageProps) {
   );
 
   return (
-    <div className="mx-auto max-w-[210mm] bg-white text-[#171714] print:max-w-none">
+    <div className="mx-auto max-w-[210mm] bg-white text-[var(--foreground)] print:max-w-none">
       <div className="mb-4 flex items-center justify-between gap-3 print:hidden">
         <Link
           href={`/admin/orders/${order.id}`}
@@ -77,24 +77,22 @@ export default async function OrderPrintPage({ params }: OrderPrintPageProps) {
         <PrintRouteSheetButton />
       </div>
 
-      <article className="border border-[#cbc7bf] bg-white p-[10mm] shadow-sm print:border-0 print:p-[8mm] print:shadow-none">
-        <header className="flex items-start justify-between gap-[8mm] border-b-2 border-[#171714] pb-[5mm]">
+      <article className="border border-[color:var(--line-strong)] bg-white p-[10mm] shadow-sm print:border-0 print:p-[8mm] print:shadow-none">
+        <header className="flex items-start justify-between gap-[8mm] border-b-2 border-[color:var(--solid)] pb-[5mm]">
           <div>
-            <p className="text-[11px] font-bold tracking-[0.18em] uppercase">
-              Artisan
-            </p>
+            <p className="text-xs font-bold">Artisan</p>
             <h1 className="mt-2 text-[22px] leading-none font-bold">
               Заказ № {orderNumber}
             </h1>
-            <p className="mt-2 text-[11px] text-[#625f59]">
+            <p className="mt-2 text-[11px] text-[var(--muted)]">
               от {formatDate(order.createdAt)} ·{" "}
               {orderStatusLabels[order.status]}
             </p>
           </div>
-          <div className="text-right text-[10px] leading-5 text-[#4e4b46]">
+          <div className="text-right text-[10px] leading-5 text-[var(--foreground)]">
             <p>{companyContacts.address}</p>
             <p>{companyContacts.hours}</p>
-            <p className="font-semibold text-[#171714]">
+            <p className="font-semibold text-[var(--foreground)]">
               {companyContacts.phone}
             </p>
           </div>
@@ -102,44 +100,50 @@ export default async function OrderPrintPage({ params }: OrderPrintPageProps) {
 
         <section className="mt-[5mm] grid grid-cols-2 gap-x-[8mm] gap-y-[2mm] text-[11px]">
           <p>
-            <span className="text-[#77736c]">Клиент: </span>
+            <span className="text-[var(--muted)]">Клиент: </span>
             <strong>{order.contactName}</strong>
           </p>
           <p>
-            <span className="text-[#77736c]">Телефон: </span>
+            <span className="text-[var(--muted)]">Телефон: </span>
             <strong>{order.contactPhone}</strong>
           </p>
           {order.companyName ? (
             <p>
-              <span className="text-[#77736c]">Компания: </span>
+              <span className="text-[var(--muted)]">Компания: </span>
               {order.companyName}
             </p>
           ) : null}
           <p>
-            <span className="text-[#77736c]">Менеджер: </span>
+            <span className="text-[var(--muted)]">Менеджер: </span>
             {order.manager
               ? getManagerDisplayName(order.manager)
               : "Не назначен"}
           </p>
           <p>
-            <span className="text-[#77736c]">Получение: </span>
+            <span className="text-[var(--muted)]">Получение: </span>
             {order.deliveryMethod?.name ?? "Самовывоз"}
           </p>
         </section>
 
-        <table className="mt-[6mm] w-full border-collapse border border-[#bdb9b1] text-[10px] leading-[1.4]">
+        <table className="mt-[6mm] w-full border-collapse border border-[color:var(--line-strong)] text-[10px] leading-[1.4]">
           <thead>
-            <tr className="bg-[#f0eeea] text-left">
-              <th className="w-[8mm] border border-[#bdb9b1] px-1.5 py-1">№</th>
-              <th className="border border-[#bdb9b1] px-1.5 py-1">Товар</th>
-              <th className="border border-[#bdb9b1] px-1.5 py-1">Артикул</th>
-              <th className="border border-[#bdb9b1] px-1.5 py-1 text-right">
+            <tr className="bg-[var(--surface-muted)] text-left">
+              <th className="w-[8mm] border border-[color:var(--line-strong)] px-1.5 py-1">
+                №
+              </th>
+              <th className="border border-[color:var(--line-strong)] px-1.5 py-1">
+                Товар
+              </th>
+              <th className="border border-[color:var(--line-strong)] px-1.5 py-1">
+                Артикул
+              </th>
+              <th className="border border-[color:var(--line-strong)] px-1.5 py-1 text-right">
                 Кол-во
               </th>
-              <th className="border border-[#bdb9b1] px-1.5 py-1 text-right">
+              <th className="border border-[color:var(--line-strong)] px-1.5 py-1 text-right">
                 Цена
               </th>
-              <th className="border border-[#bdb9b1] px-1.5 py-1 text-right">
+              <th className="border border-[color:var(--line-strong)] px-1.5 py-1 text-right">
                 Сумма
               </th>
             </tr>
@@ -147,25 +151,25 @@ export default async function OrderPrintPage({ params }: OrderPrintPageProps) {
           <tbody>
             {order.items.map((item, index) => (
               <tr key={item.id ?? index} className="break-inside-avoid">
-                <td className="border border-[#d7d4ce] px-1.5 py-1">
+                <td className="border border-[color:var(--line-strong)] px-1.5 py-1">
                   {index + 1}
                 </td>
-                <td className="border border-[#d7d4ce] px-1.5 py-1">
+                <td className="border border-[color:var(--line-strong)] px-1.5 py-1">
                   {item.name}
                   {item.brand ? (
-                    <span className="text-[#77736c]"> · {item.brand}</span>
+                    <span className="text-[var(--muted)]"> · {item.brand}</span>
                   ) : null}
                 </td>
-                <td className="border border-[#d7d4ce] px-1.5 py-1 whitespace-nowrap">
+                <td className="border border-[color:var(--line-strong)] px-1.5 py-1 whitespace-nowrap">
                   {item.sku ?? ""}
                 </td>
-                <td className="border border-[#d7d4ce] px-1.5 py-1 text-right">
+                <td className="border border-[color:var(--line-strong)] px-1.5 py-1 text-right">
                   {numberFormatter.format(item.quantity)}
                 </td>
-                <td className="border border-[#d7d4ce] px-1.5 py-1 text-right whitespace-nowrap">
+                <td className="border border-[color:var(--line-strong)] px-1.5 py-1 text-right whitespace-nowrap">
                   {numberFormatter.format(item.unitPrice)}
                 </td>
-                <td className="border border-[#d7d4ce] px-1.5 py-1 text-right font-semibold whitespace-nowrap">
+                <td className="border border-[color:var(--line-strong)] px-1.5 py-1 text-right font-semibold whitespace-nowrap">
                   {numberFormatter.format(item.total)}
                 </td>
               </tr>
@@ -210,11 +214,11 @@ export default async function OrderPrintPage({ params }: OrderPrintPageProps) {
           </section>
         ) : null}
 
-        <footer className="mt-[10mm] grid break-inside-avoid grid-cols-2 gap-[10mm] text-[10px] text-[#625f59]">
+        <footer className="mt-[10mm] grid break-inside-avoid grid-cols-2 gap-[10mm] text-[10px] text-[var(--muted)]">
           <p>Отпустил: ____________________</p>
           <p>Получил: ____________________</p>
         </footer>
-        <p className="mt-[5mm] text-[8px] text-[#8a857d]">
+        <p className="mt-[5mm] text-[8px] text-[var(--muted)]">
           Документ не является кассовым чеком. Напечатано:{" "}
           {formatDate(new Date())}
         </p>

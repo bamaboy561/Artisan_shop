@@ -190,9 +190,7 @@ export function CuttingRequestForm({ customers }: CuttingRequestFormProps) {
             <UserRound className="size-4.5" strokeWidth={1.8} />
           </span>
           <div>
-            <p className="font-mono text-[10px] font-semibold tracking-[0.16em] text-[var(--accent)] uppercase">
-              Клиент
-            </p>
+            <p className="text-xs font-semibold text-[var(--accent)]">Клиент</p>
             <h2 className="text-lg font-semibold text-[var(--foreground)]">
               Контакт для заказа
             </h2>
@@ -353,7 +351,7 @@ export function CuttingRequestForm({ customers }: CuttingRequestFormProps) {
             <CalendarDays className="size-4.5" strokeWidth={1.8} />
           </span>
           <div>
-            <p className="font-mono text-[10px] font-semibold tracking-[0.16em] text-[var(--accent)] uppercase">
+            <p className="text-xs font-semibold text-[var(--accent)]">
               Производство
             </p>
             <h2 className="text-lg font-semibold text-[var(--foreground)]">
@@ -472,7 +470,7 @@ export function CuttingRequestForm({ customers }: CuttingRequestFormProps) {
                 <FileUp className="size-4.5" strokeWidth={1.8} />
               </span>
               <div>
-                <p className="font-mono text-[10px] font-semibold tracking-[0.16em] text-[var(--accent)] uppercase">
+                <p className="text-xs font-semibold text-[var(--accent)]">
                   Файлы
                 </p>
                 <h2 className="text-lg font-semibold text-[var(--foreground)]">

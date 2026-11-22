@@ -219,7 +219,7 @@ export function ManagerHelpCard({
   title: string;
 }) {
   return (
-    <div className="rounded-2xl border border-[#eadfd4] bg-[#fbf6ef] p-4 text-sm leading-6 text-[var(--muted)]">
+    <div className="rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] p-4 text-sm leading-6 text-[var(--muted)]">
       <p className="text-xs font-medium text-[var(--accent)]">{title}</p>
       <div className="mt-2">{children}</div>
     </div>

@@ -52,7 +52,7 @@ function formatChange(value: number | null) {
 
 function changeClassName(value: number) {
   if (value > 0) {
-    return "font-semibold text-[#a94730]";
+    return "font-semibold text-[var(--accent)]";
   }
 
   if (value < 0) {
@@ -69,7 +69,7 @@ function PriceIndexChart({ months }: { months: PriceTrendMonth[] }) {
 
   if (points.length < 2) {
     return (
-      <p className="rounded-lg border border-[#ece8e2] bg-[#fbfaf8] p-5 text-sm leading-6 text-[#6e6b63]">
+      <p className="rounded-lg border border-[color:var(--line)] bg-[var(--surface)] p-5 text-sm leading-6 text-[var(--muted)]">
         Пока мало данных для графика: нужны товары, которые продавались хотя бы
         в двух разных месяцах выбранного периода.
       </p>
@@ -105,8 +105,8 @@ function PriceIndexChart({ months }: { months: PriceTrendMonth[] }) {
   const labelEvery = months.length > 12 ? 3 : months.length > 6 ? 2 : 1;
 
   return (
-    <div className="rounded-lg border border-[#ece8e2] bg-[#fbfaf8] p-4 sm:p-5">
-      <h3 className="text-sm font-semibold text-[#1b1c19]">
+    <div className="rounded-lg border border-[color:var(--line)] bg-[var(--surface)] p-4 sm:p-5">
+      <h3 className="text-sm font-semibold text-[var(--foreground)]">
         Индекс цены продажи (100 = уровень цен в начале периода)
       </h3>
       <svg
@@ -122,7 +122,12 @@ function PriceIndexChart({ months }: { months: PriceTrendMonth[] }) {
               x2={width - right}
               y1={y(tick)}
               y2={y(tick)}
-              stroke={Math.abs(tick - 100) < 0.01 ? "#bdb5a8" : "#e3ddd2"}
+              style={{
+                stroke:
+                  Math.abs(tick - 100) < 0.01
+                    ? "var(--line-strong)"
+                    : "var(--line)",
+              }}
               strokeDasharray={Math.abs(tick - 100) < 0.01 ? "4 4" : undefined}
             />
             <text
@@ -130,20 +135,25 @@ function PriceIndexChart({ months }: { months: PriceTrendMonth[] }) {
               y={y(tick) + 4}
               textAnchor="end"
               fontSize="11"
-              fill="#8a857d"
+              style={{ fill: "var(--muted)" }}
             >
               {Math.round(tick)}
             </text>
           </g>
         ))}
-        <path d={path} fill="none" stroke="#a94730" strokeWidth="2.5" />
+        <path
+          d={path}
+          fill="none"
+          style={{ stroke: "var(--accent)" }}
+          strokeWidth="2.5"
+        />
         {points.map((point) => (
           <circle
             key={point.key}
             cx={x(point.position)}
             cy={y(point.index as number)}
             r="4"
-            fill="#a94730"
+            style={{ fill: "var(--accent)" }}
           >
             <title>
               {`${point.label}: ${point.index}, сравнено товаров: ${point.comparedProducts}`}
@@ -158,14 +168,14 @@ function PriceIndexChart({ months }: { months: PriceTrendMonth[] }) {
               y={height - 8}
               textAnchor="middle"
               fontSize="11"
-              fill="#8a857d"
+              style={{ fill: "var(--muted)" }}
             >
               {month.label}
             </text>
           ) : null,
         )}
       </svg>
-      <p className="mt-2 text-xs leading-5 text-[#6e6b63]">
+      <p className="mt-2 text-xs leading-5 text-[var(--muted)]">
         В каждом месяце товар сравнивается со своей прошлой продажей, поэтому
         появление новых позиций или уход старых не двигает график. Наведите на
         точку, чтобы увидеть число сравнённых товаров.
@@ -247,7 +257,7 @@ export default async function AdminPriceTrendsPage({
         descriptionClassName="text-sm leading-6"
       />
 
-      <form className="grid gap-3 rounded-lg border border-[#ece8e2] bg-white p-4 sm:grid-cols-[1.2fr_0.8fr_1.4fr_auto] sm:items-end">
+      <form className="grid gap-3 rounded-lg border border-[color:var(--line)] bg-white p-4 sm:grid-cols-[1.2fr_0.8fr_1.4fr_auto] sm:items-end">
         <label className="grid gap-1.5 text-xs font-medium text-[var(--muted)]">
           Группа
           <Select name="kind" defaultValue={kind}>

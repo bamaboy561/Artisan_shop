@@ -44,7 +44,7 @@ const statusMeta: Record<
     label: "Доработать",
     icon: CircleDashed,
     tone: "warning",
-    className: "text-[#c4532b]",
+    className: "text-[var(--accent)]",
   },
   blocked: {
     label: "Блокер",
@@ -86,7 +86,7 @@ export default async function AdminLaunchPage({
 
   return (
     <div className="space-y-5">
-      <section className="surface-glow rounded-[24px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-6 sm:p-8">
+      <section className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-[var(--surface-strong)] p-6 sm:p-8">
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_220px] lg:items-end">
           <SectionHeading
             title="Подготовка к запуску"
@@ -118,7 +118,7 @@ export default async function AdminLaunchPage({
           return (
             <article
               key={check.key}
-              className="grid gap-4 rounded-[22px] border border-[color:var(--line)] bg-white p-5 shadow-[0_18px_48px_rgba(17,17,17,0.04)] md:grid-cols-[44px_minmax(0,1fr)_auto] md:items-center"
+              className="grid gap-4 rounded-[var(--radius-card)] border border-[color:var(--line)] bg-white p-5 shadow-[0_18px_48px_rgba(17,17,17,0.04)] md:grid-cols-[44px_minmax(0,1fr)_auto] md:items-center"
             >
               <span className="flex size-11 items-center justify-center rounded-2xl border border-[color:var(--line)] bg-[var(--surface)]">
                 <Icon
@@ -157,7 +157,7 @@ export default async function AdminLaunchPage({
         })}
       </section>
 
-      <section className="surface-glow rounded-[24px] border border-[color:var(--line)] bg-white p-5 shadow-[0_18px_48px_rgba(17,17,17,0.04)]">
+      <section className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-white p-5 shadow-[0_18px_48px_rgba(17,17,17,0.04)]">
         <SectionHeading
           title="Проверка Telegram"
           description="Отправьте тест в нужную тему: распил, заказы или общие заявки. Если сообщение не пришло, проблема почти всегда в env-переменных Vercel или правах бота в группе."

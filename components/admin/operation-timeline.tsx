@@ -22,7 +22,7 @@ function getEventDotClass(eventType: string) {
       return "bg-blue-500";
     case "status":
     case "cutting_stage":
-      return "bg-[#c4532b]";
+      return "bg-[var(--accent)]";
     case "manager":
       return "bg-amber-500";
     case "converted":

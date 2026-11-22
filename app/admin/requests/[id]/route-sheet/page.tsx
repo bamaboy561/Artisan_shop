@@ -114,11 +114,9 @@ function parseRouteMessage(message: string | null | undefined) {
 
 function RouteField({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-w-0 border-b border-[#d7d4ce] pb-2">
-      <p className="text-[9px] font-semibold tracking-[0.12em] text-[#77736c] uppercase">
-        {label}
-      </p>
-      <p className="mt-1 text-[12px] leading-5 font-medium break-words text-[#171714]">
+    <div className="min-w-0 border-b border-[color:var(--line-strong)] pb-2">
+      <p className="text-xs font-semibold text-[var(--muted)]">{label}</p>
+      <p className="mt-1 text-[12px] leading-5 font-medium break-words text-[var(--foreground)]">
         {value}
       </p>
     </div>
@@ -160,7 +158,7 @@ export default async function RouteSheetPage({ params }: RouteSheetPageProps) {
     : isUrgentByText(request.subject, request.message);
 
   return (
-    <div className="mx-auto max-w-[210mm] bg-white text-[#171714] print:max-w-none">
+    <div className="mx-auto max-w-[210mm] bg-white text-[var(--foreground)] print:max-w-none">
       <div className="mb-4 flex items-center justify-between gap-3 print:hidden">
         <Link
           href={`/admin/production/${request.id}`}
@@ -171,12 +169,10 @@ export default async function RouteSheetPage({ params }: RouteSheetPageProps) {
         <PrintRouteSheetButton />
       </div>
 
-      <article className="min-h-[297mm] border border-[#cbc7bf] bg-white p-[10mm] shadow-sm print:min-h-0 print:border-0 print:p-[8mm] print:shadow-none">
-        <header className="grid grid-cols-[minmax(0,1fr)_34mm] gap-[8mm] border-b-2 border-[#171714] pb-[6mm]">
+      <article className="min-h-[297mm] border border-[color:var(--line-strong)] bg-white p-[10mm] shadow-sm print:min-h-0 print:border-0 print:p-[8mm] print:shadow-none">
+        <header className="grid grid-cols-[minmax(0,1fr)_34mm] gap-[8mm] border-b-2 border-[color:var(--solid)] pb-[6mm]">
           <div className="min-w-0">
-            <p className="text-[11px] font-bold tracking-[0.18em] uppercase">
-              Artisan
-            </p>
+            <p className="text-xs font-bold">Artisan</p>
             <h1 className="mt-3 text-[24px] leading-none font-bold">
               Маршрутный лист распила
             </h1>
@@ -185,11 +181,11 @@ export default async function RouteSheetPage({ params }: RouteSheetPageProps) {
                 {requestNumber}
               </p>
               {isUrgent ? (
-                <p className="border-2 border-[#171714] px-3 py-1 text-[16px] leading-none font-black tracking-[0.08em] uppercase">
+                <p className="border-2 border-[color:var(--solid)] px-3 py-1 text-[16px] leading-none font-black tracking-[0.08em] uppercase">
                   Срочно
                 </p>
               ) : null}
-              <p className="pb-1 text-[11px] text-[#625f59]">
+              <p className="pb-1 text-[11px] text-[var(--muted)]">
                 Напечатано: {formatDate(new Date())}
               </p>
             </div>
@@ -204,7 +200,7 @@ export default async function RouteSheetPage({ params }: RouteSheetPageProps) {
               unoptimized
               className="mx-auto size-[31mm]"
             />
-            <p className="mt-1 text-[8px] leading-3 text-[#625f59]">
+            <p className="mt-1 text-[8px] leading-3 text-[var(--muted)]">
               Открыть заявку
             </p>
           </div>
@@ -269,31 +265,29 @@ export default async function RouteSheetPage({ params }: RouteSheetPageProps) {
 
         {quote && quote.lines.length > 0 ? (
           <section className="mt-[7mm] break-inside-avoid">
-            <h2 className="text-[11px] font-bold tracking-[0.14em] uppercase">
-              Стоимость работ по строкам
-            </h2>
-            <table className="mt-3 w-full border-collapse border border-[#bdb9b1] text-[10px] leading-[1.4]">
+            <h2 className="text-xs font-bold">Стоимость работ по строкам</h2>
+            <table className="mt-3 w-full border-collapse border border-[color:var(--line-strong)] text-[10px] leading-[1.4]">
               <tbody>
                 {quote.lines.map((line) => (
                   <tr key={line.key}>
-                    <td className="border border-[#d7d4ce] px-2 py-1">
+                    <td className="border border-[color:var(--line-strong)] px-2 py-1">
                       <span className="font-semibold">{line.label}</span>
                       {line.detail ? (
-                        <span className="ml-2 text-[#625f59]">
+                        <span className="ml-2 text-[var(--muted)]">
                           {line.detail}
                         </span>
                       ) : null}
                     </td>
-                    <td className="w-[32mm] border border-[#d7d4ce] px-2 py-1 text-right font-semibold whitespace-nowrap">
+                    <td className="w-[32mm] border border-[color:var(--line-strong)] px-2 py-1 text-right font-semibold whitespace-nowrap">
                       {line.amount === null ? "—" : formatPrice(line.amount)}
                     </td>
                   </tr>
                 ))}
-                <tr className="bg-[#f0eeea]">
-                  <td className="border border-[#bdb9b1] px-2 py-1 font-bold">
+                <tr className="bg-[var(--surface-muted)]">
+                  <td className="border border-[color:var(--line-strong)] px-2 py-1 font-bold">
                     Итого за работы
                   </td>
-                  <td className="border border-[#bdb9b1] px-2 py-1 text-right font-bold whitespace-nowrap">
+                  <td className="border border-[color:var(--line-strong)] px-2 py-1 text-right font-bold whitespace-nowrap">
                     {formatPrice(quote.total)}
                   </td>
                 </tr>
@@ -301,13 +295,13 @@ export default async function RouteSheetPage({ params }: RouteSheetPageProps) {
             </table>
             {request.quotedTotal != null &&
             request.quotedTotal !== quote.total ? (
-              <p className="mt-1 text-[9px] text-[#625f59]">
+              <p className="mt-1 text-[9px] text-[var(--muted)]">
                 Сумма в заявке изменена менеджером:{" "}
                 {formatPrice(request.quotedTotal)}.
               </p>
             ) : null}
             {quote.unpricedHoles > 0 ? (
-              <p className="mt-1 text-[9px] text-[#625f59]">
+              <p className="mt-1 text-[9px] text-[var(--muted)]">
                 Отверстий без цены: {quote.unpricedHoles}, стоимость уточняет
                 менеджер.
               </p>
@@ -316,19 +310,17 @@ export default async function RouteSheetPage({ params }: RouteSheetPageProps) {
         ) : null}
 
         <section className="mt-[7mm]">
-          <h2 className="text-[11px] font-bold tracking-[0.14em] uppercase">
-            Производственный маршрут
-          </h2>
-          <div className="mt-3 border border-[#bdb9b1]">
+          <h2 className="text-xs font-bold">Производственный маршрут</h2>
+          <div className="mt-3 border border-[color:var(--line-strong)]">
             {cuttingStageSteps.map((step, index) => {
               const isCurrent = request.cuttingStage === step.stage;
 
               return (
                 <div
                   key={step.stage}
-                  className="grid grid-cols-[8mm_minmax(0,1fr)_34mm_34mm] items-center border-b border-[#d7d4ce] last:border-b-0"
+                  className="grid grid-cols-[8mm_minmax(0,1fr)_34mm_34mm] items-center border-b border-[color:var(--line-strong)] last:border-b-0"
                 >
-                  <div className="flex h-[11mm] items-center justify-center border-r border-[#d7d4ce] text-[11px] font-bold">
+                  <div className="flex h-[11mm] items-center justify-center border-r border-[color:var(--line-strong)] text-[11px] font-bold">
                     {index + 1}
                   </div>
                   <div className="min-w-0 px-3">
@@ -337,10 +329,10 @@ export default async function RouteSheetPage({ params }: RouteSheetPageProps) {
                       {step.label}
                     </p>
                   </div>
-                  <div className="h-full border-l border-[#d7d4ce] px-2 py-1 text-[8px] text-[#77736c]">
+                  <div className="h-full border-l border-[color:var(--line-strong)] px-2 py-1 text-[8px] text-[var(--muted)]">
                     Дата / время
                   </div>
-                  <div className="h-full border-l border-[#d7d4ce] px-2 py-1 text-[8px] text-[#77736c]">
+                  <div className="h-full border-l border-[color:var(--line-strong)] px-2 py-1 text-[8px] text-[var(--muted)]">
                     Сотрудник
                   </div>
                 </div>
@@ -350,10 +342,8 @@ export default async function RouteSheetPage({ params }: RouteSheetPageProps) {
         </section>
 
         {request.productionComment ? (
-          <section className="mt-[7mm] break-inside-avoid border-2 border-[#171714] p-3">
-            <h2 className="text-[11px] font-bold tracking-[0.14em] uppercase">
-              Комментарий производства
-            </h2>
+          <section className="mt-[7mm] break-inside-avoid border-2 border-[color:var(--solid)] p-3">
+            <h2 className="text-xs font-bold">Комментарий производства</h2>
             <p className="mt-2 text-[11px] leading-5 whitespace-pre-wrap">
               {request.productionComment}
             </p>
@@ -363,21 +353,19 @@ export default async function RouteSheetPage({ params }: RouteSheetPageProps) {
         {parsedMessage ? (
           <>
             <section className="mt-[7mm] break-inside-avoid">
-              <h2 className="text-[11px] font-bold tracking-[0.14em] uppercase">
-                Материал и расчёт
-              </h2>
-              <pre className="mt-3 columns-2 gap-[8mm] border border-[#bdb9b1] bg-[#faf9f7] p-3 font-sans text-[9px] leading-[1.55] whitespace-pre-wrap text-[#302e2a]">
+              <h2 className="text-xs font-bold">Материал и расчёт</h2>
+              <pre className="mt-3 columns-2 gap-[8mm] border border-[color:var(--line-strong)] bg-[var(--surface)] p-3 font-sans text-[9px] leading-[1.55] whitespace-pre-wrap text-[var(--foreground)]">
                 {parsedMessage.summary}
               </pre>
             </section>
 
             <section className="mt-[7mm]">
-              <h2 className="text-[11px] font-bold tracking-[0.14em] uppercase">
+              <h2 className="text-xs font-bold">
                 Детали: {parsedMessage.parts.length} поз.
               </h2>
-              <table className="mt-3 w-full border-collapse border border-[#bdb9b1] text-[9px] leading-[1.4]">
+              <table className="mt-3 w-full border-collapse border border-[color:var(--line-strong)] text-[9px] leading-[1.4]">
                 <thead>
-                  <tr className="bg-[#f0eeea] text-left">
+                  <tr className="bg-[var(--surface-muted)] text-left">
                     {[
                       "№",
                       "Деталь",
@@ -391,7 +379,7 @@ export default async function RouteSheetPage({ params }: RouteSheetPageProps) {
                     ].map((heading) => (
                       <th
                         key={heading}
-                        className="border border-[#bdb9b1] px-1.5 py-1 font-semibold"
+                        className="border border-[color:var(--line-strong)] px-1.5 py-1 font-semibold"
                       >
                         {heading}
                       </th>
@@ -401,34 +389,34 @@ export default async function RouteSheetPage({ params }: RouteSheetPageProps) {
                 <tbody>
                   {parsedMessage.parts.map((part) => (
                     <tr key={part.sequence} className="break-inside-avoid">
-                      <td className="border border-[#d7d4ce] px-1.5 py-1 font-semibold">
+                      <td className="border border-[color:var(--line-strong)] px-1.5 py-1 font-semibold">
                         {part.sequence}
                       </td>
-                      <td className="border border-[#d7d4ce] px-1.5 py-1">
+                      <td className="border border-[color:var(--line-strong)] px-1.5 py-1">
                         {part.title}
                       </td>
-                      <td className="border border-[#d7d4ce] px-1.5 py-1 font-semibold whitespace-nowrap">
+                      <td className="border border-[color:var(--line-strong)] px-1.5 py-1 font-semibold whitespace-nowrap">
                         {part.size}
                       </td>
-                      <td className="border border-[#d7d4ce] px-1.5 py-1 text-center font-semibold">
+                      <td className="border border-[color:var(--line-strong)] px-1.5 py-1 text-center font-semibold">
                         {part.quantity}
                       </td>
-                      <td className="border border-[#d7d4ce] px-1.5 py-1">
+                      <td className="border border-[color:var(--line-strong)] px-1.5 py-1">
                         {part.edge}
                       </td>
-                      <td className="border border-[#d7d4ce] px-1.5 py-1">
+                      <td className="border border-[color:var(--line-strong)] px-1.5 py-1">
                         {part.orientation}
                       </td>
-                      <td className="border border-[#d7d4ce] px-1.5 py-1">
+                      <td className="border border-[color:var(--line-strong)] px-1.5 py-1">
                         {part.sheets}
                       </td>
-                      <td className="w-[13mm] border border-[#d7d4ce]" />
-                      <td className="w-[13mm] border border-[#d7d4ce]" />
+                      <td className="w-[13mm] border border-[color:var(--line-strong)]" />
+                      <td className="w-[13mm] border border-[color:var(--line-strong)]" />
                     </tr>
                   ))}
                 </tbody>
               </table>
-              <p className="mt-1 text-[8px] text-[#77736c]">
+              <p className="mt-1 text-[8px] text-[var(--muted)]">
                 В двух последних колонках оператор отмечает готовность детали на
                 своей станции.
               </p>
@@ -436,9 +424,7 @@ export default async function RouteSheetPage({ params }: RouteSheetPageProps) {
 
             {parsedMessage.comment ? (
               <section className="mt-[6mm] break-inside-avoid">
-                <h2 className="text-[11px] font-bold tracking-[0.14em] uppercase">
-                  Комментарий клиента
-                </h2>
+                <h2 className="text-xs font-bold">Комментарий клиента</h2>
                 <p className="mt-2 text-[10px] leading-5 whitespace-pre-wrap">
                   {parsedMessage.comment}
                 </p>
@@ -447,10 +433,8 @@ export default async function RouteSheetPage({ params }: RouteSheetPageProps) {
           </>
         ) : (
           <section className="mt-[7mm]">
-            <h2 className="text-[11px] font-bold tracking-[0.14em] uppercase">
-              Материал и детали
-            </h2>
-            <pre className="mt-3 border border-[#bdb9b1] bg-[#faf9f7] p-3 font-sans text-[9px] leading-[1.55] whitespace-pre-wrap text-[#302e2a]">
+            <h2 className="text-xs font-bold">Материал и детали</h2>
+            <pre className="mt-3 border border-[color:var(--line-strong)] bg-[var(--surface)] p-3 font-sans text-[9px] leading-[1.55] whitespace-pre-wrap text-[var(--foreground)]">
               {request.message || request.subject}
             </pre>
           </section>
@@ -458,16 +442,14 @@ export default async function RouteSheetPage({ params }: RouteSheetPageProps) {
 
         {request.files.length > 0 ? (
           <section className="mt-[6mm] break-inside-avoid">
-            <h2 className="text-[11px] font-bold tracking-[0.14em] uppercase">
-              Файлы заявки
-            </h2>
-            <p className="mt-2 text-[9px] leading-5 text-[#4e4b46]">
+            <h2 className="text-xs font-bold">Файлы заявки</h2>
+            <p className="mt-2 text-[9px] leading-5 text-[var(--foreground)]">
               {request.files.map((file) => file.fileName).join(" · ")}
             </p>
           </section>
         ) : null}
 
-        <footer className="mt-[8mm] grid grid-cols-2 gap-[10mm] border-t border-[#bdb9b1] pt-[6mm] text-[9px] text-[#625f59]">
+        <footer className="mt-[8mm] grid grid-cols-2 gap-[10mm] border-t border-[color:var(--line-strong)] pt-[6mm] text-[9px] text-[var(--muted)]">
           <p>Контроль качества: ____________________</p>
           <p>Выдал / получил: ____________________</p>
         </footer>

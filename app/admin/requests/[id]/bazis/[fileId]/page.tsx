@@ -142,7 +142,7 @@ export default async function BazisProjectPage({
   }
 
   return (
-    <div className="mx-auto max-w-[210mm] bg-white text-[#171714] print:max-w-none">
+    <div className="mx-auto max-w-[210mm] bg-white text-[var(--foreground)] print:max-w-none">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3 print:hidden">
         <Link
           href={`/admin/requests/${request.id}`}
@@ -218,16 +218,14 @@ export default async function BazisProjectPage({
         </section>
       ) : null}
 
-      <article className="border border-[#cbc7bf] bg-white p-[10mm] shadow-sm print:border-0 print:p-[8mm] print:shadow-none">
-        <header className="flex items-start justify-between gap-[8mm] border-b-2 border-[#171714] pb-[5mm]">
+      <article className="border border-[color:var(--line-strong)] bg-white p-[10mm] shadow-sm print:border-0 print:p-[8mm] print:shadow-none">
+        <header className="flex items-start justify-between gap-[8mm] border-b-2 border-[color:var(--solid)] pb-[5mm]">
           <div className="min-w-0">
-            <p className="text-[11px] font-bold tracking-[0.18em] uppercase">
-              Проект Базис-Мебельщик
-            </p>
+            <p className="text-xs font-bold">Проект Базис-Мебельщик</p>
             <h1 className="mt-2 text-[22px] leading-tight font-bold break-words">
               {project?.orderName || project?.modelName || file.fileName}
             </h1>
-            <p className="mt-2 text-[11px] text-[#625f59]">
+            <p className="mt-2 text-[11px] text-[var(--muted)]">
               Заявка {requestNumber} · {request.contactName} · файл{" "}
               {file.fileName}
             </p>
@@ -236,7 +234,7 @@ export default async function BazisProjectPage({
             <img
               src={`data:image/png;base64,${project.thumbnailPng.toString("base64")}`}
               alt="Вид проекта"
-              className="size-[46mm] shrink-0 border border-[#d7d4ce] object-contain"
+              className="size-[46mm] shrink-0 border border-[color:var(--line-strong)] object-contain"
             />
           ) : null}
         </header>
@@ -251,25 +249,25 @@ export default async function BazisProjectPage({
           <>
             <section className="mt-[5mm] grid gap-[2mm] text-[11px]">
               <p>
-                <span className="text-[#77736c]">Деталей: </span>
+                <span className="text-[var(--muted)]">Деталей: </span>
                 <strong>{totalParts}</strong> в {project.rows.length} строках
               </p>
               {[...areaByMaterial.entries()].map(([material, area]) => (
                 <p key={material}>
-                  <span className="text-[#77736c]">{material}: </span>
+                  <span className="text-[var(--muted)]">{material}: </span>
                   <strong>{numberFormatter.format(area)} м²</strong> деталей
                 </p>
               ))}
               {project.materials.length > 0 ? (
-                <p className="text-[#625f59]">
+                <p className="text-[var(--muted)]">
                   Материалы проекта: {project.materials.join("; ")}
                 </p>
               ) : null}
             </section>
 
-            <table className="mt-[5mm] w-full border-collapse border border-[#bdb9b1] text-[9px] leading-[1.4]">
+            <table className="mt-[5mm] w-full border-collapse border border-[color:var(--line-strong)] text-[9px] leading-[1.4]">
               <thead>
-                <tr className="bg-[#f0eeea] text-left">
+                <tr className="bg-[var(--surface-muted)] text-left">
                   {[
                     "№",
                     "Деталь",
@@ -281,7 +279,7 @@ export default async function BazisProjectPage({
                   ].map((heading) => (
                     <th
                       key={heading}
-                      className="border border-[#bdb9b1] px-1.5 py-1 font-semibold"
+                      className="border border-[color:var(--line-strong)] px-1.5 py-1 font-semibold"
                     >
                       {heading}
                     </th>
@@ -291,38 +289,38 @@ export default async function BazisProjectPage({
               <tbody>
                 {project.rows.map((row, index) => (
                   <tr key={index} className="break-inside-avoid">
-                    <td className="border border-[#d7d4ce] px-1.5 py-1">
+                    <td className="border border-[color:var(--line-strong)] px-1.5 py-1">
                       {index + 1}
                     </td>
-                    <td className="border border-[#d7d4ce] px-1.5 py-1">
+                    <td className="border border-[color:var(--line-strong)] px-1.5 py-1">
                       {row.name}
                       {row.complexContour ? (
-                        <span className="font-semibold text-[#a94730]">
+                        <span className="font-semibold text-[var(--accent)]">
                           {" "}
                           · сложный контур, проверьте
                         </span>
                       ) : null}
                     </td>
-                    <td className="border border-[#d7d4ce] px-1.5 py-1 text-right font-semibold whitespace-nowrap">
+                    <td className="border border-[color:var(--line-strong)] px-1.5 py-1 text-right font-semibold whitespace-nowrap">
                       {numberFormatter.format(row.length)}
                     </td>
-                    <td className="border border-[#d7d4ce] px-1.5 py-1 text-right font-semibold whitespace-nowrap">
+                    <td className="border border-[color:var(--line-strong)] px-1.5 py-1 text-right font-semibold whitespace-nowrap">
                       {numberFormatter.format(row.width)}
                     </td>
-                    <td className="border border-[#d7d4ce] px-1.5 py-1 text-center font-semibold">
+                    <td className="border border-[color:var(--line-strong)] px-1.5 py-1 text-center font-semibold">
                       {row.quantity}
                     </td>
-                    <td className="border border-[#d7d4ce] px-1.5 py-1">
+                    <td className="border border-[color:var(--line-strong)] px-1.5 py-1">
                       {row.material}, {numberFormatter.format(row.thickness)} мм
                     </td>
-                    <td className="border border-[#d7d4ce] px-1.5 py-1">
+                    <td className="border border-[color:var(--line-strong)] px-1.5 py-1">
                       {describeEdges(row)}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            <p className="mt-[3mm] text-[8px] leading-4 text-[#8a857d]">
+            <p className="mt-[3mm] text-[8px] leading-4 text-[var(--muted)]">
               Список получен из файла проекта автоматически. Размеры указаны для
               готовой детали, как в проекте. Перед раскроем сверьте с проектом,
               особенно детали со сложным контуром.
@@ -330,19 +328,19 @@ export default async function BazisProjectPage({
 
             {project.drilling.holes > 0 ? (
               <section className="mt-[6mm] break-inside-avoid">
-                <h2 className="text-[11px] font-bold tracking-[0.14em] uppercase">
+                <h2 className="text-xs font-bold">
                   Присадка: {project.drilling.holes} отв.
                 </h2>
-                <table className="mt-2 w-full border-collapse border border-[#bdb9b1] text-[9px] leading-[1.4]">
+                <table className="mt-2 w-full border-collapse border border-[color:var(--line-strong)] text-[9px] leading-[1.4]">
                   <thead>
-                    <tr className="bg-[#f0eeea] text-left">
-                      <th className="border border-[#bdb9b1] px-1.5 py-1 font-semibold">
+                    <tr className="bg-[var(--surface-muted)] text-left">
+                      <th className="border border-[color:var(--line-strong)] px-1.5 py-1 font-semibold">
                         Диаметр
                       </th>
-                      <th className="border border-[#bdb9b1] px-1.5 py-1 font-semibold">
+                      <th className="border border-[color:var(--line-strong)] px-1.5 py-1 font-semibold">
                         Куда
                       </th>
-                      <th className="w-[20mm] border border-[#bdb9b1] px-1.5 py-1 text-right font-semibold">
+                      <th className="w-[20mm] border border-[color:var(--line-strong)] px-1.5 py-1 text-right font-semibold">
                         Кол-во
                       </th>
                     </tr>
@@ -350,13 +348,13 @@ export default async function BazisProjectPage({
                   <tbody>
                     {project.drilling.rows.map((row) => (
                       <tr key={row.diameter} className="break-inside-avoid">
-                        <td className="border border-[#d7d4ce] px-1.5 py-1">
+                        <td className="border border-[color:var(--line-strong)] px-1.5 py-1">
                           {drillingDiameter(row.diameter)}
                         </td>
-                        <td className="border border-[#d7d4ce] px-1.5 py-1">
+                        <td className="border border-[color:var(--line-strong)] px-1.5 py-1">
                           {formatDrillingRow(row)}
                         </td>
-                        <td className="border border-[#d7d4ce] px-1.5 py-1 text-right font-semibold">
+                        <td className="border border-[color:var(--line-strong)] px-1.5 py-1 text-right font-semibold">
                           {row.face + row.edge}
                         </td>
                       </tr>
@@ -368,16 +366,14 @@ export default async function BazisProjectPage({
 
             {project.hardware.length > 0 ? (
               <section className="mt-[6mm] break-inside-avoid">
-                <h2 className="text-[11px] font-bold tracking-[0.14em] uppercase">
-                  Фурнитура в проекте
-                </h2>
-                <table className="mt-2 w-full border-collapse border border-[#bdb9b1] text-[9px] leading-[1.4]">
+                <h2 className="text-xs font-bold">Фурнитура в проекте</h2>
+                <table className="mt-2 w-full border-collapse border border-[color:var(--line-strong)] text-[9px] leading-[1.4]">
                   <thead>
-                    <tr className="bg-[#f0eeea] text-left">
-                      <th className="border border-[#bdb9b1] px-1.5 py-1 font-semibold">
+                    <tr className="bg-[var(--surface-muted)] text-left">
+                      <th className="border border-[color:var(--line-strong)] px-1.5 py-1 font-semibold">
                         Наименование
                       </th>
-                      <th className="w-[20mm] border border-[#bdb9b1] px-1.5 py-1 text-right font-semibold">
+                      <th className="w-[20mm] border border-[color:var(--line-strong)] px-1.5 py-1 text-right font-semibold">
                         Кол-во
                       </th>
                     </tr>
@@ -385,10 +381,10 @@ export default async function BazisProjectPage({
                   <tbody>
                     {project.hardware.map((item) => (
                       <tr key={item.name} className="break-inside-avoid">
-                        <td className="border border-[#d7d4ce] px-1.5 py-1">
+                        <td className="border border-[color:var(--line-strong)] px-1.5 py-1">
                           {item.name}
                         </td>
-                        <td className="border border-[#d7d4ce] px-1.5 py-1 text-right font-semibold">
+                        <td className="border border-[color:var(--line-strong)] px-1.5 py-1 text-right font-semibold">
                           {item.quantity}
                         </td>
                       </tr>

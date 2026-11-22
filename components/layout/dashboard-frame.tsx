@@ -28,29 +28,29 @@ function AdminFrame({
     items.find((item) => item.href === "/admin/requests")?.badge ?? "0";
   const notificationBadge = requestBadge;
   const topLinkClass =
-    "inline-flex h-10 shrink-0 items-center gap-2 rounded-full border border-[color:var(--line)] bg-[var(--surface-strong)] px-4 font-medium transition hover:border-[color:var(--line-strong)]";
+    "inline-flex h-10 shrink-0 items-center gap-2 rounded-[var(--radius-control)] border border-[color:var(--line)] bg-[var(--surface-strong)] px-3.5 font-medium transition hover:border-[color:var(--line-strong)]";
 
   return (
-    <div className="min-h-screen bg-[var(--surface)] text-[var(--foreground)] lg:grid lg:grid-cols-[256px_minmax(0,1fr)] print:block print:bg-[var(--surface-strong)]">
-      <aside className="sticky top-0 z-30 bg-[#1f2b25] text-white shadow-[0_8px_24px_rgba(31,43,37,0.18)] lg:h-screen lg:overflow-hidden lg:shadow-none print:hidden">
+    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] lg:grid lg:grid-cols-[256px_minmax(0,1fr)] print:block print:bg-[var(--surface-strong)]">
+      <aside className="sticky top-0 z-30 border-b border-[color:var(--sidebar-border)] bg-[var(--sidebar-bg)] text-[var(--sidebar-fg)] lg:h-screen lg:overflow-hidden lg:border-r lg:border-b-0 lg:shadow-none print:hidden">
         <div className="flex flex-col px-3 py-2.5 lg:h-full lg:min-h-0 lg:py-4">
           <div className="flex items-center justify-between gap-3 px-1">
             <Link href="/admin" className="flex min-w-0 items-center gap-3">
-              <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[var(--surface)] text-lg font-black text-[var(--foreground)] lg:size-10">
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[var(--accent)] text-lg font-black text-[var(--accent-ink)] lg:size-10">
                 A
               </span>
               <span className="min-w-0">
                 <span className="block text-lg leading-none font-bold">
                   Artisan
                 </span>
-                <span className="mt-1 block text-xs text-white/60">
+                <span className="mt-1 block text-xs text-[var(--sidebar-muted)]">
                   Панель управления
                 </span>
               </span>
             </Link>
             <Link
               href="/"
-              className="inline-flex h-9 shrink-0 items-center gap-2 rounded-full border border-white/15 px-3 text-sm font-medium text-white/85 transition hover:bg-[var(--surface-strong)] hover:text-[var(--foreground)] lg:hidden"
+              className="inline-flex h-9 shrink-0 items-center gap-2 rounded-[var(--radius-control)] border border-[color:var(--sidebar-border)] px-3 text-sm font-medium text-[var(--sidebar-fg)] transition hover:bg-[var(--sidebar-hover)] lg:hidden"
             >
               <Home className="size-4" strokeWidth={1.85} />
               На сайт
@@ -59,7 +59,7 @@ function AdminFrame({
 
           <Link
             href="/"
-            className="mt-4 hidden h-10 items-center justify-center gap-2 rounded-full border border-white/15 px-3 text-sm font-medium text-white/85 transition hover:bg-[var(--surface-strong)] hover:text-[var(--foreground)] lg:inline-flex"
+            className="mt-4 hidden h-10 items-center justify-center gap-2 rounded-[var(--radius-control)] border border-[color:var(--sidebar-border)] px-3 text-sm font-medium text-[var(--sidebar-fg)] transition hover:bg-[var(--sidebar-hover)] lg:inline-flex"
           >
             <Home className="size-4" strokeWidth={1.85} />
             На сайт
@@ -69,11 +69,11 @@ function AdminFrame({
             <DashboardNav items={items} variant="admin" />
           </div>
 
-          <div className="mt-4 hidden border-t border-white/10 pt-4 lg:block">
+          <div className="mt-4 hidden border-t border-[color:var(--sidebar-border)] pt-4 lg:block">
             {actions ?? (
               <Link
                 href="/login"
-                className="flex items-center gap-3 rounded-lg px-3 py-3 text-sm text-white/70 hover:bg-white/[0.08] hover:text-white"
+                className="flex items-center gap-3 rounded-lg px-3 py-3 text-sm text-[var(--sidebar-muted)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--sidebar-fg)]"
               >
                 <LogOut className="size-[18px]" strokeWidth={1.8} />
                 Выйти
@@ -84,7 +84,7 @@ function AdminFrame({
       </aside>
 
       <div className="min-w-0 overflow-x-clip print:overflow-visible">
-        <header className="sticky top-0 z-20 hidden border-b border-[color:var(--line)] bg-[var(--surface)]/90 backdrop-blur-xl lg:block print:hidden">
+        <header className="sticky top-0 z-20 hidden border-b border-[color:var(--line)] bg-[var(--background)]/85 backdrop-blur-xl lg:block print:hidden">
           <nav className="flex min-h-16 items-center justify-end gap-2 px-6 text-sm xl:px-7">
             <AdminSearchForm className="mr-auto w-full max-w-sm" />
             <Link href="/calculator" className={topLinkClass}>

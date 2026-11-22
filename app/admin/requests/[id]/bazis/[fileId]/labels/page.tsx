@@ -162,7 +162,7 @@ export default async function BazisLabelsPage({
   const basePath = `/admin/requests/${request.id}/bazis/${file.id}/labels`;
 
   return (
-    <div className="mx-auto max-w-[210mm] bg-white text-[#171714] print:max-w-none">
+    <div className="mx-auto max-w-[210mm] bg-white text-[var(--foreground)] print:max-w-none">
       {/* Термопринтер: одна наклейка 58 × 80 мм на страницу. Лист А4 без
           полей: 3 этикетки 70 × 37 мм в ряд, 8 рядов. */}
       <style>
@@ -181,7 +181,7 @@ export default async function BazisLabelsPage({
           </Link>
           {labels.length > 0 ? <PrintRouteSheetButton /> : null}
         </div>
-        <div className="border border-[color:var(--line-strong)] bg-[#faf8f4] p-4 text-sm leading-6">
+        <div className="border border-[color:var(--line-strong)] bg-[var(--surface)] p-4 text-sm leading-6">
           <p className="font-semibold">
             Этикетки для сборки: {orderName} · заявка {requestNumber} ·{" "}
             {labels.length} шт.
@@ -219,7 +219,7 @@ export default async function BazisLabelsPage({
         <div className="mb-4 border border-[color:var(--line-strong)] bg-white p-4 text-sm leading-6 print:hidden">
           <p className="font-semibold">
             Если этикетки печатает GibLab — код проекта:{" "}
-            <span className="ml-1 bg-[#252b29] px-2 py-1 font-mono text-base tracking-[0.2em] text-white">
+            <span className="ml-1 bg-[var(--solid)] px-2 py-1 font-mono text-base tracking-[0.2em] text-white">
               {projectCode.code}
             </span>
           </p>
@@ -254,8 +254,8 @@ export default async function BazisLabelsPage({
             key={label.key}
             className={
               thermal
-                ? "flex h-[80mm] w-[58mm] break-after-page flex-col items-center gap-[2mm] overflow-hidden border border-dashed border-[#cbc7bf] p-[3mm] print:border-0"
-                : "flex h-[37mm] w-[70mm] break-inside-avoid items-center gap-[2mm] overflow-hidden border border-dashed border-[#cbc7bf] p-[2.5mm] print:border-0"
+                ? "flex h-[80mm] w-[58mm] break-after-page flex-col items-center gap-[2mm] overflow-hidden border border-dashed border-[color:var(--line-strong)] p-[3mm] print:border-0"
+                : "flex h-[37mm] w-[70mm] break-inside-avoid items-center gap-[2mm] overflow-hidden border border-dashed border-[color:var(--line-strong)] p-[2.5mm] print:border-0"
             }
           >
             <div
@@ -276,7 +276,7 @@ export default async function BazisLabelsPage({
               <p className="truncate">{label.material}</p>
               <p className="truncate">Кромка: {label.edges}</p>
               {label.block ? <p className="truncate">{label.block}</p> : null}
-              <p className="truncate text-[6.5pt] text-[#55524c]">
+              <p className="truncate text-[6.5pt] text-[var(--muted)]">
                 {[
                   label.position ? `поз. ${label.position}` : "",
                   label.copies > 1 ? `${label.copy} из ${label.copies}` : "",

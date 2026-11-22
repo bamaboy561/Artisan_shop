@@ -15,7 +15,7 @@ export function AdminSearchForm({
     <form action="/admin/search" role="search" className={className}>
       <label className="relative block">
         <span className="sr-only">Поиск по клиентам, заказам и заявкам</span>
-        <Search className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-[#6b665e]" />
+        <Search className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-[var(--muted)]" />
         <input
           type="search"
           name="q"
@@ -24,7 +24,7 @@ export function AdminSearchForm({
           minLength={2}
           maxLength={120}
           placeholder="Имя, телефон или номер заказа"
-          className="h-10 w-full rounded-full border border-[#e3ddd2] bg-white pr-4 pl-10 text-sm text-[#1b1c19] outline-none placeholder:text-[#8a857d] focus:border-[#1b1c19]"
+          className="h-10 w-full rounded-full border border-[color:var(--line)] bg-white pr-4 pl-10 text-sm text-[var(--foreground)] outline-none placeholder:text-[var(--muted)] focus:border-[color:var(--solid)]"
         />
       </label>
     </form>

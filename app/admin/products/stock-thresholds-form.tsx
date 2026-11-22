@@ -21,7 +21,7 @@ export function StockThresholdsForm({
   thresholds: StockThresholds;
 }) {
   return (
-    <details className="surface-glow rounded-[22px] border border-[color:var(--line)] bg-white/88 p-3 sm:p-4">
+    <details className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-white/88 p-3 sm:p-4">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
         <span className="text-sm font-semibold text-[var(--foreground)]">
           Когда товар считается заканчивающимся

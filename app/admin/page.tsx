@@ -143,7 +143,7 @@ function formatDelta(value: number) {
 function getDeltaClassName(value: number) {
   if (value > 0) return "text-emerald-700";
   if (value < 0) return "text-red-700";
-  return "text-[#6e6b63]";
+  return "text-[var(--muted)]";
 }
 
 function getOrderStatusTone(status: OrderStatus) {
@@ -358,7 +358,7 @@ function buildCuttingReportCsv(
 
 function MiniChart() {
   return (
-    <svg viewBox="0 0 180 44" className="mt-4 h-11 w-full text-[#c4532b]">
+    <svg viewBox="0 0 180 44" className="mt-4 h-11 w-full text-[var(--accent)]">
       <path
         d="M4 32 C 22 34, 28 34, 42 31 S 66 20, 83 25 S 108 36, 126 19 S 150 10, 176 13"
         fill="none"
@@ -394,22 +394,26 @@ function KpiCard({
   compactValue?: boolean;
 }) {
   return (
-    <article className="min-w-0 rounded-[20px] border border-[#e3ddd2] bg-white p-3.5 sm:p-5">
+    <article className="min-w-0 rounded-[var(--radius-inner)] border border-[color:var(--line)] bg-white p-3.5 sm:p-5">
       <div className="flex items-start justify-between gap-3">
-        <span className="text-[13px] text-[#6e6b63] sm:text-sm">{label}</span>
+        <span className="text-[13px] text-[var(--muted)] sm:text-sm">
+          {label}
+        </span>
         <Icon
-          className="size-5 shrink-0 text-[#c4532b] sm:size-6"
+          className="size-5 shrink-0 text-[var(--accent)] sm:size-6"
           strokeWidth={1.75}
         />
       </div>
       <p
-        className={`mt-4 leading-tight font-semibold [overflow-wrap:anywhere] text-[#1b1c19] ${
+        className={`mt-4 leading-tight font-semibold [overflow-wrap:anywhere] text-[var(--foreground)] ${
           compactValue ? "text-base sm:text-xl" : "text-lg sm:text-[26px]"
         }`}
       >
         {value}
       </p>
-      <p className="mt-2 text-xs text-[#8a857d] sm:mt-3 sm:text-sm">{detail}</p>
+      <p className="mt-2 text-xs text-[var(--muted)] sm:mt-3 sm:text-sm">
+        {detail}
+      </p>
       {chart ? <MiniChart /> : null}
     </article>
   );
@@ -427,15 +431,18 @@ function ReportStat({
   icon: LucideIcon;
 }) {
   return (
-    <div className="min-w-0 rounded-lg border border-[#ece8e2] bg-[#fbfaf8] p-4">
+    <div className="min-w-0 rounded-lg border border-[color:var(--line)] bg-[var(--surface)] p-4">
       <div className="flex items-start justify-between gap-3">
-        <p className="text-xs font-medium text-[#8a857d]">{label}</p>
-        <Icon className="size-5 shrink-0 text-[#c4532b]" strokeWidth={1.8} />
+        <p className="text-xs font-medium text-[var(--muted)]">{label}</p>
+        <Icon
+          className="size-5 shrink-0 text-[var(--accent)]"
+          strokeWidth={1.8}
+        />
       </div>
-      <p className="mt-3 text-lg leading-tight font-semibold [overflow-wrap:anywhere] text-[#1b1c19] sm:text-2xl">
+      <p className="mt-3 text-lg leading-tight font-semibold [overflow-wrap:anywhere] text-[var(--foreground)] sm:text-2xl">
         {value}
       </p>
-      <p className="mt-2 text-xs leading-5 text-[#6e6b63]">{detail}</p>
+      <p className="mt-2 text-xs leading-5 text-[var(--muted)]">{detail}</p>
     </div>
   );
 }
@@ -452,13 +459,15 @@ function Panel({
   children: ReactNode;
 }) {
   return (
-    <section className="min-w-0 overflow-hidden rounded-xl border border-[#e3ddd2] bg-white shadow-[0_18px_50px_rgba(30,28,25,0.04)]">
-      <div className="flex items-center justify-between gap-4 border-b border-[#e3ddd2] px-5 py-4">
-        <h2 className="text-lg font-semibold text-[#1b1c19]">{title}</h2>
+    <section className="min-w-0 overflow-hidden rounded-xl border border-[color:var(--line)] bg-white shadow-[0_18px_50px_rgba(30,28,25,0.04)]">
+      <div className="flex items-center justify-between gap-4 border-b border-[color:var(--line)] px-5 py-4">
+        <h2 className="text-lg font-semibold text-[var(--foreground)]">
+          {title}
+        </h2>
         {href && linkLabel ? (
           <Link
             href={href}
-            className="text-sm font-medium text-[#c4532b] transition hover:text-[#9f4327]"
+            className="text-sm font-medium text-[var(--accent)] transition hover:text-[var(--accent-strong)]"
           >
             {linkLabel}
           </Link>
@@ -519,7 +528,7 @@ export default async function AdminPage({
     order: (
       <Link
         href={`/admin/orders/${order.id}`}
-        className="font-medium text-[#1b1c19] transition hover:text-[#c4532b]"
+        className="font-medium text-[var(--foreground)] transition hover:text-[var(--accent-strong)]"
       >
         {order.number ?? order.id.slice(0, 8)}
       </Link>
@@ -538,7 +547,7 @@ export default async function AdminPage({
     request: (
       <Link
         href={`/admin/requests/${request.id}`}
-        className="font-medium text-[#1b1c19] transition hover:text-[#c4532b]"
+        className="font-medium text-[var(--foreground)] transition hover:text-[var(--accent-strong)]"
       >
         {request.number ?? request.id.slice(0, 8)}
       </Link>
@@ -581,8 +590,10 @@ export default async function AdminPage({
   const brandRows = executiveReport.breakdown.revenueByBrand.map((brand) => ({
     brand: (
       <span className="block min-w-40">
-        <span className="block font-medium text-[#1b1c19]">{brand.name}</span>
-        <span className="text-xs text-[#8a857d]">
+        <span className="block font-medium text-[var(--foreground)]">
+          {brand.name}
+        </span>
+        <span className="text-xs text-[var(--muted)]">
           {formatNumber(brand.products)} товаров
         </span>
       </span>
@@ -597,10 +608,10 @@ export default async function AdminPage({
     (product, index) => ({
       product: (
         <span className="block min-w-56">
-          <span className="block font-medium text-[#1b1c19]">
+          <span className="block font-medium text-[var(--foreground)]">
             {index + 1}. {product.name}
           </span>
-          <span className="text-xs text-[#8a857d]">
+          <span className="text-xs text-[var(--muted)]">
             {product.sku ?? "Без артикула"}
           </span>
         </span>
@@ -647,7 +658,7 @@ export default async function AdminPage({
   const cuttingMaterialRows = executiveReport.cuttingReport.materials.map(
     (material) => ({
       material: (
-        <span className="block min-w-56 font-medium text-[#1b1c19]">
+        <span className="block min-w-56 font-medium text-[var(--foreground)]">
           {material.name}
         </span>
       ),
@@ -660,7 +671,7 @@ export default async function AdminPage({
 
   const cuttingEdgeRows = executiveReport.cuttingReport.edges.map((edge) => ({
     edge: (
-      <span className="block min-w-48 font-medium text-[#1b1c19]">
+      <span className="block min-w-48 font-medium text-[var(--foreground)]">
         {edge.name}
       </span>
     ),
@@ -674,7 +685,7 @@ export default async function AdminPage({
       request: (
         <Link
           href={`/admin/requests/${request.id}`}
-          className="font-medium text-[#1b1c19] transition hover:text-[#c4532b]"
+          className="font-medium text-[var(--foreground)] transition hover:text-[var(--accent-strong)]"
         >
           {request.number ?? request.id.slice(0, 8)}
         </Link>
@@ -776,16 +787,16 @@ export default async function AdminPage({
         />
       </section>
 
-      <section className="rounded-xl border border-[#e3ddd2] bg-white p-5 shadow-[0_18px_50px_rgba(30,28,25,0.04)]">
+      <section className="rounded-xl border border-[color:var(--line)] bg-white p-5 shadow-[0_18px_50px_rgba(30,28,25,0.04)]">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <p className="text-xs font-medium text-[#8a857d]">
+            <p className="text-xs font-medium text-[var(--muted)]">
               Управленческий отчет
             </p>
-            <h1 className="mt-2 text-2xl font-semibold text-[#1b1c19]">
+            <h1 className="mt-2 text-2xl font-semibold text-[var(--foreground)]">
               Клиенты и продажи для руководителя
             </h1>
-            <p className="mt-2 text-sm leading-6 text-[#6e6b63]">
+            <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
               {executiveReport.period.label} ·{" "}
               {formatPeriodRange(
                 executiveReport.period.start,
@@ -800,8 +811,8 @@ export default async function AdminPage({
                 href={buildReportHref(period)}
                 className={`inline-flex h-9 items-center justify-center rounded-lg border px-3 text-sm font-medium transition ${
                   period === executiveReport.period.key
-                    ? "border-[#1b1c19] bg-[#1b1c19] text-white"
-                    : "border-[#e3ddd2] bg-white text-[#5f5b55] hover:border-[#c4532b] hover:text-[#c4532b]"
+                    ? "border-[color:var(--solid)] bg-[var(--solid)] text-white"
+                    : "border-[color:var(--line)] bg-white text-[var(--muted)] hover:border-[color:var(--accent)] hover:text-[var(--accent-strong)]"
                 }`}
               >
                 {reportPeriodLabels[period]}
@@ -854,10 +865,10 @@ export default async function AdminPage({
           <textarea
             readOnly
             value={reportText}
-            className="min-h-72 w-full resize-y rounded-lg border border-[#e3ddd2] bg-[#fbfaf8] p-4 font-mono text-sm leading-6 text-[#1b1c19] outline-none"
+            className="min-h-72 w-full resize-y rounded-lg border border-[color:var(--line)] bg-[var(--surface)] p-4 font-mono text-sm leading-6 text-[var(--foreground)] outline-none"
           />
-          <div className="flex flex-col justify-between gap-4 rounded-lg border border-[#ece8e2] bg-[#fbfaf8] p-4">
-            <div className="space-y-3 text-sm leading-6 text-[#5f5b55]">
+          <div className="flex flex-col justify-between gap-4 rounded-lg border border-[color:var(--line)] bg-[var(--surface)] p-4">
+            <div className="space-y-3 text-sm leading-6 text-[var(--muted)]">
               <p>
                 Отчет уже собран в формате, который можно отправить в Telegram
                 или вставить в письмо руководителю.
@@ -878,26 +889,26 @@ export default async function AdminPage({
         </div>
       </section>
 
-      <section className="overflow-hidden border border-[#e3ddd2] bg-white shadow-[0_18px_50px_rgba(30,28,25,0.04)]">
+      <section className="overflow-hidden border border-[color:var(--line)] bg-white shadow-[0_18px_50px_rgba(30,28,25,0.04)]">
         <div className="flex flex-col gap-4 px-5 py-5 sm:px-6 lg:flex-row lg:items-start lg:justify-between">
           <div className="flex items-start gap-3">
-            <span className="flex size-10 shrink-0 items-center justify-center bg-[#c4532b] text-white">
+            <span className="flex size-10 shrink-0 items-center justify-center bg-[var(--accent)] text-white">
               <Scissors className="size-5" strokeWidth={1.8} />
             </span>
             <div>
-              <p className="text-xs font-medium text-[#8a857d]">
+              <p className="text-xs font-medium text-[var(--muted)]">
                 Производственный отчет
               </p>
-              <h2 className="mt-1 text-xl font-semibold text-[#1b1c19]">
+              <h2 className="mt-1 text-xl font-semibold text-[var(--foreground)]">
                 Распил, материалы и кромка
               </h2>
-              <p className="mt-1 text-sm leading-6 text-[#6e6b63]">
+              <p className="mt-1 text-sm leading-6 text-[var(--muted)]">
                 {executiveReport.period.label} ·{" "}
                 {formatPeriodRange(
                   executiveReport.period.start,
                   executiveReport.period.end,
                 )}
-                <span className="block text-xs text-[#8a857d]">
+                <span className="block text-xs text-[var(--muted)]">
                   По дате создания заявки; отмененные заявки не входят в объем
                   материалов и кромки
                 </span>
@@ -913,31 +924,31 @@ export default async function AdminPage({
 
         <Form
           action="/admin"
-          className="grid gap-3 border-t border-[#e3ddd2] bg-[#fbfaf8] px-5 py-4 sm:grid-cols-[minmax(9rem,12rem)_minmax(9rem,12rem)_auto_auto] sm:items-end"
+          className="grid gap-3 border-t border-[color:var(--line)] bg-[var(--surface)] px-5 py-4 sm:grid-cols-[minmax(9rem,12rem)_minmax(9rem,12rem)_auto_auto] sm:items-end"
         >
-          <label className="grid gap-1.5 text-xs font-medium text-[#5f5b55]">
+          <label className="grid gap-1.5 text-xs font-medium text-[var(--muted)]">
             Дата с
             <input
               name="from"
               type="date"
               required
               defaultValue={executiveReport.period.dateFrom}
-              className="h-10 min-w-0 rounded-lg border border-[#d8d3cc] bg-white px-3 text-sm text-[#1b1c19] transition outline-none focus:border-[#c4532b]"
+              className="h-10 min-w-0 rounded-lg border border-[color:var(--line-strong)] bg-white px-3 text-sm text-[var(--foreground)] transition outline-none focus:border-[color:var(--accent)]"
             />
           </label>
-          <label className="grid gap-1.5 text-xs font-medium text-[#5f5b55]">
+          <label className="grid gap-1.5 text-xs font-medium text-[var(--muted)]">
             Дата по
             <input
               name="to"
               type="date"
               required
               defaultValue={executiveReport.period.dateTo}
-              className="h-10 min-w-0 rounded-lg border border-[#d8d3cc] bg-white px-3 text-sm text-[#1b1c19] transition outline-none focus:border-[#c4532b]"
+              className="h-10 min-w-0 rounded-lg border border-[color:var(--line-strong)] bg-white px-3 text-sm text-[var(--foreground)] transition outline-none focus:border-[color:var(--accent)]"
             />
           </label>
           <button
             type="submit"
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#1b1c19] px-4 text-sm font-medium text-white transition hover:bg-[#c4532b]"
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[var(--solid)] px-4 text-sm font-medium text-white transition hover:bg-[var(--accent-strong)]"
           >
             <CalendarRange className="size-4" strokeWidth={1.9} />
             Сформировать
@@ -945,80 +956,82 @@ export default async function AdminPage({
           {executiveReport.period.key === "custom" ? (
             <Link
               href="/admin"
-              className="inline-flex h-10 items-center justify-center rounded-lg border border-[#d8d3cc] bg-white px-4 text-sm font-medium text-[#5f5b55] transition hover:border-[#1b1c19] hover:text-[#1b1c19]"
+              className="inline-flex h-10 items-center justify-center rounded-lg border border-[color:var(--line-strong)] bg-white px-4 text-sm font-medium text-[var(--muted)] transition hover:border-[color:var(--solid)] hover:text-[var(--foreground)]"
             >
               Сбросить
             </Link>
           ) : null}
         </Form>
 
-        <div className="grid border-y border-[#e3ddd2] bg-[#fbfaf8] md:grid-cols-2 md:divide-x md:divide-[#e3ddd2] xl:grid-cols-3">
-          <div className="border-b border-[#e3ddd2] p-4">
-            <p className="text-xs text-[#6e6b63]">Сумма работ без отменённых</p>
-            <p className="mt-2 text-xl font-semibold break-words text-[#1b1c19]">
+        <div className="grid border-y border-[color:var(--line)] bg-[var(--surface)] md:grid-cols-2 md:divide-x md:divide-[color:var(--line)] xl:grid-cols-3">
+          <div className="border-b border-[color:var(--line)] p-4">
+            <p className="text-xs text-[var(--muted)]">
+              Сумма работ без отменённых
+            </p>
+            <p className="mt-2 text-xl font-semibold break-words text-[var(--foreground)]">
               {formatCurrency(executiveReport.cuttingReport.totalAmount)}
             </p>
-            <p className="mt-1 text-xs text-[#8a857d]">
+            <p className="mt-1 text-xs text-[var(--muted)]">
               Рассчитано: {executiveReport.cuttingReport.amountSpecified} /{" "}
               {executiveReport.cuttingReport.workloadRequests}
             </p>
           </div>
-          <div className="border-b border-[#e3ddd2] p-4 xl:border-b-0">
-            <p className="text-xs text-[#6e6b63]">Заявки на распил</p>
-            <p className="mt-2 text-2xl font-semibold text-[#1b1c19]">
+          <div className="border-b border-[color:var(--line)] p-4 xl:border-b-0">
+            <p className="text-xs text-[var(--muted)]">Заявки на распил</p>
+            <p className="mt-2 text-2xl font-semibold text-[var(--foreground)]">
               {formatNumber(executiveReport.cuttingReport.totalRequests)}
             </p>
-            <p className="mt-1 text-xs text-[#8a857d]">
+            <p className="mt-1 text-xs text-[var(--muted)]">
               рабочих:{" "}
               {formatNumber(executiveReport.cuttingReport.workloadRequests)}
             </p>
           </div>
-          <div className="border-b border-[#e3ddd2] p-4 xl:border-b-0">
-            <p className="text-xs text-[#6e6b63]">Всего листов</p>
-            <p className="mt-2 text-2xl font-semibold text-[#1b1c19]">
+          <div className="border-b border-[color:var(--line)] p-4 xl:border-b-0">
+            <p className="text-xs text-[var(--muted)]">Всего листов</p>
+            <p className="mt-2 text-2xl font-semibold text-[var(--foreground)]">
               {formatNumber(executiveReport.cuttingReport.totalSheets)}
             </p>
-            <p className="mt-1 text-xs text-[#8a857d]">
+            <p className="mt-1 text-xs text-[var(--muted)]">
               Заявок с количеством:{" "}
               {formatNumber(executiveReport.cuttingReport.sheetCountSpecified)}{" "}
               / {formatNumber(executiveReport.cuttingReport.workloadRequests)}
             </p>
           </div>
-          <div className="border-b border-[#e3ddd2] p-4 md:border-b-0">
-            <p className="text-xs text-[#6e6b63]">Сейчас в работе</p>
-            <p className="mt-2 text-2xl font-semibold text-[#1b1c19]">
+          <div className="border-b border-[color:var(--line)] p-4 md:border-b-0">
+            <p className="text-xs text-[var(--muted)]">Сейчас в работе</p>
+            <p className="mt-2 text-2xl font-semibold text-[var(--foreground)]">
               {formatNumber(executiveReport.cuttingReport.activeRequests)}
             </p>
-            <p className="mt-1 text-xs text-[#8a857d]">
+            <p className="mt-1 text-xs text-[var(--muted)]">
               завершено:{" "}
               {formatNumber(executiveReport.cuttingReport.completedRequests)}
             </p>
           </div>
           <div className="p-4">
-            <p className="text-xs text-[#6e6b63]">Всего кромки</p>
-            <p className="mt-2 text-2xl font-semibold text-[#1b1c19]">
+            <p className="text-xs text-[var(--muted)]">Всего кромки</p>
+            <p className="mt-2 text-2xl font-semibold text-[var(--foreground)]">
               {formatNumber(executiveReport.cuttingReport.totalEdgeMeters)} м
             </p>
-            <p className="mt-1 text-xs text-[#8a857d]">
+            <p className="mt-1 text-xs text-[var(--muted)]">
               Заявок с метражом:{" "}
               {formatNumber(executiveReport.cuttingReport.edgeMetersSpecified)}
             </p>
           </div>
           <div className="p-4">
-            <p className="text-xs text-[#6e6b63]">Тип кромки указан</p>
-            <p className="mt-2 text-2xl font-semibold text-[#1b1c19]">
+            <p className="text-xs text-[var(--muted)]">Тип кромки указан</p>
+            <p className="mt-2 text-2xl font-semibold text-[var(--foreground)]">
               {formatNumber(executiveReport.cuttingReport.edgeSpecified)}
             </p>
-            <p className="mt-1 text-xs text-[#8a857d]">
+            <p className="mt-1 text-xs text-[var(--muted)]">
               Всего рабочих заявок:{" "}
               {formatNumber(executiveReport.cuttingReport.workloadRequests)}
             </p>
           </div>
         </div>
 
-        <div className="grid 2xl:grid-cols-2 2xl:divide-x 2xl:divide-[#e3ddd2]">
-          <div className="min-w-0 border-b border-[#e3ddd2] 2xl:border-b-0">
-            <h3 className="border-b border-[#e3ddd2] px-5 py-3 text-sm font-semibold text-[#1b1c19]">
+        <div className="grid 2xl:grid-cols-2 2xl:divide-x 2xl:divide-[color:var(--line)]">
+          <div className="min-w-0 border-b border-[color:var(--line)] 2xl:border-b-0">
+            <h3 className="border-b border-[color:var(--line)] px-5 py-3 text-sm font-semibold text-[var(--foreground)]">
               Какие листы использованы
             </h3>
             <div className="max-h-80 overflow-y-auto">
@@ -1037,7 +1050,7 @@ export default async function AdminPage({
             </div>
           </div>
           <div className="min-w-0">
-            <h3 className="border-b border-[#e3ddd2] px-5 py-3 text-sm font-semibold text-[#1b1c19]">
+            <h3 className="border-b border-[color:var(--line)] px-5 py-3 text-sm font-semibold text-[var(--foreground)]">
               Использованная кромка
             </h3>
             <div className="max-h-80 overflow-y-auto">
@@ -1057,14 +1070,14 @@ export default async function AdminPage({
           </div>
         </div>
 
-        <div className="border-t border-[#e3ddd2]">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e3ddd2] px-5 py-3">
-            <h3 className="text-sm font-semibold text-[#1b1c19]">
+        <div className="border-t border-[color:var(--line)]">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[color:var(--line)] px-5 py-3">
+            <h3 className="text-sm font-semibold text-[var(--foreground)]">
               Все заявки периода
             </h3>
             <Link
               href="/admin/requests?type=CUTTING_SERVICE"
-              className="text-sm font-medium text-[#c4532b] transition hover:text-[#9f4327]"
+              className="text-sm font-medium text-[var(--accent)] transition hover:text-[var(--accent-strong)]"
             >
               Открыть заявки
             </Link>
@@ -1247,9 +1260,12 @@ export default async function AdminPage({
                 <Link
                   key={action.label}
                   href={action.href}
-                  className="flex min-h-20 items-center gap-3 rounded-xl border border-[#e3ddd2] bg-white px-4 py-3 text-sm font-medium text-[#1b1c19] transition hover:border-[#d2ccc4] hover:bg-[#faf8f5]"
+                  className="flex min-h-20 items-center gap-3 rounded-xl border border-[color:var(--line)] bg-white px-4 py-3 text-sm font-medium text-[var(--foreground)] transition hover:border-[color:var(--line-strong)] hover:bg-[var(--surface)]"
                 >
-                  <Icon className="size-5 text-[#c4532b]" strokeWidth={1.75} />
+                  <Icon
+                    className="size-5 text-[var(--accent)]"
+                    strokeWidth={1.75}
+                  />
                   <span>{action.label}</span>
                 </Link>
               );
@@ -1262,7 +1278,7 @@ export default async function AdminPage({
           href="/admin/products"
           linkLabel="Все товары"
         >
-          <div className="divide-y divide-[#ece8e2] px-5">
+          <div className="divide-y divide-[color:var(--line)] px-5">
             {stockMaterialRows.length > 0 ? (
               stockMaterialRows.map((material) => (
                 <div
@@ -1270,26 +1286,26 @@ export default async function AdminPage({
                   className="grid grid-cols-[44px_minmax(0,1fr)_70px_70px] items-center gap-3 py-3.5 text-sm"
                 >
                   <span
-                    className="size-8 rounded-md border border-[#e3ddd2] bg-cover bg-center"
+                    className="size-8 rounded-md border border-[color:var(--line)] bg-cover bg-center"
                     style={{
                       backgroundImage: material.swatch
                         ? `url(${material.swatch})`
                         : undefined,
                     }}
                   />
-                  <span className="min-w-0 truncate font-medium text-[#1b1c19]">
+                  <span className="min-w-0 truncate font-medium text-[var(--foreground)]">
                     {material.name}
                   </span>
-                  <span className="truncate text-[#8a857d]">
+                  <span className="truncate text-[var(--muted)]">
                     {material.format || "-"}
                   </span>
-                  <span className="text-right font-medium text-[#1b1c19]">
+                  <span className="text-right font-medium text-[var(--foreground)]">
                     {formatNumber(material.stock)} шт.
                   </span>
                 </div>
               ))
             ) : (
-              <p className="py-5 text-sm text-[#8a857d]">
+              <p className="py-5 text-sm text-[var(--muted)]">
                 Остатки пока не указаны в карточках товаров.
               </p>
             )}
@@ -1323,7 +1339,7 @@ export default async function AdminPage({
       </section>
 
       <section className="grid gap-4 lg:grid-cols-[2fr_1fr]">
-        <div className="grid overflow-hidden rounded-xl border border-[#e3ddd2] bg-white shadow-[0_18px_50px_rgba(30,28,25,0.04)] md:grid-cols-4">
+        <div className="grid overflow-hidden rounded-xl border border-[color:var(--line)] bg-white shadow-[0_18px_50px_rgba(30,28,25,0.04)] md:grid-cols-4">
           {[
             ["Производство", `${metrics.openOrders} заказов в работе`],
             [
@@ -1335,24 +1351,24 @@ export default async function AdminPage({
           ].map(([label, value]) => (
             <div
               key={label}
-              className="border-b border-[#e3ddd2] px-5 py-4 last:border-b-0 md:border-r md:border-b-0 md:last:border-r-0"
+              className="border-b border-[color:var(--line)] px-5 py-4 last:border-b-0 md:border-r md:border-b-0 md:last:border-r-0"
             >
-              <p className="text-sm text-[#8a857d]">{label}</p>
-              <p className="mt-2 text-xl font-semibold text-[#1b1c19]">
+              <p className="text-sm text-[var(--muted)]">{label}</p>
+              <p className="mt-2 text-xl font-semibold text-[var(--foreground)]">
                 {value}
               </p>
             </div>
           ))}
         </div>
 
-        <div className="flex items-center justify-between rounded-xl border border-[#e3ddd2] bg-white px-5 py-4 shadow-[0_18px_50px_rgba(30,28,25,0.04)]">
+        <div className="flex items-center justify-between rounded-xl border border-[color:var(--line)] bg-white px-5 py-4 shadow-[0_18px_50px_rgba(30,28,25,0.04)]">
           <div>
-            <p className="text-sm text-[#8a857d]">Склад</p>
-            <p className="mt-2 text-xl font-semibold text-[#1b1c19]">
+            <p className="text-sm text-[var(--muted)]">Склад</p>
+            <p className="mt-2 text-xl font-semibold text-[var(--foreground)]">
               {formatNumber(metrics.activeProducts)} материалов
             </p>
           </div>
-          <Box className="size-8 text-[#c4532b]" strokeWidth={1.6} />
+          <Box className="size-8 text-[var(--accent)]" strokeWidth={1.6} />
         </div>
       </section>
     </div>

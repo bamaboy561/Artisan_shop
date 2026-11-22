@@ -213,7 +213,7 @@ export default async function AdminRequestDetailPage({
 
   return (
     <div className="space-y-5">
-      <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-6 sm:p-7">
+      <section className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-white/82 p-6 sm:p-7">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-3xl">
             <SectionHeading
@@ -247,7 +247,7 @@ export default async function AdminRequestDetailPage({
             {request.type === RequestType.CUTTING_SERVICE ? (
               <Link
                 href={`/admin/requests/${request.id}/route-sheet`}
-                className="inline-flex h-11 items-center justify-center gap-2 bg-[var(--foreground)] px-5 font-mono text-[11px] font-semibold tracking-[0.14em] text-white uppercase transition hover:bg-[var(--accent)]"
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-[var(--radius-control)] bg-[var(--foreground)] px-5 text-sm font-semibold text-white transition hover:bg-[var(--accent)]"
               >
                 <Printer className="size-4" />
                 Маршрутный лист
@@ -255,7 +255,7 @@ export default async function AdminRequestDetailPage({
             ) : null}
             <Link
               href={cuttingManager ? "/admin/cutting" : "/admin/requests"}
-              className="inline-flex h-11 items-center justify-center border border-[color:var(--line-strong)] px-5 font-mono text-[11px] font-semibold tracking-[0.14em] text-[var(--foreground)] uppercase transition hover:border-[color:var(--foreground)] hover:bg-[var(--foreground)] hover:text-white"
+              className="inline-flex h-11 items-center justify-center rounded-[var(--radius-control)] border border-[color:var(--line-strong)] px-5 text-sm font-semibold text-[var(--foreground)] transition hover:border-[color:var(--foreground)] hover:bg-[var(--foreground)] hover:text-white"
             >
               {cuttingManager ? "К очереди распила" : "К очереди заявок"}
             </Link>
@@ -272,13 +272,13 @@ export default async function AdminRequestDetailPage({
 
       <section className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
         <div className="space-y-5">
-          <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-6">
+          <section className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-white/82 p-6">
             <h2 className="text-lg font-semibold text-[var(--foreground)]">
               Контакты и параметры
             </h2>
             <div className="mt-5 grid gap-4 md:grid-cols-2">
               <div>
-                <p className="text-xs tracking-[0.16em] text-[var(--muted)] uppercase">
+                <p className="text-xs font-semibold text-[var(--muted)]">
                   Клиент
                 </p>
                 <p className="mt-2 font-medium text-[var(--foreground)]">
@@ -309,7 +309,7 @@ export default async function AdminRequestDetailPage({
               </div>
 
               <div>
-                <p className="text-xs tracking-[0.16em] text-[var(--muted)] uppercase">
+                <p className="text-xs font-semibold text-[var(--muted)]">
                   Материал и бюджет
                 </p>
                 <p className="mt-2 font-medium text-[var(--foreground)]">
@@ -330,7 +330,7 @@ export default async function AdminRequestDetailPage({
               </div>
 
               <div>
-                <p className="text-xs tracking-[0.16em] text-[var(--muted)] uppercase">
+                <p className="text-xs font-semibold text-[var(--muted)]">
                   Создана
                 </p>
                 <p className="mt-2 text-sm text-[var(--foreground)]">
@@ -339,7 +339,7 @@ export default async function AdminRequestDetailPage({
               </div>
 
               <div>
-                <p className="text-xs tracking-[0.16em] text-[var(--muted)] uppercase">
+                <p className="text-xs font-semibold text-[var(--muted)]">
                   Доставка
                 </p>
                 <p className="mt-2 text-sm text-[var(--foreground)]">
@@ -413,7 +413,7 @@ export default async function AdminRequestDetailPage({
 
             {request.message ? (
               <div className="mt-5 border-t border-[color:var(--line)] pt-5">
-                <p className="text-xs tracking-[0.16em] text-[var(--muted)] uppercase">
+                <p className="text-xs font-semibold text-[var(--muted)]">
                   Комментарий и расчет
                 </p>
                 <pre className="mt-3 text-sm leading-7 whitespace-pre-wrap text-[var(--foreground)]">
@@ -423,7 +423,7 @@ export default async function AdminRequestDetailPage({
             ) : null}
           </section>
 
-          <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-6">
+          <section className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-white/82 p-6">
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-lg font-semibold text-[var(--foreground)]">
                 Файлы заявки
@@ -483,7 +483,7 @@ export default async function AdminRequestDetailPage({
             )}
           </section>
 
-          <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-6">
+          <section className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-white/82 p-6">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <h2 className="text-lg font-semibold text-[var(--foreground)]">
@@ -504,7 +504,7 @@ export default async function AdminRequestDetailPage({
             {request.type === RequestType.CUTTING_SERVICE ? (
               <div className="mt-6 grid gap-6 border-t border-[color:var(--line)] pt-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(300px,1.1fr)]">
                 <div>
-                  <p className="font-mono text-[10px] tracking-[0.18em] text-[var(--accent)] uppercase">
+                  <p className="text-xs font-semibold text-[var(--accent)]">
                     Трекинг производства
                   </p>
                   <div className="mt-4">
@@ -765,10 +765,10 @@ export default async function AdminRequestDetailPage({
         </div>
 
         <div className="space-y-5">
-          <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-6">
+          <section className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-white/82 p-6">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="font-mono text-[10px] tracking-[0.24em] text-[var(--accent)] uppercase">
+                <p className="text-xs font-semibold text-[var(--accent)]">
                   Маршрут заявки
                 </p>
                 <h2 className="mt-3 text-lg font-semibold text-[var(--foreground)]">
@@ -784,7 +784,7 @@ export default async function AdminRequestDetailPage({
             </div>
           </section>
 
-          <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-6">
+          <section className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-white/82 p-6">
             <h2 className="text-lg font-semibold text-[var(--foreground)]">
               Быстрое управление
             </h2>
@@ -815,7 +815,7 @@ export default async function AdminRequestDetailPage({
 
             {requestQuickTransitions[request.status].length > 0 ? (
               <div className="mt-5 border-t border-[color:var(--line)] pt-5">
-                <p className="font-mono text-[10px] tracking-[0.2em] text-[var(--muted)] uppercase">
+                <p className="text-xs font-semibold text-[var(--muted)]">
                   Следующий шаг
                 </p>
                 <div className="mt-3 grid gap-2">
@@ -851,7 +851,7 @@ export default async function AdminRequestDetailPage({
             ) : null}
           </section>
 
-          <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-6">
+          <section className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-white/82 p-6">
             <h2 className="text-lg font-semibold text-[var(--foreground)]">
               Заметки менеджера
             </h2>
@@ -915,7 +915,7 @@ export default async function AdminRequestDetailPage({
           </section>
 
           {!cuttingManager ? (
-            <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-6">
+            <section className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-white/82 p-6">
               <h2 className="text-lg font-semibold text-[var(--foreground)]">
                 Перевод в заказ
               </h2>

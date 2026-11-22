@@ -191,12 +191,12 @@ export default async function EditProductPage({
           {notice}
         </p>
       ) : null}
-      <section className="surface-glow rounded-[24px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-6 sm:p-8">
+      <section className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-[var(--surface-strong)] p-6 sm:p-8">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
           <div className="min-w-0">
             <Link
               href="/admin/products"
-              className="text-xs font-medium text-[var(--accent)] transition hover:text-[#9d573d]"
+              className="text-xs font-medium text-[var(--accent)] transition hover:text-[var(--accent-strong)]"
             >
               ← К списку товаров
             </Link>
@@ -264,7 +264,7 @@ export default async function EditProductPage({
       </section>
 
       <section className="grid gap-4 xl:grid-cols-4">
-        <div className="surface-glow rounded-[20px] border border-[color:var(--line)] bg-white/90 p-4">
+        <div className="surface-glow rounded-[var(--radius-inner)] border border-[color:var(--line)] bg-white/90 p-4">
           <p className="text-xs font-medium text-[var(--muted)]">Цена</p>
           <p className="mt-3 text-2xl font-semibold text-[var(--foreground)]">
             {formatPrice(effectivePrice)}
@@ -275,19 +275,19 @@ export default async function EditProductPage({
             </p>
           ) : null}
         </div>
-        <div className="surface-glow rounded-[20px] border border-[color:var(--line)] bg-white/90 p-4">
+        <div className="surface-glow rounded-[var(--radius-inner)] border border-[color:var(--line)] bg-white/90 p-4">
           <p className="text-xs font-medium text-[var(--muted)]">Остаток</p>
           <p className="mt-3 text-2xl font-semibold text-[var(--foreground)]">
             {product.stockQuantity ?? "Не указан"}
           </p>
         </div>
-        <div className="surface-glow rounded-[20px] border border-[color:var(--line)] bg-white/90 p-4">
+        <div className="surface-glow rounded-[var(--radius-inner)] border border-[color:var(--line)] bg-white/90 p-4">
           <p className="text-xs font-medium text-[var(--muted)]">Заказы</p>
           <p className="mt-3 text-2xl font-semibold text-[var(--foreground)]">
             {product._count.orderItems}
           </p>
         </div>
-        <div className="surface-glow rounded-[20px] border border-[color:var(--line)] bg-white/90 p-4">
+        <div className="surface-glow rounded-[var(--radius-inner)] border border-[color:var(--line)] bg-white/90 p-4">
           <p className="text-xs font-medium text-[var(--muted)]">Избранное</p>
           <p className="mt-3 text-2xl font-semibold text-[var(--foreground)]">
             {product._count.favorites}
@@ -295,7 +295,7 @@ export default async function EditProductPage({
         </div>
       </section>
 
-      <section className="surface-glow rounded-[24px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-5 sm:p-6">
+      <section className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-[var(--surface-strong)] p-5 sm:p-6">
         <SectionHeading
           title="Данные товара"
           description="Измените карточку и сохраните. Публичная страница товара обновится автоматически."

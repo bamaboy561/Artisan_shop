@@ -300,7 +300,7 @@ export default async function AdminCuttingPage({
 
   return (
     <div className="space-y-5">
-      <section className="surface-glow rounded-[28px] border border-[color:var(--line)] bg-white/82 p-6 sm:p-7">
+      <section className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-white/82 p-6 sm:p-7">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <SectionHeading
             title="Распил"
@@ -327,7 +327,7 @@ export default async function AdminCuttingPage({
       {metrics.siteNew > 0 ? (
         <Link
           href="/admin/cutting?status=NEW"
-          className="flex items-center justify-between gap-3 rounded-[20px] border-2 border-red-500 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 transition hover:bg-red-100"
+          className="flex items-center justify-between gap-3 rounded-[var(--radius-inner)] border-2 border-red-500 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 transition hover:bg-red-100"
         >
           <span>
             Новых заявок с сайта: {metrics.siteNew} — их ещё никто не взял в
@@ -360,7 +360,7 @@ export default async function AdminCuttingPage({
         />
       </section>
 
-      <section className="surface-glow space-y-3 rounded-[28px] border border-[color:var(--line)] bg-white/82 p-6">
+      <section className="surface-glow space-y-3 rounded-[var(--radius-card)] border border-[color:var(--line)] bg-white/82 p-6">
         <Form
           action="/admin/cutting"
           className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(240px,1.5fr)_180px_155px_155px_190px_auto] xl:items-end"

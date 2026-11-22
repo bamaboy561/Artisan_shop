@@ -282,7 +282,7 @@ export default async function ProductionRequestPage({
       <section className="border-y border-[color:var(--line)] bg-white p-4 sm:p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0">
-            <p className="font-mono text-[10px] tracking-[0.18em] text-[var(--accent)] uppercase">
+            <p className="text-xs font-semibold text-[var(--accent)]">
               Производственный заказ
             </p>
             <h1 className="mt-1 text-2xl font-bold break-words text-[var(--foreground)]">

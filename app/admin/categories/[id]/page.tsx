@@ -62,12 +62,12 @@ export default async function EditCategoryPage({
 
   return (
     <div className="space-y-4">
-      <section className="surface-glow rounded-[24px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-6 sm:p-8">
+      <section className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-[var(--surface-strong)] p-6 sm:p-8">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div>
             <Link
               href="/admin/categories"
-              className="text-xs font-medium text-[var(--accent)] transition hover:text-[#9d573d]"
+              className="text-xs font-medium text-[var(--accent)] transition hover:text-[var(--accent-strong)]"
             >
               ← К списку категорий
             </Link>
@@ -115,7 +115,7 @@ export default async function EditCategoryPage({
         <input type="hidden" name="id" value={category.id} />
 
         <section className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-          <article className="surface-glow rounded-[24px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-5 sm:p-6">
+          <article className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-[var(--surface-strong)] p-5 sm:p-6">
             <SectionHeading
               title="Основные настройки"
               description="Эти поля влияют на адрес, название и поведение категории в каталоге."
@@ -215,7 +215,7 @@ export default async function EditCategoryPage({
             </div>
           </article>
 
-          <aside className="surface-glow rounded-[24px] border border-[color:var(--line)] bg-[#1f2b25] p-5 text-white sm:p-6">
+          <aside className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-[var(--solid)] p-5 text-white sm:p-6">
             <p className="text-xs font-medium text-white/45">Подсказка</p>
             <h2 className="mt-3 text-2xl font-semibold tracking-[-0.04em]">
               Что важно заполнить
@@ -238,7 +238,7 @@ export default async function EditCategoryPage({
         </section>
 
         <section className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-          <article className="surface-glow rounded-[24px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-5 sm:p-6">
+          <article className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-[var(--surface-strong)] p-5 sm:p-6">
             <SectionHeading
               title="Описание и витрина"
               description="Тексты и изображения, которые используются на публичной странице категории."
@@ -292,7 +292,7 @@ export default async function EditCategoryPage({
             </div>
           </article>
 
-          <article className="surface-glow rounded-[24px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-5 sm:p-6">
+          <article className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-[var(--surface-strong)] p-5 sm:p-6">
             <SectionHeading
               title="SEO"
               description="Можно оставить пустым: сайт использует название и описание категории."
@@ -323,7 +323,7 @@ export default async function EditCategoryPage({
           </article>
         </section>
 
-        <section className="surface-glow sticky bottom-3 z-10 flex flex-col gap-3 rounded-[20px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-4 shadow-[0_18px_50px_rgba(30,28,25,0.08)] sm:flex-row sm:items-center sm:justify-between">
+        <section className="surface-glow sticky bottom-3 z-10 flex flex-col gap-3 rounded-[var(--radius-inner)] border border-[color:var(--line)] bg-[var(--surface-strong)] p-4 shadow-[0_18px_50px_rgba(30,28,25,0.08)] sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm leading-6 text-[var(--muted)]">
             После сохранения обновятся админка и публичная страница категории.
           </p>

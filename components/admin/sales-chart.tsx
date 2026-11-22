@@ -36,13 +36,13 @@ export function SalesChart({
 
   return (
     <div className="grid gap-4 xl:grid-cols-[1.4fr_1fr]">
-      <div className="rounded-lg border border-[#ece8e2] bg-[#fbfaf8] p-4 sm:p-5">
+      <div className="rounded-lg border border-[color:var(--line)] bg-[var(--surface)] p-4 sm:p-5">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h3 className="text-sm font-semibold text-[#1b1c19]">
+          <h3 className="text-sm font-semibold text-[var(--foreground)]">
             Выручка по дням
           </h3>
           {bestDay && bestDay.revenue > 0 ? (
-            <p className="text-xs text-[#6e6b63]">
+            <p className="text-xs text-[var(--muted)]">
               Лучший день: {formatDay(bestDay.date)},{" "}
               {numberFormatter.format(bestDay.revenue)} сом
             </p>
@@ -65,7 +65,8 @@ export function SalesChart({
                   x2="100"
                   y1={chartHeight - line * (chartHeight - 8)}
                   y2={chartHeight - line * (chartHeight - 8)}
-                  stroke="#e3ddd2"
+                  style={{ stroke: "var(--line)" }}
+                  strokeDasharray="3 3"
                   strokeWidth="1"
                   vectorEffect="non-scaling-stroke"
                 />
@@ -86,7 +87,13 @@ export function SalesChart({
                     y={chartHeight - height}
                     width={step * 0.7}
                     height={height}
-                    fill={day.date === bestDay?.date ? "#a94730" : "#d8a391"}
+                    rx={step * 0.12}
+                    style={{
+                      fill:
+                        day.date === bestDay?.date
+                          ? "var(--accent)"
+                          : "color-mix(in srgb, var(--accent) 38%, var(--surface-strong))",
+                    }}
                   >
                     <title>
                       {`${formatDay(day.date)}: ${numberFormatter.format(day.revenue)} сом, заказов: ${day.orders}`}
@@ -95,21 +102,21 @@ export function SalesChart({
                 );
               })}
             </svg>
-            <div className="mt-2 flex justify-between text-[11px] text-[#8a857d]">
+            <div className="mt-2 flex justify-between text-[11px] text-[var(--muted)]">
               <span>{formatDay(days[0].date)}</span>
               <span>макс. {numberFormatter.format(maxRevenue)} сом</span>
               <span>{formatDay(days[days.length - 1].date)}</span>
             </div>
           </>
         ) : (
-          <p className="mt-6 text-sm leading-6 text-[#6e6b63]">
+          <p className="mt-6 text-sm leading-6 text-[var(--muted)]">
             За выбранный период подтверждённых продаж нет.
           </p>
         )}
       </div>
 
-      <div className="rounded-lg border border-[#ece8e2] bg-[#fbfaf8] p-4 sm:p-5">
-        <h3 className="text-sm font-semibold text-[#1b1c19]">
+      <div className="rounded-lg border border-[color:var(--line)] bg-[var(--surface)] p-4 sm:p-5">
+        <h3 className="text-sm font-semibold text-[var(--foreground)]">
           Продажи по брендам
         </h3>
         {topBrands.length > 0 ? (
@@ -117,16 +124,16 @@ export function SalesChart({
             {topBrands.map((brand) => (
               <li key={brand.name} className="grid gap-1.5">
                 <div className="flex items-baseline justify-between gap-3 text-sm">
-                  <span className="min-w-0 truncate font-medium text-[#1b1c19]">
+                  <span className="min-w-0 truncate font-medium text-[var(--foreground)]">
                     {brand.name}
                   </span>
-                  <span className="shrink-0 text-[#5f5b55]">
+                  <span className="shrink-0 text-[var(--muted)]">
                     {numberFormatter.format(brand.revenue)} сом · {brand.share}%
                   </span>
                 </div>
-                <div className="h-2 overflow-hidden rounded-full bg-[#ece8e2]">
+                <div className="h-2 overflow-hidden rounded-full bg-[var(--surface-muted)]">
                   <div
-                    className="h-full rounded-full bg-[#a94730]"
+                    className="h-full rounded-full bg-[var(--accent)]"
                     style={{
                       width: `${maxBrandRevenue > 0 ? Math.max((brand.revenue / maxBrandRevenue) * 100, 2) : 0}%`,
                     }}
@@ -136,7 +143,7 @@ export function SalesChart({
             ))}
           </ul>
         ) : (
-          <p className="mt-6 text-sm leading-6 text-[#6e6b63]">
+          <p className="mt-6 text-sm leading-6 text-[var(--muted)]">
             Продажи по брендам появятся после первых заказов за период.
           </p>
         )}

@@ -85,7 +85,7 @@ export default async function EditPromotionPage({
 
       <form
         action={updatePromotionAction}
-        className="surface-glow grid gap-5 rounded-[28px] border border-[color:var(--line)] bg-white/82 p-5 sm:p-6"
+        className="surface-glow grid gap-5 rounded-[var(--radius-card)] border border-[color:var(--line)] bg-white/82 p-5 sm:p-6"
       >
         <input type="hidden" name="mode" value="full" />
         <input type="hidden" name="id" value={promotion.id} />

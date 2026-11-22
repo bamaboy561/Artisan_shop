@@ -44,7 +44,7 @@ export default async function AdminCategoriesPage() {
 
   return (
     <div className="space-y-4">
-      <section className="surface-glow rounded-[24px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-5 sm:p-8">
+      <section className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-[var(--surface-strong)] p-5 sm:p-8">
         <SectionHeading
           title="Категории каталога"
           description="Менеджеру достаточно добавить название и тип. Технический адрес страницы, порядок и базовые подсказки система подготовит сама."
@@ -54,7 +54,7 @@ export default async function AdminCategoriesPage() {
       </section>
 
       <section className="grid items-start gap-4 2xl:grid-cols-[420px_minmax(0,1fr)]">
-        <article className="surface-glow rounded-[24px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-5 sm:p-6 2xl:sticky 2xl:top-24">
+        <article className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-[var(--surface-strong)] p-5 sm:p-6 2xl:sticky 2xl:top-24">
           <SectionHeading
             title="Новая категория"
             description="Упрощенная форма для быстрого добавления разделов без технических лишних полей."
@@ -65,7 +65,7 @@ export default async function AdminCategoriesPage() {
           <CategoryCreateForm />
         </article>
 
-        <article className="surface-glow min-w-0 overflow-hidden rounded-[24px] border border-[color:var(--line)] bg-[var(--surface-strong)]">
+        <article className="surface-glow min-w-0 overflow-hidden rounded-[var(--radius-card)] border border-[color:var(--line)] bg-[var(--surface-strong)]">
           <div className="flex flex-col gap-4 border-b border-[color:var(--line)] p-5 sm:p-6 lg:flex-row lg:items-start lg:justify-between">
             <SectionHeading
               title="Список категорий"
@@ -87,17 +87,17 @@ export default async function AdminCategoriesPage() {
                 return (
                   <section
                     key={category.id}
-                    className="grid min-w-0 gap-4 rounded-[22px] border border-[color:var(--line)] bg-white/78 p-4 transition hover:border-[#d8cec2] hover:bg-white sm:p-5 xl:grid-cols-[minmax(0,1fr)_auto]"
+                    className="grid min-w-0 gap-4 rounded-[var(--radius-card)] border border-[color:var(--line)] bg-white/78 p-4 transition hover:border-[color:var(--line-strong)] hover:bg-white sm:p-5 xl:grid-cols-[minmax(0,1fr)_auto]"
                   >
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <Link
                           href={`/admin/categories/${category.id}`}
-                          className="text-xl font-semibold tracking-[-0.03em] text-[var(--foreground)] transition hover:text-[#9d573d]"
+                          className="text-xl font-semibold tracking-[-0.03em] text-[var(--foreground)] transition hover:text-[var(--accent-strong)]"
                         >
                           {category.name}
                         </Link>
-                        <span className="rounded-full border border-[color:var(--line)] bg-[#f7f4ef] px-3 py-1 text-xs font-medium text-[var(--muted)]">
+                        <span className="rounded-full border border-[color:var(--line)] bg-[var(--surface)] px-3 py-1 text-xs font-medium text-[var(--muted)]">
                           /catalog/{category.slug}
                         </span>
                         <StatusBadge tone="neutral">
@@ -109,7 +109,7 @@ export default async function AdminCategoriesPage() {
                       </div>
 
                       <div className="mt-4 grid gap-3 text-sm leading-6 text-[var(--muted)] md:grid-cols-2">
-                        <div className="rounded-2xl border border-[color:var(--line)] bg-[#faf8f4] p-3">
+                        <div className="rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] p-3">
                           <p className="text-xs font-medium text-[var(--muted)]">
                             Индикатор
                           </p>
@@ -117,7 +117,7 @@ export default async function AdminCategoriesPage() {
                             {category.indicator ?? "Не указан"}
                           </p>
                         </div>
-                        <div className="rounded-2xl border border-[color:var(--line)] bg-[#faf8f4] p-3">
+                        <div className="rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] p-3">
                           <p className="text-xs font-medium text-[var(--muted)]">
                             Сценарий заказа
                           </p>

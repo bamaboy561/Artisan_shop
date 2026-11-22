@@ -80,13 +80,13 @@ export function ProductImportForm({
         </label>
       </div>
 
-      <details className="rounded-[18px] border border-[color:var(--line)] bg-white/70 p-3 open:bg-white/86">
+      <details className="rounded-[var(--radius-inner)] border border-[color:var(--line)] bg-white/70 p-3 open:bg-white/86">
         <summary className="cursor-pointer list-none text-xs font-medium text-[var(--accent)]">
           Параметры импорта
         </summary>
 
         <div className="mt-3 grid gap-3 border-t border-[color:var(--line)] pt-3">
-          <div className="rounded-2xl border border-[#eadfd4] bg-[#fbf6ef] p-3 text-xs leading-5 text-[var(--muted)]">
+          <div className="rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] p-3 text-xs leading-5 text-[var(--muted)]">
             Статус из Excel игнорируется для новых товаров: сначала проверка,
             потом публикация через массовое действие.
           </div>
@@ -162,7 +162,7 @@ export function ProductImportForm({
               defaultChecked
               label="Обновлять по SKU"
               description="Если артикул уже есть, карточка обновится вместо дубля."
-              className="rounded-2xl bg-[#faf8f4] px-3 py-2"
+              className="rounded-2xl bg-[var(--surface)] px-3 py-2"
             />
             <Checkbox
               name="createMissingRelations"
@@ -170,14 +170,14 @@ export function ProductImportForm({
               defaultChecked
               label="Создавать бренды и категории"
               description="Новые значения из файла будут добавлены автоматически."
-              className="rounded-2xl bg-[#faf8f4] px-3 py-2"
+              className="rounded-2xl bg-[var(--surface)] px-3 py-2"
             />
             <Checkbox
               name="moveUpdatedToDraft"
               value="on"
               label="Обновленные тоже в черновики"
               description="Если нужно снять с витрины товары, обновленные из файла."
-              className="rounded-2xl bg-[#faf8f4] px-3 py-2"
+              className="rounded-2xl bg-[var(--surface)] px-3 py-2"
             />
             <Checkbox
               name="importAttributes"
@@ -185,7 +185,7 @@ export function ProductImportForm({
               defaultChecked
               label="Лишние колонки в характеристики"
               description="Цвет, декор, покрытие и другие поля сохранятся в карточке."
-              className="rounded-2xl bg-[#faf8f4] px-3 py-2"
+              className="rounded-2xl bg-[var(--surface)] px-3 py-2"
             />
           </div>
         </div>

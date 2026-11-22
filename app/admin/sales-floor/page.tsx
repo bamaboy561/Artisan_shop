@@ -85,10 +85,10 @@ export default async function SalesFloorPage({
 
   return (
     <div className="space-y-4">
-      <section className="overflow-hidden rounded-[28px] border border-[#24231f] bg-[#141411] text-white shadow-[0_22px_70px_rgba(20,20,17,0.18)]">
+      <section className="overflow-hidden rounded-[var(--radius-card)] border border-[color:var(--solid)] bg-[var(--solid)] text-white shadow-[0_22px_70px_rgba(20,20,17,0.18)]">
         <div className="grid gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
           <div>
-            <p className="font-mono text-[10px] tracking-[0.24em] text-white/42 uppercase">
+            <p className="text-xs font-semibold text-white/42">
               Рабочее место менеджера
             </p>
             <h1 className="mt-2 text-3xl font-semibold tracking-[-0.05em] sm:text-4xl">
@@ -102,7 +102,7 @@ export default async function SalesFloorPage({
           </div>
 
           <div className="flex items-center gap-3 rounded-3xl bg-white/[0.075] p-3">
-            <span className="flex size-12 items-center justify-center rounded-2xl bg-white text-[#111]">
+            <span className="flex size-12 items-center justify-center rounded-2xl bg-white text-[var(--foreground)]">
               <ShoppingBag className="size-6" strokeWidth={1.8} />
             </span>
             <div>

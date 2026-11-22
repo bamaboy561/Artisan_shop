@@ -566,15 +566,13 @@ export function SalesFloorForm({
       <input type="hidden" name="submissionId" ref={submissionIdRef} />
       <input type="hidden" name="invoiceReference" value={invoiceReference} />
 
-      <section className="rounded-[28px] border border-[color:var(--line)] bg-white p-4 shadow-[0_18px_50px_rgba(30,28,25,0.05)]">
+      <section className="rounded-[var(--radius-card)] border border-[color:var(--line)] bg-white p-4 shadow-[0_18px_50px_rgba(30,28,25,0.05)]">
         <div className="flex items-center gap-3">
-          <span className="flex size-11 items-center justify-center rounded-2xl bg-[#111] text-white">
+          <span className="flex size-11 items-center justify-center rounded-2xl bg-[var(--solid)] text-white">
             <UserRound className="size-5" strokeWidth={1.8} />
           </span>
           <div>
-            <p className="font-mono text-[10px] tracking-[0.2em] text-[var(--accent)] uppercase">
-              Клиент
-            </p>
+            <p className="text-xs font-semibold text-[var(--accent)]">Клиент</p>
             <h2 className="text-xl font-semibold tracking-[-0.03em]">
               Выберите покупателя
             </h2>
@@ -620,8 +618,8 @@ export function SalesFloorForm({
                 className={cn(
                   "rounded-2xl border p-3 text-left transition",
                   active
-                    ? "border-[#111] bg-[#111] text-white"
-                    : "border-[color:var(--line)] bg-[#faf8f4] hover:border-[#c65b3a]",
+                    ? "border-[color:var(--solid)] bg-[var(--solid)] text-white"
+                    : "border-[color:var(--line)] bg-[var(--surface)] hover:border-[color:var(--accent)]",
                 )}
               >
                 <p className="font-semibold">{getCustomerName(customer)}</p>
@@ -651,21 +649,21 @@ export function SalesFloorForm({
             );
           })}
           {customerLoading ? (
-            <div className="rounded-2xl border border-[color:var(--line)] bg-[#faf8f4] p-3 text-sm text-[var(--muted)]">
+            <div className="rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] p-3 text-sm text-[var(--muted)]">
               Ищем клиента...
             </div>
           ) : null}
           {!customerLoading && customerResults.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-[color:var(--line-strong)] bg-[#faf8f4] p-3 text-sm text-[var(--muted)]">
+            <div className="rounded-2xl border border-dashed border-[color:var(--line-strong)] bg-[var(--surface)] p-3 text-sm text-[var(--muted)]">
               Клиент не найден.
             </div>
           ) : null}
         </div>
 
-        <div className="mt-4 rounded-2xl border border-[color:var(--line)] bg-[#faf8f4] p-3">
+        <div className="mt-4 rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] p-3">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
-              <p className="font-mono text-[10px] tracking-[0.18em] text-[var(--accent)] uppercase">
+              <p className="text-xs font-semibold text-[var(--accent)]">
                 QR клиента
               </p>
               <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
@@ -675,7 +673,7 @@ export function SalesFloorForm({
             <button
               type="button"
               onClick={scannerActive ? stopScanner : startScanner}
-              className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-[#111] text-white transition hover:bg-[#c65b3a]"
+              className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-[var(--solid)] text-white transition hover:bg-[var(--accent-strong)]"
               aria-label={
                 scannerActive ? "Остановить QR-сканер" : "Открыть QR-сканер"
               }
@@ -724,17 +722,15 @@ export function SalesFloorForm({
         </div>
       </section>
 
-      <section className="rounded-[28px] border border-[color:var(--line)] bg-white p-4 shadow-[0_18px_50px_rgba(30,28,25,0.05)]">
+      <section className="rounded-[var(--radius-card)] border border-[color:var(--line)] bg-white p-4 shadow-[0_18px_50px_rgba(30,28,25,0.05)]">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <p className="font-mono text-[10px] tracking-[0.2em] text-[var(--accent)] uppercase">
-              Товары
-            </p>
+            <p className="text-xs font-semibold text-[var(--accent)]">Товары</p>
             <h2 className="text-xl font-semibold tracking-[-0.03em]">
               Добавьте позиции
             </h2>
           </div>
-          <span className="rounded-full bg-[#f4e7df] px-3 py-1.5 text-sm text-[#8b442c]">
+          <span className="rounded-full bg-[var(--accent-soft)] px-3 py-1.5 text-sm text-[var(--accent)]">
             {items.length} поз.
           </span>
         </div>
@@ -776,9 +772,9 @@ export function SalesFloorForm({
                 type="button"
                 onClick={() => addProduct(product.id)}
                 disabled={isOutOfStock}
-                className="grid gap-3 rounded-2xl border border-[color:var(--line)] bg-[#faf8f4] p-2.5 text-left transition hover:border-[#c65b3a] hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
+                className="grid gap-3 rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] p-2.5 text-left transition hover:border-[color:var(--accent)] hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
               >
-                <div className="relative aspect-[1.25/1] overflow-hidden rounded-xl bg-[#eee8de]">
+                <div className="relative aspect-[1.25/1] overflow-hidden rounded-xl bg-[var(--surface-muted)]">
                   <ProductImage
                     src={product.images[0]?.url}
                     alt={product.name}
@@ -812,22 +808,20 @@ export function SalesFloorForm({
             );
           })}
           {productLoading ? (
-            <div className="rounded-2xl border border-[color:var(--line)] bg-[#faf8f4] p-3 text-sm text-[var(--muted)] sm:col-span-2">
+            <div className="rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] p-3 text-sm text-[var(--muted)] sm:col-span-2">
               Ищем товары...
             </div>
           ) : null}
           {!productLoading && productResults.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-[color:var(--line-strong)] bg-[#faf8f4] p-3 text-sm text-[var(--muted)] sm:col-span-2">
+            <div className="rounded-2xl border border-dashed border-[color:var(--line-strong)] bg-[var(--surface)] p-3 text-sm text-[var(--muted)] sm:col-span-2">
               Товары не найдены. Проверьте название, артикул или бренд.
             </div>
           ) : null}
         </div>
       </section>
 
-      <section className="rounded-[28px] border border-[#171614] bg-[#111] p-4 text-white shadow-[0_22px_70px_rgba(17,17,17,0.18)]">
-        <p className="font-mono text-[10px] tracking-[0.2em] text-white/42 uppercase">
-          Продажа
-        </p>
+      <section className="rounded-[var(--radius-card)] border border-[color:var(--solid)] bg-[var(--solid)] p-4 text-white shadow-[0_22px_70px_rgba(17,17,17,0.18)]">
+        <p className="text-xs font-semibold text-white/42">Продажа</p>
         <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em]">
           {selectedCustomer
             ? getCustomerName(selectedCustomer)
@@ -1017,7 +1011,7 @@ export function SalesFloorForm({
           disabled={invoiceEditing || !selectedCustomerId || !items.length}
           idleLabel="Оплачено и выдано"
           pendingLabel="Сохраняем..."
-          className="mt-5 h-12 w-full rounded-full bg-white text-[#111] hover:bg-[#f4e7df]"
+          className="mt-5 h-12 w-full rounded-full bg-white text-[var(--foreground)] hover:bg-[var(--accent-soft)]"
         />
       </section>
     </form>

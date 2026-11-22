@@ -86,10 +86,10 @@ function AdminNavItem({ item, pathname }: { item: NavItem; pathname: string }) {
       href={item.href}
       title={item.description ?? item.label}
       className={cn(
-        "group flex h-10 shrink-0 items-center justify-between gap-3 rounded-lg px-3 text-[13px] font-medium transition focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:outline-none lg:w-full",
+        "group flex h-10 shrink-0 items-center justify-between gap-3 rounded-lg px-3 text-[13px] font-medium transition focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none lg:w-full",
         active
-          ? "bg-[var(--accent)] text-[var(--accent-ink)] shadow-[0_10px_24px_rgba(196,83,43,0.3)]"
-          : "text-white/78 hover:bg-white/[0.08] hover:text-white",
+          ? "bg-[var(--sidebar-active-bg)] font-semibold text-[var(--sidebar-active-fg)]"
+          : "text-[var(--sidebar-muted)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--sidebar-fg)]",
       )}
     >
       <span className="flex min-w-0 items-center gap-3">
@@ -100,7 +100,9 @@ function AdminNavItem({ item, pathname }: { item: NavItem; pathname: string }) {
         <span
           className={cn(
             "min-w-6 rounded-full px-2 py-0.5 text-center text-[11px] font-semibold",
-            active ? "bg-white/18 text-white" : "bg-white/12 text-white/72",
+            active
+              ? "bg-[var(--accent)] text-[var(--accent-ink)]"
+              : "bg-[var(--sidebar-hover)] text-[var(--sidebar-fg)]",
           )}
         >
           {item.badge}

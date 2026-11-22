@@ -28,7 +28,7 @@ export function getButtonClassName(
   className?: string,
 ) {
   return cn(
-    "inline-flex items-center justify-center gap-2 rounded-full font-semibold shadow-none transition duration-200 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] focus-visible:outline-none disabled:pointer-events-none disabled:opacity-45",
+    "inline-flex items-center justify-center gap-2 rounded-[var(--radius-control,9999px)] font-semibold shadow-none transition duration-200 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] focus-visible:outline-none disabled:pointer-events-none disabled:opacity-45",
     buttonVariants[variant],
     buttonSizes[size],
     className,

@@ -21,7 +21,7 @@ export function MetricCard({
   tone = "accent",
 }: MetricCardProps) {
   return (
-    <div className="min-w-0 rounded-[20px] border border-[color:var(--line)] bg-white p-3.5 sm:p-4">
+    <div className="min-w-0 rounded-[var(--radius-inner)] border border-[color:var(--line)] bg-white p-3.5 sm:p-4">
       <div className="flex items-center justify-between gap-3">
         <p className="text-xs font-medium text-[var(--muted)]">{label}</p>
         <span className={cn("size-2 rounded-full", toneMap[tone])} />

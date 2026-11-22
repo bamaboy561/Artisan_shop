@@ -380,7 +380,7 @@ export default async function AdminUsersPage({
           </div>
 
           {user.loyaltyTransactions.length > 0 ? (
-            <div className="grid gap-2 rounded-2xl border border-[color:var(--line)] bg-[#fff8f3] p-3">
+            <div className="grid gap-2 rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] p-3">
               <p className="text-xs font-semibold text-[var(--foreground)]">
                 Ожидают подтверждения
               </p>
@@ -427,7 +427,7 @@ export default async function AdminUsersPage({
 
   return (
     <div className="space-y-4">
-      <section className="surface-glow rounded-[24px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-6 sm:p-8">
+      <section className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-[var(--surface-strong)] p-6 sm:p-8">
         <SectionHeading
           title="Клиенты и программа лояльности"
           description="Здесь команда управляет уровнями Bronze, Silver, Gold и Platinum, балансами и ручными операциями по баллам каждого клиента."
@@ -439,7 +439,7 @@ export default async function AdminUsersPage({
       <NewClientForm returnTo="users" />
 
       {!mayManageLoyalty ? (
-        <section className="rounded-[18px] border border-orange-200 bg-orange-50 p-4 text-sm leading-6 text-orange-800">
+        <section className="rounded-[var(--radius-inner)] border border-orange-200 bg-orange-50 p-4 text-sm leading-6 text-orange-800">
           Менять правила бонусов, уровни, баллы и личные скидки, а также удалять
           клиентов может администратор или менеджер, которому он выдал это право
           в разделе «Сотрудники». Ваши изменения в этих полях не сохранятся.
@@ -447,7 +447,7 @@ export default async function AdminUsersPage({
       ) : null}
 
       {telegramNotice ? (
-        <section className="overflow-hidden rounded-[24px] border border-[#68a994]/40 bg-[#f4fffb] p-5 shadow-[0_16px_48px_rgba(74,137,118,0.12)]">
+        <section className="overflow-hidden rounded-[var(--radius-card)] border border-[#68a994]/40 bg-[#f4fffb] p-5 shadow-[0_16px_48px_rgba(74,137,118,0.12)]">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-xs font-medium text-[#2f7f68]">
@@ -490,7 +490,7 @@ export default async function AdminUsersPage({
       </section>
 
       {reachability && reachability.total > 0 ? (
-        <section className="surface-glow rounded-[20px] border border-[color:var(--line)] bg-white/88 p-4 sm:p-5">
+        <section className="surface-glow rounded-[var(--radius-inner)] border border-[color:var(--line)] bg-white/88 p-4 sm:p-5">
           <h2 className="text-base font-semibold text-[var(--foreground)]">
             Кому сайт может сам написать
           </h2>
@@ -524,7 +524,7 @@ export default async function AdminUsersPage({
         </section>
       ) : null}
 
-      <section className="surface-glow rounded-[20px] border border-[color:var(--line)] bg-white/88 p-4 sm:p-5">
+      <section className="surface-glow rounded-[var(--radius-inner)] border border-[color:var(--line)] bg-white/88 p-4 sm:p-5">
         <form
           action="/admin/users"
           className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto_auto]"
@@ -573,7 +573,7 @@ export default async function AdminUsersPage({
         </form>
       </section>
 
-      <section className="surface-glow rounded-[24px] border border-[color:var(--line)] bg-white/86 p-5 sm:p-6">
+      <section className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-white/86 p-5 sm:p-6">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <p className="text-xs font-medium text-[var(--accent)]">
@@ -600,7 +600,7 @@ export default async function AdminUsersPage({
           action={updateLoyaltyProgramSettingsAction}
           className="mt-5 grid gap-4"
         >
-          <div className="rounded-[18px] border border-[color:var(--line)] bg-[var(--surface)] p-4">
+          <div className="rounded-[var(--radius-inner)] border border-[color:var(--line)] bg-[var(--surface)] p-4">
             <p className="text-sm font-semibold text-[var(--foreground)]">
               Оплата бонусами до {loyaltyConfig.maxRedeemPercent}% заказа
             </p>
@@ -617,7 +617,7 @@ export default async function AdminUsersPage({
               return (
                 <fieldset
                   key={tier}
-                  className="rounded-[20px] border border-[color:var(--line)] bg-[var(--surface)] p-4"
+                  className="rounded-[var(--radius-inner)] border border-[color:var(--line)] bg-[var(--surface)] p-4"
                 >
                   <legend className="px-1 text-sm font-semibold text-[var(--foreground)]">
                     {getLoyaltyTierLabel(tier, loyaltyConfig)}

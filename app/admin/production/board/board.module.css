@@ -1,6 +1,6 @@
 .board {
   min-width: 0;
-  color: #1d2420;
+  color: var(--foreground);
 }
 .heading {
   display: flex;
@@ -19,7 +19,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #61736b;
+  color: var(--muted);
   font-size: 12px;
 }
 .listLink {
@@ -28,12 +28,13 @@
   gap: 6px;
   min-height: 40px;
   padding: 0 14px;
-  border: 1px solid #b8c2bc;
+  border: 1px solid var(--line-strong);
   font-size: 14px;
   font-weight: 600;
+  border-radius: var(--radius-control);
 }
 .listLink:hover {
-  border-color: #1d2420;
+  border-color: var(--foreground);
 }
 .success,
 .error {
@@ -45,11 +46,13 @@
   border: 1px solid #a7d7bd;
   background: #ecf8f1;
   color: #155c3a;
+  border-radius: var(--radius-control);
 }
 .error {
   border: 1px solid #f0b4b4;
   background: #fdf0f0;
   color: #9b1c1c;
+  border-radius: var(--radius-control);
 }
 .summary {
   display: grid;
@@ -59,8 +62,9 @@
 }
 .summary div {
   padding: 10px 12px;
-  border: 1px solid #dce2dd;
-  background: #fff;
+  border: 1px solid var(--line);
+  background: var(--surface-strong);
+  border-radius: var(--radius-control);
 }
 .summary div[data-tone="bad"] {
   border-color: #e7a3a3;
@@ -72,7 +76,7 @@
 }
 .summary dt {
   font-size: 12px;
-  color: #5f6a64;
+  color: var(--muted);
 }
 .summary dd {
   margin: 2px 0 0;
@@ -92,8 +96,9 @@
 .column {
   min-width: 0;
   padding: 10px;
-  background: #f1f4f2;
-  border: 1px solid #dce2dd;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
 }
 .columnHead {
   display: flex;
@@ -110,7 +115,7 @@
   min-width: 26px;
   padding: 1px 8px;
   border-radius: 999px;
-  background: #fff;
+  background: var(--surface-strong);
   font-size: 13px;
   font-weight: 650;
   text-align: center;
@@ -118,7 +123,7 @@
 .columnHint {
   margin: 2px 0 10px;
   font-size: 12px;
-  color: #5f6a64;
+  color: var(--muted);
 }
 .cards {
   display: grid;
@@ -132,16 +137,17 @@
   padding: 16px 0;
   text-align: center;
   font-size: 13px;
-  color: #8a948e;
+  color: var(--muted);
 }
 .card {
   display: grid;
   gap: 4px;
   min-width: 0;
   padding: 10px;
-  background: #fff;
-  border: 1px solid #dce2dd;
-  border-left: 4px solid #dce2dd;
+  background: var(--surface-strong);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--line);
+  border-radius: var(--radius-control);
 }
 .card[data-due="today"] {
   border-left-color: #e0a100;
@@ -157,7 +163,7 @@
   background: #fffbeb;
 }
 .card[data-highlighted] {
-  outline: 2px solid #22664e;
+  outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
 .cardTop {
@@ -168,7 +174,7 @@
 }
 .cardNumber {
   font-weight: 700;
-  color: #22664e;
+  color: var(--accent);
 }
 .cardNumber:hover {
   text-decoration: underline;
@@ -182,7 +188,7 @@
 .meta {
   margin: 0;
   font-size: 12px;
-  color: #4e5953;
+  color: var(--muted);
   overflow-wrap: anywhere;
 }
 .meta:empty {
@@ -211,13 +217,14 @@
   justify-content: center;
   margin-top: 6px;
   padding: 8px 10px;
-  border: 1px solid #22664e;
-  color: #22664e;
+  border: 1px solid var(--accent);
+  color: var(--accent);
   font-size: 13px;
   font-weight: 600;
+  border-radius: var(--radius-control);
 }
 .issueLink:hover {
-  background: #22664e;
+  background: var(--accent);
   color: #fff;
 }
 .problemHint {
@@ -239,7 +246,7 @@
 .report {
   margin-top: 24px;
   padding-top: 16px;
-  border-top: 2px solid #dce2dd;
+  border-top: 2px solid var(--line);
 }
 .reportHead {
   display: flex;
@@ -272,13 +279,14 @@
   gap: 4px;
   min-height: 36px;
   padding: 0 12px;
-  border: 1px solid #b8c2bc;
-  background: #fff;
+  border: 1px solid var(--line-strong);
+  background: var(--surface-strong);
   font-size: 13px;
   font-weight: 600;
+  border-radius: var(--radius-control);
 }
 .reportNav a:hover {
-  border-color: #1d2420;
+  border-color: var(--foreground);
 }
 .summary div[data-tone="good"] {
   border-color: #a7d7bd;
@@ -286,8 +294,9 @@
 }
 .reportTable {
   overflow-x: auto;
-  border: 1px solid #dce2dd;
-  background: #fff;
+  border: 1px solid var(--line);
+  background: var(--surface-strong);
+  border-radius: var(--radius-control);
 }
 .reportTable table {
   width: 100%;
@@ -299,13 +308,13 @@
 .reportTable th,
 .reportTable td {
   padding: 8px 10px;
-  border-bottom: 1px solid #eef1ef;
+  border-bottom: 1px solid var(--line);
   text-align: left;
 }
 .reportTable thead th {
   font-size: 12px;
   font-weight: 600;
-  color: #5f6a64;
+  color: var(--muted);
 }
 .reportTable tbody th {
   font-weight: 600;
@@ -329,8 +338,9 @@
 .reportList {
   margin-top: 12px;
   padding: 10px 12px;
-  border: 1px solid #dce2dd;
-  background: #fff;
+  border: 1px solid var(--line);
+  background: var(--surface-strong);
+  border-radius: var(--radius-control);
 }
 .reportLists .reportList {
   margin-top: 0;
@@ -352,7 +362,7 @@
   flex-wrap: wrap;
   gap: 4px 10px;
   padding: 5px 0;
-  border-top: 1px solid #eef1ef;
+  border-top: 1px solid var(--line);
   font-size: 13px;
 }
 .reportList li a {
@@ -360,7 +370,7 @@
   text-decoration: underline;
 }
 .reportList li span {
-  color: #5f6a64;
+  color: var(--muted);
 }
 .shiftStrip {
   display: flex;
@@ -369,12 +379,13 @@
   gap: 6px 14px;
   margin: 0 0 16px;
   padding: 10px 14px;
-  border: 1px solid #dce2dd;
-  background: #fff;
+  border: 1px solid var(--line);
+  background: var(--surface-strong);
   font-size: 14px;
+  border-radius: var(--radius-control);
 }
 .shiftStrip:hover {
-  border-color: #1d2420;
+  border-color: var(--foreground);
 }
 .shiftStrip span[data-tone="bad"] {
   color: #9b1c1c;
