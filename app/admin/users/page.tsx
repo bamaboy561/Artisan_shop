@@ -467,7 +467,7 @@ export default async function AdminUsersPage({
         </section>
       ) : null}
 
-      <section className="grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-3">
+      <section className="grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-3 [&>*:last-child:nth-child(odd)]:col-span-2 md:[&>*:last-child:nth-child(odd)]:col-span-1">
         <MetricCard
           label={userSearchQuery ? "Найдено" : "Клиенты"}
           value={users.length}

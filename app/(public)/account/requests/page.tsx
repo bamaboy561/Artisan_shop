@@ -291,15 +291,16 @@ export default async function AccountRequestsPage() {
       <DataTable
         columns={[
           { key: "request", label: "Заявка" },
-          { key: "service", label: "Содержание" },
+          { key: "service", label: "Содержание", wide: true },
           { key: "clientFiles", label: "Ваши файлы" },
           { key: "status", label: "Статус" },
-          { key: "production", label: "Этап распила" },
+          { key: "production", label: "Этап распила", wide: true },
           { key: "result", label: "Расчет и файлы" },
           { key: "history", label: "История" },
           { key: "manager", label: "Менеджер" },
         ]}
         rows={rows}
+        layout="cards"
         caption="Заявки"
         emptyMessage="Когда вы отправите первое обращение, оно появится здесь."
       />

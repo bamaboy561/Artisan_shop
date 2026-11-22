@@ -77,7 +77,8 @@ function PageEditor({ page }: { page: SitePage }) {
           <Select
             name="status"
             defaultValue={page.status}
-            className="h-9 w-40 text-xs"
+            className="h-9 text-xs"
+            wrapperClassName="w-40 shrink-0"
           >
             {Object.values(PageStatus).map((status) => (
               <option key={status} value={status}>
@@ -351,7 +352,7 @@ export default async function AdminContentPage() {
         />
       </section>
 
-      <section className="grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-3">
+      <section className="grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-3 [&>*:last-child:nth-child(odd)]:col-span-2 md:[&>*:last-child:nth-child(odd)]:col-span-1">
         <MetricCard
           label="Страницы"
           value={pages.length}

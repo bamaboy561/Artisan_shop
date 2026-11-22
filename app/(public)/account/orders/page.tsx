@@ -100,12 +100,12 @@ export default async function AccountOrdersPage() {
       </div>
     ),
     items: (
-      <div className="max-h-56 min-w-[16rem] space-y-3 overflow-y-auto pr-1">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {order.items.length > 0 ? (
           order.items.map((item) => (
             <div
               key={item.id}
-              className="border-b border-[color:var(--line)] pb-2 last:border-0 last:pb-0"
+              className="min-w-0 rounded-xl border border-[color:var(--line)] bg-[var(--surface-strong)] p-3"
             >
               <p className="text-sm leading-5 font-medium text-[var(--foreground)]">
                 {item.snapshotName}
@@ -216,7 +216,7 @@ export default async function AccountOrdersPage() {
       <DataTable
         columns={[
           { key: "order", label: "Заказ" },
-          { key: "items", label: "Состав покупки" },
+          { key: "items", label: "Состав покупки", wide: true },
           { key: "delivery", label: "Получение и скидка" },
           { key: "status", label: "Статус" },
           { key: "production", label: "Производство" },
@@ -225,6 +225,7 @@ export default async function AccountOrdersPage() {
           { key: "updated", label: "Обновлён" },
         ]}
         rows={rows}
+        layout="cards"
         caption="Заказы"
         emptyMessage="После первого оформления заказа история появится здесь."
       />

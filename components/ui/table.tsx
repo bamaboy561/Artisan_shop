@@ -3,6 +3,8 @@ import type { ReactNode } from "react";
 type Column = {
   key: string;
   label: string;
+  // В режиме layout="cards" поле занимает всю ширину карточки.
+  wide?: boolean;
 };
 
 type Row = Record<string, ReactNode>;
@@ -15,6 +17,9 @@ type DataTableProps = {
   variant?: "card" | "embedded";
   // "alert" — строка подсвечивается красным (например, новая заявка с сайта).
   rowTones?: Array<"alert" | undefined>;
+  // "cards" — карточки на любой ширине (для узких колонок, например в кабинете,
+  // где 8 столбцов таблицы не помещаются и текст ломается по слову в строке).
+  layout?: "auto" | "cards";
 };
 
 export function DataTable({
@@ -24,8 +29,10 @@ export function DataTable({
   emptyMessage = "Данные появятся здесь после первых операций.",
   variant = "card",
   rowTones,
+  layout = "auto",
 }: DataTableProps) {
   const isEmbedded = variant === "embedded";
+  const cardsOnly = layout === "cards";
 
   return (
     <div
@@ -36,7 +43,11 @@ export function DataTable({
       }
     >
       {rows.length > 0 ? (
-        <div className="grid gap-3 p-3 lg:hidden">
+        <div
+          className={
+            cardsOnly ? "grid gap-3 p-3 sm:p-4" : "grid gap-3 p-3 lg:hidden"
+          }
+        >
           {rows.map((row, rowIndex) => (
             <article
               key={`card-row-${rowIndex}`}
@@ -46,11 +57,21 @@ export function DataTable({
                   : "rounded-[18px] border border-[color:var(--line)] bg-[#fbfaf8] p-3.5 text-sm text-[var(--foreground)]"
               }
             >
-              <div className="grid gap-3">
+              <div
+                className={
+                  cardsOnly
+                    ? "grid gap-3 sm:grid-cols-2 sm:gap-x-6 sm:gap-y-4 xl:grid-cols-3"
+                    : "grid gap-3"
+                }
+              >
                 {columns.map((column) => (
                   <div
                     key={column.key}
-                    className="grid gap-1 border-b border-[color:var(--line)] pb-2.5 last:border-0 last:pb-0"
+                    className={
+                      cardsOnly
+                        ? `grid min-w-0 content-start gap-1 border-b border-[color:var(--line)] pb-2.5 last:border-0 last:pb-0 sm:border-0 sm:pb-0 ${column.wide ? "sm:col-span-2 xl:col-span-3" : ""}`
+                        : "grid gap-1 border-b border-[color:var(--line)] pb-2.5 last:border-0 last:pb-0"
+                    }
                   >
                     <p className="text-xs font-medium text-[var(--muted)]">
                       {column.label}
@@ -63,12 +84,22 @@ export function DataTable({
           ))}
         </div>
       ) : (
-        <div className="px-5 py-10 text-center text-sm leading-6 text-[var(--muted)] lg:hidden">
+        <div
+          className={
+            cardsOnly
+              ? "px-5 py-10 text-center text-sm leading-6 text-[var(--muted)]"
+              : "px-5 py-10 text-center text-sm leading-6 text-[var(--muted)] lg:hidden"
+          }
+        >
           {emptyMessage}
         </div>
       )}
 
-      <div className="hidden max-w-full overflow-x-auto lg:block">
+      <div
+        className={
+          cardsOnly ? "hidden" : "hidden max-w-full overflow-x-auto lg:block"
+        }
+      >
         <table className="min-w-full border-collapse text-left text-sm">
           {caption ? <caption className="sr-only">{caption}</caption> : null}
           <thead className="bg-[var(--surface-strong)]">

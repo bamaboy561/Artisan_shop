@@ -394,7 +394,7 @@ function KpiCard({
   compactValue?: boolean;
 }) {
   return (
-    <article className="min-w-0 rounded-[var(--radius-inner)] border border-[color:var(--line)] bg-white p-3.5 sm:p-5">
+    <article className="@container min-w-0 rounded-[var(--radius-inner)] border border-[color:var(--line)] bg-white p-3.5 sm:p-5">
       <div className="flex items-start justify-between gap-3">
         <span className="text-[13px] text-[var(--muted)] sm:text-sm">
           {label}
@@ -405,8 +405,10 @@ function KpiCard({
         />
       </div>
       <p
-        className={`mt-4 leading-tight font-semibold [overflow-wrap:anywhere] text-[var(--foreground)] ${
-          compactValue ? "text-base sm:text-xl" : "text-lg sm:text-[26px]"
+        className={`mt-4 leading-tight font-semibold text-[var(--foreground)] tabular-nums ${
+          compactValue
+            ? "text-base @[13rem]:text-xl"
+            : "text-base @[10rem]:text-lg @[14rem]:text-[26px]"
         }`}
       >
         {value}
@@ -431,7 +433,7 @@ function ReportStat({
   icon: LucideIcon;
 }) {
   return (
-    <div className="min-w-0 rounded-lg border border-[color:var(--line)] bg-[var(--surface)] p-4">
+    <div className="@container min-w-0 rounded-lg border border-[color:var(--line)] bg-[var(--surface)] p-4">
       <div className="flex items-start justify-between gap-3">
         <p className="text-xs font-medium text-[var(--muted)]">{label}</p>
         <Icon
@@ -439,7 +441,7 @@ function ReportStat({
           strokeWidth={1.8}
         />
       </div>
-      <p className="mt-3 text-lg leading-tight font-semibold [overflow-wrap:anywhere] text-[var(--foreground)] sm:text-2xl">
+      <p className="mt-3 text-base leading-tight font-semibold text-[var(--foreground)] tabular-nums @[10rem]:text-lg @[13rem]:text-2xl">
         {value}
       </p>
       <p className="mt-2 text-xs leading-5 text-[var(--muted)]">{detail}</p>
@@ -821,7 +823,7 @@ export default async function AdminPage({
           </div>
         </div>
 
-        <div className="mt-5 grid grid-cols-2 gap-2.5 sm:gap-3 xl:grid-cols-5">
+        <div className="mt-5 grid grid-cols-2 gap-2.5 sm:gap-3 xl:grid-cols-5 [&>*:last-child:nth-child(odd)]:col-span-2 xl:[&>*:last-child:nth-child(odd)]:col-span-1">
           <ReportStat
             label="Продажи"
             value={formatCurrency(executiveReport.sales.revenue)}

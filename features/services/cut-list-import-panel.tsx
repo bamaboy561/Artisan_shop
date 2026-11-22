@@ -338,7 +338,7 @@ export function CutListImportPanel({
           <Button
             variant={isOpen ? "secondary" : "accent"}
             onClick={() => setIsOpen((current) => !current)}
-            className="w-full sm:w-auto"
+            className="w-full px-3 text-[13px] whitespace-nowrap sm:w-auto sm:px-5 sm:text-sm"
           >
             <ClipboardPaste className="size-4" />
             Вставить список
@@ -347,7 +347,7 @@ export function CutListImportPanel({
             variant="secondary"
             onClick={() => fileInputRef.current?.click()}
             disabled={isReadingFile}
-            className="w-full sm:w-auto"
+            className="w-full px-3 text-[13px] whitespace-nowrap sm:w-auto sm:px-5 sm:text-sm"
           >
             <Upload className="size-4" />
             {isReadingFile ? "Читаем файл…" : "Excel / Базис"}

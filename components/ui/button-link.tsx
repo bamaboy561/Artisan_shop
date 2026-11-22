@@ -33,7 +33,7 @@ export function ButtonLink({
       className={cn(getButtonClassName(variantMap[variant], "md"), className)}
       {...props}
     >
-      <span>{children}</span>
+      <span className="inline-flex min-w-0 items-center gap-2">{children}</span>
       {icon ? <ArrowUpRight className="size-4" strokeWidth={1.8} /> : null}
     </Link>
   );

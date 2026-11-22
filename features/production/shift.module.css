@@ -448,3 +448,43 @@
     font-size: 13px;
   }
 }
+
+/* Вёрстка: системные select/checkbox приведены к виду остальных полей. */
+.select {
+  appearance: none;
+  padding-right: 34px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%237a7268' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+}
+.section input[type="checkbox"],
+.section input[type="radio"] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--accent);
+  flex-shrink: 0;
+}
+.table label,
+.field > span:has(> input[type="checkbox"]) {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  margin-top: 8px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.inline .field {
+  flex: 1 1 200px;
+}
+.inline .field:has(> span > input[type="checkbox"]) {
+  flex: 0 0 auto;
+}
+.inline .field .input,
+.inline .field .select {
+  width: 100%;
+}
+.section > p:not(.hint) {
+  font-size: 14px;
+}
