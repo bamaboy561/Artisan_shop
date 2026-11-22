@@ -5,6 +5,7 @@ import {
   CalendarDays,
   Check,
   FileUp,
+  Layers,
   Search,
   UserRound,
   X,
@@ -17,6 +18,7 @@ import {
 import { BazisFilePreview } from "@/components/bazis/bazis-file-preview";
 import { CuttingExtrasFields } from "@/components/cutting/cutting-extras-fields";
 import { CuttingMaterialFields } from "@/components/cutting/cutting-material-fields";
+import { MaterialLinesEditor } from "@/components/cutting/material-lines-editor";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -355,36 +357,12 @@ export function CuttingRequestForm({ customers }: CuttingRequestFormProps) {
               Производство
             </p>
             <h2 className="text-lg font-semibold text-[var(--foreground)]">
-              Материал и срок
+              Срок и работы
             </h2>
           </div>
         </div>
 
         <div className="mt-5 grid gap-4">
-          <label className="grid gap-2 text-sm font-medium">
-            Материалы / листы
-            <Input
-              name="material"
-              maxLength={500}
-              placeholder="Например: МДФ 18 мм, Albero A-01"
-              required
-            />
-          </label>
-          <label className="grid gap-2 text-sm font-medium">
-            Количество листов ЛДСП
-            <Input
-              name="cuttingSheetCount"
-              type="number"
-              min={1}
-              max={10000}
-              step={1}
-              inputMode="numeric"
-              placeholder="Например: 12"
-            />
-            <span className="text-xs font-normal text-[var(--muted)]">
-              Можно заполнить позже в карточке заявки.
-            </span>
-          </label>
           <div className="grid gap-2 border border-[color:var(--line)] p-3">
             <p className="text-sm font-medium">
               Другие работы: ХДФ, HPL, столешница, утолщёнка, Gola
@@ -394,32 +372,6 @@ export function CuttingRequestForm({ customers }: CuttingRequestFormProps) {
             </p>
             <CuttingMaterialFields />
           </div>
-          <label className="grid gap-2 text-sm font-medium">
-            Кромка
-            <Input
-              name="edgeOption"
-              maxLength={240}
-              placeholder="Например: 0,8 × 22 мм, белая, код 101"
-            />
-            <span className="text-xs font-normal text-[var(--muted)]">
-              Можно указать толщину, ширину, цвет и артикул кромки.
-            </span>
-          </label>
-          <label className="grid gap-2 text-sm font-medium">
-            Кромка, пог. м
-            <Input
-              name="cuttingEdgeMeters"
-              type="number"
-              min={0}
-              max={100000}
-              step={0.1}
-              inputMode="decimal"
-              placeholder="Например: 48,5"
-            />
-            <span className="text-xs font-normal text-[var(--muted)]">
-              Общий метраж кромки по заявке.
-            </span>
-          </label>
           <details className="border border-[color:var(--line)] p-3">
             <summary className="cursor-pointer text-sm font-medium">
               Присадка и фрезеровка
@@ -459,6 +411,32 @@ export function CuttingRequestForm({ customers }: CuttingRequestFormProps) {
               placeholder="Номер проекта Giblab или примечание"
             />
           </label>
+        </div>
+      </section>
+
+      <section
+        id="materials"
+        className="border border-[color:var(--line)] bg-white p-5 sm:p-6 xl:col-span-2"
+      >
+        <div className="flex items-center gap-3">
+          <span className="flex size-10 shrink-0 items-center justify-center bg-[var(--foreground)] text-white">
+            <Layers className="size-4.5" strokeWidth={1.8} />
+          </span>
+          <div>
+            <p className="font-mono text-[10px] font-semibold tracking-[0.16em] text-[var(--accent)] uppercase">
+              Материалы
+            </p>
+            <h2 className="text-lg font-semibold text-[var(--foreground)]">
+              Листы и кромка
+            </h2>
+            <p className="text-xs text-[var(--muted)]">
+              Выберите из магазина или отметьте «Привозной», если материал
+              клиента. Строк можно добавить сколько нужно.
+            </p>
+          </div>
+        </div>
+        <div className="mt-5">
+          <MaterialLinesEditor />
         </div>
       </section>
 

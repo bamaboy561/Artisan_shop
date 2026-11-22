@@ -1,6 +1,16 @@
 "use server";
 
 import { setStaffAccountAccessAction } from "@/app/admin/staff/actions";
+import {
+  parseMaterialLines,
+  summarizeMaterialLines,
+  type MaterialLine,
+} from "@/features/cutting/material-lines";
+import {
+  getRequestMaterialLines,
+  replaceRequestMaterialLines,
+  resolveStockMaterialLines,
+} from "@/lib/server/request-material-lines";
 
 import {
   productionBoardPath,
@@ -4437,6 +4447,17 @@ function formatAdminCuttingDeadline(value: string | null) {
   }).format(parsed);
 }
 
+// Строки «Листы» и «Кромка» из редактора материалов заказа.
+async function materialLinesFromForm(
+  formData: FormData,
+): Promise<
+  { ok: true; lines: MaterialLine[] } | { ok: false; message: string }
+> {
+  const parsed = parseMaterialLines(getString(formData, "materialLines"));
+  if (!parsed.ok) return parsed;
+  return resolveStockMaterialLines(parsed.lines);
+}
+
 export async function createAdminCuttingRequestAction(
   _previousState: AdminCuttingRequestFormState,
   formData: FormData,
@@ -4451,10 +4472,24 @@ export async function createAdminCuttingRequestAction(
   }
 
   const customerId = getOptionalString(formData, "customerId");
-  const material = getString(formData, "material");
-  const cuttingSheetCount = getOptionalInt(formData, "cuttingSheetCount");
-  const cuttingEdgeMeters = getOptionalFloat(formData, "cuttingEdgeMeters");
-  const edgeOption = getOptionalString(formData, "edgeOption")?.slice(0, 240);
+  const materialLinesInput = await materialLinesFromForm(formData);
+
+  if (!materialLinesInput.ok) {
+    return { message: materialLinesInput.message };
+  }
+
+  const materialLines = materialLinesInput.lines;
+  const materialSummary = summarizeMaterialLines(materialLines);
+  const material =
+    materialSummary.material ?? getString(formData, "material").slice(0, 500);
+  const cuttingSheetCount =
+    materialSummary.sheetCount ?? getOptionalInt(formData, "cuttingSheetCount");
+  const cuttingEdgeMeters =
+    materialSummary.edgeMeters ??
+    getOptionalFloat(formData, "cuttingEdgeMeters");
+  const edgeOption =
+    materialSummary.edgeOption ??
+    getOptionalString(formData, "edgeOption")?.slice(0, 240);
   // Без даты в форме — норма цеха: 7 дней от сегодня.
   const deadlineValue =
     getOptionalString(formData, "deadline") ??
@@ -4466,7 +4501,10 @@ export async function createAdminCuttingRequestAction(
   const extrasInput = cuttingExtrasFromForm(formData);
 
   if (material.length < 2) {
-    return { message: "Укажите материал для распила." };
+    return {
+      message:
+        "Добавьте хотя бы один лист: выберите из магазина или отметьте «Привозной».",
+    };
   }
 
   if (!extrasInput.ok) {
@@ -4614,6 +4652,13 @@ export async function createAdminCuttingRequestAction(
       },
     );
 
+    if (materialLines.length) {
+      // Сводка уже в заявке; строки — для таблицы в карточке и в цеху.
+      await replaceRequestMaterialLines(createdRequest.id, materialLines).catch(
+        (error) => console.error("[cutting:material-lines]", error),
+      );
+    }
+
     // Срок из формы сразу попадает в план производства, а не только в текст.
     if (deadlineValue && deadline) {
       await saveProductionPlan({
@@ -4696,11 +4741,53 @@ export async function updateRequestCuttingDetailsAction(formData: FormData) {
     return;
   }
 
-  const material = getString(formData, "material").slice(0, 500);
-  const cuttingSheetCount = getOptionalInt(formData, "cuttingSheetCount");
-  const cuttingEdgeMeters = getOptionalFloat(formData, "cuttingEdgeMeters");
-  const edgeOption =
+  const errorRedirect = (message: string): never =>
+    redirect(
+      `/admin/requests/${encodeURIComponent(requestId)}?materialsError=${encodeURIComponent(message)}#materials`,
+    );
+  // Новый редактор присылает строки; старая форма — только текст.
+  const fromEditor = getString(formData, "materialLinesForm") === "1";
+  let materialLines: MaterialLine[] | null = null;
+  let material = getString(formData, "material").slice(0, 500);
+  let edgeOption =
     getOptionalString(formData, "edgeOption")?.slice(0, 240) ?? null;
+  let cuttingSheetCount = getOptionalInt(formData, "cuttingSheetCount");
+  let cuttingEdgeMeters = getOptionalFloat(formData, "cuttingEdgeMeters");
+
+  if (fromEditor) {
+    const linesInput = await materialLinesFromForm(formData);
+    if (!linesInput.ok) errorRedirect(linesInput.message);
+    materialLines = linesInput.ok ? linesInput.lines : [];
+    // Старый заказ переводят на строки по частям: листы и кромку считаем
+    // отдельно, чтобы правка одного вида не стёрла текст другого.
+    const savedLines = await getRequestMaterialLines(requestId);
+    const hadSheetLines = savedLines.some((line) => line.kind === "SHEET");
+    const hadEdgeLines = savedLines.some((line) => line.kind === "EDGE");
+    const summary = summarizeMaterialLines(materialLines);
+    material =
+      summary.material ??
+      (hadSheetLines ? "" : (request.material ?? "").slice(0, 500));
+    edgeOption =
+      summary.edgeOption ??
+      (hadEdgeLines ? null : (request.edgeOption ?? null));
+    cuttingSheetCount = summary.sheetCount ?? cuttingSheetCount;
+    cuttingEdgeMeters = summary.edgeMeters ?? cuttingEdgeMeters;
+    if (material.length < 2) {
+      errorRedirect(
+        "Добавьте хотя бы один лист: выберите из магазина или отметьте «Привозной».",
+      );
+    }
+  }
+
+  if (
+    fromEditor &&
+    ((cuttingSheetCount !== null &&
+      (cuttingSheetCount < 1 || cuttingSheetCount > 10000)) ||
+      (cuttingEdgeMeters !== null &&
+        (cuttingEdgeMeters < 0 || cuttingEdgeMeters > 100000)))
+  ) {
+    errorRedirect("Проверьте количество листов и метраж кромки.");
+  }
 
   if (
     material.length < 2 ||
@@ -4719,6 +4806,17 @@ export async function updateRequestCuttingDetailsAction(formData: FormData) {
     cuttingEdgeMeters,
     edgeOption,
   });
+
+  if (materialLines) {
+    try {
+      await replaceRequestMaterialLines(requestId, materialLines);
+    } catch (error) {
+      console.error("[cutting:material-lines]", error);
+      errorRedirect(
+        "Сводка сохранена, но список строк не записался. Повторите сохранение.",
+      );
+    }
+  }
 
   await logOperationEvent({
     entityType: "request",

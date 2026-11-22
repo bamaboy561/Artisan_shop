@@ -524,6 +524,7 @@ model Request {
   linkedOrders          Order[]          @relation("RequestLinkedOrders")
   productionPlan        ProductionPlan?
   cuttingWorkflow       CuttingWorkflow?
+  materialLines         RequestMaterialLine[]
   createdAt             DateTime         @default(now())
   updatedAt             DateTime         @updatedAt
 
@@ -549,6 +550,30 @@ model ProductionDeadlineAlert {
   key     String   @id
   sentAt  DateTime
   payload String?
+}
+
+// Строки «Материалы и кромка» заказа на распил: лист или кромка из
+// магазина (productId) или привозные. Таблицу создаёт и
+// lib/server/request-material-lines.ts; модель здесь, чтобы prisma db push
+// её не удалял.
+model RequestMaterialLine {
+  id          String   @id
+  requestId   String
+  request     Request  @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  kind        String
+  source      String
+  productId   String?
+  name        String
+  sku         String?
+  thicknessMm Float?
+  widthMm     Float?
+  format      String?
+  quantity    Float?
+  note        String?
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  @@index([requestId, sortOrder])
 }
 
 // Срочность и «Проблема» по заявке на распил. На продакшене таблица

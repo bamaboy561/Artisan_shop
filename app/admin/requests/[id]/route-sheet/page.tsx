@@ -22,6 +22,8 @@ import {
 import { getRequestDetailById } from "@/lib/server/request-inbox";
 import { getCuttingRequestQuote } from "@/lib/server/cutting-pricing";
 import { formatPrice } from "@/lib/commerce";
+import { MaterialLinesTable } from "@/components/cutting/material-lines-table";
+import { getRequestMaterialLines } from "@/lib/server/request-material-lines";
 
 type RouteSheetPageProps = {
   params: Promise<{ id: string }>;
@@ -137,6 +139,7 @@ export default async function RouteSheetPage({ params }: RouteSheetPageProps) {
 
   const requestNumber = request.number ?? request.id.slice(0, 8).toUpperCase();
   const gibLabCode = await getGibLabProjectCode(request.id, request.files);
+  const materialLines = await getRequestMaterialLines(request.id);
   const requestUrl = absoluteUrl(`/admin/production/${request.id}`);
   const qrUrl = `/api/qr?data=${encodeURIComponent(requestUrl)}&size=320&margin=1`;
   const currentStage = request.cuttingStage
@@ -223,10 +226,12 @@ export default async function RouteSheetPage({ params }: RouteSheetPageProps) {
                 : "Не рассчитана"
             }
           />
-          <RouteField
-            label="Материал"
-            value={request.material ?? request.product?.name ?? "Не указан"}
-          />
+          {materialLines.some((line) => line.kind === "SHEET") ? null : (
+            <RouteField
+              label="Материал"
+              value={request.material ?? request.product?.name ?? "Не указан"}
+            />
+          )}
           <RouteField
             label="Количество листов"
             value={
@@ -235,10 +240,12 @@ export default async function RouteSheetPage({ params }: RouteSheetPageProps) {
                 : "Не указано"
             }
           />
-          <RouteField
-            label="Кромка"
-            value={request.edgeOption ?? "Не указана"}
-          />
+          {materialLines.some((line) => line.kind === "EDGE") ? null : (
+            <RouteField
+              label="Кромка"
+              value={request.edgeOption ?? "Не указана"}
+            />
+          )}
           <RouteField
             label="Кромка, пог. м"
             value={
@@ -262,6 +269,12 @@ export default async function RouteSheetPage({ params }: RouteSheetPageProps) {
             value={request.cuttingPickupCell || "Назначается при готовности"}
           />
         </section>
+
+        {materialLines.length ? (
+          <section className="mt-[5mm] border-t border-black pt-[3mm]">
+            <MaterialLinesTable lines={materialLines} print />
+          </section>
+        ) : null}
 
         {quote && quote.lines.length > 0 ? (
           <section className="mt-[7mm] break-inside-avoid">
