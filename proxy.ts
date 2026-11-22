@@ -15,6 +15,19 @@ export async function proxy(request: NextRequest) {
 
   const isAccountRoute = pathname.startsWith("/account");
   const isAdminRoute = pathname.startsWith("/admin");
+  // Программа раскроя цеха — только для сотрудников с доступом в админку.
+  const isRaskroyRoute = pathname === "/raskroy" || pathname === "/raskroy/index.html";
+
+  if (isRaskroyRoute) {
+    if (!session?.userId) {
+      const loginUrl = new URL("/login", request.url);
+      loginUrl.searchParams.set("next", "/raskroy");
+      return NextResponse.redirect(loginUrl);
+    }
+    if (!session.roleCode || !canAccessAdmin(session.roleCode)) {
+      return NextResponse.redirect(new URL("/account", request.url));
+    }
+  }
 
   if ((isAccountRoute || isAdminRoute) && !session?.userId) {
     const next = getSafeRedirectPath(`${pathname}${search}`, "/account");
@@ -41,5 +54,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/account/:path*", "/admin/:path*", "/login", "/register"],
+  matcher: ["/account/:path*", "/admin/:path*", "/login", "/register", "/raskroy", "/raskroy/index.html"],
 };

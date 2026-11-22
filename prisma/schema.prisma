@@ -720,6 +720,19 @@ model ProductionGibLabOrder {
   @@index([queuedAt])
 }
 
+// Проект программы раскроя (/raskroy) по заявке на распил. Таблицу
+// создаёт и lib/server/raskroy.ts; модель здесь, чтобы prisma db push её не удалял.
+model RaskroyProject {
+  requestId   String   @id
+  data        String
+  sheets      Int?
+  edgeMeters  Float?
+  total       Int?
+  savedById   String?
+  savedByName String?
+  updatedAt   DateTime @default(now())
+}
+
 model RequestFile {
   id                String          @id @default(cuid())
   requestId         String
