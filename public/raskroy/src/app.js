@@ -5,6 +5,7 @@ import * as core from './core/index.js';
 import { labelSvg, partLabelData, offcutLabelData, TEMPLATES } from './labels.js';
 import { reportPdf, labelsPdf, saveFile } from './pdf.js';
 import * as site from './site.js';
+import * as mach from './machines.js';
 
 const $ = s => document.querySelector(s);
 const fmt = (n, d = 0) => Number(n || 0).toLocaleString('ru-RU', { minimumFractionDigits: d, maximumFractionDigits: d });
@@ -28,6 +29,14 @@ let stock = store.get('stock', []);
 let ledger = store.get('stockops', []); // складские операции по заказам (см. core/stockops.js)
 const sheetPrices = store.get('sheetPrices', {});
 let P = null, R = null, C = null, E = null;
+/* Вид программы на этом компьютере: тема и размер текста. */
+let look = { theme: 'light', size: 'm', ...store.get('look', {}) };
+function applyLook() {
+  const r = document.documentElement;
+  if (look.theme === 'auto') delete r.dataset.theme; else r.dataset.theme = look.theme;
+  if (look.size === 'm') delete r.dataset.size; else r.dataset.size = look.size;
+}
+applyLook();
 let ui = { screen: 'project', top: 'ops', op: null, sub: 'parts', sheet: 0, paste: false, ...store.get('ui', {}) };
 let undo = [], redo = [];
 let catalog = { materials: [], bands: [], ...store.get('catalog', {}) };
@@ -60,9 +69,10 @@ const F = {
     ['Остаток'], ['offMin1', 'Мин. размер первой стороны, мм', 'num', 'p'], ['offMin2', 'Мин. размер второй стороны, мм', 'num', 'p'],
     ['offArea', 'Мин. площадь остатка, м²', 'num', 'p', 0.01], ['useStock', 'Брать остатки со склада', 'chk', 'p'],
     ['Стоимость работы'], ['cutMode', 'Распил считать', 'sel', 'p'], ['cutPrice', 'Цена распила, сом', 'num', 'p']],
-  CN: [...F_MAT, ['Фреза'], ['toolD', 'Диаметр фрезы, мм', 'num', 'p'], ['overcut', 'Выступ снизу, мм', 'num', 'p', 0.1],
+  CN: [...F_MAT, ['Фреза'], ['toolD', 'Диаметр фрезы, мм', 'num', 'p'], ['overcut', 'Заход в стол, мм', 'num', 'p', 0.1],
     ['spindle', 'Обороты S', 'num', 'p'], ['feedXY', 'Подача XY, мм/мин', 'num', 'p'], ['feedZ', 'Подача Z, мм/мин', 'num', 'p'],
-    ['safeZ', 'Отвод Z, мм', 'num', 'p'], ['Раскрой'], ['trimL', 'Торцовка по длине, мм', 'num', 'p', 1, 'trim'], ['trimW', 'Торцовка по ширине, мм', 'num', 'p', 1, 'trim'], ['grain', 'Текстура', 'sel', 'p'],
+    ['lift', 'Отвод над листом, мм', 'num', 'p'], ['preCut', 'Предрез перед чистовым обходом', 'chk', 'p'], ['preStep', 'Предрез: шаг по глубине, мм', 'num', 'p', 0.1],
+    ['preLeave', 'Предрез: оставить слой, мм', 'num', 'p', 0.1], ['Раскрой'], ['trimL', 'Торцовка по длине, мм', 'num', 'p', 1, 'trim'], ['trimW', 'Торцовка по ширине, мм', 'num', 'p', 1, 'trim'], ['grain', 'Текстура', 'sel', 'p'],
     ['Остаток'], ['offMin1', 'Мин. размер первой стороны, мм', 'num', 'p'], ['offMin2', 'Мин. размер второй стороны, мм', 'num', 'p'],
     ['Стоимость работы'], ['millPrice', 'Фрезеровка контура, сом за м', 'num', 'p']],
   EL: [['Кромка'], ['name', 'Наименование', 'text', 'b'], ['code', 'Код', 'text', 'b'], ['t', 'Толщина, мм', 'num', 'b', 0.1],
@@ -82,8 +92,11 @@ const F_BASE = [['Пила'], ['kerf', 'Толщина пилы, мм', 'num', '
   ['dir', 'Первые резы', 'sel', 'base'], ['grain', 'Текстура', 'sel', 'base'], ['minPart', 'Мин. размер детали, мм', 'num', 'base'],
   ['offMin1', 'Деловой остаток от, мм', 'num', 'base'], ['offMin2', 'и шириной от, мм', 'num', 'base'], ['useStock', 'Брать остатки со склада', 'chk', 'base'],
   ['Кромка'], ['edgeAdd', 'Свес на сторону, мм', 'num', 'base'], ['edgeWaste', 'Отход, %', 'num', 'base'], ['joint', 'Прифуговка, мм', 'num', 'base', 0.5],
-  ['ЧПУ Excitech'], ['toolD', 'Фреза, мм', 'num', 'base'], ['overcut', 'Выступ снизу, мм', 'num', 'base', 0.5], ['spindle', 'Обороты S', 'num', 'base'],
-  ['feedXY', 'Подача XY, мм/мин', 'num', 'base'], ['feedZ', 'Подача Z, мм/мин', 'num', 'base'], ['safeZ', 'Отвод Z, мм', 'num', 'base'], ['cncDraft', 'Показывать черновик G-кода (только для сверки)', 'chk', 'base'],
+  ['ЧПУ Excitech'], ['toolD', 'Фреза, мм', 'num', 'base'], ['overcut', 'Заход в стол, мм', 'num', 'base', 0.1], ['spindle', 'Обороты S', 'num', 'base'],
+  ['feedXY', 'Подача XY, мм/мин', 'num', 'base'], ['feedZ', 'Подача Z, мм/мин', 'num', 'base'], ['lift', 'Отвод над листом, мм', 'num', 'base'],
+  ['preCut', 'Предрез перед чистовым обходом', 'chk', 'base'], ['preStep', 'Предрез: шаг по глубине, мм', 'num', 'base', 0.1], ['preLeave', 'Предрез: оставить слой, мм', 'num', 'base', 0.1],
+  ['lead', 'Заход на деталь от угла, мм', 'num', 'base'], ['overlap', 'Перекрытие в конце обхода, мм', 'num', 'base', 0.5],
+  ['drillTools', 'Свёрла: диаметр=номер T', 'text', 'base'], ['cncDraft', 'Показывать текст программы ЧПУ на карте', 'chk', 'base'],
   ['Ограничения станков (0 — не проверять)'], ['sawMaxL', 'Пила: макс. длина листа, мм', 'num', 'base'], ['sawMaxW', 'Пила: макс. ширина листа, мм', 'num', 'base'],
   ['cncMaxL', 'ЧПУ: макс. длина листа, мм', 'num', 'base'], ['cncMaxW', 'ЧПУ: макс. ширина листа, мм', 'num', 'base'],
   ['Расценки, сом'], ['cutMode', 'Распил считать', 'sel', 'base'], ['cutPrice', 'Цена распила', 'num', 'base'], ['edgePrice', 'Кромкование за м', 'num', 'base'],
@@ -683,10 +696,11 @@ function subCut(op) {
       <h3 style="margin-top:12px">Не разложено${r.unplaced.length ? ': ' + r.unplaced.length : ''}</h3>
       ${r.unplaced.length ? `<div class="tbl"><table><tbody>${r.unplaced.map((u, i) => `<tr><td class="n">№${u.p.id}</td><td>${esc(u.p.name)}</td><td class="n">${u.l}×${u.w}</td><td><button class="btn xs" data-put="${i}">На эту карту</button></td></tr>`).join('')}</tbody></table></div>` : '<p class="note">Все детали на картах.</p>'}
       <div class="row" style="margin-top:10px"><button class="btn sm" id="eSheet">Добавить пустой лист</button>${!s.items.length ? '<button class="btn sm" id="eDelSheet">Убрать пустой лист</button>' : ''}<button class="btn sm primary" id="eDone">Готово</button></div>`
-    : cnc ? (base.cncDraft ? `<div class="row" style="justify-content:space-between"><h3>Черновик программы NCStudio</h3></div>
-      <textarea class="code" id="gcode" readonly aria-label="Черновик G-кода">${esc(core.gcode(P.name, op.m, s, g.i, x.o))}</textarea>
-      <p class="note warn"><span class="badge">черновик</span> Только для сверки. На станке не запускать, пока постпроцессор не сверен с вашим файлом .nc.</p>`
-      : `<h3>Программа для ЧПУ</h3><p class="note">Выгрузка на Excitech появится после сверки с образцом файла .nc со станка. Каждый лист показан отдельно, со своей присадкой. Черновик кода для сверки включается в «Настройках».</p>`)
+    : cnc ? (() => { const pr = core.excitechProgram(op.m, s, x.o); return `<div class="row" style="justify-content:space-between"><h3>Программа для Excitech</h3>
+      <div class="row">${mach.canUseFolders() ? '<button class="btn sm primary" id="cncSend">Отправить на станок</button>' : ''}<button class="btn sm ${mach.canUseFolders() ? '' : 'primary'}" id="cncZip">Скачать архив</button></div></div>
+      <p class="note">Для каждого листа: программа F<i>N</i>_<i>N</i>.anc, программа этикетировщика Label_F<i>N</i>_<i>N</i>.cyc и картинки этикеток .bmp. Формат как в файлах со станка цеха. ${mach.canUseFolders() ? '«Отправить на станок» кладёт их в папку нестинга, выбранную в «Настройках».' : 'Прямая отправка в папку станка работает в Chrome или Edge на компьютере.'} Первый лист после обновления проверьте холостым ходом.</p>
+      ${pr.warnings.map(w => `<p class="note warn">${esc(w)}</p>`).join('')}
+      ${base.cncDraft ? `<textarea class="code" id="gcode" readonly aria-label="Программа ЧПУ">${esc(pr.text)}</textarea>` : ''}`; })()
     : `<h3>Таблица резов</h3><div class="tbl cuts"><table><thead><tr><th>№</th><th>Рез</th><th class="r">От</th><th class="r">Длина</th></tr></thead><tbody>
       ${s.cuts.map((c, i) => `<tr><td class="n">${i + 1}</td><td>${c.d === 'T' ? 'Торцовка' : c.d === 'H' ? 'Продольный' : 'Поперечный'}</td><td class="n">${c.d === 'T' ? '' : c.d === 'H' ? 'Y ' + fmt(c.y + s.ty, 1) : 'X ' + fmt(c.x + s.tx, 1)}</td><td class="n">${fmt(c.len, 1)}${c.d === 'T' ? ' ×2' : ''}</td></tr>`).join('')}
       </tbody></table></div><p class="note">Продольный — рез вдоль длины листа, поперечный — поперёк. Координата от края листа, мм. Выгрузка на пилу Homag появится после образца файла с пилы.</p>`;
@@ -736,6 +750,8 @@ function bindEdit(op, pan, x) {
   const ms = () => m.manual.sheets[g.s.mi];
   const tidy = () => { m.manual.sheets = m.manual.sheets.filter(q => q.items.length || q.keep); };
   pan.querySelectorAll('#eReset').forEach(b => b.onclick = () => { ui.edit = null; change(() => { delete m.manual; }); });
+  on('cncZip', () => cncFiles(op, x, $('#cncZip'), false));
+  on('cncSend', () => cncFiles(op, x, $('#cncSend'), true));
   on('eStart', () => { ui.edit = op.key; ui.qi = null; ui.sheet = r.manual ? ui.sheet : 0; if (r.manual) return render(); change(() => { m.manual = core.snapshotManual(r); }); });
   on('eDone', () => { ui.qi = null; setUi({ edit: null, sheet: 0 }); });
   if (ui.edit !== op.key || !r.manual || !g) return;
@@ -897,12 +913,38 @@ function renderCatalog(main) {
   const table = kind => `<div class="tbl"><table data-cat="${kind}"><thead><tr>${cols[kind].map(c => `<th${c[2] ? '' : ' class="r"'}>${c[1]}</th>`).join('')}<th></th></tr></thead><tbody>
     ${catalog[kind].map((c, i) => `<tr data-i="${i}">${cols[kind].map(([k, , t]) => `<td><input class="cell ${t ? 'name' : ''}" data-ck="${k}" ${t ? '' : 'type="number" step="any"'} value="${esc(c[k] ?? '')}" aria-label="${k}"></td>`).join('')}<td><button class="btn xs" data-cdel aria-label="Удалить">✕</button></td></tr>`).join('') || `<tr><td colspan="9" class="empty">Пусто. Добавьте строку или сохраните материал из операции кнопкой «Сохранить в каталог».</td></tr>`}
     </tbody></table></div><button class="btn sm" data-cadd="${kind}" style="margin-top:6px">Добавить</button>`;
-  main.innerHTML = `<section class="panel">${screenHead('Каталог материалов')}<p class="note">Свои материалы и кромки с ценами. В операции во вкладке «Параметры» выберите из каталога, и цены с размерами подставятся сами.</p>
+  main.innerHTML = `${siteCatalogPanel()}<section class="panel">${screenHead(siteCat ? 'Свой каталог' : 'Каталог материалов')}<p class="note">Свои материалы и кромки с ценами, которых нет на сайте. В операции во вкладке «Параметры» выберите из каталога, и цены с размерами подставятся сами.</p>
     <h3>Листовые материалы</h3>${table('materials')}<h3 style="margin-top:16px">Кромка</h3>${table('bands')}</section>`;
+  bindSiteCatalog(main);
   main.querySelectorAll('[data-cat]').forEach(t => t.addEventListener('change', e => { const el = e.target, kind = t.dataset.cat, c = catalog[kind][+el.closest('tr').dataset.i];
     c[el.dataset.ck] = el.type === 'number' ? (el.value === '' ? undefined : +el.value) : el.value; store.set('catalog', catalog); }));
   main.querySelectorAll('[data-cdel]').forEach(b => b.onclick = () => { const kind = b.closest('[data-cat]').dataset.cat; catalog[kind].splice(+b.closest('tr').dataset.i, 1); store.set('catalog', catalog); render(); });
   main.querySelectorAll('[data-cadd]').forEach(b => b.onclick = () => { const k = b.dataset.cadd; catalog[k].push(k === 'materials' ? { name: 'ЛДСП', t: 16, L: 2750, W: 1830 } : { name: 'ПВХ 0,4', t: 0.4, w: 19 }); store.set('catalog', catalog); render(); });
+}
+/** Прайс сайта на экране каталога: только просмотр, править цены нужно на сайте. */
+function siteCatalogPanel() {
+  if (!siteCat) return `<section class="panel"><h2>Прайс сайта</h2><p class="note">${siteState && !siteState.login ? 'Прайс сайта пока не загрузился.' : 'Плиты и кромки с ценами подтянутся с artisan.shop.kg, когда программа открыта на сайте и вы вошли.'}</p>${siteState && !siteState.login ? '<button class="btn sm" id="catReload">Загрузить с сайта</button>' : ''}</section>`;
+  const q = (ui.catQ || '').trim().toLowerCase(), hit = x => !q || `${x.name} ${x.code || ''}`.toLowerCase().includes(q);
+  const sh = (siteCat.sheets || []).filter(hit), bd = (siteCat.bands || []).filter(hit), cap = 200;
+  const when = siteCat.at ? new Date(siteCat.at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+  const rows = (list, f) => list.slice(0, cap).map(f).join('') + (list.length > cap ? `<tr><td colspan="6" class="note">и ещё ${list.length - cap}, уточните поиск</td></tr>` : '');
+  return `<section class="panel"><div class="bar"><h2>Прайс сайта</h2><button class="btn sm" id="catReload">Обновить с сайта</button></div>
+    <p class="note">Плит ${fmt(siteCat.sheets?.length || 0)}, кромок ${fmt(siteCat.bands?.length || 0)}${when ? `, загружено ${when}` : ''}. Эти позиции видны в операции во вкладке «Параметры» в списке «взять из каталога» с пометкой «сайт», а их цены идут в смету. Цены меняются на сайте, в админке товаров.</p>
+    <input class="inp t" id="catQ" placeholder="Поиск: название или код" value="${esc(ui.catQ || '')}" style="width:100%;max-width:420px;margin-bottom:8px" aria-label="Поиск по прайсу сайта">
+    <h3>Плиты</h3><div class="tbl"><table><thead><tr><th>Наименование</th><th>Код</th><th class="r">Толщ.</th><th class="r">Длина</th><th class="r">Ширина</th><th class="r">Цена листа</th></tr></thead><tbody>
+      ${rows(sh, x => `<tr><td>${esc(x.name)}</td><td>${esc(x.code || '')}</td><td class="n">${x.t ?? ''}</td><td class="n">${x.L ?? ''}</td><td class="n">${x.W ?? ''}</td><td class="n">${x.price != null ? fmt(x.price) : '—'}</td></tr>`) || '<tr><td colspan="6" class="empty">Не найдено.</td></tr>'}</tbody></table></div>
+    <h3 style="margin-top:16px">Кромка</h3><div class="tbl"><table><thead><tr><th>Наименование</th><th>Код</th><th class="r">Толщ.</th><th class="r">Ширина</th><th class="r">Цена за м</th></tr></thead><tbody>
+      ${rows(bd, x => `<tr><td>${esc(x.name)}</td><td>${esc(x.code || '')}</td><td class="n">${x.t ?? ''}</td><td class="n">${x.w ?? ''}</td><td class="n">${x.price != null ? fmt(x.price) : '—'}</td></tr>`) || '<tr><td colspan="5" class="empty">Не найдено.</td></tr>'}</tbody></table></div></section>`;
+}
+function bindSiteCatalog(main) {
+  const q = main.querySelector('#catQ');
+  if (q) q.oninput = () => { ui.catQ = q.value; clearTimeout(q._t); q._t = setTimeout(() => { render(); const el = $('#catQ'); if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); } }, 250); };
+  const b = main.querySelector('#catReload');
+  if (b) b.onclick = async () => {
+    b.disabled = true; toast('Загружаю прайс с сайта…');
+    try { const cat = await site.loadCatalog(); if (!cat) throw new Error('сайт не ответил'); siteCat = { ...cat, at: Date.now() }; store.set('sitecat', siteCat); recalc(); render(); toast('Прайс сайта обновлён'); }
+    catch (e) { b.disabled = false; toast('Не удалось загрузить прайс: ' + e.message); }
+  };
 }
 function renderLabels(main) {
   const tpl = ui.lblTpl || 'NESTING', what = ui.lblWhat || 'all', layout = ui.lblLayout || 'sheet';
@@ -972,6 +1014,41 @@ function reportModel(ro) {
       cuts: ro.cuts && x.mode !== 'cnc' ? g.s.cuts.map(c => c.d === 'T' ? `Торцовка ${c.len} ×2` : (c.d === 'H' ? 'Продольный Y ' + fmt(c.y + g.s.ty, 1) : 'Поперечный X ' + fmt(c.x + g.s.tx, 1)) + ', ' + fmt(c.len, 1)) : null })) });
   });
   return { title: `Отчёт: ${P.name || 'проект'} · ${relLabel()}`, head: [`Заказчик: ${P.order || '—'}`, `Дата заказа: ${d(P.date)} · готовность: ${d(P.due)}`, ...(P.note ? [P.note] : [])], blocks };
+}
+/* Файлы для Excitech: на каждый лист программа .anc, программа этикетировщика .cyc и картинки этикеток .bmp (960×720, 1 бит). */
+async function cncFiles(op, x, btn, send) {
+  const text = btn.textContent; btn.disabled = true; btn.textContent = 'Готовлю файлы…';
+  try {
+    const files = [], imgs = new Map(), now = new Date(), logo = await logoData(), warn = new Set();
+    const cv = document.createElement('canvas'); cv.width = 960; cv.height = 720; const ctx = cv.getContext('2d');
+    const bmpOf = async it => {
+      const name = `${it.p.id}.bmp`; if (imgs.has(name)) return name;
+      const url = URL.createObjectURL(new Blob([labelSvg(partLabelData(P, it, x.m), 'NESTING', { now, logo })], { type: 'image/svg+xml' }));
+      const img = new Image(); await new Promise((ok, bad) => { img.onload = ok; img.onerror = () => bad(new Error('этикетка не нарисовалась')); img.src = url; });
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, 960, 720); ctx.drawImage(img, 0, 0, 960, 720); URL.revokeObjectURL(url);
+      const a = ctx.getImageData(0, 0, 960, 720).data;
+      imgs.set(name, core.bmp1(960, 720, (px, py) => { const j = (py * 960 + px) * 4; return 0.299 * a[j] + 0.587 * a[j + 1] + 0.114 * a[j + 2] < 160; }));
+      return name;
+    };
+    for (const [i, s] of x.r.sheets.entries()) {
+      const n = i + 1, pr = core.excitechProgram(x.m, s, x.o); pr.warnings.forEach(w => warn.add(w));
+      for (const it of s.items) await bmpOf(it);
+      files.push({ name: `F${n}_${n}.anc`, data: pr.text }, { name: `Label_F${n}_${n}.cyc`, data: core.labelProgram(s, x.o, it => `${it.p.id}.bmp`) });
+    }
+    for (const [name, data] of imgs) files.push({ name, data });
+    const label = `${core.cncText(P.name) || 'zakaz'} ${core.cncText(x.m.name)} ${x.m.t}`.replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, '_').trim();
+    const tail = warn.size ? '. ' + [...warn].join('; ') : '';
+    if (send) {
+      const res = await mach.sendToMachine('nesting', files, { sub: base.machineSub ? label : '',
+        confirmReplace: async names => window.confirm(`В папке станка уже есть ${names.length} таких файлов (${names.slice(0, 3).join(', ')}${names.length > 3 ? '…' : ''}). Заменить?`) });
+      if (res.ok) return toast(`Отправлено на станок: ${res.written} файлов в папку ${res.dir}${tail}`);
+      if (res.reason === 'nodir') { toast('Сначала выберите папку нестинга в «Настройках», раздел «Папки станков»'); return setUi({ screen: 'settings' }); }
+      return toast(res.reason === 'denied' ? 'Браузер не дал записать в папку станка. Разрешите запись и нажмите ещё раз.' : 'Отправка отменена');
+    }
+    const how = await saveFile(new Blob([core.zipStore(files)], { type: 'application/zip' }), `Excitech ${label}.zip`);
+    toast((how === 'saved' ? 'Файлы сохранены' : 'Файлы скачаны') + tail);
+  } catch (e) { toast(e?.code === 'declined' ? 'Сохранение отменено' : 'Не удалось подготовить файлы: ' + (e?.message || e)); }
+  finally { btn.disabled = false; btn.textContent = text; }
 }
 let logoCache = null;
 async function logoData() {
@@ -1110,16 +1187,35 @@ function kpModel(E, draft) {
     ...(draft ? ['ЧЕРНОВИК: цены не утверждены и могут измениться'] : [])], blocks };
 }
 function renderSettings(main) {
+  const opt = (k, v, t) => `<option value="${v}" ${look[k] === v ? 'selected' : ''}>${t}</option>`;
   main.innerHTML = `<section class="panel">${screenHead('Настройки')}
+    <h3>Вид на этом компьютере</h3><div class="look">
+      <label class="note">Тема <select class="inp" data-look="theme">${opt('theme', 'light', 'Светлая')}${opt('theme', 'dark', 'Тёмная')}${opt('theme', 'auto', 'Как в системе')}</select></label>
+      <label class="note">Размер текста <select class="inp" data-look="size">${opt('size', 'm', 'Обычный')}${opt('size', 'l', 'Крупный')}${opt('size', 'xl', 'Очень крупный')}</select></label></div>
     <p class="note">Значения по умолчанию для всех операций. У каждой операции во вкладке «Параметры» можно задать своё.</p>
     ${siteCat ? `<p class="printbox">Распил, кромкование, присадка, фрезеровка и пазы считаются по прайсу сайта (страница «Прайс работ» в админке). Изменить их можно там, здесь значения ниже не действуют.</p>` : ''}
     <div class="params">${propsTable(F_BASE, f => base[f[0]], 'base:')}
     <h3>Присадка по диаметрам, сом за отверстие</h3><div class="row holes">${Object.entries(base.holePrices || {}).map(([d, v]) => `<label class="note">Ø${d} <input class="inp n" type="number" step="0.5" style="width:64px" data-hp="${d}" value="${v}"></label>`).join('')}</div>
-    <div class="note"><button class="btn sm" id="resetBase">Вернуть заводские</button></div></div></section>`;
+    <div class="note"><button class="btn sm" id="resetBase">Вернуть заводские</button></div></div></section>
+    <section class="panel"><h3>Папки станков на этом компьютере</h3>
+    ${mach.canUseFolders() ? `<p class="note">Выберите сетевую папку каждого станка один раз, дальше кнопка «Отправить на станок» кладёт туда файлы сама. Браузер запомнит папки и при новом запуске один раз спросит разрешение на запись.</p>
+      <div class="tbl"><table><tbody>${Object.entries(mach.MACHINES).map(([k, mm]) => `<tr><td>${mm.title}</td><td class="mdir" data-mdir="${k}"><span class="note">…</span></td>
+        <td><button class="btn sm" data-mpick="${k}">Выбрать папку</button> <button class="btn sm" data-mforget="${k}">Забыть</button></td></tr>`).join('')}</tbody></table></div>
+      <label class="note"><input type="checkbox" id="machineSub" ${base.machineSub ? 'checked' : ''}> Класть файлы в отдельную папку заказа внутри папки станка</label>
+      <p class="note">Пока отправляются программы нестинга. Пила Holzma и сверлилка подключатся вместе с их выгрузками.</p>`
+    : '<p class="note">Прямая отправка в папки станков работает в Chrome или Edge на компьютере, когда программа открыта как сайт (artisan.shop.kg/raskroy). Здесь файлы для станка скачиваются архивом.</p>'}</section>`;
+  main.querySelectorAll('[data-look]').forEach(el => el.onchange = () => { look[el.dataset.look] = el.value; store.set('look', look); applyLook(); });
   main.querySelectorAll('[data-hp]').forEach(el => el.onchange = () => { base.holePrices = { ...base.holePrices, [el.dataset.hp]: +el.value || 0 }; store.set('base', base); recalc(); renderSoon(); });
   main.querySelector('.props').addEventListener('change', e => { const el = e.target, k = el.dataset.k; if (!k) return;
     base[k] = el.type === 'checkbox' ? el.checked : el.type === 'number' ? +el.value : el.value; store.set('base', base); recalc(); renderSoon(); });
   $('#resetBase').onclick = () => { base = { ...core.DEFAULTS }; store.set('base', base); recalc(); render(); };
+  if (!mach.canUseFolders()) return;
+  const show = () => mach.dirNames().then(n => main.querySelectorAll('[data-mdir]').forEach(td => { const v = n[td.dataset.mdir];
+    td.innerHTML = v ? `<b>${esc(v)}</b>` : `<span class="note">не выбрана (${esc(mach.MACHINES[td.dataset.mdir].hint)})</span>`; }));
+  show();
+  main.querySelectorAll('[data-mpick]').forEach(b => b.onclick = async () => { try { await mach.pickDir(b.dataset.mpick); show(); toast('Папка станка запомнена'); } catch (e) { if (e?.name !== 'AbortError') toast('Не удалось выбрать папку: ' + (e?.message || e)); } });
+  main.querySelectorAll('[data-mforget]').forEach(b => b.onclick = async () => { await mach.forgetDir(b.dataset.mforget); show(); });
+  $('#machineSub').onchange = e => { base.machineSub = e.target.checked; store.set('base', base); };
 }
 function renderExport(main) {
   const xml = core.toProjectXml(P, eff(), m => core.matOpts(m, eff())), csv = core.toCsv(P, eff());
@@ -1179,7 +1275,7 @@ recalc(); render();
 site.checkSite().then(async st => {
   siteState = st; if (!st) return;
   if (P.site) siteStatus('Заявка с сайта');
-  try { const cat = await site.loadCatalog(); if (cat) { siteCat = cat; store.set('sitecat', cat); recalc(); } } catch (e) { /* остаётся прежний прайс */ }
+  try { const cat = await site.loadCatalog(); if (cat) { siteCat = { ...cat, at: Date.now() }; store.set('sitecat', siteCat); recalc(); } } catch (e) { /* остаётся прежний прайс */ }
   render();
 });
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
