@@ -62,8 +62,8 @@ const SEL = {
   sizeMode: [['1', 'чистовой с кромкой'], ['0', 'пильный'], ['2', 'после прифуговки']],
   round: [['none', 'целыми листами'], ['1/2', 'до 1/2 листа'], ['1/3', 'до 1/3 листа'], ['1/4', 'до 1/4 листа']],
 };
-const F_MAT = [['Материал'], ['name', 'Наименование', 'text', 'm'], ['code', 'Код', 'text', 'm'], ['t', 'Толщина, мм', 'num', 'm'],
-  ['op', 'Где режем', 'sel', 'm'], ['price', 'Цена листа, сом', 'num', 'm'], ['priceM2', 'или цена за м², сом', 'num', 'm'],
+const F_MAT = [['Материал'], ['name', 'Наименование', 'text', 'm'], ['t', 'Толщина, мм', 'num', 'm'], ['L', 'Длина листа, мм', 'num', 'm'], ['W', 'Ширина листа, мм', 'num', 'm'],
+  ['op', 'Где режем', 'sel', 'm'], ['price', 'Цена листа, сом', 'num', 'm'], ['code', 'Код', 'text', 'm'], ['priceM2', 'или цена за м², сом', 'num', 'm'],
   ['round', 'Остаток листа оплачивается', 'sel', 'p']];
 const F = {
   CS: [...F_MAT, ['Детали'], ['sizeMode', 'Размеры деталей вводятся', 'sel', 'p'], ['minPart', 'Мин. размер детали, мм', 'num', 'p'],
@@ -209,7 +209,7 @@ function saveProject(Q) {
   store.set('p_' + Q.uid, Q);
   store.set('projects', core.upsertMeta(libIndex(), core.projectMeta(Q)));
 }
-function openProject(Q) { P = { date: '', due: '', note: '', ...Q }; undo = []; redo = []; sel.clear(); ui.op = null; ui.sheet = 0; ui.screen = 'project'; recalc(); clearTimeout(siteT); siteStatus(P.site ? 'Заявка с сайта ' + (P.site.number || '') : ''); if (P.site?.conflict) siteConflict(P.site.conflict); render(); }
+function openProject(Q) { P = { date: '', due: '', note: '', ...Q }; undo = []; redo = []; sel.clear(); ui.op = null; ui.sheet = 0; ui.screen = 'project'; ui.skipStart = false; ui.rel = false; ui.wiz = null; ui.wizFocus = ''; ui.wizPick = ''; recalc(); clearTimeout(siteT); siteStatus(P.site ? 'Заявка с сайта ' + (P.site.number || '') : ''); if (P.site?.conflict) siteConflict(P.site.conflict); render(); }
 /** Любое изменение проекта: запоминаем прежнее состояние для «Отменить», считаем заново, перерисовываем. */
 function change(fn) {
   undo.push(JSON.stringify(P)); if (undo.length > 60) undo.shift(); redo = [];
@@ -220,7 +220,7 @@ function stepHistory(from, to) {
   const link = P.site; // связь с заявкой и версия не откатываются вместе с правками
   to.push(JSON.stringify(P)); P = JSON.parse(from.pop()); if (link) P.site = link; recalc(true); render();
 }
-let renderT = null;
+let renderT = null, pendingFocus = null;
 function renderSoon() { clearTimeout(renderT); renderT = setTimeout(render, 0); }
 function setUi(patch) { Object.assign(ui, patch); store.set('ui', ui); render(); }
 
@@ -232,11 +232,11 @@ const bandName = k => P.bands[k]?.name || '';
 /* ===== Отрисовка ===== */
 function render() {
   if (!P) return;
-  const focus = document.activeElement?.dataset?.fid;
+  const focus = pendingFocus || document.activeElement?.dataset?.fid; pendingFocus = null;
   renderHeader(); renderTotals();
   document.querySelectorAll('[data-screen]').forEach(b => b.setAttribute('aria-current', b.dataset.screen === ui.screen));
   const main = $('#main');
-  ({ projects: renderProjects, project: renderProject, catalog: renderCatalog, stock: renderStock, labels: renderLabels, report: renderReport, estimate: renderEstimate, settings: renderSettings, export: renderExport })[ui.screen](main);
+  ({ projects: renderProjects, project: isEmpty() && !ui.skipStart ? renderStart : renderProject, catalog: renderCatalog, stock: renderStock, labels: renderLabels, report: renderReport, estimate: renderEstimate, settings: renderSettings, export: renderExport })[ui.screen](main);
   if (focus) { const el = document.querySelector(`[data-fid="${focus}"]`); if (el) { el.focus(); if (el.select && el.type !== 'checkbox') el.select(); } }
 }
 function renderHeader() {
@@ -256,6 +256,99 @@ function renderTotals() {
     <div class="tmini">${fmt(C.sheets)} лист. · рез ${fmt(C.cutM, 1)} м · кромка ${fmt(C.edgeM, 1)} м · ${fmt(C.holes)} отв.</div>`;
 }
 
+/* --- Начало заказа: три шага на одном экране вместо пустой таблицы операций --- */
+const isEmpty = () => !P.materials.length && !P.parts.length && !(P.linear || []).length && !(P.extras || []).length && !Object.keys(P.bands).length;
+const matLabel = c => `${c.name}${c.t && !String(c.name).includes(c.t + ' мм') ? ' ' + c.t + ' мм' : ''}`;
+function renderStart(main) {
+  const mats = pickList('materials'), recent = libIndex().filter(x => x.uid !== P.uid).slice(0, 6);
+  const named = P.name && P.name !== 'Новый проект' ? P.name : '', w = ui.wiz || { op: 'CS' }, v = (k, d) => esc(w[k] ?? d); // черновик мастера переживает перерисовку
+  main.innerHTML = `<section class="panel start">
+    <h2>Новый заказ</h2>
+    <p class="note">Заполните три шага и нажмите «Дальше». Всё, что здесь не указано, можно поменять потом.</p>
+    <div class="wstep"><span class="wn">1</span><div><h3>Заказ</h3>
+      <div class="row wrow"><label>Название заказа<input class="inp t big" id="wName" value="${v('wName', named)}" placeholder="например, Кухня на Ахунбаева"></label>
+      <label>Заказчик<input class="inp t big" id="wOrder" value="${v('wOrder', P.order || '')}" placeholder="имя или телефон"></label>
+      <label>Готовность к<input class="inp t big" id="wDue" type="date" value="${v('wDue', P.due || '')}"></label></div></div></div>
+    <div class="wstep"><span class="wn">2</span><div><h3>Материал</h3>
+      <div class="row wrow"><label class="grow">Материал${mats.length ? ' (поиск по названию, цвету, коду, толщине)' : ''}${pickerHtml('wMat', 'например, белый 16 или egger', w.wMat ?? '')}</label>
+      <label>Толщина, мм<input class="inp big" id="wT" type="number" value="${v('wT', 16)}"></label>
+      <label>Лист, мм<span class="row"><input class="inp big" id="wL" type="number" value="${v('wL', 2750)}" aria-label="Длина листа"> × <input class="inp big" id="wW" type="number" value="${v('wW', 1830)}" aria-label="Ширина листа"></span></label>
+      <label>Цена листа, сом<input class="inp big" id="wP" type="number" value="${v('wP', '')}" placeholder="можно потом"></label></div>
+      <div class="row wrow" role="radiogroup" aria-label="Где режем"><b>Где режем:</b>
+        <label class="pick"><input type="radio" name="wOp" value="CS" ${w.op !== 'CN' ? 'checked' : ''}> на пиле</label>
+        <label class="pick"><input type="radio" name="wOp" value="CN" ${w.op === 'CN' ? 'checked' : ''}> на ЧПУ (нестинг Excitech)</label></div></div></div>
+    <div class="wstep"><span class="wn">3</span><div><h3>Детали</h3><p class="note">На следующем экране вводите детали: длина, ширина, количество и Enter. Программа сразу считает раскрой.</p>
+      <button class="btn primary big" id="wGo">Дальше: ввести детали →</button></div></div>
+  </section>
+  <section class="panel"><h3>Или начните с готового</h3><div class="row wrow">
+    <label class="btn" for="file">Открыть файл из Базиса или GibLab (.project)</label>
+    <label class="btn" for="file">Взять детали из Excel (.xlsx, .csv)</label>
+    ${siteState && !siteState.login ? '<button class="btn" id="wSite">Заявки с сайта</button>' : ''}
+    <button class="btn" id="wSkip">Пустой заказ (кромка, погонаж, комплектация)</button></div>
+    ${recent.length ? `<h3 style="margin-top:14px">Продолжить заказ</h3><div class="tbl"><table><tbody>${recent.map(x => `<tr><td><a href="#" data-ropen="${esc(x.uid)}">${esc(x.name)}</a></td><td>${esc(x.order)}</td><td>${esc(x.status)}</td><td class="n">${fmt(x.parts)} дет.</td></tr>`).join('')}</tbody></table></div>` : ''}
+  </section>`;
+  const fill = c => { if (!c) return;
+    if (c.t) $('#wT').value = c.t; if (c.L) $('#wL').value = c.L; if (c.W) $('#wW').value = c.W; $('#wP').value = c.price ?? ''; };
+  const keep = () => { const d = { op: main.querySelector('[name=wOp]:checked').value };
+    ['wName', 'wOrder', 'wDue', 'wMat', 'wT', 'wL', 'wW', 'wP'].forEach(k => { d[k] = $('#' + k).value; }); ui.wiz = d; const a = document.activeElement; if (a?.id && main.contains(a)) ui.wizFocus = a.id; };
+  main.querySelector('.start').addEventListener('input', keep); main.querySelector('.start').addEventListener('change', keep);
+  bindPicker('wMat', () => mats, 'materials', c => { $('#wMat').value = matLabel(c); fill(c); keep(); ui.wizPick = itemKey(c); $('#wT').focus(); });
+  $('#wGo').onclick = () => {
+    const name = $('#wMat').value.trim(), c = mats.find(x => itemKey(x) === ui.wizPick && matLabel(x) === name) || mats.find(x => matLabel(x) === name) || {};
+    const L = +$('#wL').value, W = +$('#wW').value, t = +$('#wT').value;
+    if (!(L > 0 && W > 0 && t > 0)) return toast('Укажите толщину и размер листа');
+    const op = main.querySelector('[name=wOp]:checked').value, id = 'm' + Date.now();
+    change(() => {
+      P.name = $('#wName').value.trim() || P.name; P.order = $('#wOrder').value.trim(); P.due = $('#wDue').value;
+      if (!P.date) P.date = new Date().toISOString().slice(0, 10);
+      const m = { id, name: c.name || name || 'ЛДСП', code: c.code || '', t, L, W, op, params: {} };
+      const price = $('#wP').value; if (price !== '') m.price = +price; else if (c.priceM2) m.priceM2 = c.priceM2; // цена за м² сильнее цены листа, поэтому берём её, только если цену листа не ввели
+      P.materials.push(m); ui.op = 'm:' + id; ui.sub = 'parts'; ui.top = 'ops'; ui.wiz = null; ui.wizFocus = ''; ui.wizPick = '';
+    });
+    setTimeout(() => $('#qL')?.focus(), 60);
+  };
+  $('#wSkip').onclick = () => setUi({ skipStart: true });
+  const ws = $('#wSite'); if (ws) ws.onclick = () => setUi({ screen: 'projects', lib: { ...(ui.lib || {}), folder: 'site' } });
+  main.querySelectorAll('[data-ropen]').forEach(a => a.onclick = e => { e.preventDefault(); const Q = store.get('p_' + a.dataset.ropen, null); if (!Q) return toast('Заказ не найден в памяти браузера'); saveProject(P); openProject(Q); });
+  const f = ui.wizFocus && main.querySelector('#' + ui.wizFocus);
+  if (f) { f.focus(); const val = f.value; f.value = ''; f.value = val; /* курсор в конец, и в числовом поле тоже */ }
+  else if (!named) $('#wName').focus();
+}
+
+/* Шаги заказа над таблицей: что сделано и что делать дальше. */
+function steps() {
+  const hasParts = P.parts.some(p => p.count > 0) || (P.linear || []).some(l => l.parts.length);
+  const bad = P.materials.find(m => problemsOf(resOf(m)).length), st = core.releaseState(P, R);
+  return [
+    { k: 'order', n: 'Заказ', done: !!(P.order || (P.name && P.name !== 'Новый проект')), hint: 'Впишите название заказа и заказчика в шапке сверху.', act: 'Заполнить' },
+    { k: 'mat', n: 'Материал', done: P.materials.length > 0 || (P.linear || []).length > 0, hint: 'Добавьте материал, из которого режем.', act: '+ Материал' },
+    { k: 'parts', n: 'Детали', done: hasParts, hint: 'Введите детали: длина, ширина, количество и Enter.', act: 'Ввести детали' },
+    { k: 'cut', n: 'Раскрой', done: hasParts && !bad, bad: !!bad, m: bad, hint: bad ? `В раскрое «${bad.name}» есть ошибки. Откройте карту и посмотрите, что не так.` : 'Проверьте карты раскроя.', act: 'Открыть раскрой' },
+    { k: 'rel', n: 'В цех', done: !!st.last && !st.changed, hint: st.changed ? 'Заказ изменили после выпуска. Выпустите новую версию, чтобы цех работал по ней.' : 'Раскрой готов. Выпустите заказ в работу, потом печатайте карты и этикетки.', act: 'Выпустить в работу' },
+  ];
+}
+function stepsBar() {
+  const list = steps(), next = list.find(s => !s.done && s.k !== 'order') || list.find(s => !s.done);
+  const firstM = P.materials[0], cnc = P.materials.some(m => (m.op || 'CS') === 'CN');
+  const doneAll = !next;
+  return `<section class="panel steps"><ol class="stepl">${list.map((s, i) => `<li><button class="step ${s.done ? 'done' : ''} ${s.bad ? 'bad' : ''} ${s === next ? 'next' : ''}" data-step="${s.k}"><span class="sn">${s.done ? '✓' : i + 1}</span>${s.n}</button></li>`).join('')}</ol>
+    <div class="nexthint">${doneAll ? `<span><b>Заказ в работе.</b> Печатайте карты и этикетки${cnc ? ', отправляйте программы на ЧПУ' : ''}.</span>
+      <span class="row"><button class="btn sm" data-goto="report">Печать карт</button><button class="btn sm" data-goto="labels">Этикетки</button>${cnc ? '<button class="btn sm" data-step="cnc">Программы ЧПУ</button>' : ''}</span>`
+      : `<span><b>Дальше:</b> ${esc(next.hint)}</span><button class="btn sm primary" data-step="${next.k}">${next.act}</button>`}</div></section>`;
+}
+function bindSteps(main) {
+  main.querySelectorAll('[data-goto]').forEach(b => b.onclick = () => setUi({ screen: b.dataset.goto }));
+  main.querySelectorAll('[data-step]').forEach(b => b.onclick = () => {
+    const k = b.dataset.step, s = steps().find(x => x.k === k), m0 = curOp()?.m || P.materials[0];
+    if (k === 'order') { const el = $('#hName'); el.focus(); el.select(); return; }
+    if (k === 'mat') return P.materials.length ? setUi({ top: 'ops', op: 'm:' + P.materials[0].id, sub: 'params' }) : addOp('CS');
+    if (k === 'parts') { if (!m0) return addOp('CS'); setUi({ top: 'ops', op: 'm:' + m0.id, sub: 'parts' }); return setTimeout(() => $('#qL')?.focus(), 30); }
+    if (k === 'cut') { const m = s.m || m0; if (m) setUi({ top: 'ops', op: 'm:' + m.id, sub: 'cut' }); return; }
+    if (k === 'cnc') { const m = P.materials.find(x => (x.op || 'CS') === 'CN'); if (m) setUi({ top: 'ops', op: 'm:' + m.id, sub: 'cut' }); return; }
+    if (k === 'rel') { setUi({ rel: true }); setTimeout(() => $('#relPanel')?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 30); }
+  });
+}
+
 /* --- Экран проекта: операции и выбранная операция --- */
 function renderProject(main) {
   const list = ops(), op = curOp();
@@ -263,10 +356,12 @@ function renderProject(main) {
   const rows = Object.fromEntries(C.ops.map(r => [r.key, r]));
   const topTabs = `<div class="tabs" role="tablist"><button class="tab" role="tab" data-top="ops" aria-selected="${ui.top === 'ops'}">Операции</button><button class="tab" role="tab" data-top="products" aria-selected="${ui.top === 'products'}">Изделия</button></div>`;
   const tools = ui.top === 'ops' ? `<div class="row tools">
-      <button class="btn sm" data-add="CS">+ Листовой раскрой</button><button class="btn sm" data-add="CN">+ Нестинг ЧПУ</button><button class="btn sm" data-add="EL">+ Кромка</button>
-      <button class="btn sm" data-add="GR">+ Паз</button><button class="btn sm" data-add="CL">+ Погонаж</button><button class="btn sm" data-add="O">+ Комплектация</button>
-      <button class="btn sm" data-move="-1" aria-label="Вверх" title="Вверх">↑</button><button class="btn sm" data-move="1" aria-label="Вниз" title="Вниз">↓</button>
-      <button class="btn sm" data-delop>Удалить</button><button class="btn sm primary" id="relOpen">Выпустить в работу</button></div>` : '';
+      <button class="btn sm" data-add="CS" title="Материал, который режем на пиле">+ Материал (пила)</button><button class="btn sm" data-add="CN" title="Материал, который режем на ЧПУ">+ Материал (ЧПУ)</button><button class="btn sm" data-add="EL">+ Кромка</button>
+      <details class="more"><summary class="btn sm">Ещё ▾</summary><div class="morelist">
+        <button class="btn sm" data-add="GR">+ Паз</button><button class="btn sm" data-add="CL">+ Погонаж (столешницы, планки)</button><button class="btn sm" data-add="O">+ Комплектация (фурнитура, услуги)</button>
+        <button class="btn sm" data-move="-1">↑ Строку выше</button><button class="btn sm" data-move="1">↓ Строку ниже</button>
+        <button class="btn sm" data-delop>Удалить выбранную строку</button></div></details>
+      <button class="btn sm primary" id="relOpen">Выпустить в работу</button></div>` : '';
   let table;
   if (ui.top === 'ops') {
     table = `<div class="tbl short"><table class="ops"><thead><tr><th>№</th><th>Тип</th><th>Наименование</th><th class="r">Кол-во</th><th class="r">Материал, сом</th><th class="r">Работа, сом</th><th class="r">Итого, сом</th></tr></thead><tbody>
@@ -277,9 +372,9 @@ function renderProject(main) {
       ${list.length ? '' : '<tr><td colspan="7" class="empty">Проект пустой. Добавьте операцию кнопками выше (например, «+ Листовой раскрой»), откройте файл .project или загрузите таблицу Excel.</td></tr>'}
       </tbody><tfoot><tr><td></td><td></td><td>Итого по заказу</td><td></td><td class="n">${fmt(C.mat)}</td><td class="n">${fmt(C.work)}</td><td class="n"><b>${fmt(C.total)}</b></td></tr></tfoot></table></div>`;
   } else table = productsTable();
-  main.innerHTML = `${releaseBanner()}${ui.rel ? releasePanel() : ''}<section class="panel"><div class="bar">${topTabs}${tools}</div>${table}</section>
+  main.innerHTML = `${stepsBar()}${releaseBanner()}${ui.rel ? releasePanel() : ''}<section class="panel"><div class="bar">${topTabs}${tools}</div>${table}</section>
     ${op && ui.top === 'ops' ? `<section class="panel" id="opPanel">${opPanel(op)}</section>` : ''}`;
-  bindRelease(main);
+  bindRelease(main); bindSteps(main);
   main.querySelectorAll('[data-top]').forEach(b => b.onclick = () => setUi({ top: b.dataset.top }));
   main.querySelectorAll('[data-op]').forEach(tr => {
     const pick = () => { if (ui.op !== tr.dataset.op) setUi({ op: tr.dataset.op, sheet: 0, sub: SUBS[ops().find(o => o.key === tr.dataset.op).type].some(s => s[0] === ui.sub) ? ui.sub : 'params' }); };
@@ -366,15 +461,30 @@ function propsTable(fields, valOf, idPrefix) {
     const [k, label, type, where, step] = f; const v = valOf(f); const own = v && typeof v === 'object';
     const cur = own ? (v.own ?? '') : v, eff = own ? v.eff : v;
     const fid = idPrefix + k; let input;
-    if (type === 'sel') input = `<select class="inp" data-k="${k}" data-w="${where}" data-fid="${fid}">${own ? `<option value="" ${cur === '' ? 'selected' : ''}>как в настройках (${esc((SEL[k].find(o => o[0] === eff) || [, eff])[1])})</option>` : ''}${SEL[k].map(([o, n]) => `<option value="${o}" ${String(cur) === o ? 'selected' : ''}>${n}</option>`).join('')}</select>`;
+    if (type === 'sel') input = `<select class="inp" data-k="${k}" data-w="${where}" data-fid="${fid}">${own ? `<option value="" ${cur === '' ? 'selected' : ''}>как в настройках (${esc((SEL[k].find(o => o[0] === String(eff)) || [, eff])[1])})</option>` : ''}${SEL[k].map(([o, n]) => `<option value="${o}" ${String(cur) === o ? 'selected' : ''}>${n}</option>`).join('')}</select>`;
     else if (type === 'chk') input = `<input type="checkbox" data-k="${k}" data-w="${where}" data-fid="${fid}" ${eff ? 'checked' : ''}>`;
     else input = `<input class="inp ${type === 'text' ? 't' : ''}" data-k="${k}" data-w="${where}" data-fid="${fid}" ${type === 'num' ? `type="number" step="${step || 1}"` : ''} value="${esc(cur)}" ${own ? `placeholder="${esc(eff)}"` : ''}>`;
     return `<tr><td><label>${esc(label)}</label>${own && cur !== '' && cur != null ? ' <span class="own" title="Своё значение у этой операции">●</span>' : ''}</td><td>${input}</td></tr>`;
   }).join('')}</tbody></table>`;
 }
+/** Сначала только главное (первый раздел), остальное по кнопке «Все параметры». */
+function shownFields(type) {
+  const all = F[type]; if (ui.allParams || type === 'XNC') return all;
+  const cut = all.findIndex((f, i) => i > 0 && f.length === 1);
+  return cut > 0 ? all.slice(0, cut) : all;
+}
 function subParams(op) {
-  const own = op.m ? Object.keys(op.m.params || {}).length : 0;
-  return `<div class="params">${propsTable(F[op.type], f => fieldValue(f, op), op.key + ':')}
+  const own = op.m ? Object.keys(op.m.params || {}).length : 0, more = shownFields(op.type).length < F[op.type].length || ui.allParams;
+  // Как в GibLab: все параметры в две колонки по группам — слева материал, детали, остатки, стоимость; справа раскрой и станок.
+  const fields = shownFields(op.type), secs = [];
+  fields.forEach(f => { if (f.length === 1 || !secs.length) secs.push([]); secs[secs.length - 1].push(f); });
+  const RIGHT = ['Раскрой', 'Фреза', 'Обработка', 'Остаток'];
+  const two = secs.length > 2 && secs.some(q => RIGHT.includes(q[0][0]));
+  const table = two ? `<div class="pcols"><div>${propsTable(secs.filter(q => !RIGHT.includes(q[0][0])).flat(), f => fieldValue(f, op), op.key + ':')}</div>
+      <div>${propsTable(secs.filter(q => RIGHT.includes(q[0][0])).flat(), f => fieldValue(f, op), op.key + ':')}</div></div>`
+    : propsTable(fields, f => fieldValue(f, op), op.key + ':');
+  return `<div class="params${two ? ' wide' : ''}"><div>${table}
+    ${more ? `<button class="btn sm" id="allParams">${ui.allParams ? 'Скрыть дополнительные параметры' : 'Все параметры (пила, остатки, цена работы…)'}</button>` : ''}</div>
     <div class="note">${catalogBox(op)}${op.type === 'XNC' ? 'Отверстия и фрезеровка берутся из программ деталей в проекте (Базис, GibLab).' : ['GR', 'CL'].includes(op.type) ? '' :
       `Пустое поле — значение из «Настроек» (серым). ● — своё значение этой операции.${own ? ' <button class="btn sm" id="resetParams">Сбросить к настройкам</button>' : ''}`}
       ${op.type === 'CN' ? '<p><span class="badge">черновик</span> Режимы резания и G-код ещё не сверены с вашим станком.</p>' : ''}</div></div>`;
@@ -387,17 +497,73 @@ function pickList(kind) {
     : (siteCat.bands || []).map(x => ({ name: x.name, code: x.code, t: x.t, w: x.w, matPrice: x.price, site: 1 }));
   return [...own, ...extra];
 }
+/* --- Выбор материала или кромки с поиском: по словам из названия, коду, цвету и толщине; недавние сверху --- */
+const norm = x => String(x ?? '').toLowerCase().replace(/ё/g, 'е').replace(/э/g, 'е').replace(/,/g, '.');
+const LAT = { a: 'а', b: 'б', c: 'к', d: 'д', e: 'е', f: 'ф', g: 'г', h: 'х', i: 'и', j: 'дж', k: 'к', l: 'л', m: 'м', n: 'н', o: 'о', p: 'п', q: 'к', r: 'р', s: 'с', t: 'т', u: 'у', v: 'в', w: 'в', x: 'кс', y: 'и', z: 'з' };
+const cyr = x => x.replace(/[a-z]/g, ch => LAT[ch]); // «кроно» находит Kronospan, «егер» — Egger
+const itemKey = c => `${c.name}|${c.t ?? ''}|${c.code ?? ''}`;
+/** Все слова запроса должны найтись в строке позиции: «бел 16», «egger w980», «18 мм дуб». */
+function searchItems(list, q) {
+  const words = norm(q).split(/\s+/).filter(Boolean);
+  if (!words.length) return list;
+  return list.filter(c => { const hay = norm(`${c.name} ${c.code || ''} ${c.t ?? ''} ${c.t ?? ''}мм ${c.t ?? ''} мм ${c.L ? c.L + 'x' + c.W + ' ' + c.L + '×' + c.W : ''} ${c.w ? 'ширина ' + c.w : ''}`), hay2 = cyr(hay).replace(/(.)\1/g, '$1');
+    return words.every(w => {
+      // Число — это толщина, размер или код целиком («16» не должно находить код K160)
+      if (/^\d+(\.\d+)?(мм)?$/.test(w)) { const n = parseFloat(w); return +c.t === n || +c.L === n || +c.W === n || +c.w === n || norm(c.code) === w || norm(c.name).split(/[^0-9a-zа-я.]+/).includes(String(n)); }
+      return hay.includes(w) || hay2.includes(w.replace(/(.)\1/g, '$1'));
+    }); });
+}
+const recentKeys = kind => store.get('recent_' + kind, []);
+function rememberPick(kind, c) { store.set('recent_' + kind, [itemKey(c), ...recentKeys(kind).filter(k => k !== itemKey(c))].slice(0, 8)); }
+/** Поле поиска с выпадающим списком. Возвращает HTML; привязка — bindPicker с тем же id. */
+const pickerHtml = (id, ph, value = '') => `<div class="pk"><input class="inp t big" id="${id}" value="${esc(value)}" placeholder="${esc(ph)}" autocomplete="off" role="combobox" aria-expanded="false" aria-autocomplete="list"><div class="pkl" id="${id}L" role="listbox" hidden></div></div>`;
+function pickLine(c) {
+  const size = c.L ? `${c.L}×${c.W}` : c.w ? `ширина ${c.w}` : '', price = c.price ?? c.matPrice;
+  return `<b>${esc(c.name)}</b><span>${[c.t != null && !String(c.name).includes(c.t + ' мм') ? c.t + ' мм' : '', size, c.code ? 'код ' + esc(c.code) : '', price != null ? fmt(price) + ' сом' : '', c.site ? 'сайт' : ''].filter(Boolean).join(' · ')}</span>`;
+}
+function bindPicker(id, getList, kind, onPick) {
+  const inp = document.getElementById(id), box = document.getElementById(id + 'L'); if (!inp || !box) return;
+  let shown = [], cur = -1;
+  const draw = () => {
+    const list = getList(), q = inp.value.trim(), rec = recentKeys(kind);
+    let head = '';
+    if (!q) { const r = rec.map(k => list.find(c => itemKey(c) === k)).filter(Boolean); shown = [...r, ...list.filter(c => !r.includes(c))].slice(0, 60); head = r.length ? `<div class="pkh">Недавние</div>` : ''; 
+      if (r.length) { box.innerHTML = head + shown.map((c, i) => (i === r.length ? '<div class="pkh">Все</div>' : '') + `<div class="pki" role="option" data-i="${i}">${pickLine(c)}</div>`).join(''); }
+      else box.innerHTML = shown.map((c, i) => `<div class="pki" role="option" data-i="${i}">${pickLine(c)}</div>`).join('');
+    } else {
+      const found = searchItems(list, q); shown = found.slice(0, 60);
+      box.innerHTML = shown.length ? `<div class="pkh">Найдено: ${found.length}${found.length > 60 ? ', показаны первые 60, уточните' : ''}</div>` + shown.map((c, i) => `<div class="pki" role="option" data-i="${i}">${pickLine(c)}</div>`).join('')
+        : `<div class="pkh">Ничего не найдено. Попробуйте часть слова, код или толщину${kind === 'materials' ? ', или впишите свой материал' : ''}.</div>`;
+    }
+    if (!list.length) box.innerHTML = '<div class="pkh">Каталог пуст: добавьте материалы в «Каталоге материалов» или откройте программу на сайте.</div>';
+    cur = -1; box.hidden = false; inp.setAttribute('aria-expanded', 'true');
+  };
+  const close = () => { box.hidden = true; inp.setAttribute('aria-expanded', 'false'); };
+  const pick = i => { const c = shown[i]; if (!c) return; rememberPick(kind, c); close(); onPick(c); };
+  const mark = () => box.querySelectorAll('.pki').forEach((el, i) => { el.classList.toggle('on', i === cur); if (i === cur) el.scrollIntoView({ block: 'nearest' }); });
+  inp.addEventListener('focus', draw); inp.addEventListener('input', draw);
+  inp.addEventListener('blur', () => setTimeout(close, 150));
+  inp.addEventListener('keydown', e => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); if (box.hidden) draw(); cur = Math.min(cur + 1, shown.length - 1); mark(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); cur = Math.max(cur - 1, 0); mark(); }
+    else if (e.key === 'Enter' && !box.hidden && shown.length && (cur >= 0 || shown.length === 1)) { e.preventDefault(); e.stopPropagation(); pick(cur >= 0 ? cur : 0); }
+    else if (e.key === 'Escape') close();
+  });
+  box.addEventListener('mousedown', e => { const it = e.target.closest('.pki'); if (it) { e.preventDefault(); pick(+it.dataset.i); } });
+}
+
 function catalogBox(op) {
   const kind = op.m ? 'materials' : op.type === 'EL' ? 'bands' : null; if (!kind) return '';
   const list = pickList(kind);
-  return `<div class="catbox"><b>Каталог</b><div class="row"><select class="inp" id="catPick" aria-label="Взять из каталога"><option value="">— взять из каталога —</option>${list.map((c, i) => `<option value="${i}">${c.site ? 'сайт · ' : ''}${esc(c.name)}${c.t && !String(c.name).includes(c.t + ' мм') ? ' ' + c.t + ' мм' : ''}${c.price ?? c.matPrice ? ' · ' + fmt(c.price ?? c.matPrice) + ' сом' : ''}</option>`).join('')}</select>
-    <button class="btn sm" id="catSave">Сохранить в каталог</button></div></div>`;
+  return `<div class="catbox"><b>${kind === 'materials' ? 'Взять материал из каталога' : 'Взять кромку из каталога'}</b>
+    ${pickerHtml('catPick', kind === 'materials' ? 'Поиск: название, цвет, код, толщина' : 'Поиск кромки: цвет, код, толщина')}
+    <div class="row"><span class="note">Найдено в каталоге: ${fmt(list.length)}. Размеры и цена подставятся сами.</span><button class="btn sm" id="catSave">Сохранить в свой каталог</button></div></div>`;
 }
 function bindCatalog(op) {
   const kind = op.m ? 'materials' : op.type === 'EL' ? 'bands' : null; if (!kind) return;
   const target = op.m || op.band;
   const keys = kind === 'materials' ? ['name', 'code', 't', 'L', 'W', 'price', 'priceM2'] : ['name', 'code', 't', 'w', 'matPrice', 'price'];
-  $('#catPick').onchange = e => { const c = pickList(kind)[+e.target.value]; if (!c) return; change(() => { keys.forEach(k => { if (c[k] != null && c[k] !== '') target[k] = c[k]; }); }); toast('Взято из каталога: ' + c.name); };
+  bindPicker('catPick', () => pickList(kind), kind, c => { change(() => { keys.forEach(k => { if (c[k] != null && c[k] !== '') target[k] = c[k]; }); }); toast('Взято из каталога: ' + c.name); });
   $('#catSave').onclick = () => { const c = {}; keys.forEach(k => { if (target[k] != null && target[k] !== '') c[k] = target[k]; });
     const i = catalog[kind].findIndex(x => x.name === c.name && (x.t ?? '') === (c.t ?? '')); if (i >= 0) catalog[kind][i] = c; else catalog[kind].push(c);
     store.set('catalog', catalog); toast('Сохранено в каталог'); render(); };
@@ -417,6 +583,7 @@ function bindParams(op, pan) {
       else if (w === 'b') { if (val === undefined) { if (['name', 't', 'w'].includes(k)) return; delete op.band[k]; } else op.band[k] = val; }
     });
   });
+  const ap = $('#allParams'); if (ap) ap.onclick = () => setUi({ allParams: !ui.allParams });
   const rp = $('#resetParams'); if (rp) rp.onclick = () => change(() => { op.m.params = {}; });
 }
 
@@ -471,8 +638,22 @@ function subParts(op) {
   const total = parts.reduce((a, p) => a + p.count, 0), area = parts.reduce((a, p) => a + p.l * p.w * p.count, 0) / 1e6;
   const modeName = { 0: 'пильные', 1: 'чистовые, с кромкой', 2: 'после прифуговки' }[+(x.o.sizeMode ?? 1)];
   const nSel = parts.filter(p => sel.has(p.id)).length;
-  return `<div class="row bar2"><button class="btn sm primary" id="addPart">Добавить деталь</button><button class="btn sm" id="showPaste">Вставить из Excel</button>
-      <span class="note">Размеры ${modeName} (меняется в «Параметрах»). Деталей: ${fmt(total)} шт · площадь ${fmt(area, 2)} м²</span></div>
+  const nb = Object.keys(P.bands).length, qb = ui.qBand && P.bands[ui.qBand] ? ui.qBand : '';
+  return `<div class="quick"><div class="row"><b>Новая деталь</b>
+      <label>Длина<input class="inp big" id="qL" type="number" min="0" placeholder="мм"></label><span class="x">×</span>
+      <label>Ширина<input class="inp big" id="qW" type="number" min="0" placeholder="мм"></label>
+      <label>Кол-во<input class="inp big" id="qN" type="number" min="1" value="1" style="width:70px"></label>
+      <label>Название<input class="inp t big" id="qName" placeholder="необязательно" style="width:150px"></label>
+      <label>Кромка по кругу<select class="inp" id="qBand" style="width:160px">${nb ? `<option value="">без кромки</option>${Object.entries(P.bands).map(([k, b]) => `<option value="${esc(k)}" ${k === qb ? 'selected' : ''}>${esc(b.name)}</option>`).join('')}` : '<option value="">кромки в заказе нет</option>'}</select></label>
+      <label class="chk"><input type="checkbox" id="qGrain" ${ui.qGrain === false ? '' : 'checked'}> текстура</label>
+      <button class="btn primary" id="qAdd">Добавить</button></div>
+      <p class="note">Введите размеры и нажмите Enter: деталь добавится, курсор вернётся в «Длину». Размеры ${modeName}${nb ? '' : '. Чтобы клеить кромку, сначала добавьте её кнопкой «+ Кромка» над таблицей'}.</p></div>
+    <div class="ptools" role="toolbar" aria-label="Действия с деталями">
+      ${[['props', '⚙', 'Свойства и присадка', 'Ctrl+Пробел'], ['grainOff', 'Т−', 'Снять текстуру', 'Ctrl+D'], ['grainOn', 'Т+', 'Установить текстуру', 'Ctrl+E'],
+        ['swap', '⇄', 'Поменять длину и ширину', 'Ctrl+W, в браузере Alt+W'], ['group', '☰', 'Групповые действия', 'Ctrl+B'], ['move', '→', 'Перенести в другую операцию', 'Ctrl+M'], 0,
+        ['ins', '↥+', 'Вставить строку выше', 'Ctrl+PageUp'], ['add', '↧+', 'Добавить строку ниже', 'Ctrl+PageDown'], ['paste', '⎘', 'Вставить из Excel', 'Ctrl+V'], ['del', '✕', 'Удалить', 'Del']]
+        .map(b => b ? `<button class="btn sm pt" data-pt="${b[0]}" title="${b[2]} (${b[3]})" aria-label="${b[2]}"><span>${b[1]}</span> ${b[2].split(' ')[0]}</button>` : '<span class="sep"></span>').join('')}
+      <span class="note ptsum">Площадь: <b>${fmt(area, 3)} м²</b> · Кол-во: <b>${fmt(total)} шт</b> · размеры ${modeName}</span></div>
     <div class="row bar2 bulk" ${nSel ? '' : 'hidden'}><b>Выбрано: ${nSel}</b>
       <button class="btn sm" data-bulk="grainOn">Поставить текстуру</button><button class="btn sm" data-bulk="grainOff">Снять текстуру</button>
       <button class="btn sm" data-bulk="swap">Поменять Д и Ш</button>
@@ -485,16 +666,18 @@ function subParts(op) {
       <div class="row" style="margin-top:8px"><button class="btn sm primary" id="doPaste">Добавить строки в «${esc(op.m.name)}»</button>
         <label class="btn sm" for="xlsFile">Взять из файла Excel (.xlsx, .csv)…</label><input type="file" id="xlsFile" accept=".xlsx,.csv,.txt" hidden>
         <span class="note">В файле колонки узнаются по заголовкам: Длина, Ширина, Кол-во, Наименование, Кромка…</span></div></div>
-    <div class="tbl"><table class="parts"><thead><tr><th><input type="checkbox" id="selAll" aria-label="Выбрать все" ${nSel && nSel === parts.length ? 'checked' : ''}></th><th>№</th><th>Наименование</th><th class="r">Длина</th><th class="r">Ширина</th><th class="r">Кол</th><th title="Текстура">Ткт</th><th title="Кромка верх">ОВ</th><th title="Кромка низ">ОН</th><th title="Кромка лево">ОЛ</th><th title="Кромка право">ОП</th><th class="r">Пильный</th><th class="r">Отв.</th><th class="r" title="Разложено в раскрое">В раскрое</th><th>Операция</th><th></th></tr></thead><tbody>
+    <div class="tbl"><table class="parts"><thead><tr><th><input type="checkbox" id="selAll" aria-label="Выбрать все" ${nSel && nSel === parts.length ? 'checked' : ''}></th><th>№</th><th class="r">Длина</th><th class="r">Ширина</th><th class="r">Кол</th><th title="Текстура (пробел — вкл./выкл.)">Ткт</th><th title="Кромка верх (пробел — сменить)">ОВ</th><th title="Кромка низ (пробел — сменить)">ОН</th><th title="Кромка лево (пробел — сменить)">ОЛ</th><th title="Кромка право (пробел — сменить)">ОП</th><th>Наименование</th><th class="r">Пильный</th><th class="r">Отв.</th><th class="r" title="Вошло в раскрой">ИК</th><th class="r" title="Осталось разложить">Ост</th><th>Операция</th><th></th></tr></thead><tbody>
     ${parts.map(p => { const s = core.sawSize(P, p, x.o), pl = placed.get(p.id) || 0; return `<tr data-id="${p.id}" ${sel.has(p.id) ? 'aria-selected="true"' : ''}>
-      <td><input type="checkbox" data-sel aria-label="Выбрать деталь" ${sel.has(p.id) ? 'checked' : ''}></td><td class="n">${p.id}</td><td><input class="cell name" data-f="name" data-fid="p${p.id}name" value="${esc(p.name)}" aria-label="Наименование"></td>
+      <td><input type="checkbox" data-sel aria-label="Выбрать деталь" ${sel.has(p.id) ? 'checked' : ''}></td><td class="n">${p.id}</td>
       <td><input class="cell" data-f="l" data-fid="p${p.id}l" type="number" value="${p.l}" aria-label="Длина"></td><td><input class="cell" data-f="w" data-fid="p${p.id}w" type="number" value="${p.w}" aria-label="Ширина"></td>
       <td><input class="cell" data-f="count" data-fid="p${p.id}count" type="number" min="0" value="${p.count}" style="width:52px" aria-label="Количество"></td>
       <td><input type="checkbox" data-f="grain" data-fid="p${p.id}grain" ${p.grain ? 'checked' : ''} aria-label="Текстура"></td>
       ${['t', 'b', 'l', 'r'].map(e => `<td><select class="cell" data-e="${e}" data-fid="p${p.id}e${e}" aria-label="Кромка">${bandOpts(p.edges[e])}</select></td>`).join('')}
-      <td class="n">${s.l}×${s.w}</td><td><button class="btn xs ${core.badHoles(p).length ? 'warnb' : ''}" data-xp title="Присадка и фрезеровка детали">${p.holes.length || '+'}${p.mill ? ' ф' : ''}</button></td><td class="n ${pl < p.count ? 'warn' : ''}">${pl} из ${p.count}</td>
+      <td><input class="cell name" data-f="name" data-fid="p${p.id}name" value="${esc(p.name)}" aria-label="Наименование"></td>
+      <td class="n">${s.l}×${s.w}</td><td><button class="btn xs ${core.badHoles(p).length ? 'warnb' : ''}" data-xp title="Присадка и фрезеровка детали">${p.holes.length || '+'}${p.mill ? ' ф' : ''}</button></td><td class="n">${pl}</td><td class="n ${pl < p.count ? 'warn' : ''}">${p.count - pl || ''}</td>
       <td><select class="cell" data-f="material" aria-label="Перенести в операцию">${matOpts(p.material)}</select></td>
-      <td class="acts"><button class="btn xs" data-swap title="Поменять длину и ширину" aria-label="Поменять длину и ширину">⇄</button><button class="btn xs" data-del aria-label="Удалить деталь">✕</button></td></tr>`; }).join('')}
+      <td class="acts"><button class="btn xs" data-swap title="Поменять длину и ширину" aria-label="Поменять длину и ширину">⇄</button><button class="btn xs" data-del aria-label="Удалить деталь">✕</button></td></tr>`; }).join('')
+      || '<tr><td colspan="17" class="empty">Деталей пока нет. Введите размеры в строке «Новая деталь» выше и нажмите Enter.</td></tr>'}
     </tbody></table></div>
     ${partEditor()}
 `;
@@ -534,6 +717,7 @@ function bindParts(op, pan) {
     if (e.target.closest('[data-xp]')) { ui.xp = ui.xp === id ? null : id; render(); setTimeout(() => $('#xedit')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 30); return; }
     if (e.target.closest('[data-swap]')) change(() => { const p = P.parts.find(q => q.id === id); [p.l, p.w] = [p.w, p.l]; [p.edges.t, p.edges.b, p.edges.l, p.edges.r] = [p.edges.l, p.edges.r, p.edges.t, p.edges.b]; });
   });
+  bindPartsKeys(op, tb);
   bindPartEditor(pan);
   $('#selAll').onchange = e => { P.parts.filter(p => p.material === op.m.id).forEach(p => e.target.checked ? sel.add(p.id) : sel.delete(p.id)); render(); };
   pan.querySelectorAll('[data-bulk]').forEach(b => b.onclick = () => {
@@ -548,10 +732,95 @@ function bindParts(op, pan) {
       if (a === 'del') { P.parts = P.parts.filter(p => !list.includes(p)); sel.clear(); }
     });
   });
-  $('#addPart').onclick = () => change(() => { const id = core.nextId(P); P.parts.push({ id, name: 'Деталь', l: 600, w: 400, count: 1, grain: true, edges: { t: null, b: null, l: null, r: null }, material: op.m.id, holes: [], mill: 0, product: '' }); setTimeout(() => document.querySelector(`[data-fid="p${id}name"]`)?.focus(), 30); });
-  $('#showPaste').onclick = () => { ui.paste = !ui.paste; $('#pasteBox').hidden = !ui.paste; if (ui.paste) $('#pasteText').focus(); };
+  const qAdd = () => {
+    const l = +$('#qL').value, w = +$('#qW').value, n = Math.max(1, Math.round(+$('#qN').value || 1));
+    if (!(l > 0)) return $('#qL').focus(); if (!(w > 0)) return $('#qW').focus();
+    const k = $('#qBand').value || null, grain = $('#qGrain').checked, name = $('#qName').value.trim() || 'Деталь';
+    ui.qBand = k || ''; ui.qGrain = grain;
+    change(() => { P.parts.push({ id: core.nextId(P), name, l, w, count: n, grain, edges: { t: k, b: k, l: k, r: k }, material: op.m.id, holes: [], mill: 0, product: '' }); });
+    setTimeout(() => $('#qL')?.focus(), 30);
+  };
+  $('#qAdd').onclick = qAdd;
+  pan.querySelectorAll('.quick input').forEach(el => el.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); qAdd(); } });
+  pan.querySelectorAll('[data-pt]').forEach(b => { b.onmousedown = e => e.preventDefault(); b.onclick = () => partAction(op, b.dataset.pt); });
   $('#xlsFile').onchange = e => { const f = e.target.files[0]; if (f) f.arrayBuffer().then(b => importTable(b, f.name, op.m.id)); e.target.value = ''; };
   $('#doPaste').onclick = () => { let n = 0; change(() => { n = core.pasteRows(P, $('#pasteText').value, op.m.id); }); ui.paste = false; toast('Добавлено строк: ' + n); };
+}
+
+/* Панель действий над таблицей деталей, как в GibLab: действие идёт над выбранными галочкой деталями,
+   а если галочек нет — над строкой, где стоит курсор. */
+let curPart = null;
+function partAction(op, a) {
+  const mine = P.parts.filter(p => p.material === op.m.id), cur = mine.find(p => p.id === curPart);
+  const list = mine.filter(p => sel.has(p.id)).length ? mine.filter(p => sel.has(p.id)) : cur ? [cur] : [];
+  const blank = like => ({ id: core.nextId(P), name: 'Деталь', l: 0, w: 0, count: 1, grain: like ? like.grain : true, edges: { t: null, b: null, l: null, r: null }, material: op.m.id, holes: [], mill: 0, product: like?.product || '' });
+  const need = () => { if (!list.length) toast('Поставьте курсор в строку детали или отметьте детали галочками'); return list.length; };
+  if (a === 'paste') { ui.paste = !ui.paste; $('#pasteBox').hidden = !ui.paste; if (ui.paste) $('#pasteText').focus(); return; }
+  if (a === 'add' || a === 'ins') {
+    const np = blank(cur); change(() => { const i = cur ? P.parts.indexOf(cur) + (a === 'add' ? 1 : 0) : P.parts.length; P.parts.splice(i, 0, np); });
+    curPart = np.id; return focusCell(np.id, 'l');
+  }
+  if (!need()) return;
+  if (a === 'props') { ui.xp = list[0].id; render(); return setTimeout(() => $('#xedit')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 30); }
+  if (a === 'group' || a === 'move') { list.forEach(p => sel.add(p.id)); render(); const t = $(a === 'move' ? '#bulkMat' : '.bulk button'); t?.focus(); return; }
+  const keep = curPart, col = colOf(document.activeElement) || 'l';
+  change(() => {
+    if (a === 'grainOn' || a === 'grainOff') list.forEach(p => { p.grain = a === 'grainOn'; });
+    if (a === 'swap') list.forEach(p => { [p.l, p.w] = [p.w, p.l]; [p.edges.t, p.edges.b, p.edges.l, p.edges.r] = [p.edges.l, p.edges.r, p.edges.t, p.edges.b]; });
+    if (a === 'del') { const ids = new Set(list.map(p => p.id)); P.parts = P.parts.filter(p => !ids.has(p.id)); ids.forEach(id => sel.delete(id)); }
+  });
+  if (a !== 'del' && keep != null) focusCell(keep, col);
+}
+/* Клавиатура таблицы деталей как в GibLab: Tab/Enter по ячейкам с новой строкой в конце, стрелки по строкам,
+   пробел меняет кромку, Ctrl+PageUp/PageDown вставляют строку, Del удаляет, Ctrl+↑/↓ двигают, Ctrl+V из Excel. */
+const PCOLS = ['l', 'w', 'count', 'grain', 'et', 'eb', 'el', 'er', 'name'];
+const colOf = el => el?.dataset?.f || (el?.dataset?.e ? 'e' + el.dataset.e : '');
+/** Перейти в ячейку сразу (с перерисовкой сейчас же), чтобы следующие нажатия попали в неё, а не в прежнюю. */
+function focusCell(id, col) {
+  pendingFocus = `p${id}${col}`; clearTimeout(renderT); render();
+  document.querySelector(`[data-fid="p${id}${col}"]`)?.scrollIntoView({ block: 'nearest' });
+}
+function bindPartsKeys(op, tb) {
+  const ids = () => P.parts.filter(p => p.material === op.m.id).map(p => p.id);
+  const blank = (like) => ({ id: core.nextId(P), name: 'Деталь', l: 0, w: 0, count: 1, grain: like ? like.grain : true, edges: { t: null, b: null, l: null, r: null }, material: op.m.id, holes: [], mill: 0, product: like?.product || '' });
+  const commit = el => { if (fieldEdited(el)) el.dispatchEvent(new Event('change', { bubbles: true })); };
+  tb.addEventListener('focusin', e => { const id = +e.target.closest('tr')?.dataset.id; if (id) curPart = id; });
+  tb.addEventListener('focusin', e => { const el = e.target; if (el.select && el.type !== 'checkbox' && el.tagName === 'INPUT') setTimeout(() => { if (document.activeElement === el && !fieldEdited(el)) el.select(); }, 0); });
+  tb.addEventListener('keydown', e => {
+    const el = e.target, col = colOf(el), tr = el.closest('tr'); if (!col || !tr?.dataset.id) return;
+    const id = +tr.dataset.id, list = ids(), i = list.indexOf(id), ci = PCOLS.indexOf(col), p = P.parts.find(q => q.id === id);
+    const k = e.key, c = e.code, ctrl = e.ctrlKey || e.metaKey, edited = fieldEdited(el);
+    const stop = () => { e.preventDefault(); e.stopPropagation(); };
+    const addAfter = (pos, focusCol = 'l') => { const np = blank(p); change(() => { P.parts.splice(P.parts.indexOf(pos) + 1, 0, np); }); focusCell(np.id, focusCol); };
+    if (k === 'Escape' && edited) { stop(); el.value = el.defaultValue; return el.select?.(); }
+    // Пробел: кромка по кругу (нет → кромка 1 → кромка 2 …), Shift+пробел — сразу весь периметр, Ctrl+пробел — присадка детали
+    const act = ctrl && !e.shiftKey && !e.altKey ? { KeyD: 'grainOff', KeyE: 'grainOn', KeyW: 'swap', KeyB: 'group', KeyM: 'move' }[c] : e.altKey && c === 'KeyW' ? 'swap' : null;
+    if (act) { stop(); commit(el); curPart = id; return partAction(op, act); }
+    if (c === 'Space' && ctrl) { stop(); ui.xp = id; render(); return setTimeout(() => $('#xedit')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 30); }
+    if (c === 'Space' && col[0] === 'e' && col !== 'e') {
+      stop(); const keys = [null, ...Object.keys(P.bands)]; if (keys.length === 1) return toast('В заказе нет кромки: добавьте её кнопкой «+ Кромка»');
+      const side = col[1], next = keys[(keys.indexOf(p.edges[side] ?? null) + 1) % keys.length];
+      change(() => { if (e.shiftKey) p.edges = { t: next, b: next, l: next, r: next }; else p.edges[side] = next; }); return focusCell(id, col);
+    }
+    if (ctrl && (c === 'PageUp' || c === 'PageDown')) { stop(); commit(el);
+      if (c === 'PageDown') return addAfter(p);
+      const np = blank(p); change(() => { P.parts.splice(P.parts.indexOf(p), 0, np); }); return focusCell(np.id, 'l'); }
+    if (k === 'Delete' && (e.shiftKey || (!edited && (el.tagName !== 'INPUT' || el.type === 'checkbox' || el.type === 'number' || (el.selectionStart === 0 && el.selectionEnd === el.value.length))))) {
+      stop(); const nextId = list[i + 1] ?? list[i - 1]; change(() => { P.parts = P.parts.filter(q => q.id !== id); sel.delete(id); }); if (nextId != null) focusCell(nextId, col); return;
+    }
+    if (ctrl && (k === 'ArrowUp' || k === 'ArrowDown')) { stop(); commit(el);
+      const j = i + (k === 'ArrowUp' ? -1 : 1); if (j < 0 || j >= list.length) return;
+      const other = P.parts.find(q => q.id === list[j]); change(() => { const a = P.parts.indexOf(p), b2 = P.parts.indexOf(other); [P.parts[a], P.parts[b2]] = [P.parts[b2], P.parts[a]]; }); return focusCell(id, col); }
+    const nav = (ni, ncol) => { commit(el); focusCell(list[ni], ncol); };
+    if ((k === 'Tab' || k === 'Enter') && !ctrl) { stop();
+      if (e.shiftKey) { if (ci > 0) return nav(i, PCOLS[ci - 1]); if (i > 0) return nav(i - 1, PCOLS[PCOLS.length - 1]); return; }
+      if (ci < PCOLS.length - 1) return nav(i, PCOLS[ci + 1]);
+      if (i < list.length - 1) return nav(i + 1, PCOLS[0]);
+      commit(el); return addAfter(p); }
+    if (k === 'Enter' && ctrl) { stop(); if (i < list.length - 1) return nav(i + 1, PCOLS[0]); commit(el); return addAfter(p); }
+    if ((k === 'ArrowUp' || k === 'ArrowDown') && !e.altKey && !e.shiftKey) { stop(); const j = i + (k === 'ArrowUp' ? -1 : 1); if (j >= 0 && j < list.length) nav(j, col); return; }
+    if ((k === 'Home' || k === 'End') && !ctrl && !edited) { stop(); return nav(k === 'Home' ? 0 : list.length - 1, col); }
+  });
 }
 
 /* Листы и остатки */
@@ -701,20 +970,31 @@ function subCut(op) {
       <h3 style="margin-top:12px">Не разложено${r.unplaced.length ? ': ' + r.unplaced.length : ''}</h3>
       ${r.unplaced.length ? `<div class="tbl"><table><tbody>${r.unplaced.map((u, i) => `<tr><td class="n">№${u.p.id}</td><td>${esc(u.p.name)}</td><td class="n">${u.l}×${u.w}</td><td><button class="btn xs" data-put="${i}">На эту карту</button></td></tr>`).join('')}</tbody></table></div>` : '<p class="note">Все детали на картах.</p>'}
       <div class="row" style="margin-top:10px"><button class="btn sm" id="eSheet">Добавить пустой лист</button>${!s.items.length ? '<button class="btn sm" id="eDelSheet">Убрать пустой лист</button>' : ''}<button class="btn sm primary" id="eDone">Готово</button></div>`
-    : cnc ? (() => { const pr = core.excitechProgram(op.m, s, x.o); return `<div class="row" style="justify-content:space-between"><h3>Программа для Excitech</h3>
-      <div class="row">${mach.canUseFolders() ? '<button class="btn sm primary" id="cncSend">Отправить на станок</button>' : ''}<button class="btn sm ${mach.canUseFolders() ? '' : 'primary'}" id="cncZip">Скачать архив</button></div></div>
+    : cnc ? (() => { const pr = core.excitechProgram(op.m, s, x.o); return `<h3>Программа для Excitech</h3>
       <p class="note">Для каждого листа: программа F<i>N</i>_<i>N</i>.anc, программа этикетировщика Label_F<i>N</i>_<i>N</i>.cyc и картинки этикеток .bmp. Формат как в файлах со станка цеха. ${mach.canUseFolders() ? '«Отправить на станок» кладёт их в папку нестинга, выбранную в «Настройках».' : 'Прямая отправка в папку станка работает в Chrome или Edge на компьютере.'} Первый лист после обновления проверьте холостым ходом.</p>
       ${pr.warnings.map(w => `<p class="note warn">${esc(w)}</p>`).join('')}
       ${base.cncDraft ? `<textarea class="code" id="gcode" readonly aria-label="Программа ЧПУ">${esc(pr.text)}</textarea>` : ''}`; })()
-    : `<h3>Таблица резов</h3><div class="tbl cuts"><table><thead><tr><th>№</th><th>Рез</th><th class="r">От</th><th class="r">Длина</th></tr></thead><tbody>
-      ${s.cuts.map((c, i) => `<tr><td class="n">${i + 1}</td><td>${c.d === 'T' ? 'Торцовка' : c.d === 'H' ? 'Продольный' : 'Поперечный'}</td><td class="n">${c.d === 'T' ? '' : c.d === 'H' ? 'Y ' + fmt(c.y + s.ty, 1) : 'X ' + fmt(c.x + s.tx, 1)}</td><td class="n">${fmt(c.len, 1)}${c.d === 'T' ? ' ×2' : ''}</td></tr>`).join('')}
-      </tbody></table></div><p class="note">Продольный — рез вдоль длины листа, поперечный — поперёк. Координата от края листа, мм. Выгрузка на пилу Homag появится после образца файла с пилы.</p>`;
+    : null;
+  // Правая колонка как в GibLab: миниатюры всех карт или таблица команд пилы.
+  const cside = ui.cside === 'cmd' ? 'cmd' : 'maps';
+  const cmds = !cnc && core.sawCommands(s);
+  const cmdTable = cnc ? side : cmds ? `<div class="tbl cuts"><table><thead><tr><th title="Код команды: T — торцовка, C — рез полосы, P — рез детали; цифра — уровень реза">Кд</th><th class="r" title="Размер, мм">Р</th><th class="r" title="Количество одинаковых резов подряд">К</th><th class="r" title="Номер детали">Д</th></tr></thead><tbody>
+      ${cmds.map(c => `<tr class="${c.code[0] === 'T' ? 'muted' : c.code[0] === 'P' ? 'pc' : ''}"><td class="mono">${c.code}</td><td class="n">${fmt(c.dim, 1)}</td><td class="n">${c.n}</td><td class="n">${c.part}</td></tr>`).join('')}</tbody></table></div>
+      <p class="note">T — торцовка, C — рез полосы, P — рез, который даёт деталь. Цифра — уровень: 1 — резы по листу, 2 — по полосе, 3 — дорез.</p>`
+    : '<p class="note warn">Карту правили вручную так, что её нельзя порезать сквозными резами на пиле.</p>';
+  const thumbs = `<div class="thumbs">${groups.map((q, i) => `<button class="thumb${i === ui.sheet ? ' on' : ''}" data-sheetgo="${i}" aria-label="Карта ${i + 1}">${sheetSvg(q.s, x.o, cnc, true)}
+      <span class="mono">№${i + 1} S:${q.s.L}/${q.s.W} C:${q.n}</span></button>`).join('')}</div>`;
+  const right = edit ? side : `<div class="seg" role="tablist"><button role="tab" class="${cside === 'maps' ? 'on' : ''}" data-cside="maps">Таблица карт</button><button role="tab" class="${cside === 'cmd' ? 'on' : ''}" data-cside="cmd">${cnc ? 'Программа ЧПУ' : 'Таблица команд'}</button></div>
+      ${cside === 'maps' ? thumbs : cmdTable}`;
   const onMap = {}; s.items.forEach(it => { const k = it.p.id; onMap[k] = onMap[k] || { p: it.p, n: 0, l: it.l, w: it.w }; onMap[k].n++; });
-  return `<div class="nav"><button class="btn sm" data-sheetnav="-1" aria-label="Предыдущая карта">‹</button><b>Карта ${ui.sheet + 1} из ${groups.length}</b><button class="btn sm" data-sheetnav="1" aria-label="Следующая карта">›</button>
-      <span class="chip">${s.stock ? 'остаток ' : ''}${s.L}×${s.W}</span><span class="chip">таких листов: ${g.n}</span>${!cnc && x.o.stack > 1 ? `<span class="chip">пакетом по ${x.o.stack}: ${g.passes} прох.</span>` : ''}${s.format ? '<span class="chip">доп. формат</span>' : ''}<span class="chip">деталей: ${s.items.length}</span>
-      <span class="chip">рез ${fmt(s.cut / 1000, 2)} м</span><span class="chip ${fill >= 75 ? 'good' : fill < 55 ? 'bad' : ''}">заполнение ${fmt(fill, 1)} %</span>
-      ${stockBtn(op.m, r)}</div>
-    <div class="row bar2">${edit ? '<span class="chip good">режим правки</span>' : `<button class="btn sm" id="eStart">Править карту вручную</button>`}
+  const allItems = r.sheets.reduce((a, q) => a + q.items.length, 0), last = groups.length - 1;
+  const tip = (t, v) => `<span title="${t}">${v}</span>`;
+  return `<div class="cstat mono">${tip('Номер карты / всего карт', `№: <b>${ui.sheet + 1}</b>/${groups.length}`)}${tip('Размер листа, мм', `S: <b>${s.L}/${s.W}</b>${s.stock ? ' ост.' : s.format ? ' доп.' : ''}`)}${tip('Листов с такой картой / всего листов', `C: <b>${g.n}</b>/${r.sheets.length}`)}${tip('Деталей на карте / всего', `Ср: <b>${s.items.length}</b>/${allItems}`)}${tip('Длина резов, м: на карте / всего', `LT: <b>${fmt(s.cut / 1000, 2)}</b>/${fmt(r.cut, 2)}`)}<span title="Заполнение: карта / весь раскрой" class="${fill >= 75 ? 'good' : fill < 55 ? 'bad' : ''}">F: <b>${fmt(fill, 1)}%</b>/${fmt(r.util * 100, 1)}%</span>${!cnc && x.o.stack > 1 ? tip('Пакетом по ' + x.o.stack + ' листа', `П: <b>${g.passes}</b> прох.`) : ''}
+      <span class="cnav"><button class="btn xs" data-sheetgo="0" aria-label="Первая карта" title="Первая карта (Home)">⏮</button><button class="btn xs" data-sheetnav="-1" aria-label="Предыдущая карта" title="Предыдущая (←)">◀</button><button class="btn xs" data-sheetnav="1" aria-label="Следующая карта" title="Следующая (→)">▶</button><button class="btn xs" data-sheetgo="${last}" aria-label="Последняя карта" title="Последняя карта (End)">⏭</button></span></div>
+    <div class="row ctools">${edit ? '<span class="chip good">режим правки</span>' : `<button class="btn sm" id="eStart" title="Редактирование раскроя">✎ Править карту</button>`}
+      ${stockBtn(op.m, r)}
+      ${cnc ? `${mach.canUseFolders() ? '<button class="btn sm primary" id="cncSend">Отправить на станок</button>' : ''}<button class="btn sm ${mach.canUseFolders() ? '' : 'primary'}" id="cncZip">Скачать программы ЧПУ</button>`
+        : `${mach.canUseFolders() ? '<button class="btn sm primary" id="ptxSend" title="Файл CadMatic 4 (.ptx) в папку пилы">Отправить на пилу Holzma</button>' : ''}<button class="btn sm ${mach.canUseFolders() ? '' : 'primary'}" id="ptxSave" title="Файл CadMatic 4 (PTX 1.13) со всеми картами этого материала">Скачать .ptx для Holzma</button><span class="chip bad" title="Сделано по старому образцу файла PTX. Первую карту проверьте на пиле без листа.">не проверено</span>`}
       ${r.manual ? '<span class="chip">карта правлена вручную</span><button class="btn sm" id="eReset">Вернуть автоматический раскрой</button>' : ''}
       ${r.unplaced.length ? `<span class="chip bad">не разложено деталей: ${r.unplaced.length}</span>` : ''}
       ${r.manual && !cnc && !s.guillotine ? '<span class="chip bad">эту карту нельзя порезать сквозными резами на пиле</span>' : ''}
@@ -722,7 +1002,7 @@ function subCut(op) {
     <div class="cutview"><div>${sheetSvg(s, x.o, cnc, false, edit ? ui.qi : undefined)}
       <div class="tbl onmap"><table><thead><tr><th>№</th><th>Деталь на карте</th><th class="r">Размер</th><th class="r">Шт</th></tr></thead><tbody>
       ${Object.values(onMap).map(o => `<tr><td class="n">${o.p.id}</td><td>${esc(o.p.name)}</td><td class="n">${o.l}×${o.w}</td><td class="n">${o.n}</td></tr>`).join('')}</tbody></table></div></div>
-      <div>${side}</div></div>`;
+      <div class="cside">${right}</div></div>`;
 }
 /** Карты для навигации: одинаковые подряд объединяются, а в режиме правки каждый лист отдельно. */
 const mapsOf = x => ((ui.edit === 'm:' + x.m.id && x.r.manual) || x.mode === 'cnc' ? x.r.sheets.map((s, i) => ({ s, i, n: 1, passes: 1 })) : sameMaps(x.r.sheets, x.o.stack));
@@ -730,6 +1010,8 @@ function bindCut(op, pan) {
   if (!op.m) return;
   const x = resOf(op.m);
   pan.querySelectorAll('[data-sheetnav]').forEach(b => b.onclick = () => { const n = mapsOf(x).length; ui.qi = null; setUi({ sheet: (ui.sheet + +b.dataset.sheetnav + n) % n }); });
+  pan.querySelectorAll('[data-sheetgo]').forEach(b => b.onclick = () => { ui.qi = null; setUi({ sheet: +b.dataset.sheetgo }); });
+  pan.querySelectorAll('[data-cside]').forEach(b => b.onclick = () => setUi({ cside: b.dataset.cside }));
   bindEdit(op, pan, x);
   const so = $('#saveOff'); if (so) so.onclick = () => saveOffcuts(x.r);
 }
@@ -737,8 +1019,13 @@ function sheetSvg(s, o, cnc, small, selQi) {
   const tx = s.tx ?? s.trim, ty = s.ty ?? s.trim, L = s.L, W = s.W, edit = selQi !== undefined;
   const rects = s.items.map(it => {
     const x = it.x + tx, y = it.y + ty, fs = Math.max(28, Math.min(70, Math.min(it.l, it.w) / 4));
-    const label = it.l > 260 && it.w > 110 ? `<text x="${x + it.l / 2}" y="${y + it.w / 2 - (small ? 0 : fs * .35)}" font-size="${fs}" text-anchor="middle" dominant-baseline="middle">${it.l}×${it.w}</text>${small ? '' : `<text x="${x + it.l / 2}" y="${y + it.w / 2 + fs * .75}" font-size="${fs * .7}" text-anchor="middle" dominant-baseline="middle" class="pn">№${it.p.id}${it.rot ? ' ↻' : ''}</text>`}`
-      : it.l > 140 && it.w > 70 ? `<text x="${x + it.l / 2}" y="${y + it.w / 2}" font-size="28" text-anchor="middle" dominant-baseline="middle">${it.l}</text>` : '';
+    // Крупная карта как в GibLab: номер детали в центре, длина вдоль нижнего края, ширина вдоль правого.
+    const big = !small && it.l > 220 && it.w > 150 ? (() => { const f2 = Math.max(30, Math.min(56, Math.min(it.l, it.w) / 6));
+      return `<text x="${x + it.l / 2}" y="${y + it.w / 2}" font-size="${fs * 1.3}" text-anchor="middle" dominant-baseline="middle" class="pnum">${it.p.id}${it.rot ? ' ↻' : ''}</text>
+        <text x="${x + it.l / 2}" y="${y + it.w - f2 * .55}" font-size="${f2}" text-anchor="middle" dominant-baseline="middle">${it.l}</text>
+        <text transform="translate(${x + it.l - f2 * .65} ${y + it.w / 2}) rotate(-90)" font-size="${f2}" text-anchor="middle" dominant-baseline="middle">${it.w}</text>`; })() : '';
+    const label = big || (it.l > 260 && it.w > 110 ? `<text x="${x + it.l / 2}" y="${y + it.w / 2 - (small ? 0 : fs * .35)}" font-size="${fs}" text-anchor="middle" dominant-baseline="middle">${it.l}×${it.w}</text>${small ? '' : `<text x="${x + it.l / 2}" y="${y + it.w / 2 + fs * .75}" font-size="${fs * .7}" text-anchor="middle" dominant-baseline="middle" class="pn">№${it.p.id}${it.rot ? ' ↻' : ''}</text>`}`
+      : it.l > 140 && it.w > 70 ? `<text x="${x + it.l / 2}" y="${y + it.w / 2}" font-size="28" text-anchor="middle" dominant-baseline="middle">${it.l}</text>` : '');
     const holes = cnc ? core.holePoints(it).map(h => `<circle cx="${h.X + tx}" cy="${h.Y + ty}" r="${Math.max(h.d / 2, 6)}" fill="var(--accent)"/>`).join('') : '';
     const on = edit && it.qi === selQi;
     return `<g ${edit ? `data-qi="${it.qi}" class="drag"` : ''}><title>№${it.p.id} ${esc(it.p.name)} — ${it.p.l}×${it.p.w}${it.rot ? ' (повёрнута)' : ''}</title><rect x="${x}" y="${y}" width="${it.l}" height="${it.w}" fill="var(--board)" stroke="${on ? 'var(--accent)' : 'var(--board-line)'}" stroke-width="${on ? 14 : 4}"/>${label}${holes}</g>`;
@@ -757,6 +1044,8 @@ function bindEdit(op, pan, x) {
   pan.querySelectorAll('#eReset').forEach(b => b.onclick = () => { ui.edit = null; change(() => { delete m.manual; }); });
   on('cncZip', () => cncFiles(op, x, $('#cncZip'), false));
   on('cncSend', () => cncFiles(op, x, $('#cncSend'), true));
+  on('ptxSave', () => ptxFile(x, $('#ptxSave'), false));
+  on('ptxSend', () => ptxFile(x, $('#ptxSend'), true));
   on('eStart', () => { ui.edit = op.key; ui.qi = null; ui.sheet = r.manual ? ui.sheet : 0; if (r.manual) return render(); change(() => { m.manual = core.snapshotManual(r); }); });
   on('eDone', () => { ui.qi = null; setUi({ edit: null, sheet: 0 }); });
   if (ui.edit !== op.key || !r.manual || !g) return;
@@ -903,7 +1192,7 @@ function renderProjects(main) {
   const flOpts = v => `<option value="">без папки</option>` + fl.map(x => `<option ${x === v ? 'selected' : ''}>${esc(x)}</option>`).join('');
   const fItem = (key, name, n) => `<button class="fitem" data-folder="${esc(key)}" aria-current="${(f.folder || '') === key}"><span>${name}</span><b>${n || 0}</b></button>`;
   const curName = f.folder && f.folder !== '-' ? f.folder : '';
-  main.innerHTML = `<section class="panel">${screenHead('Все проекты', `<button class="btn sm primary" id="libNew">Новый проект${curName ? ' в «' + esc(curName) + '»' : ''}</button>`)}
+  main.innerHTML = `<section class="panel">${screenHead('Все заказы', `<button class="btn sm primary" id="libNew">Новый заказ${curName ? ' в «' + esc(curName) + '»' : ''}</button>`)}
    <div class="libgrid"><nav class="folders" aria-label="Папки">
       ${fItem('', 'Все проекты', idx.length)}${fItem('-', 'Без папки', fc[''])}
       <div class="mh">Папки</div>
@@ -964,9 +1253,10 @@ function renderProjects(main) {
 function renderStock(main) {
   const q = (ui.stockQ || '').trim().toLowerCase(), sel = stockSel;
   const known = new Map();
-  [...P.materials, ...(catalog.materials || []), ...(siteCat?.sheets || [])].forEach(m => { if (m?.name && m.t) known.set(core.matKey(m), { name: m.name, t: +m.t }); });
+  [...P.materials, ...(catalog.materials || []), ...(siteCat?.sheets || [])].forEach(m => { if (m?.name && m.t) known.set(core.matKey(m), { name: m.name, t: +m.t, code: m.code || '' }); });
   stock.forEach(s => known.set(s.mat, { name: s.name, t: s.t }));
-  const list = stock.filter(s => !q || `${s.name} ${s.t} ${s.place || ''} ${s.from || ''} ${s.note || ''}`.toLowerCase().includes(q))
+  const qw = norm(q).split(/\s+/).filter(Boolean);
+  const list = stock.filter(s => { const hay = norm(`${s.name} ${s.t} ${s.t}мм ${s.l}x${s.w} ${s.place || ''} ${s.from || ''} ${s.note || ''}`); return qw.every(w => hay.includes(w)); })
     .sort((a, b) => a.name.localeCompare(b.name, 'ru') || a.t - b.t || b.l * b.w - a.l * a.w);
   const groups = {}; list.forEach(s => { const g = groups[s.mat] = groups[s.mat] || { name: s.name, t: s.t, n: 0, a: 0 }; g.n++; g.a += s.l * s.w / 1e6; });
   const d = t => t ? new Date(t).toLocaleDateString('ru-RU') : '';
@@ -976,8 +1266,7 @@ function renderStock(main) {
    <p class="note">Деловые остатки цеха. В раскрое они видны во вкладке «Листы и остатки» и заполняются раньше новых листов. ${stockShared ? 'Склад общий: что добавлено на одном компьютере, видно на всех.' : 'Общим для всех компьютеров склад становится, когда программа открыта на artisan.shop.kg/raskroy и вы вошли на сайт.'}</p>
    <h3>Добавить кусок</h3>
    <div class="row bar2 stockadd">
-     <input class="inp t" id="sMat" list="sMats" placeholder="Материал" aria-label="Материал" style="min-width:220px" value="${esc(ui.sMat || '')}">
-     <datalist id="sMats">${[...known.values()].map(m => `<option value="${esc(m.name)}">${m.t} мм</option>`).join('')}</datalist>
+     <div class="pkw">${pickerHtml('sMat', 'Материал: поиск по названию, цвету, коду', ui.sMat || '')}</div>
      <input class="inp" id="sT" type="number" step="0.1" placeholder="толщ." aria-label="Толщина" style="width:70px" value="${esc(ui.sT || '')}">
      <input class="inp" id="sL" type="number" placeholder="длина" aria-label="Длина" style="width:84px">
      <input class="inp" id="sW" type="number" placeholder="ширина" aria-label="Ширина" style="width:84px">
@@ -995,8 +1284,8 @@ function renderStock(main) {
      <td><button class="btn xs" data-rm aria-label="Убрать остаток">✕</button></td></tr>`).join('')}
    </tbody></table></div>` : `<div class="empty">${stock.length ? 'Ничего не найдено.' : 'Склад пуст. Добавьте кусок выше или на вкладке «Раскрой» нажмите «Остатки раскроя на склад».'}</div>`}</section>`;
   const idOf = el => el.closest('tr').dataset.sid;
-  const matT = () => { const name = $('#sMat').value.trim(), hit = [...known.values()].find(m => m.name === name); if (hit) $('#sT').value = hit.t; };
-  $('#sMat').onchange = matT; $('#sT').onfocus = e => e.target.select();
+  bindPicker('sMat', () => [...known.values()], 'materials', c => { $('#sMat').value = c.name; $('#sT').value = c.t; $('#sL').focus(); });
+  $('#sT').onfocus = e => e.target.select();
   $('#sAdd').onclick = () => {
     const name = $('#sMat').value.trim(), t = +$('#sT').value, l = +$('#sL').value, w = +$('#sW').value, n = Math.max(1, Math.min(100, +$('#sN').value || 1));
     if (!name) return toast('Укажите материал'); if (!(t > 0)) return toast('Укажите толщину'); if (!(l > 0 && w > 0)) return toast('Укажите длину и ширину');
@@ -1038,13 +1327,13 @@ function renderCatalog(main) {
 /** Прайс сайта на экране каталога: только просмотр, править цены нужно на сайте. */
 function siteCatalogPanel() {
   if (!siteCat) return `<section class="panel"><h2>Прайс сайта</h2><p class="note">${siteState && !siteState.login ? 'Прайс сайта пока не загрузился.' : 'Плиты и кромки с ценами подтянутся с artisan.shop.kg, когда программа открыта на сайте и вы вошли.'}</p>${siteState && !siteState.login ? '<button class="btn sm" id="catReload">Загрузить с сайта</button>' : ''}</section>`;
-  const q = (ui.catQ || '').trim().toLowerCase(), hit = x => !q || `${x.name} ${x.code || ''}`.toLowerCase().includes(q);
+  const q = (ui.catQ || '').trim(), hit = x => !q || searchItems([x], q).length > 0;
   const sh = (siteCat.sheets || []).filter(hit), bd = (siteCat.bands || []).filter(hit), cap = 200;
   const when = siteCat.at ? new Date(siteCat.at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
   const rows = (list, f) => list.slice(0, cap).map(f).join('') + (list.length > cap ? `<tr><td colspan="6" class="note">и ещё ${list.length - cap}, уточните поиск</td></tr>` : '');
   return `<section class="panel"><div class="bar"><h2>Прайс сайта</h2><button class="btn sm" id="catReload">Обновить с сайта</button></div>
     <p class="note">Плит ${fmt(siteCat.sheets?.length || 0)}, кромок ${fmt(siteCat.bands?.length || 0)}${when ? `, загружено ${when}` : ''}. Эти позиции видны в операции во вкладке «Параметры» в списке «взять из каталога» с пометкой «сайт», а их цены идут в смету. Цены меняются на сайте, в админке товаров.</p>
-    <input class="inp t" id="catQ" placeholder="Поиск: название или код" value="${esc(ui.catQ || '')}" style="width:100%;max-width:420px;margin-bottom:8px" aria-label="Поиск по прайсу сайта">
+    <input class="inp t" id="catQ" placeholder="Поиск: название, цвет, код, толщина (например, белый 16)" value="${esc(ui.catQ || '')}" style="width:100%;max-width:420px;margin-bottom:8px" aria-label="Поиск по прайсу сайта">
     <h3>Плиты</h3><div class="tbl"><table><thead><tr><th>Наименование</th><th>Код</th><th class="r">Толщ.</th><th class="r">Длина</th><th class="r">Ширина</th><th class="r">Цена листа</th></tr></thead><tbody>
       ${rows(sh, x => `<tr><td>${esc(x.name)}</td><td>${esc(x.code || '')}</td><td class="n">${x.t ?? ''}</td><td class="n">${x.L ?? ''}</td><td class="n">${x.W ?? ''}</td><td class="n">${x.price != null ? fmt(x.price) : '—'}</td></tr>`) || '<tr><td colspan="6" class="empty">Не найдено.</td></tr>'}</tbody></table></div>
     <h3 style="margin-top:16px">Кромка</h3><div class="tbl"><table><thead><tr><th>Наименование</th><th>Код</th><th class="r">Толщ.</th><th class="r">Ширина</th><th class="r">Цена за м</th></tr></thead><tbody>
@@ -1162,6 +1451,26 @@ async function cncFiles(op, x, btn, send) {
     const how = await saveFile(new Blob([core.zipStore(files)], { type: 'application/zip' }), `Excitech ${label}.zip`);
     toast((how === 'saved' ? 'Файлы сохранены' : 'Файлы скачаны') + tail);
   } catch (e) { toast(e?.code === 'declined' ? 'Сохранение отменено' : 'Не удалось подготовить файлы: ' + (e?.message || e)); }
+  finally { btn.disabled = false; btn.textContent = text; }
+}
+/* Файл для пилы Holzma (CadMatic PTX 1.13): все карты материала одним файлом, кодировка windows-1251. */
+async function ptxFile(x, btn, send) {
+  const text = btn.textContent; btn.disabled = true;
+  try {
+    const res = core.holzmaPtx(P, x, sameMaps(x.r.sheets, x.o.stack), p => core.sawSize(P, p, x.o));
+    if (!res.patterns) return toast('Нет карт, которые можно порезать сквозными резами: ' + res.warnings.join('; '));
+    const base0 = `${P.name || 'zakaz'}_${x.m.name}_${x.m.t}`.replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, '_').trim();
+    const data = core.encode1251(res.text), tail = res.warnings.length ? '. ' + res.warnings.join('; ') : '';
+    if (send) {
+      const r = await mach.sendToMachine('holzma', [{ name: base0 + '.ptx', data }], { sub: '',
+        confirmReplace: async names => window.confirm(`В папке пилы уже есть файл ${names[0]}. Заменить?`) });
+      if (r.ok) return toast(`Отправлено на пилу: ${base0}.ptx в папку ${r.dir}${tail}`);
+      if (r.reason === 'nodir') { toast('Сначала выберите папку пилы Holzma в «Настройках», раздел «Папки станков»'); return setUi({ screen: 'settings' }); }
+      return toast(r.reason === 'denied' ? 'Браузер не дал записать в папку пилы. Разрешите запись и нажмите ещё раз.' : 'Отправка отменена');
+    }
+    const how = await saveFile(new Blob([data], { type: 'application/octet-stream' }), base0 + '.ptx');
+    toast((how === 'saved' ? 'Файл сохранён' : 'Файл скачан') + tail);
+  } catch (e) { toast(e?.code === 'declined' ? 'Сохранение отменено' : 'Не удалось сделать файл для пилы: ' + (e?.message || e)); }
   finally { btn.disabled = false; btn.textContent = text; }
 }
 let logoCache = null;
@@ -1316,7 +1625,7 @@ function renderSettings(main) {
       <div class="tbl"><table><tbody>${Object.entries(mach.MACHINES).map(([k, mm]) => `<tr><td>${mm.title}</td><td class="mdir" data-mdir="${k}"><span class="note">…</span></td>
         <td><button class="btn sm" data-mpick="${k}">Выбрать папку</button> <button class="btn sm" data-mforget="${k}">Забыть</button></td></tr>`).join('')}</tbody></table></div>
       <label class="note"><input type="checkbox" id="machineSub" ${base.machineSub ? 'checked' : ''}> Класть файлы в отдельную папку заказа внутри папки станка</label>
-      <p class="note">Пока отправляются программы нестинга. Пила Holzma и сверлилка подключатся вместе с их выгрузками.</p>`
+      <p class="note">Отправляются программы нестинга и файлы пилы Holzma (.ptx, пока не проверены на пиле). Сверлилка подключится после образца её файла.</p>`
     : '<p class="note">Прямая отправка в папки станков работает в Chrome или Edge на компьютере, когда программа открыта как сайт (artisan.shop.kg/raskroy). Здесь файлы для станка скачиваются архивом.</p>'}</section>`;
   main.querySelectorAll('[data-look]').forEach(el => el.onchange = () => { look[el.dataset.look] = el.value; store.set('look', look); applyLook(); });
   main.querySelectorAll('[data-hp]').forEach(el => el.onchange = () => { base.holePrices = { ...base.holePrices, [el.dataset.hp]: +el.value || 0 }; store.set('base', base); recalc(); renderSoon(); });
@@ -1368,19 +1677,75 @@ document.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (
 document.querySelectorAll('[data-screen]').forEach(b => b.onclick = () => setUi({ screen: b.dataset.screen }));
 document.querySelectorAll('[data-act]').forEach(b => b.onclick = () => {
   const a = b.dataset.act;
-  if (a === 'new') { saveProject(P); openProject({ ...core.newProject(), fresh: true }); toast('Новый проект. Прежний сохранён во «Всех проектах»'); }
+  if (a === 'new') { saveProject(P); openProject({ ...core.newProject(), fresh: true }); toast('Новый заказ. Прежний сохранён во «Всех заказах»'); }
   if (a === 'undo') stepHistory(undo, redo);
   if (a === 'redo') stepHistory(redo, undo);
   if (a === 'paste') { let m = curOp()?.m || P.materials[0];
     if (!m) { m = { id: 'm' + Date.now(), name: 'Новый материал', code: '', t: 16, L: 2750, W: 1830, op: 'CS', params: {} }; change(() => { P.materials.push(m); }); }
     setUi({ screen: 'project', top: 'ops', op: 'm:' + m.id, sub: 'parts', paste: true }); setTimeout(() => $('#pasteText')?.focus(), 30); }
 });
+$('#hMore').onclick = () => { const x = $('#hExtra'), open = x.hidden; x.hidden = !open; $('#hMore').setAttribute('aria-expanded', open); $('#hMore').textContent = open ? 'Скрыть поля' : 'Ещё поля'; };
 document.querySelectorAll('[data-h]').forEach(el => el.addEventListener('change', () => change(() => { P[el.dataset.h] = el.value; })));
+/* Горячие клавиши. Смотрим e.code (физическую клавишу), поэтому они работают и на русской раскладке.
+   В поле ввода Ctrl+Z отменяет действие программы, если поле ещё не правили (иначе — обычная отмена набора). */
+const KEYS = [['Таблица деталей (как в GibLab)'],
+  ['Tab, Enter', 'Следующая ячейка; в конце строки — следующая строка, в конце таблицы — новая строка'], ['Shift+Tab, Shift+Enter', 'Предыдущая ячейка'],
+  ['Ctrl+Enter', 'Первая ячейка следующей строки'], ['↑ / ↓', 'Предыдущая / следующая строка'], ['Home / End', 'Первая / последняя строка'],
+  ['Пробел', 'В колонке кромки — сменить кромку (нет → кромка 1 → кромка 2…); в «Ткт» — текстура'], ['Shift+Пробел', 'Сменить кромку сразу по всему периметру'],
+  ['Ctrl+Пробел', 'Присадка и фрезеровка детали'], ['Ctrl+D / Ctrl+E', 'Снять / установить текстуру'], ['Ctrl+W (в браузере Alt+W)', 'Поменять длину и ширину'], ['Ctrl+B', 'Групповые действия'], ['Ctrl+M', 'Перенести в другую операцию'], ['Ctrl+PageUp', 'Вставить строку над текущей'], ['Ctrl+PageDown', 'Добавить строку под текущей'],
+  ['Del, Shift+Del', 'Удалить строку'], ['Ctrl+↑ / Ctrl+↓', 'Переместить строку'], ['Ctrl+V', 'Вставить детали из Excel: Длина, Ширина, Кол-во, Текстура, ОВ, ОН, ОЛ, ОП, Наименование'],
+  ['Esc', 'Отменить ввод в ячейке'],
+  ['Карты раскроя'], ['↑ / ↓, ← / →', 'Предыдущая / следующая карта'], ['Home / End', 'Первая / последняя карта'], ['Del', 'В ручной правке — убрать выбранную деталь с карты'],
+  ['Везде'], ['Ctrl+Z', 'Отменить'], ['Ctrl+Y или Ctrl+Shift+Z', 'Вернуть'], ['Ctrl+S', 'Сохранить (заказ и так сохраняется сам)'],
+  ['Ctrl+P', 'Печать карт'], ['Alt+N', 'Новый заказ'], ['Alt+D', 'Ввести новую деталь'], ['Alt+R', 'Раскрой выбранного материала'], ['Esc', 'Закрыть окно'], ['F1', 'Этот список']];
+function showKeys() {
+  document.querySelector('.keyhelp')?.remove();
+  const d = document.createElement('div'); d.className = 'keyhelp'; d.setAttribute('role', 'dialog'); d.setAttribute('aria-label', 'Горячие клавиши');
+  d.innerHTML = `<div class="panel"><div class="bar"><h2>Горячие клавиши</h2><button class="btn sm" data-x>Закрыть</button></div>
+    <div class="keylist"><table><tbody>${KEYS.map(([k, t]) => t ? `<tr><td><kbd>${k}</kbd></td><td>${t}</td></tr>` : `<tr><th colspan="2">${k}</th></tr>`).join('')}</tbody></table></div>
+    <p class="note">Работают на русской и английской раскладке.</p></div>`;
+  d.onclick = e => { if (e.target === d || e.target.closest('[data-x]')) d.remove(); };
+  document.body.appendChild(d); d.querySelector('[data-x]').focus();
+}
+const inField = el => ['INPUT', 'TEXTAREA', 'SELECT'].includes(el?.tagName);
+const fieldEdited = el => (el?.tagName === 'INPUT' || el?.tagName === 'TEXTAREA') && el.type !== 'checkbox' && el.value !== el.defaultValue;
+function gotoOpSub(sub) {
+  const m = curOp()?.m || P.materials[0]; if (!m) return toast('Сначала добавьте материал');
+  setUi({ screen: 'project', top: 'ops', op: 'm:' + m.id, sub });
+}
 document.addEventListener('keydown', e => {
-  if (!(e.ctrlKey || e.metaKey) || ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) return;
-  const k = e.key.toLowerCase();
-  if (k === 'z' && !e.shiftKey) { e.preventDefault(); stepHistory(undo, redo); }
-  else if (k === 'y' || (k === 'z' && e.shiftKey)) { e.preventDefault(); stepHistory(redo, undo); }
+  const el = document.activeElement, c = e.code, mod = e.ctrlKey || e.metaKey;
+  if (e.key === 'Escape') { const h = document.querySelector('.keyhelp'); if (h) return h.remove(); if (ui.rel && !inField(el)) return setUi({ rel: false }); return; }
+  if (c === 'F1') { e.preventDefault(); return showKeys(); }
+  if (mod && !e.altKey) {
+    if (c === 'KeyZ' && !e.shiftKey) { if (fieldEdited(el)) return; e.preventDefault(); el?.blur?.(); return stepHistory(undo, redo); }
+    if (c === 'KeyY' || (c === 'KeyZ' && e.shiftKey)) { if (fieldEdited(el)) return; e.preventDefault(); el?.blur?.(); return stepHistory(redo, undo); }
+    if (c === 'KeyS') { e.preventDefault(); el?.blur?.(); saveProject(P); return toast('Сохранено'); }
+    if (c === 'KeyP' && ui.screen !== 'report') { e.preventDefault(); return setUi({ screen: 'report' }); }
+    return;
+  }
+  if (!mod && !e.altKey && ui.screen === 'project' && ui.sub === 'cut' && !inField(el) && !document.querySelector('.keyhelp')) {
+    const n = document.querySelectorAll('[data-sheetnav]').length ? mapsOf(resOf(curOp()?.m) || {}).length : 0;
+    if (n && ['ArrowUp', 'ArrowLeft', 'ArrowDown', 'ArrowRight', 'Home', 'End'].includes(e.key)) {
+      e.preventDefault(); const to = { Home: 0, End: n - 1 }[e.key] ?? (ui.sheet + (['ArrowUp', 'ArrowLeft'].includes(e.key) ? -1 : 1) + n) % n;
+      ui.qi = null; return setUi({ sheet: to });
+    }
+    if (e.key === 'Delete' && $('#eOff')) { e.preventDefault(); return $('#eOff').click(); }
+  }
+  if (e.altKey && !mod) {
+    if (c === 'KeyN') { e.preventDefault(); return document.querySelector('[data-act="new"]').click(); }
+    if (c === 'KeyD') { e.preventDefault(); gotoOpSub('parts'); return setTimeout(() => $('#qL')?.focus(), 30); }
+    if (c === 'KeyR') { e.preventDefault(); return gotoOpSub('cut'); }
+    if ((c === 'ArrowLeft' || c === 'ArrowRight') && ui.screen === 'project' && ui.sub === 'cut') { e.preventDefault(); return document.querySelector(`[data-sheetnav="${c === 'ArrowLeft' ? -1 : 1}"]`)?.click(); }
+  }
+});
+$('#keysBtn').onclick = showKeys;
+// Ctrl+V из Excel в «Детали»: колонки Длина, Ширина, Кол-во, Текстура, ОВ, ОН, ОЛ, ОП, Наименование (как в GibLab)
+document.addEventListener('paste', e => {
+  if (ui.screen !== 'project' || ui.sub !== 'parts' || e.target?.tagName === 'TEXTAREA') return;
+  const m = curOp()?.m; if (!m) return;
+  const text = e.clipboardData?.getData('text') || ''; if (!/[\t\n]/.test(text.trim())) return;
+  e.preventDefault(); let n = 0; change(() => { n = core.pasteRows(P, text, m.id); }); toast(n ? `Вставлено строк из Excel: ${n}` : 'В буфере нет строк с длиной и шириной');
 });
 
 const saved = store.get('project', null);

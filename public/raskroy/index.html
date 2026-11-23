@@ -20,13 +20,16 @@
 <header class="top panel">
   <div class="brand">Artisan<br>Раскрой</div>
   <div class="hf">
-    <label>Наименование<input class="inp t" id="hName" data-h="name"></label>
-    <label>Заказчик<input class="inp t" id="hOrder" data-h="order"></label>
-    <label>Дата заказа<input class="inp t" id="hDate" type="date" data-h="date"></label>
-    <label>Дата готовности<input class="inp t" id="hDue" type="date" data-h="due"></label>
+    <label>Заказ<input class="inp t" id="hName" data-h="name" placeholder="например, Кухня Иванов"></label>
+    <label>Заказчик<input class="inp t" id="hOrder" data-h="order" placeholder="имя или телефон"></label>
+    <label>Готовность к<input class="inp t" id="hDue" type="date" data-h="due"></label>
     <label>Статус<select class="inp t" id="hStatus" data-h="status"></select></label>
-    <label>Папка<select class="inp t" id="hFolder" data-h="folder"></select></label>
-    <label class="grow">Примечание<input class="inp t" id="hNote" data-h="note"></label>
+    <button class="btn sm hmore" id="hMore" type="button" aria-expanded="false">Ещё поля</button>
+    <div class="hextra" id="hExtra" hidden>
+      <label>Дата заказа<input class="inp t" id="hDate" type="date" data-h="date"></label>
+      <label>Папка<select class="inp t" id="hFolder" data-h="folder"></select></label>
+      <label class="grow">Примечание<input class="inp t" id="hNote" data-h="note"></label>
+    </div>
     <span id="siteStatus" class="sitestatus" hidden></span>
   </div>
 </header>
@@ -34,22 +37,23 @@
 <div class="grid">
   <aside class="side">
     <nav class="menu panel" aria-label="Меню">
-      <div class="mh">Проект</div>
-      <button class="mi" data-screen="projects">Все проекты</button>
+      <button class="mi new" data-act="new">+ Новый заказ</button>
+      <div class="mh">Текущий заказ</div>
+      <button class="mi" data-screen="project">Детали и раскрой</button>
+      <button class="mi" data-screen="estimate">Смета и КП</button>
+      <button class="mi" data-screen="labels">Этикетки</button>
+      <button class="mi" data-screen="report">Печать карт</button>
+      <div class="mi-row"><button class="mi" data-act="undo" title="Ctrl+Z">↶ Отменить</button><button class="mi" data-act="redo" title="Ctrl+Y">↷ Вернуть</button></div>
+      <div class="mh">Заказы</div>
+      <button class="mi" data-screen="projects">Все заказы</button>
       <label class="mi" for="file">Открыть файл…</label>
       <input id="file" type="file" accept=".project,.xml,.xlsx,.csv" hidden>
-      <button class="mi" data-act="new">Новый проект</button>
-      <div class="mi-row"><button class="mi" data-act="undo" title="Ctrl+Z">Отменить</button><button class="mi" data-act="redo" title="Ctrl+Y">Вернуть</button></div>
-      <button class="mi" data-act="paste">Импорт из Excel</button>
-      <button class="mi" data-screen="export">Экспорт</button>
       <div class="mh">Цех</div>
-      <button class="mi" data-screen="project">Операции проекта</button>
-      <button class="mi" data-screen="estimate">Смета и КП</button>
       <button class="mi" data-screen="stock">Склад остатков</button>
       <button class="mi" data-screen="catalog">Каталог материалов</button>
-      <button class="mi" data-screen="labels">Этикетки</button>
-      <button class="mi" data-screen="report">Печать отчёта</button>
       <button class="mi" data-screen="settings">Настройки</button>
+      <button class="mi" data-screen="export">Выгрузка для GibLab</button>
+      <button class="mi" id="keysBtn">Горячие клавиши (F1)</button>
     </nav>
     <div class="panel totals" id="totals"></div>
     <div class="drop" id="drop">Перетащите сюда файл .project из GibLab или Базиса, либо таблицу Excel (.xlsx, .csv)</div>
