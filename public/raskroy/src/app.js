@@ -461,7 +461,7 @@ function propsTable(fields, valOf, idPrefix) {
     const [k, label, type, where, step] = f; const v = valOf(f); const own = v && typeof v === 'object';
     const cur = own ? (v.own ?? '') : v, eff = own ? v.eff : v;
     const fid = idPrefix + k; let input;
-    if (type === 'sel') input = `<select class="inp" data-k="${k}" data-w="${where}" data-fid="${fid}">${own ? `<option value="" ${cur === '' ? 'selected' : ''}>как в настройках (${esc((SEL[k].find(o => o[0] === eff) || [, eff])[1])})</option>` : ''}${SEL[k].map(([o, n]) => `<option value="${o}" ${String(cur) === o ? 'selected' : ''}>${n}</option>`).join('')}</select>`;
+    if (type === 'sel') input = `<select class="inp" data-k="${k}" data-w="${where}" data-fid="${fid}">${own ? `<option value="" ${cur === '' ? 'selected' : ''}>как в настройках (${esc((SEL[k].find(o => o[0] === String(eff)) || [, eff])[1])})</option>` : ''}${SEL[k].map(([o, n]) => `<option value="${o}" ${String(cur) === o ? 'selected' : ''}>${n}</option>`).join('')}</select>`;
     else if (type === 'chk') input = `<input type="checkbox" data-k="${k}" data-w="${where}" data-fid="${fid}" ${eff ? 'checked' : ''}>`;
     else input = `<input class="inp ${type === 'text' ? 't' : ''}" data-k="${k}" data-w="${where}" data-fid="${fid}" ${type === 'num' ? `type="number" step="${step || 1}"` : ''} value="${esc(cur)}" ${own ? `placeholder="${esc(eff)}"` : ''}>`;
     return `<tr><td><label>${esc(label)}</label>${own && cur !== '' && cur != null ? ' <span class="own" title="Своё значение у этой операции">●</span>' : ''}</td><td>${input}</td></tr>`;
@@ -475,7 +475,15 @@ function shownFields(type) {
 }
 function subParams(op) {
   const own = op.m ? Object.keys(op.m.params || {}).length : 0, more = shownFields(op.type).length < F[op.type].length || ui.allParams;
-  return `<div class="params"><div>${propsTable(shownFields(op.type), f => fieldValue(f, op), op.key + ':')}
+  // Как в GibLab: все параметры в две колонки по группам — слева материал, детали, остатки, стоимость; справа раскрой и станок.
+  const fields = shownFields(op.type), secs = [];
+  fields.forEach(f => { if (f.length === 1 || !secs.length) secs.push([]); secs[secs.length - 1].push(f); });
+  const RIGHT = ['Раскрой', 'Фреза', 'Обработка', 'Остаток'];
+  const two = secs.length > 2 && secs.some(q => RIGHT.includes(q[0][0]));
+  const table = two ? `<div class="pcols"><div>${propsTable(secs.filter(q => !RIGHT.includes(q[0][0])).flat(), f => fieldValue(f, op), op.key + ':')}</div>
+      <div>${propsTable(secs.filter(q => RIGHT.includes(q[0][0])).flat(), f => fieldValue(f, op), op.key + ':')}</div></div>`
+    : propsTable(fields, f => fieldValue(f, op), op.key + ':');
+  return `<div class="params${two ? ' wide' : ''}"><div>${table}
     ${more ? `<button class="btn sm" id="allParams">${ui.allParams ? 'Скрыть дополнительные параметры' : 'Все параметры (пила, остатки, цена работы…)'}</button>` : ''}</div>
     <div class="note">${catalogBox(op)}${op.type === 'XNC' ? 'Отверстия и фрезеровка берутся из программ деталей в проекте (Базис, GibLab).' : ['GR', 'CL'].includes(op.type) ? '' :
       `Пустое поле — значение из «Настроек» (серым). ● — своё значение этой операции.${own ? ' <button class="btn sm" id="resetParams">Сбросить к настройкам</button>' : ''}`}
@@ -640,8 +648,12 @@ function subParts(op) {
       <label class="chk"><input type="checkbox" id="qGrain" ${ui.qGrain === false ? '' : 'checked'}> текстура</label>
       <button class="btn primary" id="qAdd">Добавить</button></div>
       <p class="note">Введите размеры и нажмите Enter: деталь добавится, курсор вернётся в «Длину». Размеры ${modeName}${nb ? '' : '. Чтобы клеить кромку, сначала добавьте её кнопкой «+ Кромка» над таблицей'}.</p></div>
-    <div class="row bar2"><button class="btn sm" id="showPaste">Вставить много строк из Excel</button><button class="btn sm" id="addPart">Пустая строка</button>
-      <span class="note">Деталей: ${fmt(total)} шт · площадь ${fmt(area, 2)} м². В таблице клавиши как в GibLab: Tab/Enter — дальше, пробел — кромка, Ctrl+PageDown — новая строка, Ctrl+V — вставка из Excel. Все клавиши — F1.</span></div>
+    <div class="ptools" role="toolbar" aria-label="Действия с деталями">
+      ${[['props', '⚙', 'Свойства и присадка', 'Ctrl+Пробел'], ['grainOff', 'Т−', 'Снять текстуру', 'Ctrl+D'], ['grainOn', 'Т+', 'Установить текстуру', 'Ctrl+E'],
+        ['swap', '⇄', 'Поменять длину и ширину', 'Ctrl+W, в браузере Alt+W'], ['group', '☰', 'Групповые действия', 'Ctrl+B'], ['move', '→', 'Перенести в другую операцию', 'Ctrl+M'], 0,
+        ['ins', '↥+', 'Вставить строку выше', 'Ctrl+PageUp'], ['add', '↧+', 'Добавить строку ниже', 'Ctrl+PageDown'], ['paste', '⎘', 'Вставить из Excel', 'Ctrl+V'], ['del', '✕', 'Удалить', 'Del']]
+        .map(b => b ? `<button class="btn sm pt" data-pt="${b[0]}" title="${b[2]} (${b[3]})" aria-label="${b[2]}"><span>${b[1]}</span> ${b[2].split(' ')[0]}</button>` : '<span class="sep"></span>').join('')}
+      <span class="note ptsum">Площадь: <b>${fmt(area, 3)} м²</b> · Кол-во: <b>${fmt(total)} шт</b> · размеры ${modeName}</span></div>
     <div class="row bar2 bulk" ${nSel ? '' : 'hidden'}><b>Выбрано: ${nSel}</b>
       <button class="btn sm" data-bulk="grainOn">Поставить текстуру</button><button class="btn sm" data-bulk="grainOff">Снять текстуру</button>
       <button class="btn sm" data-bulk="swap">Поменять Д и Ш</button>
@@ -654,7 +666,7 @@ function subParts(op) {
       <div class="row" style="margin-top:8px"><button class="btn sm primary" id="doPaste">Добавить строки в «${esc(op.m.name)}»</button>
         <label class="btn sm" for="xlsFile">Взять из файла Excel (.xlsx, .csv)…</label><input type="file" id="xlsFile" accept=".xlsx,.csv,.txt" hidden>
         <span class="note">В файле колонки узнаются по заголовкам: Длина, Ширина, Кол-во, Наименование, Кромка…</span></div></div>
-    <div class="tbl"><table class="parts"><thead><tr><th><input type="checkbox" id="selAll" aria-label="Выбрать все" ${nSel && nSel === parts.length ? 'checked' : ''}></th><th>№</th><th class="r">Длина</th><th class="r">Ширина</th><th class="r">Кол</th><th title="Текстура (пробел — вкл./выкл.)">Ткт</th><th title="Кромка верх (пробел — сменить)">ОВ</th><th title="Кромка низ (пробел — сменить)">ОН</th><th title="Кромка лево (пробел — сменить)">ОЛ</th><th title="Кромка право (пробел — сменить)">ОП</th><th>Наименование</th><th class="r">Пильный</th><th class="r">Отв.</th><th class="r" title="Разложено в раскрое">В раскрое</th><th>Операция</th><th></th></tr></thead><tbody>
+    <div class="tbl"><table class="parts"><thead><tr><th><input type="checkbox" id="selAll" aria-label="Выбрать все" ${nSel && nSel === parts.length ? 'checked' : ''}></th><th>№</th><th class="r">Длина</th><th class="r">Ширина</th><th class="r">Кол</th><th title="Текстура (пробел — вкл./выкл.)">Ткт</th><th title="Кромка верх (пробел — сменить)">ОВ</th><th title="Кромка низ (пробел — сменить)">ОН</th><th title="Кромка лево (пробел — сменить)">ОЛ</th><th title="Кромка право (пробел — сменить)">ОП</th><th>Наименование</th><th class="r">Пильный</th><th class="r">Отв.</th><th class="r" title="Вошло в раскрой">ИК</th><th class="r" title="Осталось разложить">Ост</th><th>Операция</th><th></th></tr></thead><tbody>
     ${parts.map(p => { const s = core.sawSize(P, p, x.o), pl = placed.get(p.id) || 0; return `<tr data-id="${p.id}" ${sel.has(p.id) ? 'aria-selected="true"' : ''}>
       <td><input type="checkbox" data-sel aria-label="Выбрать деталь" ${sel.has(p.id) ? 'checked' : ''}></td><td class="n">${p.id}</td>
       <td><input class="cell" data-f="l" data-fid="p${p.id}l" type="number" value="${p.l}" aria-label="Длина"></td><td><input class="cell" data-f="w" data-fid="p${p.id}w" type="number" value="${p.w}" aria-label="Ширина"></td>
@@ -662,10 +674,10 @@ function subParts(op) {
       <td><input type="checkbox" data-f="grain" data-fid="p${p.id}grain" ${p.grain ? 'checked' : ''} aria-label="Текстура"></td>
       ${['t', 'b', 'l', 'r'].map(e => `<td><select class="cell" data-e="${e}" data-fid="p${p.id}e${e}" aria-label="Кромка">${bandOpts(p.edges[e])}</select></td>`).join('')}
       <td><input class="cell name" data-f="name" data-fid="p${p.id}name" value="${esc(p.name)}" aria-label="Наименование"></td>
-      <td class="n">${s.l}×${s.w}</td><td><button class="btn xs ${core.badHoles(p).length ? 'warnb' : ''}" data-xp title="Присадка и фрезеровка детали">${p.holes.length || '+'}${p.mill ? ' ф' : ''}</button></td><td class="n ${pl < p.count ? 'warn' : ''}">${pl} из ${p.count}</td>
+      <td class="n">${s.l}×${s.w}</td><td><button class="btn xs ${core.badHoles(p).length ? 'warnb' : ''}" data-xp title="Присадка и фрезеровка детали">${p.holes.length || '+'}${p.mill ? ' ф' : ''}</button></td><td class="n">${pl}</td><td class="n ${pl < p.count ? 'warn' : ''}">${p.count - pl || ''}</td>
       <td><select class="cell" data-f="material" aria-label="Перенести в операцию">${matOpts(p.material)}</select></td>
       <td class="acts"><button class="btn xs" data-swap title="Поменять длину и ширину" aria-label="Поменять длину и ширину">⇄</button><button class="btn xs" data-del aria-label="Удалить деталь">✕</button></td></tr>`; }).join('')
-      || '<tr><td colspan="16" class="empty">Деталей пока нет. Введите размеры в строке «Новая деталь» выше и нажмите Enter.</td></tr>'}
+      || '<tr><td colspan="17" class="empty">Деталей пока нет. Введите размеры в строке «Новая деталь» выше и нажмите Enter.</td></tr>'}
     </tbody></table></div>
     ${partEditor()}
 `;
@@ -730,12 +742,35 @@ function bindParts(op, pan) {
   };
   $('#qAdd').onclick = qAdd;
   pan.querySelectorAll('.quick input').forEach(el => el.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); qAdd(); } });
-  $('#addPart').onclick = () => change(() => { const id = core.nextId(P); P.parts.push({ id, name: 'Деталь', l: 600, w: 400, count: 1, grain: true, edges: { t: null, b: null, l: null, r: null }, material: op.m.id, holes: [], mill: 0, product: '' }); setTimeout(() => document.querySelector(`[data-fid="p${id}name"]`)?.focus(), 30); });
-  $('#showPaste').onclick = () => { ui.paste = !ui.paste; $('#pasteBox').hidden = !ui.paste; if (ui.paste) $('#pasteText').focus(); };
+  pan.querySelectorAll('[data-pt]').forEach(b => { b.onmousedown = e => e.preventDefault(); b.onclick = () => partAction(op, b.dataset.pt); });
   $('#xlsFile').onchange = e => { const f = e.target.files[0]; if (f) f.arrayBuffer().then(b => importTable(b, f.name, op.m.id)); e.target.value = ''; };
   $('#doPaste').onclick = () => { let n = 0; change(() => { n = core.pasteRows(P, $('#pasteText').value, op.m.id); }); ui.paste = false; toast('Добавлено строк: ' + n); };
 }
 
+/* Панель действий над таблицей деталей, как в GibLab: действие идёт над выбранными галочкой деталями,
+   а если галочек нет — над строкой, где стоит курсор. */
+let curPart = null;
+function partAction(op, a) {
+  const mine = P.parts.filter(p => p.material === op.m.id), cur = mine.find(p => p.id === curPart);
+  const list = mine.filter(p => sel.has(p.id)).length ? mine.filter(p => sel.has(p.id)) : cur ? [cur] : [];
+  const blank = like => ({ id: core.nextId(P), name: 'Деталь', l: 0, w: 0, count: 1, grain: like ? like.grain : true, edges: { t: null, b: null, l: null, r: null }, material: op.m.id, holes: [], mill: 0, product: like?.product || '' });
+  const need = () => { if (!list.length) toast('Поставьте курсор в строку детали или отметьте детали галочками'); return list.length; };
+  if (a === 'paste') { ui.paste = !ui.paste; $('#pasteBox').hidden = !ui.paste; if (ui.paste) $('#pasteText').focus(); return; }
+  if (a === 'add' || a === 'ins') {
+    const np = blank(cur); change(() => { const i = cur ? P.parts.indexOf(cur) + (a === 'add' ? 1 : 0) : P.parts.length; P.parts.splice(i, 0, np); });
+    curPart = np.id; return focusCell(np.id, 'l');
+  }
+  if (!need()) return;
+  if (a === 'props') { ui.xp = list[0].id; render(); return setTimeout(() => $('#xedit')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 30); }
+  if (a === 'group' || a === 'move') { list.forEach(p => sel.add(p.id)); render(); const t = $(a === 'move' ? '#bulkMat' : '.bulk button'); t?.focus(); return; }
+  const keep = curPart, col = colOf(document.activeElement) || 'l';
+  change(() => {
+    if (a === 'grainOn' || a === 'grainOff') list.forEach(p => { p.grain = a === 'grainOn'; });
+    if (a === 'swap') list.forEach(p => { [p.l, p.w] = [p.w, p.l]; [p.edges.t, p.edges.b, p.edges.l, p.edges.r] = [p.edges.l, p.edges.r, p.edges.t, p.edges.b]; });
+    if (a === 'del') { const ids = new Set(list.map(p => p.id)); P.parts = P.parts.filter(p => !ids.has(p.id)); ids.forEach(id => sel.delete(id)); }
+  });
+  if (a !== 'del' && keep != null) focusCell(keep, col);
+}
 /* Клавиатура таблицы деталей как в GibLab: Tab/Enter по ячейкам с новой строкой в конце, стрелки по строкам,
    пробел меняет кромку, Ctrl+PageUp/PageDown вставляют строку, Del удаляет, Ctrl+↑/↓ двигают, Ctrl+V из Excel. */
 const PCOLS = ['l', 'w', 'count', 'grain', 'et', 'eb', 'el', 'er', 'name'];
@@ -749,6 +784,7 @@ function bindPartsKeys(op, tb) {
   const ids = () => P.parts.filter(p => p.material === op.m.id).map(p => p.id);
   const blank = (like) => ({ id: core.nextId(P), name: 'Деталь', l: 0, w: 0, count: 1, grain: like ? like.grain : true, edges: { t: null, b: null, l: null, r: null }, material: op.m.id, holes: [], mill: 0, product: like?.product || '' });
   const commit = el => { if (fieldEdited(el)) el.dispatchEvent(new Event('change', { bubbles: true })); };
+  tb.addEventListener('focusin', e => { const id = +e.target.closest('tr')?.dataset.id; if (id) curPart = id; });
   tb.addEventListener('focusin', e => { const el = e.target; if (el.select && el.type !== 'checkbox' && el.tagName === 'INPUT') setTimeout(() => { if (document.activeElement === el && !fieldEdited(el)) el.select(); }, 0); });
   tb.addEventListener('keydown', e => {
     const el = e.target, col = colOf(el), tr = el.closest('tr'); if (!col || !tr?.dataset.id) return;
@@ -758,6 +794,8 @@ function bindPartsKeys(op, tb) {
     const addAfter = (pos, focusCol = 'l') => { const np = blank(p); change(() => { P.parts.splice(P.parts.indexOf(pos) + 1, 0, np); }); focusCell(np.id, focusCol); };
     if (k === 'Escape' && edited) { stop(); el.value = el.defaultValue; return el.select?.(); }
     // Пробел: кромка по кругу (нет → кромка 1 → кромка 2 …), Shift+пробел — сразу весь периметр, Ctrl+пробел — присадка детали
+    const act = ctrl && !e.shiftKey && !e.altKey ? { KeyD: 'grainOff', KeyE: 'grainOn', KeyW: 'swap', KeyB: 'group', KeyM: 'move' }[c] : e.altKey && c === 'KeyW' ? 'swap' : null;
+    if (act) { stop(); commit(el); curPart = id; return partAction(op, act); }
     if (c === 'Space' && ctrl) { stop(); ui.xp = id; render(); return setTimeout(() => $('#xedit')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 30); }
     if (c === 'Space' && col[0] === 'e' && col !== 'e') {
       stop(); const keys = [null, ...Object.keys(P.bands)]; if (keys.length === 1) return toast('В заказе нет кромки: добавьте её кнопкой «+ Кромка»');
@@ -932,20 +970,31 @@ function subCut(op) {
       <h3 style="margin-top:12px">Не разложено${r.unplaced.length ? ': ' + r.unplaced.length : ''}</h3>
       ${r.unplaced.length ? `<div class="tbl"><table><tbody>${r.unplaced.map((u, i) => `<tr><td class="n">№${u.p.id}</td><td>${esc(u.p.name)}</td><td class="n">${u.l}×${u.w}</td><td><button class="btn xs" data-put="${i}">На эту карту</button></td></tr>`).join('')}</tbody></table></div>` : '<p class="note">Все детали на картах.</p>'}
       <div class="row" style="margin-top:10px"><button class="btn sm" id="eSheet">Добавить пустой лист</button>${!s.items.length ? '<button class="btn sm" id="eDelSheet">Убрать пустой лист</button>' : ''}<button class="btn sm primary" id="eDone">Готово</button></div>`
-    : cnc ? (() => { const pr = core.excitechProgram(op.m, s, x.o); return `<div class="row" style="justify-content:space-between"><h3>Программа для Excitech</h3>
-      <div class="row">${mach.canUseFolders() ? '<button class="btn sm primary" id="cncSend">Отправить на станок</button>' : ''}<button class="btn sm ${mach.canUseFolders() ? '' : 'primary'}" id="cncZip">Скачать архив</button></div></div>
+    : cnc ? (() => { const pr = core.excitechProgram(op.m, s, x.o); return `<h3>Программа для Excitech</h3>
       <p class="note">Для каждого листа: программа F<i>N</i>_<i>N</i>.anc, программа этикетировщика Label_F<i>N</i>_<i>N</i>.cyc и картинки этикеток .bmp. Формат как в файлах со станка цеха. ${mach.canUseFolders() ? '«Отправить на станок» кладёт их в папку нестинга, выбранную в «Настройках».' : 'Прямая отправка в папку станка работает в Chrome или Edge на компьютере.'} Первый лист после обновления проверьте холостым ходом.</p>
       ${pr.warnings.map(w => `<p class="note warn">${esc(w)}</p>`).join('')}
       ${base.cncDraft ? `<textarea class="code" id="gcode" readonly aria-label="Программа ЧПУ">${esc(pr.text)}</textarea>` : ''}`; })()
-    : `<h3>Таблица резов</h3><div class="tbl cuts"><table><thead><tr><th>№</th><th>Рез</th><th class="r">От</th><th class="r">Длина</th></tr></thead><tbody>
-      ${s.cuts.map((c, i) => `<tr><td class="n">${i + 1}</td><td>${c.d === 'T' ? 'Торцовка' : c.d === 'H' ? 'Продольный' : 'Поперечный'}</td><td class="n">${c.d === 'T' ? '' : c.d === 'H' ? 'Y ' + fmt(c.y + s.ty, 1) : 'X ' + fmt(c.x + s.tx, 1)}</td><td class="n">${fmt(c.len, 1)}${c.d === 'T' ? ' ×2' : ''}</td></tr>`).join('')}
-      </tbody></table></div><p class="note">Продольный — рез вдоль длины листа, поперечный — поперёк. Координата от края листа, мм. Выгрузка на пилу Homag появится после образца файла с пилы.</p>`;
+    : null;
+  // Правая колонка как в GibLab: миниатюры всех карт или таблица команд пилы.
+  const cside = ui.cside === 'cmd' ? 'cmd' : 'maps';
+  const cmds = !cnc && core.sawCommands(s);
+  const cmdTable = cnc ? side : cmds ? `<div class="tbl cuts"><table><thead><tr><th title="Код команды: T — торцовка, C — рез полосы, P — рез детали; цифра — уровень реза">Кд</th><th class="r" title="Размер, мм">Р</th><th class="r" title="Количество одинаковых резов подряд">К</th><th class="r" title="Номер детали">Д</th></tr></thead><tbody>
+      ${cmds.map(c => `<tr class="${c.code[0] === 'T' ? 'muted' : c.code[0] === 'P' ? 'pc' : ''}"><td class="mono">${c.code}</td><td class="n">${fmt(c.dim, 1)}</td><td class="n">${c.n}</td><td class="n">${c.part}</td></tr>`).join('')}</tbody></table></div>
+      <p class="note">T — торцовка, C — рез полосы, P — рез, который даёт деталь. Цифра — уровень: 1 — резы по листу, 2 — по полосе, 3 — дорез.</p>`
+    : '<p class="note warn">Карту правили вручную так, что её нельзя порезать сквозными резами на пиле.</p>';
+  const thumbs = `<div class="thumbs">${groups.map((q, i) => `<button class="thumb${i === ui.sheet ? ' on' : ''}" data-sheetgo="${i}" aria-label="Карта ${i + 1}">${sheetSvg(q.s, x.o, cnc, true)}
+      <span class="mono">№${i + 1} S:${q.s.L}/${q.s.W} C:${q.n}</span></button>`).join('')}</div>`;
+  const right = edit ? side : `<div class="seg" role="tablist"><button role="tab" class="${cside === 'maps' ? 'on' : ''}" data-cside="maps">Таблица карт</button><button role="tab" class="${cside === 'cmd' ? 'on' : ''}" data-cside="cmd">${cnc ? 'Программа ЧПУ' : 'Таблица команд'}</button></div>
+      ${cside === 'maps' ? thumbs : cmdTable}`;
   const onMap = {}; s.items.forEach(it => { const k = it.p.id; onMap[k] = onMap[k] || { p: it.p, n: 0, l: it.l, w: it.w }; onMap[k].n++; });
-  return `<div class="nav"><button class="btn sm" data-sheetnav="-1" aria-label="Предыдущая карта">‹</button><b>Карта ${ui.sheet + 1} из ${groups.length}</b><button class="btn sm" data-sheetnav="1" aria-label="Следующая карта">›</button>
-      <span class="chip">${s.stock ? 'остаток ' : ''}${s.L}×${s.W}</span><span class="chip">таких листов: ${g.n}</span>${!cnc && x.o.stack > 1 ? `<span class="chip">пакетом по ${x.o.stack}: ${g.passes} прох.</span>` : ''}${s.format ? '<span class="chip">доп. формат</span>' : ''}<span class="chip">деталей: ${s.items.length}</span>
-      <span class="chip">рез ${fmt(s.cut / 1000, 2)} м</span><span class="chip ${fill >= 75 ? 'good' : fill < 55 ? 'bad' : ''}">заполнение ${fmt(fill, 1)} %</span>
-      ${stockBtn(op.m, r)}</div>
-    <div class="row bar2">${edit ? '<span class="chip good">режим правки</span>' : `<button class="btn sm" id="eStart">Править карту вручную</button>`}
+  const allItems = r.sheets.reduce((a, q) => a + q.items.length, 0), last = groups.length - 1;
+  const tip = (t, v) => `<span title="${t}">${v}</span>`;
+  return `<div class="cstat mono">${tip('Номер карты / всего карт', `№: <b>${ui.sheet + 1}</b>/${groups.length}`)}${tip('Размер листа, мм', `S: <b>${s.L}/${s.W}</b>${s.stock ? ' ост.' : s.format ? ' доп.' : ''}`)}${tip('Листов с такой картой / всего листов', `C: <b>${g.n}</b>/${r.sheets.length}`)}${tip('Деталей на карте / всего', `Ср: <b>${s.items.length}</b>/${allItems}`)}${tip('Длина резов, м: на карте / всего', `LT: <b>${fmt(s.cut / 1000, 2)}</b>/${fmt(r.cut, 2)}`)}<span title="Заполнение: карта / весь раскрой" class="${fill >= 75 ? 'good' : fill < 55 ? 'bad' : ''}">F: <b>${fmt(fill, 1)}%</b>/${fmt(r.util * 100, 1)}%</span>${!cnc && x.o.stack > 1 ? tip('Пакетом по ' + x.o.stack + ' листа', `П: <b>${g.passes}</b> прох.`) : ''}
+      <span class="cnav"><button class="btn xs" data-sheetgo="0" aria-label="Первая карта" title="Первая карта (Home)">⏮</button><button class="btn xs" data-sheetnav="-1" aria-label="Предыдущая карта" title="Предыдущая (←)">◀</button><button class="btn xs" data-sheetnav="1" aria-label="Следующая карта" title="Следующая (→)">▶</button><button class="btn xs" data-sheetgo="${last}" aria-label="Последняя карта" title="Последняя карта (End)">⏭</button></span></div>
+    <div class="row ctools">${edit ? '<span class="chip good">режим правки</span>' : `<button class="btn sm" id="eStart" title="Редактирование раскроя">✎ Править карту</button>`}
+      ${stockBtn(op.m, r)}
+      ${cnc ? `${mach.canUseFolders() ? '<button class="btn sm primary" id="cncSend">Отправить на станок</button>' : ''}<button class="btn sm ${mach.canUseFolders() ? '' : 'primary'}" id="cncZip">Скачать программы ЧПУ</button>`
+        : `${mach.canUseFolders() ? '<button class="btn sm primary" id="ptxSend" title="Файл CadMatic 4 (.ptx) в папку пилы">Отправить на пилу Holzma</button>' : ''}<button class="btn sm ${mach.canUseFolders() ? '' : 'primary'}" id="ptxSave" title="Файл CadMatic 4 (PTX 1.13) со всеми картами этого материала">Скачать .ptx для Holzma</button><span class="chip bad" title="Сделано по старому образцу файла PTX. Первую карту проверьте на пиле без листа.">не проверено</span>`}
       ${r.manual ? '<span class="chip">карта правлена вручную</span><button class="btn sm" id="eReset">Вернуть автоматический раскрой</button>' : ''}
       ${r.unplaced.length ? `<span class="chip bad">не разложено деталей: ${r.unplaced.length}</span>` : ''}
       ${r.manual && !cnc && !s.guillotine ? '<span class="chip bad">эту карту нельзя порезать сквозными резами на пиле</span>' : ''}
@@ -953,7 +1002,7 @@ function subCut(op) {
     <div class="cutview"><div>${sheetSvg(s, x.o, cnc, false, edit ? ui.qi : undefined)}
       <div class="tbl onmap"><table><thead><tr><th>№</th><th>Деталь на карте</th><th class="r">Размер</th><th class="r">Шт</th></tr></thead><tbody>
       ${Object.values(onMap).map(o => `<tr><td class="n">${o.p.id}</td><td>${esc(o.p.name)}</td><td class="n">${o.l}×${o.w}</td><td class="n">${o.n}</td></tr>`).join('')}</tbody></table></div></div>
-      <div>${side}</div></div>`;
+      <div class="cside">${right}</div></div>`;
 }
 /** Карты для навигации: одинаковые подряд объединяются, а в режиме правки каждый лист отдельно. */
 const mapsOf = x => ((ui.edit === 'm:' + x.m.id && x.r.manual) || x.mode === 'cnc' ? x.r.sheets.map((s, i) => ({ s, i, n: 1, passes: 1 })) : sameMaps(x.r.sheets, x.o.stack));
@@ -961,6 +1010,8 @@ function bindCut(op, pan) {
   if (!op.m) return;
   const x = resOf(op.m);
   pan.querySelectorAll('[data-sheetnav]').forEach(b => b.onclick = () => { const n = mapsOf(x).length; ui.qi = null; setUi({ sheet: (ui.sheet + +b.dataset.sheetnav + n) % n }); });
+  pan.querySelectorAll('[data-sheetgo]').forEach(b => b.onclick = () => { ui.qi = null; setUi({ sheet: +b.dataset.sheetgo }); });
+  pan.querySelectorAll('[data-cside]').forEach(b => b.onclick = () => setUi({ cside: b.dataset.cside }));
   bindEdit(op, pan, x);
   const so = $('#saveOff'); if (so) so.onclick = () => saveOffcuts(x.r);
 }
@@ -968,8 +1019,13 @@ function sheetSvg(s, o, cnc, small, selQi) {
   const tx = s.tx ?? s.trim, ty = s.ty ?? s.trim, L = s.L, W = s.W, edit = selQi !== undefined;
   const rects = s.items.map(it => {
     const x = it.x + tx, y = it.y + ty, fs = Math.max(28, Math.min(70, Math.min(it.l, it.w) / 4));
-    const label = it.l > 260 && it.w > 110 ? `<text x="${x + it.l / 2}" y="${y + it.w / 2 - (small ? 0 : fs * .35)}" font-size="${fs}" text-anchor="middle" dominant-baseline="middle">${it.l}×${it.w}</text>${small ? '' : `<text x="${x + it.l / 2}" y="${y + it.w / 2 + fs * .75}" font-size="${fs * .7}" text-anchor="middle" dominant-baseline="middle" class="pn">№${it.p.id}${it.rot ? ' ↻' : ''}</text>`}`
-      : it.l > 140 && it.w > 70 ? `<text x="${x + it.l / 2}" y="${y + it.w / 2}" font-size="28" text-anchor="middle" dominant-baseline="middle">${it.l}</text>` : '';
+    // Крупная карта как в GibLab: номер детали в центре, длина вдоль нижнего края, ширина вдоль правого.
+    const big = !small && it.l > 220 && it.w > 150 ? (() => { const f2 = Math.max(30, Math.min(56, Math.min(it.l, it.w) / 6));
+      return `<text x="${x + it.l / 2}" y="${y + it.w / 2}" font-size="${fs * 1.3}" text-anchor="middle" dominant-baseline="middle" class="pnum">${it.p.id}${it.rot ? ' ↻' : ''}</text>
+        <text x="${x + it.l / 2}" y="${y + it.w - f2 * .55}" font-size="${f2}" text-anchor="middle" dominant-baseline="middle">${it.l}</text>
+        <text transform="translate(${x + it.l - f2 * .65} ${y + it.w / 2}) rotate(-90)" font-size="${f2}" text-anchor="middle" dominant-baseline="middle">${it.w}</text>`; })() : '';
+    const label = big || (it.l > 260 && it.w > 110 ? `<text x="${x + it.l / 2}" y="${y + it.w / 2 - (small ? 0 : fs * .35)}" font-size="${fs}" text-anchor="middle" dominant-baseline="middle">${it.l}×${it.w}</text>${small ? '' : `<text x="${x + it.l / 2}" y="${y + it.w / 2 + fs * .75}" font-size="${fs * .7}" text-anchor="middle" dominant-baseline="middle" class="pn">№${it.p.id}${it.rot ? ' ↻' : ''}</text>`}`
+      : it.l > 140 && it.w > 70 ? `<text x="${x + it.l / 2}" y="${y + it.w / 2}" font-size="28" text-anchor="middle" dominant-baseline="middle">${it.l}</text>` : '');
     const holes = cnc ? core.holePoints(it).map(h => `<circle cx="${h.X + tx}" cy="${h.Y + ty}" r="${Math.max(h.d / 2, 6)}" fill="var(--accent)"/>`).join('') : '';
     const on = edit && it.qi === selQi;
     return `<g ${edit ? `data-qi="${it.qi}" class="drag"` : ''}><title>№${it.p.id} ${esc(it.p.name)} — ${it.p.l}×${it.p.w}${it.rot ? ' (повёрнута)' : ''}</title><rect x="${x}" y="${y}" width="${it.l}" height="${it.w}" fill="var(--board)" stroke="${on ? 'var(--accent)' : 'var(--board-line)'}" stroke-width="${on ? 14 : 4}"/>${label}${holes}</g>`;
@@ -988,6 +1044,8 @@ function bindEdit(op, pan, x) {
   pan.querySelectorAll('#eReset').forEach(b => b.onclick = () => { ui.edit = null; change(() => { delete m.manual; }); });
   on('cncZip', () => cncFiles(op, x, $('#cncZip'), false));
   on('cncSend', () => cncFiles(op, x, $('#cncSend'), true));
+  on('ptxSave', () => ptxFile(x, $('#ptxSave'), false));
+  on('ptxSend', () => ptxFile(x, $('#ptxSend'), true));
   on('eStart', () => { ui.edit = op.key; ui.qi = null; ui.sheet = r.manual ? ui.sheet : 0; if (r.manual) return render(); change(() => { m.manual = core.snapshotManual(r); }); });
   on('eDone', () => { ui.qi = null; setUi({ edit: null, sheet: 0 }); });
   if (ui.edit !== op.key || !r.manual || !g) return;
@@ -1395,6 +1453,26 @@ async function cncFiles(op, x, btn, send) {
   } catch (e) { toast(e?.code === 'declined' ? 'Сохранение отменено' : 'Не удалось подготовить файлы: ' + (e?.message || e)); }
   finally { btn.disabled = false; btn.textContent = text; }
 }
+/* Файл для пилы Holzma (CadMatic PTX 1.13): все карты материала одним файлом, кодировка windows-1251. */
+async function ptxFile(x, btn, send) {
+  const text = btn.textContent; btn.disabled = true;
+  try {
+    const res = core.holzmaPtx(P, x, sameMaps(x.r.sheets, x.o.stack), p => core.sawSize(P, p, x.o));
+    if (!res.patterns) return toast('Нет карт, которые можно порезать сквозными резами: ' + res.warnings.join('; '));
+    const base0 = `${P.name || 'zakaz'}_${x.m.name}_${x.m.t}`.replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, '_').trim();
+    const data = core.encode1251(res.text), tail = res.warnings.length ? '. ' + res.warnings.join('; ') : '';
+    if (send) {
+      const r = await mach.sendToMachine('holzma', [{ name: base0 + '.ptx', data }], { sub: '',
+        confirmReplace: async names => window.confirm(`В папке пилы уже есть файл ${names[0]}. Заменить?`) });
+      if (r.ok) return toast(`Отправлено на пилу: ${base0}.ptx в папку ${r.dir}${tail}`);
+      if (r.reason === 'nodir') { toast('Сначала выберите папку пилы Holzma в «Настройках», раздел «Папки станков»'); return setUi({ screen: 'settings' }); }
+      return toast(r.reason === 'denied' ? 'Браузер не дал записать в папку пилы. Разрешите запись и нажмите ещё раз.' : 'Отправка отменена');
+    }
+    const how = await saveFile(new Blob([data], { type: 'application/octet-stream' }), base0 + '.ptx');
+    toast((how === 'saved' ? 'Файл сохранён' : 'Файл скачан') + tail);
+  } catch (e) { toast(e?.code === 'declined' ? 'Сохранение отменено' : 'Не удалось сделать файл для пилы: ' + (e?.message || e)); }
+  finally { btn.disabled = false; btn.textContent = text; }
+}
 let logoCache = null;
 async function logoData() {
   if (logoCache) return logoCache;
@@ -1547,7 +1625,7 @@ function renderSettings(main) {
       <div class="tbl"><table><tbody>${Object.entries(mach.MACHINES).map(([k, mm]) => `<tr><td>${mm.title}</td><td class="mdir" data-mdir="${k}"><span class="note">…</span></td>
         <td><button class="btn sm" data-mpick="${k}">Выбрать папку</button> <button class="btn sm" data-mforget="${k}">Забыть</button></td></tr>`).join('')}</tbody></table></div>
       <label class="note"><input type="checkbox" id="machineSub" ${base.machineSub ? 'checked' : ''}> Класть файлы в отдельную папку заказа внутри папки станка</label>
-      <p class="note">Пока отправляются программы нестинга. Пила Holzma и сверлилка подключатся вместе с их выгрузками.</p>`
+      <p class="note">Отправляются программы нестинга и файлы пилы Holzma (.ptx, пока не проверены на пиле). Сверлилка подключится после образца её файла.</p>`
     : '<p class="note">Прямая отправка в папки станков работает в Chrome или Edge на компьютере, когда программа открыта как сайт (artisan.shop.kg/raskroy). Здесь файлы для станка скачиваются архивом.</p>'}</section>`;
   main.querySelectorAll('[data-look]').forEach(el => el.onchange = () => { look[el.dataset.look] = el.value; store.set('look', look); applyLook(); });
   main.querySelectorAll('[data-hp]').forEach(el => el.onchange = () => { base.holePrices = { ...base.holePrices, [el.dataset.hp]: +el.value || 0 }; store.set('base', base); recalc(); renderSoon(); });
@@ -1614,7 +1692,7 @@ const KEYS = [['Таблица деталей (как в GibLab)'],
   ['Tab, Enter', 'Следующая ячейка; в конце строки — следующая строка, в конце таблицы — новая строка'], ['Shift+Tab, Shift+Enter', 'Предыдущая ячейка'],
   ['Ctrl+Enter', 'Первая ячейка следующей строки'], ['↑ / ↓', 'Предыдущая / следующая строка'], ['Home / End', 'Первая / последняя строка'],
   ['Пробел', 'В колонке кромки — сменить кромку (нет → кромка 1 → кромка 2…); в «Ткт» — текстура'], ['Shift+Пробел', 'Сменить кромку сразу по всему периметру'],
-  ['Ctrl+Пробел', 'Присадка и фрезеровка детали'], ['Ctrl+PageUp', 'Вставить строку над текущей'], ['Ctrl+PageDown', 'Добавить строку под текущей'],
+  ['Ctrl+Пробел', 'Присадка и фрезеровка детали'], ['Ctrl+D / Ctrl+E', 'Снять / установить текстуру'], ['Ctrl+W (в браузере Alt+W)', 'Поменять длину и ширину'], ['Ctrl+B', 'Групповые действия'], ['Ctrl+M', 'Перенести в другую операцию'], ['Ctrl+PageUp', 'Вставить строку над текущей'], ['Ctrl+PageDown', 'Добавить строку под текущей'],
   ['Del, Shift+Del', 'Удалить строку'], ['Ctrl+↑ / Ctrl+↓', 'Переместить строку'], ['Ctrl+V', 'Вставить детали из Excel: Длина, Ширина, Кол-во, Текстура, ОВ, ОН, ОЛ, ОП, Наименование'],
   ['Esc', 'Отменить ввод в ячейке'],
   ['Карты раскроя'], ['↑ / ↓, ← / →', 'Предыдущая / следующая карта'], ['Home / End', 'Первая / последняя карта'], ['Del', 'В ручной правке — убрать выбранную деталь с карты'],

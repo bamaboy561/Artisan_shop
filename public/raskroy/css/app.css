@@ -297,3 +297,27 @@ kbd{font-family:var(--f-mono);font-size:.9em;border:1px solid var(--field-line);
 .keyhelp .panel{max-width:640px}
 .keylist{max-height:70vh;overflow:auto}
 .keyhelp th{text-align:left;padding:10px 8px 4px;font-size:.86em;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);position:static}
+/* Вкладка «Раскрой» по образцу GibLab: строка-статус «на карте / всего», миниатюры карт, таблица команд пилы */
+.cstat{display:flex;flex-wrap:wrap;align-items:center;gap:4px 0;background:var(--head);border:1px solid var(--line);border-radius:6px;padding:5px 8px;margin-bottom:8px;font-size:.93em}
+.cstat>span{padding:0 10px;border-right:1px solid var(--line)}.cstat>span:first-child{padding-left:2px}
+.cstat .good{color:var(--ok)}.cstat .bad{color:var(--warn)}
+.cstat .cnav{margin-left:auto;border:0;display:flex;gap:4px;padding-right:0}
+.ctools{gap:6px;margin:0 0 10px}
+.cutview{grid-template-columns:minmax(0,1fr) minmax(240px,320px)}
+.cside{display:flex;flex-direction:column;gap:8px;min-width:0}
+.seg{display:flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.seg button{flex:1;font:inherit;font-size:.93em;padding:6px 8px;border:0;background:var(--panel);color:var(--ink);cursor:pointer}
+.seg button+button{border-left:1px solid var(--line)}.seg button.on{background:var(--accent);color:var(--accent-ink)}
+.thumbs{display:flex;flex-direction:column;gap:8px;max-height:66vh;overflow:auto;padding-right:2px}
+.thumb{display:flex;flex-direction:column;gap:3px;font:inherit;font-size:.86em;text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:6px;cursor:pointer;color:var(--ink)}
+.thumb.on{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent) inset}.thumb:hover{background:var(--hover)}
+.thumb svg.map{width:100%;height:auto;max-height:none}
+.tbl.cuts tr.muted td{color:var(--muted)}.tbl.cuts tr.pc td{font-weight:600}
+@media (max-width:1000px){.cutview{grid-template-columns:minmax(0,1fr)}.thumbs{flex-direction:row;max-height:none}.thumb{min-width:160px}}
+svg.map text.pnum{font-weight:600}
+.ptools{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin:0 0 8px;padding:4px;background:var(--head);border:1px solid var(--line);border-radius:6px}
+.ptools .pt{padding:4px 8px;font-size:.9em}.ptools .pt span{font-family:var(--f-mono);font-weight:600;color:var(--accent)}
+.ptools .sep{width:1px;align-self:stretch;background:var(--line);margin:0 4px}.ptools .ptsum{margin-left:auto;padding-right:4px}
+.params.wide{grid-template-columns:minmax(0,1fr)}
+.pcols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;align-items:start}
+@media (max-width:900px){.pcols{grid-template-columns:minmax(0,1fr)}}
