@@ -289,6 +289,9 @@ export async function getPendingGibLabOrders(limit = 10) {
     // Папка и имя фиксируются при первой выдаче, чтобы повтор после сбоя
     // не создал второй файл в другой папке дня.
     const folder = existing?.folder ?? gibLabOrderFolder(new Date());
+    // Код и список файлов обновляем и при повторе: клиент мог добавить
+    // файл Базиса, а проект ниже собирается по всем текущим файлам.
+    const bazisCode = await getRequestBazisCode(request.id, request.files);
     const fileName =
       existing?.fileName ??
       gibLabOrderFileName({
@@ -296,7 +299,7 @@ export async function getPendingGibLabOrders(limit = 10) {
         id: request.id,
         contactName: request.contactName,
         contactPhone: request.contactPhone,
-        code: (await getRequestBazisCode(request.id, request.files))?.code,
+        code: bazisCode?.code,
       });
     const { bytes, source } = await buildContent(
       fileName.replace(/\.project$/i, ""),

@@ -136,7 +136,11 @@ export function orderedBazisFiles<
     .map((file, index) => ({ file, index }))
     .sort(
       (a, b) =>
-        time(a.file.createdAt) - time(b.file.createdAt) || a.index - b.index,
+        time(a.file.createdAt) - time(b.file.createdAt) ||
+        // Файлы одной загрузки получают одно время: порядок по id одинаков
+        // для всех запросов к базе, в каком бы порядке она их ни отдала.
+        (a.file.id ?? "").localeCompare(b.file.id ?? "") ||
+        a.index - b.index,
     )
     .map(({ file }) => file);
 }

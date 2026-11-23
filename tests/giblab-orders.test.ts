@@ -94,13 +94,14 @@ test("order file name ends with the site code for the assembly QR", () => {
 test("bazis files keep upload order so file numbers do not move", () => {
   const files = [
     { id: "c", fileName: "кухня-2.B3D", createdAt: new Date("2026-11-03") },
+    { id: "b2", fileName: "шкаф-2.b3d", createdAt: new Date("2026-11-02") },
     { id: "x", fileName: "заявка.project", createdAt: new Date("2026-11-01") },
     { id: "a", fileName: "кухня.b3d", createdAt: new Date("2026-11-01") },
     { id: "b", fileName: "шкаф.b3d", createdAt: new Date("2026-11-02") },
   ];
   assert.deepEqual(
     orderedBazisFiles(files).map((file) => file.id),
-    ["a", "b", "c"],
+    ["a", "b", "b2", "c"],
   );
 });
 
