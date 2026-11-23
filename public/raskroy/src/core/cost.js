@@ -35,8 +35,10 @@ export function cost(P, R, prices = {}, bandPrices = {}) {
       work = len * o.cutPrice;
       if (len) lines.push(L('work', `Распил: ${mname}`, len, 'м', o.cutPrice));
     } else {
-      work = n * o.cutPrice;
-      if (n) lines.push(L('work', `Распил: ${mname}`, n, 'лист', o.cutPrice));
+      // Остаток со склада пилят так же, как новый лист: распил считаем и за него.
+      const cutN = n + r.stockUsed.length;
+      work = cutN * o.cutPrice;
+      if (cutN) lines.push(L('work', `Распил: ${mname}`, cutN, 'лист', o.cutPrice));
     }
     sheets += n; cutM += r.cut;
     ops.push({ key: 'm:' + m.id, type: mode === 'cnc' ? 'CN' : 'CS', name: mname, qty: n, unit: 'лист.',

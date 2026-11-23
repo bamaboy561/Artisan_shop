@@ -14,13 +14,19 @@ export function layoutKey(r) {
   ]));
 }
 
-/** Склад, каким его видит заказ uid: без остатков, которые этот заказ сам оприходовал, и с теми, что он уже списал. */
-export function stockForProject(stock, ledger, uid) {
+/** Склад, каким его видит заказ uid: без остатков, которые этот заказ сам оприходовал, и с теми, что он уже списал.
+ *  Материал, по которому заказ уже оприходовал остатки (лист порезан), видит только свои взятые остатки:
+ *  новые куски, которые позже положили на склад другие заказы, его карту не меняют.
+ *  locks — такие же замки от выпуска в работу: Map matKey → Set id остатков, взятых в выпущенную карту. */
+export function stockForProject(stock, ledger, uid, locks = null) {
   const mine = (ledger || []).filter(o => o.uid === uid);
-  if (!mine.length) return stock;
+  if (!mine.length && !locks?.size) return stock;
   const added = new Set(mine.flatMap(o => o.added.map(a => a.id)));
+  const lock = new Map(locks || []);
+  for (const o of mine) { const mk = o.mk || o.added[0]?.mat || o.used[0]?.mat; if (mk) lock.set(mk, new Set(o.used.map(u => u.id))); }
   const have = new Set(stock.map(s => s.id));
-  return [...stock.filter(s => !added.has(s.id)), ...mine.flatMap(o => o.used).filter(u => !have.has(u.id))];
+  const free = s => !added.has(s.id) && (!lock.has(s.mat) || lock.get(s.mat).has(s.id));
+  return [...stock.filter(free), ...mine.flatMap(o => o.used).filter(u => !have.has(u.id))];
 }
 
 /** Состояние складской операции заказа по материалу: 'none' — не было, 'done' — эта карта уже на складе,
@@ -56,6 +62,6 @@ export function applyStockOp(stock, ledger = [], r, { uid, matId, from = '', now
   const used = st.filter(s => usedIds.has(s.id));
   const added = r.offcuts.map(o => ({ id: newId(), mat: matKey(r.m), name: r.m.name, t: r.m.t, l: o.l, w: o.w, from, order: uid }));
   st = st.filter(s => !usedIds.has(s.id)).concat(added);
-  const op = { uid, mat: matId, key, at: now, from, used, added };
+  const op = { uid, mat: matId, mk: matKey(r.m), key, at: now, from, used, added };
   return { stock: st, ledger: [...ledger.filter(o => o !== prev), op].slice(-500), done: true, replaced: !!prev };
 }
