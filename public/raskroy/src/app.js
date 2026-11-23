@@ -220,7 +220,7 @@ function stepHistory(from, to) {
   const link = P.site; // связь с заявкой и версия не откатываются вместе с правками
   to.push(JSON.stringify(P)); P = JSON.parse(from.pop()); if (link) P.site = link; recalc(true); render();
 }
-let renderT = null;
+let renderT = null, pendingFocus = null;
 function renderSoon() { clearTimeout(renderT); renderT = setTimeout(render, 0); }
 function setUi(patch) { Object.assign(ui, patch); store.set('ui', ui); render(); }
 
@@ -232,7 +232,7 @@ const bandName = k => P.bands[k]?.name || '';
 /* ===== Отрисовка ===== */
 function render() {
   if (!P) return;
-  const focus = document.activeElement?.dataset?.fid;
+  const focus = pendingFocus || document.activeElement?.dataset?.fid; pendingFocus = null;
   renderHeader(); renderTotals();
   document.querySelectorAll('[data-screen]').forEach(b => b.setAttribute('aria-current', b.dataset.screen === ui.screen));
   const main = $('#main');
@@ -641,7 +641,7 @@ function subParts(op) {
       <button class="btn primary" id="qAdd">Добавить</button></div>
       <p class="note">Введите размеры и нажмите Enter: деталь добавится, курсор вернётся в «Длину». Размеры ${modeName}${nb ? '' : '. Чтобы клеить кромку, сначала добавьте её кнопкой «+ Кромка» над таблицей'}.</p></div>
     <div class="row bar2"><button class="btn sm" id="showPaste">Вставить много строк из Excel</button><button class="btn sm" id="addPart">Пустая строка</button>
-      <span class="note">Деталей: ${fmt(total)} шт · площадь ${fmt(area, 2)} м². Отметьте детали галочкой слева, чтобы менять их пачкой.</span></div>
+      <span class="note">Деталей: ${fmt(total)} шт · площадь ${fmt(area, 2)} м². В таблице клавиши как в GibLab: Tab/Enter — дальше, пробел — кромка, Ctrl+PageDown — новая строка, Ctrl+V — вставка из Excel. Все клавиши — F1.</span></div>
     <div class="row bar2 bulk" ${nSel ? '' : 'hidden'}><b>Выбрано: ${nSel}</b>
       <button class="btn sm" data-bulk="grainOn">Поставить текстуру</button><button class="btn sm" data-bulk="grainOff">Снять текстуру</button>
       <button class="btn sm" data-bulk="swap">Поменять Д и Ш</button>
@@ -654,13 +654,14 @@ function subParts(op) {
       <div class="row" style="margin-top:8px"><button class="btn sm primary" id="doPaste">Добавить строки в «${esc(op.m.name)}»</button>
         <label class="btn sm" for="xlsFile">Взять из файла Excel (.xlsx, .csv)…</label><input type="file" id="xlsFile" accept=".xlsx,.csv,.txt" hidden>
         <span class="note">В файле колонки узнаются по заголовкам: Длина, Ширина, Кол-во, Наименование, Кромка…</span></div></div>
-    <div class="tbl"><table class="parts"><thead><tr><th><input type="checkbox" id="selAll" aria-label="Выбрать все" ${nSel && nSel === parts.length ? 'checked' : ''}></th><th>№</th><th>Наименование</th><th class="r">Длина</th><th class="r">Ширина</th><th class="r">Кол</th><th title="Текстура">Ткт</th><th title="Кромка верх">ОВ</th><th title="Кромка низ">ОН</th><th title="Кромка лево">ОЛ</th><th title="Кромка право">ОП</th><th class="r">Пильный</th><th class="r">Отв.</th><th class="r" title="Разложено в раскрое">В раскрое</th><th>Операция</th><th></th></tr></thead><tbody>
+    <div class="tbl"><table class="parts"><thead><tr><th><input type="checkbox" id="selAll" aria-label="Выбрать все" ${nSel && nSel === parts.length ? 'checked' : ''}></th><th>№</th><th class="r">Длина</th><th class="r">Ширина</th><th class="r">Кол</th><th title="Текстура (пробел — вкл./выкл.)">Ткт</th><th title="Кромка верх (пробел — сменить)">ОВ</th><th title="Кромка низ (пробел — сменить)">ОН</th><th title="Кромка лево (пробел — сменить)">ОЛ</th><th title="Кромка право (пробел — сменить)">ОП</th><th>Наименование</th><th class="r">Пильный</th><th class="r">Отв.</th><th class="r" title="Разложено в раскрое">В раскрое</th><th>Операция</th><th></th></tr></thead><tbody>
     ${parts.map(p => { const s = core.sawSize(P, p, x.o), pl = placed.get(p.id) || 0; return `<tr data-id="${p.id}" ${sel.has(p.id) ? 'aria-selected="true"' : ''}>
-      <td><input type="checkbox" data-sel aria-label="Выбрать деталь" ${sel.has(p.id) ? 'checked' : ''}></td><td class="n">${p.id}</td><td><input class="cell name" data-f="name" data-fid="p${p.id}name" value="${esc(p.name)}" aria-label="Наименование"></td>
+      <td><input type="checkbox" data-sel aria-label="Выбрать деталь" ${sel.has(p.id) ? 'checked' : ''}></td><td class="n">${p.id}</td>
       <td><input class="cell" data-f="l" data-fid="p${p.id}l" type="number" value="${p.l}" aria-label="Длина"></td><td><input class="cell" data-f="w" data-fid="p${p.id}w" type="number" value="${p.w}" aria-label="Ширина"></td>
       <td><input class="cell" data-f="count" data-fid="p${p.id}count" type="number" min="0" value="${p.count}" style="width:52px" aria-label="Количество"></td>
       <td><input type="checkbox" data-f="grain" data-fid="p${p.id}grain" ${p.grain ? 'checked' : ''} aria-label="Текстура"></td>
       ${['t', 'b', 'l', 'r'].map(e => `<td><select class="cell" data-e="${e}" data-fid="p${p.id}e${e}" aria-label="Кромка">${bandOpts(p.edges[e])}</select></td>`).join('')}
+      <td><input class="cell name" data-f="name" data-fid="p${p.id}name" value="${esc(p.name)}" aria-label="Наименование"></td>
       <td class="n">${s.l}×${s.w}</td><td><button class="btn xs ${core.badHoles(p).length ? 'warnb' : ''}" data-xp title="Присадка и фрезеровка детали">${p.holes.length || '+'}${p.mill ? ' ф' : ''}</button></td><td class="n ${pl < p.count ? 'warn' : ''}">${pl} из ${p.count}</td>
       <td><select class="cell" data-f="material" aria-label="Перенести в операцию">${matOpts(p.material)}</select></td>
       <td class="acts"><button class="btn xs" data-swap title="Поменять длину и ширину" aria-label="Поменять длину и ширину">⇄</button><button class="btn xs" data-del aria-label="Удалить деталь">✕</button></td></tr>`; }).join('')
@@ -704,6 +705,7 @@ function bindParts(op, pan) {
     if (e.target.closest('[data-xp]')) { ui.xp = ui.xp === id ? null : id; render(); setTimeout(() => $('#xedit')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 30); return; }
     if (e.target.closest('[data-swap]')) change(() => { const p = P.parts.find(q => q.id === id); [p.l, p.w] = [p.w, p.l]; [p.edges.t, p.edges.b, p.edges.l, p.edges.r] = [p.edges.l, p.edges.r, p.edges.t, p.edges.b]; });
   });
+  bindPartsKeys(op, tb);
   bindPartEditor(pan);
   $('#selAll').onchange = e => { P.parts.filter(p => p.material === op.m.id).forEach(p => e.target.checked ? sel.add(p.id) : sel.delete(p.id)); render(); };
   pan.querySelectorAll('[data-bulk]').forEach(b => b.onclick = () => {
@@ -732,6 +734,55 @@ function bindParts(op, pan) {
   $('#showPaste').onclick = () => { ui.paste = !ui.paste; $('#pasteBox').hidden = !ui.paste; if (ui.paste) $('#pasteText').focus(); };
   $('#xlsFile').onchange = e => { const f = e.target.files[0]; if (f) f.arrayBuffer().then(b => importTable(b, f.name, op.m.id)); e.target.value = ''; };
   $('#doPaste').onclick = () => { let n = 0; change(() => { n = core.pasteRows(P, $('#pasteText').value, op.m.id); }); ui.paste = false; toast('Добавлено строк: ' + n); };
+}
+
+/* Клавиатура таблицы деталей как в GibLab: Tab/Enter по ячейкам с новой строкой в конце, стрелки по строкам,
+   пробел меняет кромку, Ctrl+PageUp/PageDown вставляют строку, Del удаляет, Ctrl+↑/↓ двигают, Ctrl+V из Excel. */
+const PCOLS = ['l', 'w', 'count', 'grain', 'et', 'eb', 'el', 'er', 'name'];
+const colOf = el => el?.dataset?.f || (el?.dataset?.e ? 'e' + el.dataset.e : '');
+/** Перейти в ячейку сразу (с перерисовкой сейчас же), чтобы следующие нажатия попали в неё, а не в прежнюю. */
+function focusCell(id, col) {
+  pendingFocus = `p${id}${col}`; clearTimeout(renderT); render();
+  document.querySelector(`[data-fid="p${id}${col}"]`)?.scrollIntoView({ block: 'nearest' });
+}
+function bindPartsKeys(op, tb) {
+  const ids = () => P.parts.filter(p => p.material === op.m.id).map(p => p.id);
+  const blank = (like) => ({ id: core.nextId(P), name: 'Деталь', l: 0, w: 0, count: 1, grain: like ? like.grain : true, edges: { t: null, b: null, l: null, r: null }, material: op.m.id, holes: [], mill: 0, product: like?.product || '' });
+  const commit = el => { if (fieldEdited(el)) el.dispatchEvent(new Event('change', { bubbles: true })); };
+  tb.addEventListener('focusin', e => { const el = e.target; if (el.select && el.type !== 'checkbox' && el.tagName === 'INPUT') setTimeout(() => { if (document.activeElement === el && !fieldEdited(el)) el.select(); }, 0); });
+  tb.addEventListener('keydown', e => {
+    const el = e.target, col = colOf(el), tr = el.closest('tr'); if (!col || !tr?.dataset.id) return;
+    const id = +tr.dataset.id, list = ids(), i = list.indexOf(id), ci = PCOLS.indexOf(col), p = P.parts.find(q => q.id === id);
+    const k = e.key, c = e.code, ctrl = e.ctrlKey || e.metaKey, edited = fieldEdited(el);
+    const stop = () => { e.preventDefault(); e.stopPropagation(); };
+    const addAfter = (pos, focusCol = 'l') => { const np = blank(p); change(() => { P.parts.splice(P.parts.indexOf(pos) + 1, 0, np); }); focusCell(np.id, focusCol); };
+    if (k === 'Escape' && edited) { stop(); el.value = el.defaultValue; return el.select?.(); }
+    // Пробел: кромка по кругу (нет → кромка 1 → кромка 2 …), Shift+пробел — сразу весь периметр, Ctrl+пробел — присадка детали
+    if (c === 'Space' && ctrl) { stop(); ui.xp = id; render(); return setTimeout(() => $('#xedit')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 30); }
+    if (c === 'Space' && col[0] === 'e' && col !== 'e') {
+      stop(); const keys = [null, ...Object.keys(P.bands)]; if (keys.length === 1) return toast('В заказе нет кромки: добавьте её кнопкой «+ Кромка»');
+      const side = col[1], next = keys[(keys.indexOf(p.edges[side] ?? null) + 1) % keys.length];
+      change(() => { if (e.shiftKey) p.edges = { t: next, b: next, l: next, r: next }; else p.edges[side] = next; }); return focusCell(id, col);
+    }
+    if (ctrl && (c === 'PageUp' || c === 'PageDown')) { stop(); commit(el);
+      if (c === 'PageDown') return addAfter(p);
+      const np = blank(p); change(() => { P.parts.splice(P.parts.indexOf(p), 0, np); }); return focusCell(np.id, 'l'); }
+    if (k === 'Delete' && (e.shiftKey || (!edited && (el.tagName !== 'INPUT' || el.type === 'checkbox' || el.type === 'number' || (el.selectionStart === 0 && el.selectionEnd === el.value.length))))) {
+      stop(); const nextId = list[i + 1] ?? list[i - 1]; change(() => { P.parts = P.parts.filter(q => q.id !== id); sel.delete(id); }); if (nextId != null) focusCell(nextId, col); return;
+    }
+    if (ctrl && (k === 'ArrowUp' || k === 'ArrowDown')) { stop(); commit(el);
+      const j = i + (k === 'ArrowUp' ? -1 : 1); if (j < 0 || j >= list.length) return;
+      const other = P.parts.find(q => q.id === list[j]); change(() => { const a = P.parts.indexOf(p), b2 = P.parts.indexOf(other); [P.parts[a], P.parts[b2]] = [P.parts[b2], P.parts[a]]; }); return focusCell(id, col); }
+    const nav = (ni, ncol) => { commit(el); focusCell(list[ni], ncol); };
+    if ((k === 'Tab' || k === 'Enter') && !ctrl) { stop();
+      if (e.shiftKey) { if (ci > 0) return nav(i, PCOLS[ci - 1]); if (i > 0) return nav(i - 1, PCOLS[PCOLS.length - 1]); return; }
+      if (ci < PCOLS.length - 1) return nav(i, PCOLS[ci + 1]);
+      if (i < list.length - 1) return nav(i + 1, PCOLS[0]);
+      commit(el); return addAfter(p); }
+    if (k === 'Enter' && ctrl) { stop(); if (i < list.length - 1) return nav(i + 1, PCOLS[0]); commit(el); return addAfter(p); }
+    if ((k === 'ArrowUp' || k === 'ArrowDown') && !e.altKey && !e.shiftKey) { stop(); const j = i + (k === 'ArrowUp' ? -1 : 1); if (j >= 0 && j < list.length) nav(j, col); return; }
+    if ((k === 'Home' || k === 'End') && !ctrl && !edited) { stop(); return nav(k === 'Home' ? 0 : list.length - 1, col); }
+  });
 }
 
 /* Листы и остатки */
@@ -1559,14 +1610,21 @@ $('#hMore').onclick = () => { const x = $('#hExtra'), open = x.hidden; x.hidden 
 document.querySelectorAll('[data-h]').forEach(el => el.addEventListener('change', () => change(() => { P[el.dataset.h] = el.value; })));
 /* Горячие клавиши. Смотрим e.code (физическую клавишу), поэтому они работают и на русской раскладке.
    В поле ввода Ctrl+Z отменяет действие программы, если поле ещё не правили (иначе — обычная отмена набора). */
-const KEYS = [['Ctrl+Z', 'Отменить'], ['Ctrl+Y или Ctrl+Shift+Z', 'Вернуть'], ['Ctrl+S', 'Сохранить (заказ и так сохраняется сам)'],
-  ['Ctrl+P', 'Печать карт'], ['Alt+N', 'Новый заказ'], ['Alt+D', 'Ввести новую деталь'], ['Alt+R', 'Раскрой выбранного материала'],
-  ['Alt+← / Alt+→', 'Предыдущая / следующая карта раскроя'], ['Enter', 'В строке «Новая деталь» — добавить деталь'], ['Esc', 'Закрыть окно'], ['F1', 'Этот список']];
+const KEYS = [['Таблица деталей (как в GibLab)'],
+  ['Tab, Enter', 'Следующая ячейка; в конце строки — следующая строка, в конце таблицы — новая строка'], ['Shift+Tab, Shift+Enter', 'Предыдущая ячейка'],
+  ['Ctrl+Enter', 'Первая ячейка следующей строки'], ['↑ / ↓', 'Предыдущая / следующая строка'], ['Home / End', 'Первая / последняя строка'],
+  ['Пробел', 'В колонке кромки — сменить кромку (нет → кромка 1 → кромка 2…); в «Ткт» — текстура'], ['Shift+Пробел', 'Сменить кромку сразу по всему периметру'],
+  ['Ctrl+Пробел', 'Присадка и фрезеровка детали'], ['Ctrl+PageUp', 'Вставить строку над текущей'], ['Ctrl+PageDown', 'Добавить строку под текущей'],
+  ['Del, Shift+Del', 'Удалить строку'], ['Ctrl+↑ / Ctrl+↓', 'Переместить строку'], ['Ctrl+V', 'Вставить детали из Excel: Длина, Ширина, Кол-во, Текстура, ОВ, ОН, ОЛ, ОП, Наименование'],
+  ['Esc', 'Отменить ввод в ячейке'],
+  ['Карты раскроя'], ['↑ / ↓, ← / →', 'Предыдущая / следующая карта'], ['Home / End', 'Первая / последняя карта'], ['Del', 'В ручной правке — убрать выбранную деталь с карты'],
+  ['Везде'], ['Ctrl+Z', 'Отменить'], ['Ctrl+Y или Ctrl+Shift+Z', 'Вернуть'], ['Ctrl+S', 'Сохранить (заказ и так сохраняется сам)'],
+  ['Ctrl+P', 'Печать карт'], ['Alt+N', 'Новый заказ'], ['Alt+D', 'Ввести новую деталь'], ['Alt+R', 'Раскрой выбранного материала'], ['Esc', 'Закрыть окно'], ['F1', 'Этот список']];
 function showKeys() {
   document.querySelector('.keyhelp')?.remove();
   const d = document.createElement('div'); d.className = 'keyhelp'; d.setAttribute('role', 'dialog'); d.setAttribute('aria-label', 'Горячие клавиши');
   d.innerHTML = `<div class="panel"><div class="bar"><h2>Горячие клавиши</h2><button class="btn sm" data-x>Закрыть</button></div>
-    <table><tbody>${KEYS.map(([k, t]) => `<tr><td><kbd>${k}</kbd></td><td>${t}</td></tr>`).join('')}</tbody></table>
+    <div class="keylist"><table><tbody>${KEYS.map(([k, t]) => t ? `<tr><td><kbd>${k}</kbd></td><td>${t}</td></tr>` : `<tr><th colspan="2">${k}</th></tr>`).join('')}</tbody></table></div>
     <p class="note">Работают на русской и английской раскладке.</p></div>`;
   d.onclick = e => { if (e.target === d || e.target.closest('[data-x]')) d.remove(); };
   document.body.appendChild(d); d.querySelector('[data-x]').focus();
@@ -1588,6 +1646,14 @@ document.addEventListener('keydown', e => {
     if (c === 'KeyP' && ui.screen !== 'report') { e.preventDefault(); return setUi({ screen: 'report' }); }
     return;
   }
+  if (!mod && !e.altKey && ui.screen === 'project' && ui.sub === 'cut' && !inField(el) && !document.querySelector('.keyhelp')) {
+    const n = document.querySelectorAll('[data-sheetnav]').length ? mapsOf(resOf(curOp()?.m) || {}).length : 0;
+    if (n && ['ArrowUp', 'ArrowLeft', 'ArrowDown', 'ArrowRight', 'Home', 'End'].includes(e.key)) {
+      e.preventDefault(); const to = { Home: 0, End: n - 1 }[e.key] ?? (ui.sheet + (['ArrowUp', 'ArrowLeft'].includes(e.key) ? -1 : 1) + n) % n;
+      ui.qi = null; return setUi({ sheet: to });
+    }
+    if (e.key === 'Delete' && $('#eOff')) { e.preventDefault(); return $('#eOff').click(); }
+  }
   if (e.altKey && !mod) {
     if (c === 'KeyN') { e.preventDefault(); return document.querySelector('[data-act="new"]').click(); }
     if (c === 'KeyD') { e.preventDefault(); gotoOpSub('parts'); return setTimeout(() => $('#qL')?.focus(), 30); }
@@ -1596,6 +1662,13 @@ document.addEventListener('keydown', e => {
   }
 });
 $('#keysBtn').onclick = showKeys;
+// Ctrl+V из Excel в «Детали»: колонки Длина, Ширина, Кол-во, Текстура, ОВ, ОН, ОЛ, ОП, Наименование (как в GibLab)
+document.addEventListener('paste', e => {
+  if (ui.screen !== 'project' || ui.sub !== 'parts' || e.target?.tagName === 'TEXTAREA') return;
+  const m = curOp()?.m; if (!m) return;
+  const text = e.clipboardData?.getData('text') || ''; if (!/[\t\n]/.test(text.trim())) return;
+  e.preventDefault(); let n = 0; change(() => { n = core.pasteRows(P, text, m.id); }); toast(n ? `Вставлено строк из Excel: ${n}` : 'В буфере нет строк с длиной и шириной');
+});
 
 const saved = store.get('project', null);
 P = saved && saved.parts ? { date: '', due: '', note: '', ...saved } : { ...core.newProject(), fresh: true };
