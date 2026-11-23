@@ -897,12 +897,38 @@ function renderCatalog(main) {
   const table = kind => `<div class="tbl"><table data-cat="${kind}"><thead><tr>${cols[kind].map(c => `<th${c[2] ? '' : ' class="r"'}>${c[1]}</th>`).join('')}<th></th></tr></thead><tbody>
     ${catalog[kind].map((c, i) => `<tr data-i="${i}">${cols[kind].map(([k, , t]) => `<td><input class="cell ${t ? 'name' : ''}" data-ck="${k}" ${t ? '' : 'type="number" step="any"'} value="${esc(c[k] ?? '')}" aria-label="${k}"></td>`).join('')}<td><button class="btn xs" data-cdel aria-label="Удалить">✕</button></td></tr>`).join('') || `<tr><td colspan="9" class="empty">Пусто. Добавьте строку или сохраните материал из операции кнопкой «Сохранить в каталог».</td></tr>`}
     </tbody></table></div><button class="btn sm" data-cadd="${kind}" style="margin-top:6px">Добавить</button>`;
-  main.innerHTML = `<section class="panel">${screenHead('Каталог материалов')}<p class="note">Свои материалы и кромки с ценами. В операции во вкладке «Параметры» выберите из каталога, и цены с размерами подставятся сами.</p>
+  main.innerHTML = `${siteCatalogPanel()}<section class="panel">${screenHead(siteCat ? 'Свой каталог' : 'Каталог материалов')}<p class="note">Свои материалы и кромки с ценами, которых нет на сайте. В операции во вкладке «Параметры» выберите из каталога, и цены с размерами подставятся сами.</p>
     <h3>Листовые материалы</h3>${table('materials')}<h3 style="margin-top:16px">Кромка</h3>${table('bands')}</section>`;
+  bindSiteCatalog(main);
   main.querySelectorAll('[data-cat]').forEach(t => t.addEventListener('change', e => { const el = e.target, kind = t.dataset.cat, c = catalog[kind][+el.closest('tr').dataset.i];
     c[el.dataset.ck] = el.type === 'number' ? (el.value === '' ? undefined : +el.value) : el.value; store.set('catalog', catalog); }));
   main.querySelectorAll('[data-cdel]').forEach(b => b.onclick = () => { const kind = b.closest('[data-cat]').dataset.cat; catalog[kind].splice(+b.closest('tr').dataset.i, 1); store.set('catalog', catalog); render(); });
   main.querySelectorAll('[data-cadd]').forEach(b => b.onclick = () => { const k = b.dataset.cadd; catalog[k].push(k === 'materials' ? { name: 'ЛДСП', t: 16, L: 2750, W: 1830 } : { name: 'ПВХ 0,4', t: 0.4, w: 19 }); store.set('catalog', catalog); render(); });
+}
+/** Прайс сайта на экране каталога: только просмотр, править цены нужно на сайте. */
+function siteCatalogPanel() {
+  if (!siteCat) return `<section class="panel"><h2>Прайс сайта</h2><p class="note">${siteState && !siteState.login ? 'Прайс сайта пока не загрузился.' : 'Плиты и кромки с ценами подтянутся с artisan.shop.kg, когда программа открыта на сайте и вы вошли.'}</p>${siteState && !siteState.login ? '<button class="btn sm" id="catReload">Загрузить с сайта</button>' : ''}</section>`;
+  const q = (ui.catQ || '').trim().toLowerCase(), hit = x => !q || `${x.name} ${x.code || ''}`.toLowerCase().includes(q);
+  const sh = (siteCat.sheets || []).filter(hit), bd = (siteCat.bands || []).filter(hit), cap = 200;
+  const when = siteCat.at ? new Date(siteCat.at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+  const rows = (list, f) => list.slice(0, cap).map(f).join('') + (list.length > cap ? `<tr><td colspan="6" class="note">и ещё ${list.length - cap}, уточните поиск</td></tr>` : '');
+  return `<section class="panel"><div class="bar"><h2>Прайс сайта</h2><button class="btn sm" id="catReload">Обновить с сайта</button></div>
+    <p class="note">Плит ${fmt(siteCat.sheets?.length || 0)}, кромок ${fmt(siteCat.bands?.length || 0)}${when ? `, загружено ${when}` : ''}. Эти позиции видны в операции во вкладке «Параметры» в списке «взять из каталога» с пометкой «сайт», а их цены идут в смету. Цены меняются на сайте, в админке товаров.</p>
+    <input class="inp t" id="catQ" placeholder="Поиск: название или код" value="${esc(ui.catQ || '')}" style="width:100%;max-width:420px;margin-bottom:8px" aria-label="Поиск по прайсу сайта">
+    <h3>Плиты</h3><div class="tbl"><table><thead><tr><th>Наименование</th><th>Код</th><th class="r">Толщ.</th><th class="r">Длина</th><th class="r">Ширина</th><th class="r">Цена листа</th></tr></thead><tbody>
+      ${rows(sh, x => `<tr><td>${esc(x.name)}</td><td>${esc(x.code || '')}</td><td class="n">${x.t ?? ''}</td><td class="n">${x.L ?? ''}</td><td class="n">${x.W ?? ''}</td><td class="n">${x.price != null ? fmt(x.price) : '—'}</td></tr>`) || '<tr><td colspan="6" class="empty">Не найдено.</td></tr>'}</tbody></table></div>
+    <h3 style="margin-top:16px">Кромка</h3><div class="tbl"><table><thead><tr><th>Наименование</th><th>Код</th><th class="r">Толщ.</th><th class="r">Ширина</th><th class="r">Цена за м</th></tr></thead><tbody>
+      ${rows(bd, x => `<tr><td>${esc(x.name)}</td><td>${esc(x.code || '')}</td><td class="n">${x.t ?? ''}</td><td class="n">${x.w ?? ''}</td><td class="n">${x.price != null ? fmt(x.price) : '—'}</td></tr>`) || '<tr><td colspan="5" class="empty">Не найдено.</td></tr>'}</tbody></table></div></section>`;
+}
+function bindSiteCatalog(main) {
+  const q = main.querySelector('#catQ');
+  if (q) q.oninput = () => { ui.catQ = q.value; clearTimeout(q._t); q._t = setTimeout(() => { render(); const el = $('#catQ'); if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); } }, 250); };
+  const b = main.querySelector('#catReload');
+  if (b) b.onclick = async () => {
+    b.disabled = true; toast('Загружаю прайс с сайта…');
+    try { const cat = await site.loadCatalog(); if (!cat) throw new Error('сайт не ответил'); siteCat = { ...cat, at: Date.now() }; store.set('sitecat', siteCat); recalc(); render(); toast('Прайс сайта обновлён'); }
+    catch (e) { b.disabled = false; toast('Не удалось загрузить прайс: ' + e.message); }
+  };
 }
 function renderLabels(main) {
   const tpl = ui.lblTpl || 'NESTING', what = ui.lblWhat || 'all', layout = ui.lblLayout || 'sheet';
@@ -1179,7 +1205,7 @@ recalc(); render();
 site.checkSite().then(async st => {
   siteState = st; if (!st) return;
   if (P.site) siteStatus('Заявка с сайта');
-  try { const cat = await site.loadCatalog(); if (cat) { siteCat = cat; store.set('sitecat', cat); recalc(); } } catch (e) { /* остаётся прежний прайс */ }
+  try { const cat = await site.loadCatalog(); if (cat) { siteCat = { ...cat, at: Date.now() }; store.set('sitecat', siteCat); recalc(); } } catch (e) { /* остаётся прежний прайс */ }
   render();
 });
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
