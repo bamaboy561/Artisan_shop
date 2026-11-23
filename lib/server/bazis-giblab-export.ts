@@ -6,6 +6,7 @@ import {
   countGibLabProject,
   encodeWindows1251,
 } from "@/lib/bazis-giblab";
+import { gibLabPartPosition } from "@/features/production/giblab-orders";
 
 // Проекты Базиса (.b3d) → один файл GibLab (.project) в windows-1251.
 export function exportBazisToGibLab(files: Buffer | Buffer[]) {
@@ -15,10 +16,30 @@ export function exportBazisToGibLab(files: Buffer | Buffer[]) {
 // То же, плюс сверка: сколько деталей и отверстий в Базисе и сколько дошло
 // до GibLab, и детали, которые стоят друг в друге (их часто копируют по
 // ошибке — пусть менеджер проверит).
-export function exportBazisToGibLabChecked(files: Buffer | Buffer[]) {
+//
+// fileNumbers — номер каждого файла среди файлов Базиса заявки. Когда файлов
+// несколько, позиция детали в GibLab получает номер файла: «2-5». Иначе
+// «поз. 5» есть в каждом файле, и QR «СБОРКА» открыл бы чужую деталь.
+export function exportBazisToGibLabChecked(
+  files: Buffer | Buffer[],
+  options: { fileNumbers?: number[]; fileCount?: number } = {},
+) {
   const list = Array.isArray(files) ? files : [files];
+  const fileCount = options.fileCount ?? list.length;
   const xml = buildGibLabProject(
-    list.map((file) => readBazisGibLabSource(file)),
+    list.map((file, index) => {
+      const source = readBazisGibLabSource(file);
+      const fileNumber = options.fileNumbers?.[index] ?? index + 1;
+      return fileCount > 1
+        ? {
+            ...source,
+            panels: source.panels.map((panel) => ({
+              ...panel,
+              artPos: gibLabPartPosition(fileNumber, fileCount, panel.artPos),
+            })),
+          }
+        : source;
+    }),
   );
   const result = countGibLabProject(xml);
   let parts = 0;

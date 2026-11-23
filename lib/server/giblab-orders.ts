@@ -6,6 +6,7 @@ import {
   gibLabOrderFolder,
   isGibLabProjectFile,
   normalizeGibLabOrderSettings,
+  orderedBazisFiles,
   parseGibLabOrderSettings,
   type GibLabOrderSettings,
 } from "@/features/production/giblab-orders";
@@ -27,6 +28,7 @@ import { logOperationEvent } from "@/lib/server/operation-events";
 import { sendStaffNotice } from "@/lib/server/commercial-integrations";
 import { absoluteUrl } from "@/lib/seo";
 import { readRequestFileBytes } from "@/lib/server/request-file-content";
+import { getOrCreateBazisProjectCode } from "@/lib/server/bazis-project-code";
 
 const settingsKey = "gibLabOrders";
 const maxAttempts = 5;
@@ -99,7 +101,30 @@ export async function saveGibLabOrderSettings(
   return "saved" as const;
 }
 
-export type RequestFileRef = { fileName: string; fileUrl: string; createdAt: Date };
+export type RequestFileRef = {
+  id?: string;
+  fileName: string;
+  fileUrl: string;
+  createdAt: Date;
+};
+
+// Код сайта для QR «СБОРКА» на этикетках GibLab: один на заявку, на все
+// её файлы Базиса. null — Базиса нет или базы нет.
+export async function getRequestBazisCode(
+  requestId: string,
+  files: Array<{ id?: string; fileName: string; createdAt?: Date | string | null }>,
+) {
+  const ids = orderedBazisFiles(files)
+    .map((file) => file.id)
+    .filter((id): id is string => Boolean(id));
+  if (ids.length === 0) return null;
+  try {
+    return await getOrCreateBazisProjectCode(requestId, ids[0], new Date(), ids);
+  } catch (error) {
+    console.error("[bazis:project-code]", error);
+    return null;
+  }
+}
 
 // Что положить в файл. Первым идёт проект Базиса: в нём точная присадка
 // и все материалы. Калькулятор сайта считает один материал за раз, а
@@ -114,14 +139,16 @@ export async function buildContent(
   const sorted = [...files].sort(
     (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
   );
-  const bazisFiles = sorted.filter((f) => /\.b3d$/i.test(f.fileName)).reverse();
-  const bazis: Array<{ name: string; bytes: Buffer }> = [];
-  for (const file of bazisFiles) {
+  // Номер файла считаем среди всех файлов Базиса, даже если какой-то не
+  // прочитался: так «2-5» в GibLab и в QR указывает на один и тот же файл.
+  const bazisFiles = orderedBazisFiles(files);
+  const bazis: Array<{ name: string; bytes: Buffer; number: number }> = [];
+  for (const [index, file] of bazisFiles.entries()) {
     const bytes = await readRequestFileBytes(file.fileUrl);
     if (!bytes) continue;
     try {
       readBazisGibLabSource(bytes);
-      bazis.push({ name: file.fileName, bytes });
+      bazis.push({ name: file.fileName, bytes, number: index + 1 });
     } catch {
       // Не прочитался — остальные файлы всё равно уйдут.
     }
@@ -129,6 +156,10 @@ export async function buildContent(
   if (bazis.length > 0) {
     const { bytes, check } = exportBazisToGibLabChecked(
       bazis.map((item) => item.bytes),
+      {
+        fileNumbers: bazis.map((item) => item.number),
+        fileCount: bazisFiles.length,
+      },
     );
     return {
       bytes,
@@ -245,7 +276,9 @@ export async function getPendingGibLabOrders(limit = 10) {
       contactPhone: true,
       material: true,
       subject: true,
-      files: { select: { fileName: true, fileUrl: true, createdAt: true } },
+      files: {
+        select: { id: true, fileName: true, fileUrl: true, createdAt: true },
+      },
     },
   });
   const result: PendingGibLabOrder[] = [];
@@ -263,6 +296,7 @@ export async function getPendingGibLabOrders(limit = 10) {
         id: request.id,
         contactName: request.contactName,
         contactPhone: request.contactPhone,
+        code: (await getRequestBazisCode(request.id, request.files))?.code,
       });
     const { bytes, source } = await buildContent(
       fileName.replace(/\.project$/i, ""),

@@ -1,7 +1,8 @@
 import { requireAdminSession } from "@/lib/auth/dal";
 import { canAccessRequestType } from "@/lib/auth/roles";
 import { BazisParseError } from "@/lib/bazis-b3d";
-import { exportBazisToGibLab } from "@/lib/server/bazis-giblab-export";
+import { orderedBazisFiles } from "@/features/production/giblab-orders";
+import { exportBazisToGibLabChecked } from "@/lib/server/bazis-giblab-export";
 import { readRequestFileBytes } from "@/lib/server/request-file-content";
 import { getRequestDetailById } from "@/lib/server/request-inbox";
 
@@ -39,7 +40,13 @@ export async function GET(
   }
 
   try {
-    const project = exportBazisToGibLab(bytes);
+    // Позиции с номером файла, как в общем проекте заявки, если файлов
+    // Базиса несколько: тогда QR «СБОРКА» откроет деталь из этого файла.
+    const bazisFiles = orderedBazisFiles(request.files);
+    const project = exportBazisToGibLabChecked(bytes, {
+      fileNumbers: [bazisFiles.findIndex((item) => item.id === file.id) + 1],
+      fileCount: bazisFiles.length,
+    }).bytes;
     const baseName = file.fileName.replace(/\.b3d$/i, "") || "проект";
 
     return new Response(new Uint8Array(project), {

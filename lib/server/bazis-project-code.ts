@@ -16,7 +16,14 @@ const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const CODE_LENGTH = 8;
 const LIFETIME_MS = BAZIS_PART_LINK_DAYS * 24 * 60 * 60 * 1000;
 
-type StoredCode = { requestId: string; fileId: string; expiresAt: string };
+// fileIds — все файлы Базиса заявки по порядку, если их несколько: они
+// собраны в один проект GibLab, и позиция детали там «2-5» (файл 2, поз. 5).
+type StoredCode = {
+  requestId: string;
+  fileId: string;
+  expiresAt: string;
+  fileIds?: string[];
+};
 
 function randomCode() {
   return Array.from(
@@ -32,19 +39,39 @@ function readStored(value: unknown): StoredCode | null {
     typeof stored.requestId === "string" &&
     typeof stored.fileId === "string" &&
     typeof stored.expiresAt === "string"
-    ? (stored as StoredCode)
+    ? {
+        requestId: stored.requestId,
+        fileId: stored.fileId,
+        expiresAt: stored.expiresAt,
+        fileIds:
+          Array.isArray(stored.fileIds) &&
+          stored.fileIds.every((id) => typeof id === "string")
+            ? stored.fileIds
+            : undefined,
+      }
     : null;
 }
 
+const sameList = (a: string[] | undefined, b: string[] | undefined) =>
+  (a ?? []).join("|") === (b ?? []).join("|");
+
 // Код для файла проекта: действующий или новый, если прежний истёк.
+// allFileIds — все файлы Базиса заявки, когда их больше одного: код один на
+// заявку и ключ у него по первому файлу, поэтому прежние коды не меняются.
 export async function getOrCreateBazisProjectCode(
   requestId: string,
   fileId: string,
   now = new Date(),
+  allFileIds?: string[],
 ) {
   if (!hasDatabaseUrl()) {
     return null;
   }
+
+  const fileIds =
+    allFileIds && allFileIds.length > 1 && allFileIds[0] === fileId
+      ? allFileIds
+      : undefined;
 
   const db = getDb();
   const fileKey = `${FILE_PREFIX}${requestId}:${fileId}`;
@@ -52,15 +79,28 @@ export async function getOrCreateBazisProjectCode(
   const currentCode = typeof current?.value === "string" ? current.value : null;
 
   if (currentCode) {
+    const codeKey = `${CODE_PREFIX}${currentCode}`;
     const stored = readStored(
-      (
-        await db.siteSetting.findUnique({
-          where: { key: `${CODE_PREFIX}${currentCode}` },
-        })
-      )?.value,
+      (await db.siteSetting.findUnique({ where: { key: codeKey } }))?.value,
     );
 
     if (stored && new Date(stored.expiresAt).getTime() > now.getTime()) {
+      // В заявку добавили файл Базиса — код тот же, список файлов новый.
+      // Только когда список знаем: страница одного файла его не передаёт.
+      if (allFileIds && !sameList(stored.fileIds, fileIds)) {
+        await db.siteSetting.update({
+          where: { key: codeKey },
+          data: {
+            value: {
+              requestId: stored.requestId,
+              fileId: stored.fileId,
+              expiresAt: stored.expiresAt,
+              ...(fileIds ? { fileIds } : {}),
+            },
+          },
+        });
+      }
+
       return { code: currentCode, expiresAt: new Date(stored.expiresAt) };
     }
   }
@@ -71,6 +111,7 @@ export async function getOrCreateBazisProjectCode(
     requestId,
     fileId,
     expiresAt: expiresAt.toISOString(),
+    ...(fileIds ? { fileIds } : {}),
   };
 
   await db.siteSetting.create({
@@ -118,7 +159,11 @@ export async function resolveBazisProjectCode(text: string, now = new Date()) {
 
     if (stored) {
       return new Date(stored.expiresAt).getTime() > now.getTime()
-        ? { requestId: stored.requestId, fileId: stored.fileId }
+        ? {
+            requestId: stored.requestId,
+            fileId: stored.fileId,
+            fileIds: stored.fileIds ?? [stored.fileId],
+          }
         : ("expired" as const);
     }
   }
