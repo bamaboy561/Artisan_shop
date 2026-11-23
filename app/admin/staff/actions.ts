@@ -72,8 +72,15 @@ export async function deleteStaffAccountAction(formData: FormData) {
       select: { id: true, email: true },
     });
     if (!account) return false;
-    await tx.user.update({
-      where: { id: account.id },
+    // Роль, «не удалён» и email проверяем ещё раз в самой записи: если
+    // между чтением и записью роль повысили, удаление не произойдёт.
+    const result = await tx.user.updateMany({
+      where: {
+        id: account.id,
+        email: account.email,
+        deletedAt: null,
+        role: { code: { in: deletableRoles } },
+      },
       data: {
         deletedAt: new Date(),
         isActive: false,
@@ -84,6 +91,7 @@ export async function deleteStaffAccountAction(formData: FormData) {
         telegramLinkedAt: null,
       },
     });
+    if (result.count !== 1) return false;
     await tx.pushDevice.deleteMany({ where: { userId: account.id } });
     return true;
   });
