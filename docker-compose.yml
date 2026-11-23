@@ -49,6 +49,8 @@ services:
       ONE_C_API_KEY: ${ONE_C_API_KEY}
       ONE_C_USERNAME: ${ONE_C_USERNAME}
       ONE_C_PASSWORD: ${ONE_C_PASSWORD}
+      GITHUB_RELEASES_TOKEN: ${GITHUB_RELEASES_TOKEN}
+      RASKROY_RELEASES_REPO: ${RASKROY_RELEASES_REPO:-bamaboy561/raspil}
     ports:
       - "${APP_PORT:-3000}:3000"
     volumes:
