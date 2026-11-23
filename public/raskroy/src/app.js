@@ -304,7 +304,7 @@ function renderStart(main) {
       P.name = $('#wName').value.trim() || P.name; P.order = $('#wOrder').value.trim(); P.due = $('#wDue').value;
       if (!P.date) P.date = new Date().toISOString().slice(0, 10);
       const m = { id, name: c.name || name || 'ЛДСП', code: c.code || '', t, L, W, op, params: {} };
-      const price = $('#wP').value; if (price !== '') m.price = +price; if (c.priceM2) m.priceM2 = c.priceM2;
+      const price = $('#wP').value; if (price !== '') m.price = +price; else if (c.priceM2) m.priceM2 = c.priceM2; // цена за м² сильнее цены листа, поэтому берём её, только если цену листа не ввели
       P.materials.push(m); ui.op = 'm:' + id; ui.sub = 'parts'; ui.top = 'ops'; ui.wiz = null; ui.wizFocus = '';
     });
     setTimeout(() => $('#qL')?.focus(), 60);
