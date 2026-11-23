@@ -152,10 +152,15 @@ async function openSiteOrder(id, fresh = false) {
       Q.status = 'Заказан';
     }
     Q.site = { id: o.id, number: o.number, version: o.version ?? null }; Q.uid = 'site-' + o.id; delete Q.fresh;
-    // Своя версия на этом компьютере правилась с той же версии сайта и ещё не записана — она важнее.
-    if (local?.site && local.site.version === Q.site.version && local.site.dirty) Q = local;
+    // На этом компьютере есть незаписанные на сайт правки: открываем их. Если на сайте за это время
+    // сохранили другую версию, правки не теряем, а показываем выбор, чья версия остаётся.
+    if (local?.site?.dirty && local.site.id === o.id) {
+      if (local.site.version !== Q.site.version) local.site.conflict = { version: o.version ?? null, savedAt: o.savedAt || null, savedBy: o.savedBy || '' };
+      Q = local;
+    }
     saveProject(P); openProject(Q);
-    siteStatus(o.savedAt ? 'Открыт проект, сохранённый на сайте' : `Заявка открыта (${o.source || 'с сайта'})`);
+    if (P.site?.conflict) siteConflict(P.site.conflict);
+    else siteStatus(o.savedAt ? 'Открыт проект, сохранённый на сайте' : `Заявка открыта (${o.source || 'с сайта'})`);
     toast(`Заявка ${o.number || ''} открыта`);
   } catch (e) { toast('Не удалось открыть заявку: ' + e.message); }
 }
@@ -782,10 +787,11 @@ function bindEdit(op, pan, x) {
 }
 /** Кнопка склада: оприходовать остатки карты один раз; если карта изменилась — заменить прежние остатки заказа. */
 function stockBtn(m, r) {
-  if (!r.offcuts.length && !r.stockUsed.length) return '';
-  if (problemsOf(resOf(m)).length) return '<button class="btn sm" disabled title="Сначала исправьте ошибки раскроя">Остатки на склад</button>';
   const st = core.stockOpState(ledger, r, P.uid, m.id), d = t => new Date(t).toLocaleDateString('ru-RU');
+  if (!r.offcuts.length && !r.stockUsed.length && st.state === 'none') return '';
+  if (problemsOf(resOf(m)).length) return '<button class="btn sm" disabled title="Сначала исправьте ошибки раскроя">Остатки на склад</button>';
   if (st.state === 'done') return `<button class="btn sm" disabled>Остатки на складе с ${d(st.op.at)}</button>`;
+  if (st.state === 'blocked') return `<button class="btn sm" disabled title="Остатки прежней карты этого заказа уже взяты в раскрой: ${esc(st.by.map(o => o.from || 'другой заказ').join(', '))}. Сначала верните их на склад в том заказе.">Склад не обновить: остатки уже взял ${esc(st.by[0].from || 'другой заказ')}</button>`;
   const what = `+${r.offcuts.length}${r.stockUsed.length ? `, списать ${r.stockUsed.length}` : ''}`;
   return st.state === 'changed'
     ? `<button class="btn sm" id="saveOff" title="Карта изменилась после ${d(st.op.at)}: прежние остатки этого заказа уберутся со склада">Обновить склад по новой карте (${what})</button>`
@@ -794,6 +800,7 @@ function stockBtn(m, r) {
 function saveOffcuts(r) {
   if (problemsOf(resOf(r.m)).length) return toast('Сначала исправьте ошибки раскроя');
   const res = core.applyStockOp(stock, ledger, r, { uid: P.uid, matId: r.m.id, from: P.name || 'заказ', newId: () => Date.now() + Math.random() });
+  if (res.blocked) return toast(`Остатки прежней карты уже взял в раскрой ${res.blocked[0].from || 'другой заказ'}. Склад не изменён.`);
   if (!res.done) return toast('Остатки этой карты уже на складе');
   if (P.fresh) { delete P.fresh; saveProject(P); } // проект попадает в список, чтобы операция склада была привязана к нему
   stock = res.stock; ledger = res.ledger; store.set('stock', stock); store.set('stockops', ledger);
@@ -1001,10 +1008,10 @@ function printFallback(kind, title) {
 /* --- Выпуск в работу: проверка и фиксация версии, по которой готовятся карты, этикетки и файлы --- */
 const machineLimits = () => ({ sawL: +base.sawMaxL || 0, sawW: +base.sawMaxW || 0, cncL: +base.cncMaxL || 0, cncW: +base.cncMaxW || 0 });
 function releaseBanner() {
-  const st = core.releaseState(P); if (!st.last) return '';
+  const st = core.releaseState(P, R); if (!st.last) return '';
   const d = new Date(st.last.at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
   return st.changed
-    ? `<div class="printbox bad relbar">Заказ изменён после выпуска версии ${st.last.n} (${d}). В цехе карты и этикетки версии ${st.last.n}. Выпустите заново, чтобы цех работал по новой версии. <button class="btn xs" data-relopen>Выпустить заново</button></div>`
+    ? `<div class="printbox bad relbar">${st.why === 'maps' ? 'Карты раскроя пересчитались после выпуска' : 'Заказ изменён после выпуска'} версии ${st.last.n} (${d})${st.why === 'maps' ? ': изменились настройки раскроя или склад остатков' : ''}. В цехе карты и этикетки версии ${st.last.n}. Выпустите заново, чтобы цех работал по новой версии. <button class="btn xs" data-relopen>Выпустить заново</button></div>`
     : `<div class="printbox good relbar">В работе версия ${st.last.n} от ${d}${st.last.by ? ', выпустил ' + esc(st.last.by) : ''}: ${st.last.sheets} лист., ${st.last.parts} дет.</div>`;
 }
 function releasePanel() {
@@ -1027,7 +1034,7 @@ function bindRelease(main) {
     toast(`Версия ${rel.n} выпущена в работу`);
   };
 }
-const relLabel = () => { const st = core.releaseState(P); return st.last ? `версия ${st.last.n}${st.changed ? ' (изменён после выпуска)' : ''}` : 'не выпущен в работу'; };
+const relLabel = () => { const st = core.releaseState(P, R); return st.last ? `версия ${st.last.n}${st.changed ? (st.why === 'maps' ? ' (карты пересчитаны после выпуска)' : ' (изменён после выпуска)') : ''}` : 'не выпущен в работу'; };
 
 function renderEstimate(main) {
   const e = E.e, G = core.GROUP_NAME;

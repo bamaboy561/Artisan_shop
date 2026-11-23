@@ -24,10 +24,19 @@ export function stockForProject(stock, ledger, uid) {
 }
 
 /** Состояние складской операции заказа по материалу: 'none' — не было, 'done' — эта карта уже на складе,
- *  'changed' — на складе прежняя версия карты. */
+ *  'changed' — на складе прежняя версия карты, 'blocked' — прежняя версия, но её остатки уже взял другой заказ. */
 export function stockOpState(ledger, r, uid, matId) {
   const op = (ledger || []).find(o => o.uid === uid && o.mat === matId);
-  return !op ? { state: 'none' } : op.key === layoutKey(r) ? { state: 'done', op } : { state: 'changed', op };
+  if (!op) return { state: 'none' };
+  if (op.key === layoutKey(r)) return { state: 'done', op };
+  const by = consumers(ledger, op);
+  return by.length ? { state: 'blocked', op, by } : { state: 'changed', op };
+}
+
+/** Чужие складские операции, которые уже взяли в раскрой остатки этой операции. */
+export function consumers(ledger, op) {
+  const ids = new Set(op.added.map(a => a.id));
+  return (ledger || []).filter(o => o !== op && o.used.some(u => ids.has(u.id)));
 }
 
 function revert(stock, op) {
@@ -35,10 +44,13 @@ function revert(stock, op) {
   return [...stock.filter(s => !added.has(s.id)), ...op.used.filter(u => !have.has(u.id))];
 }
 
-/** Оприходовать остатки карты и списать взятые со склада. Возвращает {stock, ledger, done, replaced}; исходные не меняет. */
+/** Оприходовать остатки карты и списать взятые со склада. Возвращает {stock, ledger, done, replaced, blocked}; исходные не меняет.
+ *  Если остатки прежней версии уже взял другой заказ, замена не делается: blocked — список таких операций. */
 export function applyStockOp(stock, ledger = [], r, { uid, matId, from = '', now = Date.now(), newId = () => now + Math.random() }) {
   const key = layoutKey(r), prev = ledger.find(o => o.uid === uid && o.mat === matId);
   if (prev && prev.key === key) return { stock, ledger, done: false, replaced: false };
+  const by = prev ? consumers(ledger, prev) : [];
+  if (by.length) return { stock, ledger, done: false, replaced: false, blocked: by };
   let st = prev ? revert(stock, prev) : stock;
   const usedIds = new Set(r.stockUsed.map(s => s.stock.id));
   const used = st.filter(s => usedIds.has(s.id));

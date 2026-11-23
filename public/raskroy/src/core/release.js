@@ -56,8 +56,17 @@ export function makeRelease(P, R, C, { now = Date.now(), by = '' } = {}) {
     maps: R.mats.map(x => ({ mat: x.m.id, name: `${x.m.name} ${x.m.t} мм`, sheets: x.r.fullCount, key: layoutKey(x.r) })) };
 }
 
-/** Последний выпуск и изменён ли проект после него. */
-export function releaseState(P) {
+/** Последний выпуск и изменилось ли то, что ушло в цех. Если передан текущий расчёт R, сверяются и карты:
+ *  они могут пересчитаться без правок заказа (пропил, торцовка, склад остатков).
+ *  why: 'project' — правили заказ, 'maps' — карты стали другими. */
+export function releaseState(P, R) {
   const last = (P.releases || [])[P.releases?.length - 1];
-  return last ? { last, changed: last.hash !== productionHash(P) } : { last: null, changed: false };
+  if (!last) return { last: null, changed: false, why: '' };
+  if (last.hash !== productionHash(P)) return { last, changed: true, why: 'project' };
+  if (R && last.maps) {
+    const now = new Map(R.mats.map(x => [x.m.id, layoutKey(x.r)]));
+    const same = last.maps.length === now.size && last.maps.every(x => now.get(x.mat) === x.key);
+    if (!same) return { last, changed: true, why: 'maps' };
+  }
+  return { last, changed: false, why: '' };
 }
