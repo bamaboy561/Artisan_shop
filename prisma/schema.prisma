@@ -192,6 +192,9 @@ model User {
   telegramNotifyLoyalty    Boolean              @default(true)
   telegramNotifyPromotions Boolean              @default(true)
   isActive                 Boolean              @default(true)
+  // Сотрудник удалён из админки: аккаунт скрыт и закрыт, а заказы, заявки
+  // и смены, которые он вёл, остаются в истории под его именем.
+  deletedAt                DateTime?
   loyaltyTier              LoyaltyTier          @default(BRONZE)
   plateMaterialLoyaltyTier LoyaltyTier?
   fittingsLoyaltyTier      LoyaltyTier?
