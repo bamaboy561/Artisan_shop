@@ -73,3 +73,17 @@ export function servicesToBase(s) {
   if (s.groove != null) o.groovePrice = s.groove;
   return o;
 }
+
+/** Утверждённое КП: цены и итог на момент утверждения, чтобы новый прайс не менял согласованную сумму. */
+export function freezeKp(E, { now = Date.now(), n = 1 } = {}) {
+  const pick = l => ({ name: l.name, qty: l.qty, unit: l.unit, price: l.price, sum: l.sum });
+  return { n, at: now, e: { ...E.e }, groups: Object.fromEntries(Object.entries(E.groups).map(([g, a]) => [g, a.map(pick)])),
+    totals: { ...E.totals }, byPrice: E.byPrice, markup: E.markup, discount: E.discount, total: E.total };
+}
+
+/** Чем текущая смета отличается от утверждённого КП: {changed, diff} (diff — новая сумма минус утверждённая). */
+export function kpDiff(kp, E) {
+  if (!kp) return { changed: false, diff: 0 };
+  const sig = groups => JSON.stringify(Object.values(groups).flat().map(l => [l.name, Math.round(l.qty * 100), Math.round(l.price * 100)]));
+  return { changed: kp.total !== E.total || sig(kp.groups) !== sig(E.groups), diff: E.total - kp.total };
+}

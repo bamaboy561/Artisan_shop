@@ -3,6 +3,7 @@ import path from "node:path";
 
 import {
   CuttingStage,
+  type Prisma,
   MessengerType,
   RequestFileKind,
   RequestStatus,
@@ -1012,6 +1013,45 @@ export async function updateRequestInboxItem(input: {
   await writeDemoRequests(updated);
 }
 
+// Количества распила в заявке и пересчёт суммы по зафиксированным ценам —
+// внутри уже открытой транзакции (программа раскроя сохраняет проект и
+// итоги одной транзакцией).
+export async function applyRequestCuttingDetails(
+  tx: Prisma.TransactionClient,
+  input: {
+    id: string;
+    material: string;
+    cuttingSheetCount: number | null;
+    cuttingEdgeMeters: number | null;
+    edgeOption: string | null;
+  },
+) {
+  const price = await readCuttingQuotePrice(tx, input.id);
+  const extras = price ? await readCuttingExtras(tx, input.id) : null;
+  return tx.request.update({
+    where: { id: input.id },
+    data: {
+      material: input.material,
+      cuttingSheetCount: input.cuttingSheetCount,
+      cuttingEdgeMeters: input.cuttingEdgeMeters,
+      edgeOption: input.edgeOption,
+      ...(price
+        ? {
+            quotedTotal:
+              buildCuttingQuote(price, input, extras)?.total ?? null,
+          }
+        : {}),
+    },
+    select: {
+      id: true,
+      material: true,
+      cuttingSheetCount: true,
+      cuttingEdgeMeters: true,
+      edgeOption: true,
+    },
+  });
+}
+
 export async function updateRequestCuttingDetails(input: {
   id: string;
   material: string;
@@ -1020,35 +1060,9 @@ export async function updateRequestCuttingDetails(input: {
   edgeOption: string | null;
 }) {
   if (hasDatabaseUrl()) {
-    return getDb().$transaction(
-      async (tx) => {
-        const price = await readCuttingQuotePrice(tx, input.id);
-        const extras = price ? await readCuttingExtras(tx, input.id) : null;
-        return tx.request.update({
-          where: { id: input.id },
-          data: {
-            material: input.material,
-            cuttingSheetCount: input.cuttingSheetCount,
-            cuttingEdgeMeters: input.cuttingEdgeMeters,
-            edgeOption: input.edgeOption,
-            ...(price
-              ? {
-                  quotedTotal:
-                    buildCuttingQuote(price, input, extras)?.total ?? null,
-                }
-              : {}),
-          },
-          select: {
-            id: true,
-            material: true,
-            cuttingSheetCount: true,
-            cuttingEdgeMeters: true,
-            edgeOption: true,
-          },
-        });
-      },
-      { isolationLevel: "Serializable" },
-    );
+    return getDb().$transaction((tx) => applyRequestCuttingDetails(tx, input), {
+      isolationLevel: "Serializable",
+    });
   }
 
   if (!isDemoModeEnabled()) {
