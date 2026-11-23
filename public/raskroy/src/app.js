@@ -832,20 +832,24 @@ function saveOffcuts(r) {
     return q.done ? { stock: q.stock, ledger: q.ledger } : null;
   }).then(ok => ok && toast(res.replaced ? 'Склад обновлён по новой карте' : `На склад: +${r.offcuts.length}${r.stockUsed.length ? `, списано ${r.stockUsed.length}` : ''}`));
 }
-const newStockId = () => Math.floor(Date.now() * 1000 + Math.random() * 1000);
+const newStockId = () => (globalThis.crypto?.randomUUID ? crypto.randomUUID() : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`);
 function setStock(st, led) { stock = st; ledger = led; store.set('stock', stock); store.set('stockops', ledger); }
-/** Любая правка склада: fn({stock, ledger}) → новый {stock, ledger} или null (нечего менять). Правка сразу видна здесь,
- *  а на сайте сохраняется с проверкой версии: если склад тем временем изменили на другом компьютере, перечитываем его и повторяем правку. */
-async function mutateStock(fn) {
+const markDirty = v => { stockDirty = v; store.set('stockdirty', v); };
+/** Любая правка склада: fn({stock, ledger}) → новый {stock, ledger} или null (нечего менять).
+ *  Правки идут строго по очереди: следующая начинается, когда предыдущая сохранена на сайте, поэтому ни одна не применится дважды.
+ *  На сайте склад сохраняется с проверкой версии: если его тем временем изменили на другом компьютере, перечитываем и повторяем правку. */
+let stockQueue = Promise.resolve();
+function mutateStock(fn) { const job = stockQueue.then(() => runStockEdit(fn)); stockQueue = job.catch(() => false); return job; }
+async function runStockEdit(fn) {
   const first = fn({ stock, ledger }); if (!first) return false;
   setStock(first.stock, first.ledger); recalc(); render();
-  if (!stockShared) return true;
+  if (!stockShared) { if (store.get('stocksynced', false)) markDirty(true); return true; } // без связи: отправим, когда сайт снова будет доступен
   for (let i = 0; i < 4; i++) {
     try {
       const res = await site.saveStock({ stock, ledger, baseVersion: stockVer });
-      stockVer = res.version; stockDirty = false; stockAt = Date.now(); store.set('stockver', stockVer); store.set('stockdirty', false); render(); return true;
+      stockVer = res.version; stockAt = Date.now(); store.set('stockver', stockVer); store.set('stocksynced', true); markDirty(false); render(); return true;
     } catch (e) {
-      if (!e.conflict) { stockDirty = true; store.set('stockdirty', true); toast('Склад сохранён на этом компьютере, на сайт уйдёт при следующей связи: ' + e.message); render(); return true; }
+      if (!e.conflict) { markDirty(true); toast('Склад сохранён на этом компьютере, на сайт уйдёт при следующей связи: ' + e.message); render(); return true; }
       const fresh = await site.loadStock().catch(() => null); if (!fresh) break;
       stockVer = fresh.version; store.set('stockver', stockVer);
       const again = fn({ stock: fresh.stock, ledger: fresh.ledger });
@@ -853,19 +857,34 @@ async function mutateStock(fn) {
       if (!again) return false;
     }
   }
-  stockDirty = true; store.set('stockdirty', true); toast('Не удалось сохранить склад на сайте, попробуйте ещё раз'); render(); return false;
+  markDirty(true); toast('Не удалось сохранить склад на сайте, попробуйте ещё раз'); render(); return false;
 }
-/** Взять склад с сайта. Первый раз склад этого компьютера переносится на сайт. */
-async function syncStock() {
+/** Склад этого компьютера, которого ещё нет на сайте, добавляется к складу сайта (ничего не удаляет). */
+function mergeStock(remote, local) {
+  const ids = new Set(remote.stock.map(x => String(x.id))), ops = new Set(remote.ledger.map(o => o.uid + '|' + o.mat));
+  const addS = local.stock.filter(x => !ids.has(String(x.id))), addL = local.ledger.filter(o => !ops.has(o.uid + '|' + o.mat));
+  return { stock: [...remote.stock, ...addS], ledger: [...remote.ledger, ...addL] };
+}
+/** Взять склад с сайта. Первый раз склад этого компьютера добавляется к общему. */
+function syncStock() { const job = stockQueue.then(syncStockNow); stockQueue = job.catch(() => false); return job; }
+async function syncStockNow() {
   if (!siteState || siteState.login) return;
   let r; try { r = await site.loadStock(); } catch (e) { return; }
   if (!r) return;
   const was = stockShared; stockShared = true;
   if (was && !stockDirty && r.version === stockVer) { stockAt = Date.now(); return; }
-  if (r.version === 0 && (stock.length || ledger.length)) { stockVer = 0; stockDirty = true; }
-  if (stockDirty && r.version === stockVer) { await mutateStock(s => ({ ...s })); if (r.version === 0) toast('Склад этого компьютера перенесён на сайт, теперь он общий'); return; }
+  if (!store.get('stocksynced', false)) {
+    const local = { stock, ledger };
+    stockVer = r.version; setStock(r.stock, r.ledger);
+    if (local.stock.length || local.ledger.length) {
+      await runStockEdit(s => mergeStock(s, local));
+      toast('Склад этого компьютера добавлен к общему складу на сайте');
+    } else { store.set('stocksynced', true); store.set('stockver', stockVer); recalc(); render(); }
+    return;
+  }
+  if (stockDirty && r.version === stockVer) { await runStockEdit(s => ({ ...s })); return; }
   if (stockDirty) toast('Склад на сайте успели изменить, правки этого компьютера без связи не сохранились');
-  stockVer = r.version; stockDirty = false; stockAt = Date.now(); store.set('stockver', stockVer); store.set('stockdirty', false);
+  stockVer = r.version; stockAt = Date.now(); store.set('stockver', stockVer); markDirty(false);
   setStock(r.stock, r.ledger); recalc(); render();
 }
 function copyText(ta) { (navigator.clipboard ? navigator.clipboard.writeText(ta.value) : Promise.reject()).then(() => toast('Скопировано')).catch(() => { ta.focus(); ta.select(); toast('Выделено, нажмите Ctrl+C'); }); }
