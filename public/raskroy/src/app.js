@@ -109,7 +109,7 @@ const F_BASE = [['Пила'], ['kerf', 'Толщина пилы, мм', 'num', '
 
 /* ===== Расчёт и история ===== */
 function recalc(edited = false) {
-  R = core.computeProject(P, eff(), core.stockForProject(stock, ledger, P.uid));
+  R = core.computeProject(P, eff(), core.stockForProject(stock, ledger, P.uid, core.releaseLocks(P)));
   const cp = core.catalogPrices(P, siteCat);
   C = core.cost(P, R, { ...cp.prices, ...sheetPrices }, cp.bandPrices);
   E = core.estimate(P, C);
@@ -212,8 +212,13 @@ function saveProject(Q) {
 function openProject(Q) { P = { date: '', due: '', note: '', ...Q }; undo = []; redo = []; sel.clear(); ui.op = null; ui.sheet = 0; ui.screen = 'project'; ui.skipStart = false; ui.rel = false; ui.wiz = null; ui.wizFocus = ''; ui.wizPick = ''; recalc(); clearTimeout(siteT); siteStatus(P.site ? 'Заявка с сайта ' + (P.site.number || '') : ''); if (P.site?.conflict) siteConflict(P.site.conflict); render(); }
 /** Любое изменение проекта: запоминаем прежнее состояние для «Отменить», считаем заново, перерисовываем. */
 function change(fn) {
-  undo.push(JSON.stringify(P)); if (undo.length > 60) undo.shift(); redo = [];
-  delete P.fresh; fn(); recalc(true); renderSoon();
+  const before = JSON.stringify(P);
+  delete P.fresh; fn();
+  // Правка ничего не поменяла (например, ячейку подтвердили дважды: Enter и уход из поля) — в историю не пишем,
+  // иначе «Отменить» сначала откатывает пустой шаг и кажется, что не работает.
+  if (JSON.stringify(P) === before) return renderSoon();
+  undo.push(before); if (undo.length > 60) undo.shift(); redo = [];
+  recalc(true); renderSoon();
 }
 function stepHistory(from, to) {
   if (!from.length) return toast('Нечего ' + (from === undo ? 'отменять' : 'возвращать'));
@@ -487,7 +492,7 @@ function subParams(op) {
     ${more ? `<button class="btn sm" id="allParams">${ui.allParams ? 'Скрыть дополнительные параметры' : 'Все параметры (пила, остатки, цена работы…)'}</button>` : ''}</div>
     <div class="note">${catalogBox(op)}${op.type === 'XNC' ? 'Отверстия и фрезеровка берутся из программ деталей в проекте (Базис, GibLab).' : ['GR', 'CL'].includes(op.type) ? '' :
       `Пустое поле — значение из «Настроек» (серым). ● — своё значение этой операции.${own ? ' <button class="btn sm" id="resetParams">Сбросить к настройкам</button>' : ''}`}
-      ${op.type === 'CN' ? '<p><span class="badge">черновик</span> Режимы резания и G-код ещё не сверены с вашим станком.</p>' : ''}</div></div>`;
+      ${op.type === 'CN' ? '<p>Программа нестинга сверена с файлами со станка Excitech цеха. Сверловка в пласть на ЧПУ в образцах не встречалась: первый лист с отверстиями проверьте холостым ходом.</p>' : ''}</div></div>`;
 }
 /** Свой каталог и прайс сайта одним списком. У кромки с сайта цена — это материал за метр. */
 function pickList(kind) {
@@ -535,7 +540,8 @@ function bindPicker(id, getList, kind, onPick) {
       box.innerHTML = shown.length ? `<div class="pkh">Найдено: ${found.length}${found.length > 60 ? ', показаны первые 60, уточните' : ''}</div>` + shown.map((c, i) => `<div class="pki" role="option" data-i="${i}">${pickLine(c)}</div>`).join('')
         : `<div class="pkh">Ничего не найдено. Попробуйте часть слова, код или толщину${kind === 'materials' ? ', или впишите свой материал' : ''}.</div>`;
     }
-    if (!list.length) box.innerHTML = '<div class="pkh">Каталог пуст: добавьте материалы в «Каталоге материалов» или откройте программу на сайте.</div>';
+    if (!list.length) { if (q) return close(); /* каталог пуст, а материал вписывают свой: подсказка не должна закрывать поля ниже */
+      box.innerHTML = '<div class="pkh">Каталог пуст: добавьте материалы в «Каталоге материалов» или откройте программу на сайте.</div>'; }
     cur = -1; box.hidden = false; inp.setAttribute('aria-expanded', 'true');
   };
   const close = () => { box.hidden = true; inp.setAttribute('aria-expanded', 'false'); };
@@ -1115,7 +1121,7 @@ function saveOffcuts(r) {
   if (P.fresh) { delete P.fresh; saveProject(P); } // проект попадает в список, чтобы операция склада была привязана к нему
   const opt = { uid: P.uid, matId: r.m.id, from: P.name || 'заказ', newId: newStockId };
   mutateStock(s => {
-    const need = new Set(r.stockUsed.map(u => u.stock.id)), mine = new Set(core.stockForProject(s.stock, s.ledger, P.uid).map(x => x.id));
+    const need = new Set(r.stockUsed.map(u => u.stock.id)), mine = new Set(core.stockForProject(s.stock, s.ledger, P.uid, core.releaseLocks(P)).map(x => x.id));
     if ([...need].some(id => !mine.has(id))) { toast('Остаток, взятый в эту карту, уже забрали на другом компьютере. Пересчитайте карту.'); return null; }
     const q = core.applyStockOp(s.stock, s.ledger, r, opt);
     return q.done ? { stock: q.stock, ledger: q.ledger } : null;
@@ -1350,7 +1356,10 @@ function bindSiteCatalog(main) {
   };
 }
 function renderLabels(main) {
-  const tpl = ui.lblTpl || 'NESTING', what = ui.lblWhat || 'all', layout = ui.lblLayout || 'sheet';
+  const what = ui.lblWhat || 'all', layout = ui.lblLayout || 'sheet';
+  // Шаблон по умолчанию по станку: детали с пилы — HOLZMA 58×80, только нестинг — NESTING 80×60.
+  const chosen = R.mats.filter(x => x.r.sheets.length && (what === 'all' || what === 'off' || what === 'm:' + x.m.id));
+  const tpl = ui.lblTpl && TEMPLATES[ui.lblTpl] ? ui.lblTpl : chosen.length && chosen.every(x => x.mode === 'cnc') ? 'NESTING' : 'HOLZMA';
   const list = [];
   R.mats.forEach(x => {
     if (what !== 'all' && what !== 'off' && what !== 'm:' + x.m.id) return;
@@ -1443,8 +1452,10 @@ async function cncFiles(op, x, btn, send) {
     const tail = warn.size ? '. ' + [...warn].join('; ') : '';
     if (send) {
       const res = await mach.sendToMachine('nesting', files, { sub: base.machineSub ? label : '',
-        confirmReplace: async names => window.confirm(`В папке станка уже есть ${names.length} таких файлов (${names.slice(0, 3).join(', ')}${names.length > 3 ? '…' : ''}). Заменить?`) });
-      if (res.ok) return toast(`Отправлено на станок: ${res.written} файлов в папку ${res.dir}${tail}`);
+        confirmReplace: async names => window.confirm(`В папке станка уже есть ${names.length} таких файлов (${names.slice(0, 3).join(', ')}${names.length > 3 ? '…' : ''}). Заменить?`),
+        stale: n => /^(label_)?f\d+_\d+\.(anc|cyc)$/i.test(n),
+        confirmClean: async names => window.confirm(`В папке станка остались программы прошлого заказа: ${names.slice(0, 4).join(', ')}${names.length > 4 ? '…' : ''}. Их можно запустить по ошибке. Удалить их?`) });
+      if (res.ok) return toast(`Отправлено на станок: ${res.written} файлов в папку ${res.dir}${res.removed ? `, старых программ убрано: ${res.removed}` : ''}${tail}`);
       if (res.reason === 'nodir') { toast('Сначала выберите папку нестинга в «Настройках», раздел «Папки станков»'); return setUi({ screen: 'settings' }); }
       return toast(res.reason === 'denied' ? 'Браузер не дал записать в папку станка. Разрешите запись и нажмите ещё раз.' : 'Отправка отменена');
     }
@@ -1647,9 +1658,11 @@ function renderExport(main) {
       <textarea class="code" id="xmlOut" readonly aria-label="XML проекта">${esc(xml)}</textarea><p class="note">Детали, материалы и кромка переносятся.</p></div>
     <div><div class="row" style="justify-content:space-between;margin-bottom:6px"><h3>Список деталей для Excel (CSV)</h3><button class="btn sm" id="cpC">Скопировать</button></div>
       <textarea class="code" id="csvOut" readonly aria-label="CSV">${esc(csv)}</textarea><p class="note">Разделитель — точка с запятой.</p></div></div>
-    <p class="note">Выгрузка на пилу Homag (CadMatic) появится, когда пришлёте образец файла с пилы.</p></section>`;
+    <p class="note">Файл для пилы Holzma (.ptx) и программы ЧПУ Excitech делаются в операции раскроя, на вкладке «Раскрой».</p></section>`;
   $('#cpX').onclick = () => copyText($('#xmlOut')); $('#cpC').onclick = () => copyText($('#csvOut'));
-  $('#dlX').onclick = () => { try { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([xml], { type: 'application/xml' })); a.download = (P.name || 'проект') + '.project'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); } catch (e) { copyText($('#xmlOut')); } };
+  $('#dlX').onclick = () => saveFile(new Blob([xml], { type: 'application/xml' }), `${P.name || 'проект'}.project`.replace(/[\\/:*?"<>|]+/g, ' ').trim())
+    .then(how => toast(how === 'saved' ? 'Файл сохранён' : 'Файл скачан'))
+    .catch(e => { if (e?.code !== 'declined') copyText($('#xmlOut')); });
 }
 
 /* ===== События ===== */

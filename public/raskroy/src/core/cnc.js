@@ -91,7 +91,7 @@ export function excitechProgram(m, s, o) {
     add(`//${d}MM Bore${d}`); add(`T${T}`); add(`M03 S${o.drillS || o.spindle}`); add('M744'); add(`G0 Z${f1(safe)}`);
     hs.sort((a, b) => a.X - b.X || a.Y - b.Y).forEach(h => {
       add('//Drill'); add(`G0 X${f1(-(h.Y + ty))} Y${f1(h.X + tx)}`); add(`G1 Z${f1(t)}`);
-      add(`G1 Z${f1(t - h.dp)} F${o.feedZ}`); add(`G0 Z${f1(safe)}`);
+      add(`G1 Z${f1(Math.max(t - h.dp, zCut))} F${o.feedZ}`); add(`G0 Z${f1(safe)}`); // сквозное — не глубже, чем фреза заходит в стол
     });
     add('M05');
   }

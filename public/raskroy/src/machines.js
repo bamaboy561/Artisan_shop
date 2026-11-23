@@ -52,7 +52,7 @@ async function writable(h) {
  * confirmReplace(names) вызывается, если такие файлы уже есть; вернуть false — ничего не писать.
  * Возвращает { ok, dir, written } или { ok: false, reason: 'nodir' | 'denied' | 'cancel' }.
  */
-export async function sendToMachine(key, files, { sub = '', confirmReplace = async () => true } = {}) {
+export async function sendToMachine(key, files, { sub = '', confirmReplace = async () => true, stale = null, confirmClean = async () => true } = {}) {
   const root = await getDir(key);
   if (!root) return { ok: false, reason: 'nodir' };
   if (!(await writable(root))) return { ok: false, reason: 'denied' };
@@ -60,9 +60,17 @@ export async function sendToMachine(key, files, { sub = '', confirmReplace = asy
   const exist = [];
   for (const f of files) { try { await dir.getFileHandle(f.name); exist.push(f.name); } catch (e) { /* файла нет */ } }
   if (exist.length && !(await confirmReplace(exist))) return { ok: false, reason: 'cancel' };
+  // Программы прошлого заказа с теми же именами (F3_3.anc при новом заказе на 2 листа) остались бы в папке
+  // и их можно по ошибке запустить: предлагаем убрать.
+  let removed = 0;
+  if (stale && dir.values) {
+    const mine = new Set(files.map(f => f.name.toLowerCase())), old = [];
+    for await (const h of dir.values()) if (h.kind === 'file' && stale(h.name) && !mine.has(h.name.toLowerCase())) old.push(h.name);
+    if (old.length && (await confirmClean(old))) for (const n of old) { try { await dir.removeEntry(n); removed++; } catch (e) { /* файл занят станком */ } }
+  }
   for (const f of files) {
     const w = await (await dir.getFileHandle(f.name, { create: true })).createWritable();
     await w.write(f.data); await w.close();
   }
-  return { ok: true, dir: sub ? `${root.name}\\${sub}` : root.name, written: files.length };
+  return { ok: true, dir: sub ? `${root.name}\\${sub}` : root.name, written: files.length, removed };
 }

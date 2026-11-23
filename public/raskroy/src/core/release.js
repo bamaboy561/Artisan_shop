@@ -3,6 +3,7 @@
 import { placedCounts } from './operations.js';
 import { badHoles } from './drill.js';
 import { layoutKey } from './stockops.js';
+import { matKey } from './project.js';
 
 const h32 = s => { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return h.toString(36); };
 
@@ -42,7 +43,11 @@ export function releaseCheck(P, R, C, E, limits = {}) {
     const [mL, mW] = x.mode === 'cnc' ? [limits.cncL, limits.cncW] : [limits.sawL, limits.sawW];
     const big = r.sheets.filter(s => (mL > 0 && Math.max(s.L, s.W) > mL) || (mW > 0 && Math.min(s.L, s.W) > mW));
     if (big.length) errors.push(`${name}: лист ${big[0].L}×${big[0].W} больше, чем принимает ${x.mode === 'cnc' ? 'ЧПУ' : 'пила'} (${mL || '—'}×${mW || '—'}).`);
-    if (x.mode === 'cnc') warnings.push(`${name}: программа для ЧПУ ещё не сверена с образцом .nc, файл на станок не выпускается.`);
+    if (x.mode === 'cnc' && r.sheets.some(s => s.items.some(it => it.p.holes.some(h => h.side === 'face'))))
+      warnings.push(`${name}: на ЧПУ есть сверловка в пласть. Её блок в программе ещё не проверен на станке: первый такой лист пустите холостым ходом.`);
+    if (x.mode === 'cnc' && r.sheets.some(s => s.items.some(it => it.p.holes.some(h => h.side !== 'face'))))
+      warnings.push(`${name}: отверстия в торец нестинг не сверлит, их делают на присадочном станке.`);
+    if (x.mode !== 'cnc' && r.sheets.length) warnings.push(`${name}: файл .ptx для пилы Holzma ещё не проверен на пиле: первую карту пустите без листа.`);
     if (r.stale) warnings.push(`${name}: ручные правки карты устарели, карта рассчитана заново.`);
   }
   if (E?.missing?.length) warnings.push(`Нет цены у ${E.missing.length} поз. сметы: ${E.missing.slice(0, 5).map(l => l.name).join(', ')}${E.missing.length > 5 ? '…' : ''}. Клиентское КП не утвердить, пока цены не заполнены.`);
@@ -53,7 +58,16 @@ export function releaseCheck(P, R, C, E, limits = {}) {
 export function makeRelease(P, R, C, { now = Date.now(), by = '' } = {}) {
   const n = (P.releases || []).reduce((a, x) => Math.max(a, x.n), 0) + 1;
   return { n, at: now, by, hash: productionHash(P), sheets: C.sheets, parts: P.parts.reduce((a, p) => a + (+p.count || 0), 0),
-    maps: R.mats.map(x => ({ mat: x.m.id, name: `${x.m.name} ${x.m.t} мм`, sheets: x.r.fullCount, key: layoutKey(x.r) })) };
+    maps: R.mats.map(x => ({ mat: x.m.id, mk: matKey(x.m), name: `${x.m.name} ${x.m.t} мм`, sheets: x.r.fullCount, key: layoutKey(x.r),
+      used: x.r.stockUsed.map(s => s.stock.id) })) };
+}
+
+/** Замки склада от последнего выпуска: пока заказ не правили, выпущенная карта не берёт новые остатки со склада.
+ *  Map matKey → Set id остатков, взятых в выпущенную карту (для stockForProject). */
+export function releaseLocks(P) {
+  const last = (P.releases || [])[P.releases?.length - 1];
+  if (!last?.maps || last.hash !== productionHash(P)) return null;
+  return new Map(last.maps.filter(x => x.mk && x.used).map(x => [x.mk, new Set(x.used)]));
 }
 
 /** Последний выпуск и изменилось ли то, что ушло в цех. Если передан текущий расчёт R, сверяются и карты:
