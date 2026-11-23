@@ -1557,12 +1557,45 @@ document.querySelectorAll('[data-act]').forEach(b => b.onclick = () => {
 });
 $('#hMore').onclick = () => { const x = $('#hExtra'), open = x.hidden; x.hidden = !open; $('#hMore').setAttribute('aria-expanded', open); $('#hMore').textContent = open ? 'Скрыть поля' : 'Ещё поля'; };
 document.querySelectorAll('[data-h]').forEach(el => el.addEventListener('change', () => change(() => { P[el.dataset.h] = el.value; })));
+/* Горячие клавиши. Смотрим e.code (физическую клавишу), поэтому они работают и на русской раскладке.
+   В поле ввода Ctrl+Z отменяет действие программы, если поле ещё не правили (иначе — обычная отмена набора). */
+const KEYS = [['Ctrl+Z', 'Отменить'], ['Ctrl+Y или Ctrl+Shift+Z', 'Вернуть'], ['Ctrl+S', 'Сохранить (заказ и так сохраняется сам)'],
+  ['Ctrl+P', 'Печать карт'], ['Alt+N', 'Новый заказ'], ['Alt+D', 'Ввести новую деталь'], ['Alt+R', 'Раскрой выбранного материала'],
+  ['Alt+← / Alt+→', 'Предыдущая / следующая карта раскроя'], ['Enter', 'В строке «Новая деталь» — добавить деталь'], ['Esc', 'Закрыть окно'], ['F1', 'Этот список']];
+function showKeys() {
+  document.querySelector('.keyhelp')?.remove();
+  const d = document.createElement('div'); d.className = 'keyhelp'; d.setAttribute('role', 'dialog'); d.setAttribute('aria-label', 'Горячие клавиши');
+  d.innerHTML = `<div class="panel"><div class="bar"><h2>Горячие клавиши</h2><button class="btn sm" data-x>Закрыть</button></div>
+    <table><tbody>${KEYS.map(([k, t]) => `<tr><td><kbd>${k}</kbd></td><td>${t}</td></tr>`).join('')}</tbody></table>
+    <p class="note">Работают на русской и английской раскладке.</p></div>`;
+  d.onclick = e => { if (e.target === d || e.target.closest('[data-x]')) d.remove(); };
+  document.body.appendChild(d); d.querySelector('[data-x]').focus();
+}
+const inField = el => ['INPUT', 'TEXTAREA', 'SELECT'].includes(el?.tagName);
+const fieldEdited = el => (el?.tagName === 'INPUT' || el?.tagName === 'TEXTAREA') && el.type !== 'checkbox' && el.value !== el.defaultValue;
+function gotoOpSub(sub) {
+  const m = curOp()?.m || P.materials[0]; if (!m) return toast('Сначала добавьте материал');
+  setUi({ screen: 'project', top: 'ops', op: 'm:' + m.id, sub });
+}
 document.addEventListener('keydown', e => {
-  if (!(e.ctrlKey || e.metaKey) || ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) return;
-  const k = e.key.toLowerCase();
-  if (k === 'z' && !e.shiftKey) { e.preventDefault(); stepHistory(undo, redo); }
-  else if (k === 'y' || (k === 'z' && e.shiftKey)) { e.preventDefault(); stepHistory(redo, undo); }
+  const el = document.activeElement, c = e.code, mod = e.ctrlKey || e.metaKey;
+  if (e.key === 'Escape') { const h = document.querySelector('.keyhelp'); if (h) return h.remove(); if (ui.rel && !inField(el)) return setUi({ rel: false }); return; }
+  if (c === 'F1') { e.preventDefault(); return showKeys(); }
+  if (mod && !e.altKey) {
+    if (c === 'KeyZ' && !e.shiftKey) { if (fieldEdited(el)) return; e.preventDefault(); el?.blur?.(); return stepHistory(undo, redo); }
+    if (c === 'KeyY' || (c === 'KeyZ' && e.shiftKey)) { if (fieldEdited(el)) return; e.preventDefault(); el?.blur?.(); return stepHistory(redo, undo); }
+    if (c === 'KeyS') { e.preventDefault(); el?.blur?.(); saveProject(P); return toast('Сохранено'); }
+    if (c === 'KeyP' && ui.screen !== 'report') { e.preventDefault(); return setUi({ screen: 'report' }); }
+    return;
+  }
+  if (e.altKey && !mod) {
+    if (c === 'KeyN') { e.preventDefault(); return document.querySelector('[data-act="new"]').click(); }
+    if (c === 'KeyD') { e.preventDefault(); gotoOpSub('parts'); return setTimeout(() => $('#qL')?.focus(), 30); }
+    if (c === 'KeyR') { e.preventDefault(); return gotoOpSub('cut'); }
+    if ((c === 'ArrowLeft' || c === 'ArrowRight') && ui.screen === 'project' && ui.sub === 'cut') { e.preventDefault(); return document.querySelector(`[data-sheetnav="${c === 'ArrowLeft' ? -1 : 1}"]`)?.click(); }
+  }
 });
+$('#keysBtn').onclick = showKeys;
 
 const saved = store.get('project', null);
 P = saved && saved.parts ? { date: '', due: '', note: '', ...saved } : { ...core.newProject(), fresh: true };

@@ -290,3 +290,7 @@ details.more summary{list-style:none}details.more summary::-webkit-details-marke
 .pki:hover,.pki.on{background:var(--sel)}
 .pkw{min-width:260px;flex:1;max-width:380px}
 .catbox .pk{max-width:520px}
+.keyhelp{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.35);display:grid;place-items:center;padding:16px}
+.keyhelp .panel{max-width:520px;width:100%}
+.keyhelp td{padding:5px 8px;border-top:1px solid var(--line-soft)}
+kbd{font-family:var(--f-mono);font-size:.9em;border:1px solid var(--field-line);border-bottom-width:2px;border-radius:4px;padding:1px 6px;background:var(--head);white-space:nowrap}
