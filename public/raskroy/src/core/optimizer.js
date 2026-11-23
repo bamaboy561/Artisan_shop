@@ -12,6 +12,7 @@ const fits = (l, w, L, W) => l <= L + 1e-6 && w <= W + 1e-6;
  *  trim: торцовка с каждой стороны — число или {x: по длине, y: по ширине}.
  *  bins0: сначала заполняемые листы: остатки со склада {l,w} (без торцовки) и дополнительные форматы {l,w,format:true} (с торцовкой). */
 export function pack(items, bins0, L, W, k, split, trim) {
+  const unplaced = [];
   const tx = typeof trim === 'object' ? trim.x : trim, ty = typeof trim === 'object' ? trim.y : trim;
   const newSheet = (L, W, t, extra) => ({ ...extra, L, W, tx: t ? tx : 0, ty: t ? ty : 0, trim: t ? tx : 0, items: [],
     free: [{ x: 0, y: 0, w: L - (t ? 2 * tx : 0), h: W - (t ? 2 * ty : 0) }],
@@ -30,9 +31,11 @@ export function pack(items, bins0, L, W, k, split, trim) {
       }
     }));
     if (!best) {
+      // Новый основной лист — только если деталь на нём помещается, причём поворот лишь с разрешения текстуры.
       const uL = L - 2 * tx, uW = W - 2 * ty;
+      const r = fits(it.l, it.w, uL, uW) ? false : it.rot && fits(it.w, it.l, uL, uW) ? true : null;
+      if (r === null) { unplaced.push({ ...it, why: placeWhy(it, uL, uW, L, W) }); continue; }
       sheets.push(newSheet(L, W, true, {}));
-      const r = !fits(it.l, it.w, uL, uW);
       best = { si: sheets.length - 1, fi: 0, r, l: r ? it.w : it.l, w: r ? it.l : it.w };
     }
     const sh = sheets[best.si], f = sh.free.splice(best.fi, 1)[0];
@@ -53,7 +56,35 @@ export function pack(items, bins0, L, W, k, split, trim) {
       if (bh > 0) sh.free.push({ x: f.x, y: f.y + best.w + k, w: best.l, h: bh });
     }
   }
-  return sheets.filter(s => s.items.length);
+  const out = sheets.filter(s => s.items.length);
+  out.unplaced = unplaced;
+  return out;
+}
+
+/** Почему деталь не легла на основной лист: понятная причина для оператора. */
+function placeWhy(it, uL, uW, L, W) {
+  if (!it.rot && fits(it.w, it.l, uL, uW)) return `помещается только с поворотом, а поворот запрещён текстурой`;
+  return `не помещается на основной лист ${L}×${W}` + (it.fmt ? ', а дополнительные листы закончились' : '');
+}
+
+/** Проверка карт: каждая деталь внутри листа (с учётом торцовки), детали не накладываются
+ *  (с учётом пропила), повёрнута только деталь без текстуры. Возвращает список ошибок [{sheet, p, msg}]. */
+export function checkSheets(sheets, k = 0, grainOff = false) {
+  const errs = [], E = 0.01;
+  sheets.forEach((s, si) => {
+    const W0 = s.L - 2 * (s.tx || 0), H0 = s.W - 2 * (s.ty || 0);
+    s.items.forEach((a, ai) => {
+      if (a.x < -E || a.y < -E || a.x + a.l > W0 + E || a.y + a.w > H0 + E)
+        errs.push({ sheet: si, p: a.p, msg: `деталь ${a.l}×${a.w} выходит за границы листа ${s.L}×${s.W}` });
+      if (a.rot && a.p.grain && !grainOff) errs.push({ sheet: si, p: a.p, msg: 'деталь с текстурой повёрнута' });
+      for (let bi = ai + 1; bi < s.items.length; bi++) {
+        const b = s.items[bi];
+        if (a.x < b.x + b.l + k - E && b.x < a.x + a.l + k - E && a.y < b.y + b.w + k - E && b.y < a.y + a.w + k - E)
+          errs.push({ sheet: si, p: a.p, msg: `накладывается на деталь «${b.p.name}» (с учётом пропила ${k} мм)` });
+      }
+    });
+  });
+  return errs;
 }
 
 const ORDERS = [
@@ -80,7 +111,13 @@ export function optimizeMaterial(P, m, parts, o, mode = 'saw', stock = []) {
     fits(it.l, it.w, L - 2 * tx, W - 2 * ty) || (it.rot && fits(it.w, it.l, L - 2 * tx, W - 2 * ty)));
   const ok = items.filter(it => {
     const f = fitsAny(it);
-    if (!f) tooBig.push(it);
+    if (!f) {
+      const turn = [[m.L, m.W], ...formats.map(f => [f.l, f.w])].some(([L, W]) => !it.rot && fits(it.w, it.l, L - 2 * tx, W - 2 * ty));
+      it.why = turn ? 'помещается только с поворотом, а поворот запрещён текстурой' : `больше листа ${maxL}×${maxW}`;
+      tooBig.push(it);
+    }
+    // Помечаем детали, которые помещаются только на дополнительный формат: для понятной причины, если форматы кончатся.
+    if (f && !(fits(it.l, it.w, m.L - 2 * tx, m.W - 2 * ty) || (it.rot && fits(it.w, it.l, m.L - 2 * tx, m.W - 2 * ty)))) it.fmt = true;
     return f && Math.min(it.l, it.w) >= o.minPart;
   });
   const small = items.filter(it => !tooBig.includes(it) && Math.min(it.l, it.w) < o.minPart);
@@ -100,10 +137,11 @@ export function optimizeMaterial(P, m, parts, o, mode = 'saw', stock = []) {
       const full = res.filter(s => !s.stock);
       const lastFill = full.length ? full[full.length - 1].items.reduce((a, i) => a + i.l * i.w, 0) : 0;
       const area = full.reduce((a, s) => a + s.L * s.W, 0);
-      const score = area * 1e3 + res.filter(s => s.stock).length * 1e10 - lastFill;
+      const score = res.unplaced.length * 1e18 + area * 1e3 + res.filter(s => s.stock).length * 1e10 - lastFill;
       if (!best || score < best.score) best = { score, sheets: res };
     }
     sheets = best ? best.sheets : [];
+    unplaced = best ? best.sheets.unplaced : [];
   }
   const full = sheets.filter(s => !s.stock), main = full.filter(s => !s.format);
   const used = full.reduce((s, sh) => s + sh.items.reduce((a, i) => a + i.l * i.w, 0), 0);
@@ -124,12 +162,16 @@ export function optimizeMaterial(P, m, parts, o, mode = 'saw', stock = []) {
   return { m, sheets, tooBig, small, offcuts, cut: sheets.reduce((a, s) => a + s.cut, 0) / 1000,
     util: fullArea ? used / fullArea : 0, fullCount: full.length, mainCount: main.length, charged,
     formatsUsed: full.filter(s => s.format), stockUsed: sheets.filter(s => s.stock), area: fullArea / 1e6,
-    sig, manual: !!man, stale: !!m.manual && !man, unplaced, mode, k };
+    sig, manual: !!man, stale: !!m.manual && !man, unplaced, mode, k,
+    errors: checkSheets(sheets, k, o.grain === 'off') };
 }
 
 /** Резка пакетом: одинаковые карты подряд режутся стопкой по stack листов. Возвращает [{s, n, passes}]. */
 export function cutGroups(sheets, stack = 1) {
-  const sig = s => (s.stock ? 'S' : s.format ? 'F' : '') + s.L + 'x' + s.W + ':' + s.items.map(i => [i.x, i.y, i.l, i.w].join(',')).join(';');
+  // В подпись входят номер детали и поворот: одинаковая геометрия с разными деталями (а значит, с разной присадкой
+  // и разными этикетками) — разные карты. holesKey добавляет отверстия и фрезеровку на случай, если они разные у одной детали.
+  const holesKey = p => (p.holes || []).map(h => [h.side, h.x, h.y, h.d, h.dp].join(':')).join('|') + '/' + (p.mill || 0);
+  const sig = s => (s.stock ? 'S' : s.format ? 'F' : '') + s.L + 'x' + s.W + ':' + s.items.map(i => [i.x, i.y, i.l, i.w, i.p?.id, i.rot ? 1 : 0, i.p ? holesKey(i.p) : ''].join(',')).join(';');
   const groups = [];
   sheets.forEach((s, i) => { const g = groups[groups.length - 1]; if (g && g.sig === sig(s)) g.n++; else groups.push({ sig: sig(s), s, i, n: 1 }); });
   for (const g of groups) g.passes = Math.ceil(g.n / Math.max(1, stack || 1));

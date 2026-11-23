@@ -219,3 +219,9 @@ a.fitem{text-decoration:none}
 .esttot div { display: flex; justify-content: space-between; gap: 12px; }
 .esttot .total { border-top: 2px solid currentColor; padding-top: 6px; font-size: 1.15em; }
 .row.holes { flex-wrap: wrap; gap: 8px 14px; margin-bottom: 10px; }
+.printbox.bad{border-width:2px;background:color-mix(in srgb,var(--warn) 7%,transparent)}
+.printbox.good{border-color:var(--ok)}
+.printbox ul{margin:6px 0 6px 18px;padding:0}
+.relbar{margin:0 0 10px}
+.sitestatus .btn{margin-left:6px}
+.btn:disabled,.btn[disabled]{opacity:.45;cursor:not-allowed}

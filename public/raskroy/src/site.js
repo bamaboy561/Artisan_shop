@@ -31,12 +31,15 @@ export async function openOrder(id) {
   return data.order;
 }
 
+/** Сохраняет проект в заявку. body.baseVersion — версия, с которой начата правка (null — ещё не сохраняли).
+ *  Если заявку тем временем сохранил кто-то другой, бросает ошибку с conflict: {version, savedAt, savedBy}. */
 export async function saveOrder(id, body) {
   const { status, data } = await call(`${API}/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(body) });
   if (status === 401) throw new Error('Войдите на сайт заново');
   if (status === 413) throw new Error('Проект слишком большой');
+  if (status === 409 && data) { const e = new Error('Заявку уже сохранил другой сотрудник'); e.conflict = data; throw e; }
   if (!data?.ok) throw new Error('Сайт не сохранил проект');
-  return data.savedAt;
+  return { savedAt: data.savedAt, version: data.version };
 }
 
 /** Папка заявки как у GibLab в цеху: год и месяц по дате заявки (время Бишкека). */

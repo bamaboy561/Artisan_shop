@@ -10,3 +10,5 @@ export * from './library.js';
 export * from './manual.js';
 export * from './drill.js';
 export * from './estimate.js';
+export * from './stockops.js';
+export * from './release.js';

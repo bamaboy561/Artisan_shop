@@ -25,6 +25,7 @@ if (base.curvePrice == null) { ['cutPrice', 'edgePrice', 'holePrice', 'curvePric
 let siteCat = store.get('sitecat', null); // прайс сайта: плиты, кромка, фурнитура, цены работ
 const eff = () => siteCat ? { ...base, ...core.servicesToBase(siteCat.services) } : base;
 let stock = store.get('stock', []);
+let ledger = store.get('stockops', []); // складские операции по заказам (см. core/stockops.js)
 const sheetPrices = store.get('sheetPrices', {});
 let P = null, R = null, C = null, E = null;
 let ui = { screen: 'project', top: 'ops', op: null, sub: 'parts', sheet: 0, paste: false, ...store.get('ui', {}) };
@@ -82,39 +83,64 @@ const F_BASE = [['Пила'], ['kerf', 'Толщина пилы, мм', 'num', '
   ['offMin1', 'Деловой остаток от, мм', 'num', 'base'], ['offMin2', 'и шириной от, мм', 'num', 'base'], ['useStock', 'Брать остатки со склада', 'chk', 'base'],
   ['Кромка'], ['edgeAdd', 'Свес на сторону, мм', 'num', 'base'], ['edgeWaste', 'Отход, %', 'num', 'base'], ['joint', 'Прифуговка, мм', 'num', 'base', 0.5],
   ['ЧПУ Excitech'], ['toolD', 'Фреза, мм', 'num', 'base'], ['overcut', 'Выступ снизу, мм', 'num', 'base', 0.5], ['spindle', 'Обороты S', 'num', 'base'],
-  ['feedXY', 'Подача XY, мм/мин', 'num', 'base'], ['feedZ', 'Подача Z, мм/мин', 'num', 'base'], ['safeZ', 'Отвод Z, мм', 'num', 'base'],
+  ['feedXY', 'Подача XY, мм/мин', 'num', 'base'], ['feedZ', 'Подача Z, мм/мин', 'num', 'base'], ['safeZ', 'Отвод Z, мм', 'num', 'base'], ['cncDraft', 'Показывать черновик G-кода (только для сверки)', 'chk', 'base'],
+  ['Ограничения станков (0 — не проверять)'], ['sawMaxL', 'Пила: макс. длина листа, мм', 'num', 'base'], ['sawMaxW', 'Пила: макс. ширина листа, мм', 'num', 'base'],
+  ['cncMaxL', 'ЧПУ: макс. длина листа, мм', 'num', 'base'], ['cncMaxW', 'ЧПУ: макс. ширина листа, мм', 'num', 'base'],
   ['Расценки, сом'], ['cutMode', 'Распил считать', 'sel', 'base'], ['cutPrice', 'Цена распила', 'num', 'base'], ['edgePrice', 'Кромкование за м', 'num', 'base'],
   ['holePrice', 'Отверстие другого диаметра', 'num', 'base', 0.5], ['curvePrice', 'Фрезеровка криволинейная за м', 'num', 'base'],
   ['groovePrice', 'Паз за м (если у паза нет своей цены)', 'num', 'base'], ['millPrice', 'Нестинг на ЧПУ, за м контура', 'num', 'base']];
 
 /* ===== Расчёт и история ===== */
-function recalc() {
-  R = core.computeProject(P, eff(), stock);
+function recalc(edited = false) {
+  R = core.computeProject(P, eff(), core.stockForProject(stock, ledger, P.uid));
   const cp = core.catalogPrices(P, siteCat);
   C = core.cost(P, R, { ...cp.prices, ...sheetPrices }, cp.bandPrices);
   E = core.estimate(P, C);
   saveProject(P);
-  if (P.site && !P.fresh) scheduleSiteSave();
+  if (P.site && !P.fresh && (edited || P.site.conflict)) scheduleSiteSave(); // на сайт пишем только правки, не простое открытие
 }
 /* --- Сайт: заявки на распил и сохранение проекта обратно в заявку --- */
 let siteState = null, siteT = null, siteBusy = false, siteAgain = false;
 function siteStatus(text, bad) { const el = $('#siteStatus'); if (el) { el.textContent = text; el.classList.toggle('bad', !!bad); el.hidden = !text; } }
-function scheduleSiteSave() { clearTimeout(siteT); siteStatus('Есть изменения, сохраню на сайт…'); siteT = setTimeout(pushSite, 2500); }
+function scheduleSiteSave() {
+  clearTimeout(siteT);
+  if (P.site?.conflict) return siteConflict(P.site.conflict); // пока конфликт не решён, ничего не пишем
+  if (!P.site.dirty) { P.site.dirty = true; saveProject(P); }
+  siteStatus('Есть изменения, сохраню на сайт…'); siteT = setTimeout(pushSite, 2500);
+}
+/** Заявку сохранил кто-то другой: показываем явно и даём выбрать, чья версия остаётся. */
+function siteConflict(c) {
+  const el = $('#siteStatus'); if (!el) return;
+  const when = c.savedAt ? new Date(c.savedAt).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+  el.hidden = false; el.classList.add('bad');
+  el.innerHTML = `Заявку уже сохранил${c.savedBy ? ' ' + esc(c.savedBy) : 'и с другого компьютера'}${when ? ' в ' + when : ''}. Ваши правки на сайт не записаны.
+    <button class="btn xs" id="cfLoad">Открыть версию с сайта</button><button class="btn xs" id="cfMine">Записать мои правки поверх</button>`;
+  $('#cfLoad').onclick = () => { const id = P.site.id; delete P.site.conflict; openSiteOrder(id, true); };
+  $('#cfMine').onclick = () => { P.site.version = c.version; delete P.site.conflict; saveProject(P); pushSite(); };
+}
 async function pushSite() {
   if (!P.site) return;
   if (siteBusy) { siteAgain = true; return; }
   siteBusy = true; siteStatus('Сохраняю на сайт…');
   const Q = P;
   try {
-    await site.saveOrder(Q.site.id, { project: Q, sheets: C.sheets, edgeMeters: +C.edgeM.toFixed(1), total: E.total });
+    const { site: link, ...project } = Q; // связь с заявкой и номер версии в сам проект не пишем
+    const res = await site.saveOrder(Q.site.id, { project: { ...project, site: { id: link.id, number: link.number } }, baseVersion: link.version ?? null,
+      sheets: C.sheets, edgeMeters: +C.edgeM.toFixed(1), total: Q.kp ? Q.kp.total : E.total });
+    if (Q.site === link) { link.version = res.version; if (!siteAgain) link.dirty = false; saveProject(Q); }
     siteStatus(`Сохранено на сайте в ${new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`);
-    const o = siteState?.orders?.find(x => x.id === Q.site.id); if (o) { o.savedAt = new Date().toISOString(); o.sheets = C.sheets; }
-  } catch (e) { siteStatus('Не сохранилось на сайте: ' + e.message, true); }
+    const o = siteState?.orders?.find(x => x.id === link.id); if (o) { o.savedAt = res.savedAt; o.sheets = C.sheets; }
+  } catch (e) {
+    if (e.conflict && Q.site) { Q.site.conflict = e.conflict; saveProject(Q); if (Q === P) siteConflict(e.conflict); }
+    else siteStatus('Не сохранилось на сайте: ' + e.message, true);
+  }
   siteBusy = false;
   if (siteAgain) { siteAgain = false; pushSite(); }
 }
-async function openSiteOrder(id) {
+async function openSiteOrder(id, fresh = false) {
   try {
+    // Заявка уже открыта на этом компьютере: открываем свою копию, если в ней есть несохранённые на сайт правки.
+    const local = !fresh && store.get('p_site-' + id, null);
     toast('Открываю заявку…');
     const o = await site.openOrder(id);
     let Q;
@@ -125,9 +151,16 @@ async function openSiteOrder(id) {
       Q.order = o.client || ''; Q.date = o.createdAt.slice(0, 10); Q.due = o.dueDate || ''; Q.note = o.note || o.material || '';
       Q.status = 'Заказан';
     }
-    Q.site = { id: o.id, number: o.number }; Q.uid = 'site-' + o.id; delete Q.fresh;
+    Q.site = { id: o.id, number: o.number, version: o.version ?? null }; Q.uid = 'site-' + o.id; delete Q.fresh;
+    // На этом компьютере есть незаписанные на сайт правки: открываем их. Если на сайте за это время
+    // сохранили другую версию, правки не теряем, а показываем выбор, чья версия остаётся.
+    if (local?.site?.dirty && local.site.id === o.id) {
+      if (local.site.version !== Q.site.version) local.site.conflict = { version: o.version ?? null, savedAt: o.savedAt || null, savedBy: o.savedBy || '' };
+      Q = local;
+    }
     saveProject(P); openProject(Q);
-    siteStatus(o.savedAt ? 'Открыт проект, сохранённый на сайте' : `Заявка открыта (${o.source || 'с сайта'})`);
+    if (P.site?.conflict) siteConflict(P.site.conflict);
+    else siteStatus(o.savedAt ? 'Открыт проект, сохранённый на сайте' : `Заявка открыта (${o.source || 'с сайта'})`);
     toast(`Заявка ${o.number || ''} открыта`);
   } catch (e) { toast('Не удалось открыть заявку: ' + e.message); }
 }
@@ -159,15 +192,16 @@ function saveProject(Q) {
   store.set('p_' + Q.uid, Q);
   store.set('projects', core.upsertMeta(libIndex(), core.projectMeta(Q)));
 }
-function openProject(Q) { P = { date: '', due: '', note: '', ...Q }; undo = []; redo = []; sel.clear(); ui.op = null; ui.sheet = 0; ui.screen = 'project'; recalc(); clearTimeout(siteT); siteStatus(P.site ? 'Заявка с сайта ' + (P.site.number || '') : ''); render(); }
+function openProject(Q) { P = { date: '', due: '', note: '', ...Q }; undo = []; redo = []; sel.clear(); ui.op = null; ui.sheet = 0; ui.screen = 'project'; recalc(); clearTimeout(siteT); siteStatus(P.site ? 'Заявка с сайта ' + (P.site.number || '') : ''); if (P.site?.conflict) siteConflict(P.site.conflict); render(); }
 /** Любое изменение проекта: запоминаем прежнее состояние для «Отменить», считаем заново, перерисовываем. */
 function change(fn) {
   undo.push(JSON.stringify(P)); if (undo.length > 60) undo.shift(); redo = [];
-  delete P.fresh; fn(); recalc(); renderSoon();
+  delete P.fresh; fn(); recalc(true); renderSoon();
 }
 function stepHistory(from, to) {
   if (!from.length) return toast('Нечего ' + (from === undo ? 'отменять' : 'возвращать'));
-  to.push(JSON.stringify(P)); P = JSON.parse(from.pop()); recalc(); render();
+  const link = P.site; // связь с заявкой и версия не откатываются вместе с правками
+  to.push(JSON.stringify(P)); P = JSON.parse(from.pop()); if (link) P.site = link; recalc(true); render();
 }
 let renderT = null;
 function renderSoon() { clearTimeout(renderT); renderT = setTimeout(render, 0); }
@@ -201,6 +235,7 @@ function renderTotals() {
     <div class="trow"><span>Материалы</span><b>${fmt(C.mat)}</b></div><div class="trow"><span>Работа</span><b>${fmt(C.work)}</b></div>
     ${E.markup || E.discount || E.byPrice !== C.total ? `<div class="trow"><span>Наценка, скидка, материал заказчика</span><b>${fmt(E.total - C.total)}</b></div>` : ''}
     <div class="trow total"><span>Итого</span><b>${fmt(E.total)}</b></div>
+    ${P.kp ? `<div class="trow"><span>Утверждено в КП №${P.kp.n}</span><b>${fmt(P.kp.total)}</b></div>` : ''}
     <div class="tmini">${fmt(C.sheets)} лист. · рез ${fmt(C.cutM, 1)} м · кромка ${fmt(C.edgeM, 1)} м · ${fmt(C.holes)} отв.</div>`;
 }
 
@@ -214,19 +249,20 @@ function renderProject(main) {
       <button class="btn sm" data-add="CS">+ Листовой раскрой</button><button class="btn sm" data-add="CN">+ Нестинг ЧПУ</button><button class="btn sm" data-add="EL">+ Кромка</button>
       <button class="btn sm" data-add="GR">+ Паз</button><button class="btn sm" data-add="CL">+ Погонаж</button><button class="btn sm" data-add="O">+ Комплектация</button>
       <button class="btn sm" data-move="-1" aria-label="Вверх" title="Вверх">↑</button><button class="btn sm" data-move="1" aria-label="Вниз" title="Вниз">↓</button>
-      <button class="btn sm" data-delop>Удалить</button></div>` : '';
+      <button class="btn sm" data-delop>Удалить</button><button class="btn sm primary" id="relOpen">Выпустить в работу</button></div>` : '';
   let table;
   if (ui.top === 'ops') {
     table = `<div class="tbl short"><table class="ops"><thead><tr><th>№</th><th>Тип</th><th>Наименование</th><th class="r">Кол-во</th><th class="r">Материал, сом</th><th class="r">Работа, сом</th><th class="r">Итого, сом</th></tr></thead><tbody>
       ${list.map((o, i) => { const r = rows[o.key] || { qty: 0, mat: 0, work: 0, total: 0, unit: '' };
-        const warn = o.m && resOf(o.m)?.r.tooBig.length ? ' <span class="chip bad">не влезает</span>' : '';
+        const nb = o.m ? problemsOf(resOf(o.m)).length : 0, warn = nb ? ` <span class="chip bad">ошибок: ${nb}</span>` : '';
         return `<tr data-op="${esc(o.key)}" aria-selected="${o.key === ui.op}" tabindex="0"><td class="n">${i + 1}</td><td><span class="tag t-${o.type}">${o.type}</span></td><td>${esc(o.name)}${warn}</td>
         <td class="n">${fmt(r.qty, r.unit === 'м' ? 1 : 0)} ${r.unit}</td><td class="n">${fmt(r.mat)}</td><td class="n">${fmt(r.work)}</td><td class="n"><b>${fmt(r.total)}</b></td></tr>`; }).join('')}
       ${list.length ? '' : '<tr><td colspan="7" class="empty">Проект пустой. Добавьте операцию кнопками выше (например, «+ Листовой раскрой»), откройте файл .project или загрузите таблицу Excel.</td></tr>'}
       </tbody><tfoot><tr><td></td><td></td><td>Итого по заказу</td><td></td><td class="n">${fmt(C.mat)}</td><td class="n">${fmt(C.work)}</td><td class="n"><b>${fmt(C.total)}</b></td></tr></tfoot></table></div>`;
   } else table = productsTable();
-  main.innerHTML = `<section class="panel"><div class="bar">${topTabs}${tools}</div>${table}</section>
+  main.innerHTML = `${releaseBanner()}${ui.rel ? releasePanel() : ''}<section class="panel"><div class="bar">${topTabs}${tools}</div>${table}</section>
     ${op && ui.top === 'ops' ? `<section class="panel" id="opPanel">${opPanel(op)}</section>` : ''}`;
+  bindRelease(main);
   main.querySelectorAll('[data-top]').forEach(b => b.onclick = () => setUi({ top: b.dataset.top }));
   main.querySelectorAll('[data-op]').forEach(tr => {
     const pick = () => { if (ui.op !== tr.dataset.op) setUi({ op: tr.dataset.op, sheet: 0, sub: SUBS[ops().find(o => o.key === tr.dataset.op).type].some(s => s[0] === ui.sub) ? ui.sub : 'params' }); };
@@ -285,8 +321,8 @@ function opPanel(op) {
   let head = '';
   if (op.m) { const x = resOf(op.m), r = x.r;
     head = `<span class="chip">${op.m.L}×${op.m.W}</span><span class="chip">${r.fullCount} лист.</span>${r.stockUsed.length ? `<span class="chip good">остатков со склада: ${r.stockUsed.length}</span>` : ''}
-      <span class="chip ${r.util >= .75 ? 'good' : r.util < .55 ? 'bad' : ''}">заполнение ${fmt(r.util * 100, 1)} %</span>${r.tooBig.length ? `<span class="chip bad">не влезают: ${r.tooBig.length}</span>` : ''}`; }
-  const body = ({ params: subParams, parts: subParts, sheets: subSheets, cut: subCut })[ui.sub](op);
+      <span class="chip ${r.util >= .75 ? 'good' : r.util < .55 ? 'bad' : ''}">заполнение ${fmt(r.util * 100, 1)} %</span>${r.tooBig.length ? `<span class="chip bad">не влезают: ${r.tooBig.length}</span>` : ''}${r.unplaced.length ? `<span class="chip bad">не разложено: ${r.unplaced.length}</span>` : ''}${r.errors.length ? `<span class="chip bad">ошибки на картах: ${r.errors.length}</span>` : ''}`; }
+  const body = (op.m ? problemsBox(resOf(op.m)) : '') + ({ params: subParams, parts: subParts, sheets: subSheets, cut: subCut })[ui.sub](op);
   return `<div class="op-head"><span class="tag t-${op.type}">${op.type}</span><h2>${esc(TYPE_NAME[op.type])}: ${esc(op.name)}</h2>${head}</div>
     <div class="tabs sub" role="tablist">${subs.map(([k, n]) => `<button class="tab" role="tab" data-sub="${k}" aria-selected="${k === ui.sub}">${n}</button>`).join('')}</div>
     <div class="view">${body}</div>`;
@@ -444,7 +480,7 @@ function subParts(op) {
       <td class="acts"><button class="btn xs" data-swap title="Поменять длину и ширину" aria-label="Поменять длину и ширину">⇄</button><button class="btn xs" data-del aria-label="Удалить деталь">✕</button></td></tr>`; }).join('')}
     </tbody></table></div>
     ${partEditor()}
-    ${x.r.tooBig.length ? `<p class="note warn">Больше листа: ${x.r.tooBig.map(t => esc(t.p.name) + ' ' + t.l + '×' + t.w).join(', ')}. Проверьте размер листа во вкладке «Листы и остатки».</p>` : ''}`;
+`;
 }
 function bindParts(op, pan) {
   if (op.type === 'XNC') { pan.querySelectorAll('table.xnc [data-xp]').forEach(b => b.onclick = () => { const id = +b.closest('tr').dataset.id; ui.xp = ui.xp === id ? null : id; render(); }); bindPartEditor(pan); return; }
@@ -603,6 +639,21 @@ function bindSheets(op, pan) {
     stock.push({ id: Date.now(), mat: core.matKey(op.m), name: op.m.name, t: op.m.t, l, w, from: 'вручную' }); store.set('stock', stock); recalc(); render(); };
 }
 
+/** Все проблемы раскроя материала: деталь больше листа, не разложена, ошибка геометрии карты. */
+function problemsOf(x) {
+  if (!x) return [];
+  const r = x.r, out = [];
+  for (const t of r.tooBig) out.push(`№${t.p.id} «${t.p.name}» ${t.l}×${t.w}: ${t.why || 'больше листа'}`);
+  for (const u of r.unplaced) out.push(`№${u.p.id} «${u.p.name}» ${u.l}×${u.w}: ${u.why || 'не разложена (ручная карта)'}`);
+  for (const e of r.errors) out.push(`Карта ${e.sheet + 1}, №${e.p.id} «${e.p.name}»: ${e.msg}`);
+  return out;
+}
+function problemsBox(x) {
+  const list = problemsOf(x); if (!list.length) return '';
+  return `<div class="printbox bad"><b>Раскрой нельзя выпускать в работу, пока не исправлено:</b><ul>${list.map(t => `<li>${esc(t)}</li>`).join('')}</ul>
+    Проверьте размеры и текстуру деталей, количество дополнительных листов во вкладке «Листы и остатки» или поправьте карту вручную.</div>`;
+}
+
 /* Раскрой: одна карта за раз, листалка, таблица резов или G-код */
 const sameMaps = (sheets, stack) => core.cutGroups(sheets, stack); // одинаковые карты подряд — одна карта с количеством
 function linCut(op) {
@@ -632,9 +683,10 @@ function subCut(op) {
       <h3 style="margin-top:12px">Не разложено${r.unplaced.length ? ': ' + r.unplaced.length : ''}</h3>
       ${r.unplaced.length ? `<div class="tbl"><table><tbody>${r.unplaced.map((u, i) => `<tr><td class="n">№${u.p.id}</td><td>${esc(u.p.name)}</td><td class="n">${u.l}×${u.w}</td><td><button class="btn xs" data-put="${i}">На эту карту</button></td></tr>`).join('')}</tbody></table></div>` : '<p class="note">Все детали на картах.</p>'}
       <div class="row" style="margin-top:10px"><button class="btn sm" id="eSheet">Добавить пустой лист</button>${!s.items.length ? '<button class="btn sm" id="eDelSheet">Убрать пустой лист</button>' : ''}<button class="btn sm primary" id="eDone">Готово</button></div>`
-    : cnc ? `<div class="row" style="justify-content:space-between"><h3>Программа для NCStudio</h3><button class="btn sm" id="copyG">Скопировать</button></div>
-      <textarea class="code" id="gcode" readonly aria-label="G-код">${esc(core.gcode(P.name, op.m, s, g.i, x.o))}</textarea>
-      <p class="note"><span class="badge">черновик</span> Не запускать на станке, пока не сверим с вашим файлом .nc.</p>`
+    : cnc ? (base.cncDraft ? `<div class="row" style="justify-content:space-between"><h3>Черновик программы NCStudio</h3></div>
+      <textarea class="code" id="gcode" readonly aria-label="Черновик G-кода">${esc(core.gcode(P.name, op.m, s, g.i, x.o))}</textarea>
+      <p class="note warn"><span class="badge">черновик</span> Только для сверки. На станке не запускать, пока постпроцессор не сверен с вашим файлом .nc.</p>`
+      : `<h3>Программа для ЧПУ</h3><p class="note">Выгрузка на Excitech появится после сверки с образцом файла .nc со станка. Каждый лист показан отдельно, со своей присадкой. Черновик кода для сверки включается в «Настройках».</p>`)
     : `<h3>Таблица резов</h3><div class="tbl cuts"><table><thead><tr><th>№</th><th>Рез</th><th class="r">От</th><th class="r">Длина</th></tr></thead><tbody>
       ${s.cuts.map((c, i) => `<tr><td class="n">${i + 1}</td><td>${c.d === 'T' ? 'Торцовка' : c.d === 'H' ? 'Продольный' : 'Поперечный'}</td><td class="n">${c.d === 'T' ? '' : c.d === 'H' ? 'Y ' + fmt(c.y + s.ty, 1) : 'X ' + fmt(c.x + s.tx, 1)}</td><td class="n">${fmt(c.len, 1)}${c.d === 'T' ? ' ×2' : ''}</td></tr>`).join('')}
       </tbody></table></div><p class="note">Продольный — рез вдоль длины листа, поперечный — поперёк. Координата от края листа, мм. Выгрузка на пилу Homag появится после образца файла с пилы.</p>`;
@@ -642,7 +694,7 @@ function subCut(op) {
   return `<div class="nav"><button class="btn sm" data-sheetnav="-1" aria-label="Предыдущая карта">‹</button><b>Карта ${ui.sheet + 1} из ${groups.length}</b><button class="btn sm" data-sheetnav="1" aria-label="Следующая карта">›</button>
       <span class="chip">${s.stock ? 'остаток ' : ''}${s.L}×${s.W}</span><span class="chip">таких листов: ${g.n}</span>${!cnc && x.o.stack > 1 ? `<span class="chip">пакетом по ${x.o.stack}: ${g.passes} прох.</span>` : ''}${s.format ? '<span class="chip">доп. формат</span>' : ''}<span class="chip">деталей: ${s.items.length}</span>
       <span class="chip">рез ${fmt(s.cut / 1000, 2)} м</span><span class="chip ${fill >= 75 ? 'good' : fill < 55 ? 'bad' : ''}">заполнение ${fmt(fill, 1)} %</span>
-      ${r.offcuts.length ? `<button class="btn sm" id="saveOff" ${r.saved ? 'disabled' : ''}>${r.saved ? 'Остатки на складе' : 'Остатки раскроя на склад (' + r.offcuts.length + ')'}</button>` : ''}</div>
+      ${stockBtn(op.m, r)}</div>
     <div class="row bar2">${edit ? '<span class="chip good">режим правки</span>' : `<button class="btn sm" id="eStart">Править карту вручную</button>`}
       ${r.manual ? '<span class="chip">карта правлена вручную</span><button class="btn sm" id="eReset">Вернуть автоматический раскрой</button>' : ''}
       ${r.unplaced.length ? `<span class="chip bad">не разложено деталей: ${r.unplaced.length}</span>` : ''}
@@ -654,14 +706,13 @@ function subCut(op) {
       <div>${side}</div></div>`;
 }
 /** Карты для навигации: одинаковые подряд объединяются, а в режиме правки каждый лист отдельно. */
-const mapsOf = x => (ui.edit === 'm:' + x.m.id && x.r.manual ? x.r.sheets.map((s, i) => ({ s, i, n: 1, passes: 1 })) : sameMaps(x.r.sheets, x.o.stack));
+const mapsOf = x => ((ui.edit === 'm:' + x.m.id && x.r.manual) || x.mode === 'cnc' ? x.r.sheets.map((s, i) => ({ s, i, n: 1, passes: 1 })) : sameMaps(x.r.sheets, x.o.stack));
 function bindCut(op, pan) {
   if (!op.m) return;
   const x = resOf(op.m);
   pan.querySelectorAll('[data-sheetnav]').forEach(b => b.onclick = () => { const n = mapsOf(x).length; ui.qi = null; setUi({ sheet: (ui.sheet + +b.dataset.sheetnav + n) % n }); });
   bindEdit(op, pan, x);
   const so = $('#saveOff'); if (so) so.onclick = () => saveOffcuts(x.r);
-  const cg = $('#copyG'); if (cg) cg.onclick = () => copyText($('#gcode'));
 }
 function sheetSvg(s, o, cnc, small, selQi) {
   const tx = s.tx ?? s.trim, ty = s.ty ?? s.trim, L = s.L, W = s.W, edit = selQi !== undefined;
@@ -734,11 +785,27 @@ function bindEdit(op, pan, x) {
   };
   svg.addEventListener('pointerup', end); svg.addEventListener('pointercancel', () => { drag = null; render(); });
 }
+/** Кнопка склада: оприходовать остатки карты один раз; если карта изменилась — заменить прежние остатки заказа. */
+function stockBtn(m, r) {
+  const st = core.stockOpState(ledger, r, P.uid, m.id), d = t => new Date(t).toLocaleDateString('ru-RU');
+  if (!r.offcuts.length && !r.stockUsed.length && st.state === 'none') return '';
+  if (problemsOf(resOf(m)).length) return '<button class="btn sm" disabled title="Сначала исправьте ошибки раскроя">Остатки на склад</button>';
+  if (st.state === 'done') return `<button class="btn sm" disabled>Остатки на складе с ${d(st.op.at)}</button>`;
+  if (st.state === 'blocked') return `<button class="btn sm" disabled title="Остатки прежней карты этого заказа уже взяты в раскрой: ${esc(st.by.map(o => o.from || 'другой заказ').join(', '))}. Сначала верните их на склад в том заказе.">Склад не обновить: остатки уже взял ${esc(st.by[0].from || 'другой заказ')}</button>`;
+  const what = `+${r.offcuts.length}${r.stockUsed.length ? `, списать ${r.stockUsed.length}` : ''}`;
+  return st.state === 'changed'
+    ? `<button class="btn sm" id="saveOff" title="Карта изменилась после ${d(st.op.at)}: прежние остатки этого заказа уберутся со склада">Обновить склад по новой карте (${what})</button>`
+    : `<button class="btn sm" id="saveOff">Остатки раскроя на склад (${what})</button>`;
+}
 function saveOffcuts(r) {
-  if (r.saved) return;
-  const before = stock.length;
-  stock = core.applyOffcuts(stock, r, P.name); r.saved = true; store.set('stock', stock);
-  toast(`На склад: +${r.offcuts.length}, списано ${before + r.offcuts.length - stock.length}`); render();
+  if (problemsOf(resOf(r.m)).length) return toast('Сначала исправьте ошибки раскроя');
+  const res = core.applyStockOp(stock, ledger, r, { uid: P.uid, matId: r.m.id, from: P.name || 'заказ', newId: () => Date.now() + Math.random() });
+  if (res.blocked) return toast(`Остатки прежней карты уже взял в раскрой ${res.blocked[0].from || 'другой заказ'}. Склад не изменён.`);
+  if (!res.done) return toast('Остатки этой карты уже на складе');
+  if (P.fresh) { delete P.fresh; saveProject(P); } // проект попадает в список, чтобы операция склада была привязана к нему
+  stock = res.stock; ledger = res.ledger; store.set('stock', stock); store.set('stockops', ledger);
+  toast(res.replaced ? 'Склад обновлён по новой карте' : `На склад: +${r.offcuts.length}${r.stockUsed.length ? `, списано ${r.stockUsed.length}` : ''}`);
+  recalc(); render();
 }
 function copyText(ta) { (navigator.clipboard ? navigator.clipboard.writeText(ta.value) : Promise.reject()).then(() => toast('Скопировано')).catch(() => { ta.focus(); ta.select(); toast('Выделено, нажмите Ctrl+C'); }); }
 
@@ -803,7 +870,9 @@ function renderProjects(main) {
       if (uid === P.uid) return change(() => { P[k] = el.value.trim(); });
       const Q = body(uid); if (Q) { Q[k] = el.value.trim(); saveProject(Q); render(); }
     });
-    tr.querySelector('[data-copy]').onclick = () => { const Q = body(uid); if (!Q) return; const c = { ...JSON.parse(JSON.stringify(Q)), uid: core.newUid(), name: Q.name + ' (копия)', status: core.STATUSES[0] }; delete c.fresh; saveProject(c); render(); toast('Сделана копия'); };
+    tr.querySelector('[data-copy]').onclick = () => { const Q = body(uid); if (!Q) return; const c = { ...JSON.parse(JSON.stringify(Q)), uid: core.newUid(), name: Q.name + ' (копия)', status: core.STATUSES[0] }; delete c.fresh;
+      // Копия — отдельный проект: без связи с заявкой (иначе автосохранение запишет её в оригинал), без выпуска и утверждённого КП.
+      delete c.site; delete c.releases; delete c.kp; saveProject(c); render(); toast('Сделана копия'); };
     tr.querySelector('[data-del]').onclick = e => {
       const b = e.target; if (!b.dataset.sure) { b.dataset.sure = 1; b.textContent = 'Точно удалить?'; return; }
       store.del('p_' + uid); store.set('projects', libIndex().filter(x => x.uid !== uid));
@@ -844,7 +913,7 @@ function renderLabels(main) {
     if (ui.lblOff || what === 'off') x.r.offcuts.forEach(o => list.push(offcutLabelData(P, o, x.m)));
   });
   const show = list.slice(0, 200), now = new Date();
-  main.innerHTML = `<section class="panel">${screenHead('Этикетки', '<div class="row"><button class="btn sm primary" id="pdfL">Скачать PDF</button><button class="btn sm" id="printL">Печать</button></div>')}
+  main.innerHTML = `${releaseBanner()}<section class="panel">${screenHead('Этикетки', '<div class="row"><button class="btn sm primary" id="pdfL">Скачать PDF</button><button class="btn sm" id="printL">Печать</button></div>')}
     <div class="row bar2"><label class="note">Шаблон <select class="inp" id="lblTpl">${Object.entries(TEMPLATES).map(([k, t]) => `<option value="${k}" ${k === tpl ? 'selected' : ''}>${t.title} ${t.w}×${t.h}</option>`).join('')}</select></label>
       <label class="note">Что печатать <select class="inp" id="lblWhat"><option value="all">все детали</option>${R.mats.filter(x => x.r.sheets.length).map(x => `<option value="m:${x.m.id}" ${what === 'm:' + x.m.id ? 'selected' : ''}>${esc(x.m.name)} ${x.m.t}</option>`).join('')}<option value="off" ${what === 'off' ? 'selected' : ''}>только остатки</option></select></label>
       <label class="note"><input type="checkbox" id="lblOff" ${ui.lblOff ? 'checked' : ''}> и деловые остатки</label>
@@ -864,9 +933,9 @@ function renderReport(main) {
   const d = v => v ? new Date(v).toLocaleDateString('ru-RU') : '—';
   const RO = { need: 'Требование на склад', cost: 'Стоимость', parts: 'Детали', maps: 'Карты раскроя', cuts: 'Таблицы резов' };
   const ro = { need: true, cost: true, parts: true, maps: true, cuts: false, ...(ui.rep || {}) };
-  main.innerHTML = `<section class="panel report">${screenHead('Отчёт по заказу', '<div class="row"><button class="btn sm primary" id="pdfR">Скачать PDF</button><button class="btn sm" id="printR">Печать</button></div>')}
+  main.innerHTML = `${releaseBanner()}<section class="panel report">${screenHead('Отчёт по заказу', '<div class="row"><button class="btn sm primary" id="pdfR">Скачать PDF</button><button class="btn sm" id="printR">Печать</button></div>')}
     <div class="row bar2 noprint">${Object.entries(RO).map(([k, n]) => `<label class="note"><input type="checkbox" data-ro="${k}" ${ro[k] ? 'checked' : ''}> ${n}</label>`).join('')}</div>
-    <div class="rep-head"><div><b>${esc(P.name)}</b></div><div>Заказчик: ${esc(P.order || '—')}</div><div>Дата заказа: ${d(P.date)} · готовность: ${d(P.due)}</div>${P.note ? `<div>${esc(P.note)}</div>` : ''}</div>
+    <div class="rep-head"><div><b>${esc(P.name)}</b> · ${esc(relLabel())}</div><div>Заказчик: ${esc(P.order || '—')}</div><div>Дата заказа: ${d(P.date)} · готовность: ${d(P.due)}</div>${P.note ? `<div>${esc(P.note)}</div>` : ''}</div>
     ${ro.need ? `<h3>Требование на склад</h3><div class="tbl"><table><thead><tr><th>Материал</th><th>Код</th><th class="r">Кол-во</th><th class="r">Площадь, м²</th></tr></thead><tbody>
       ${R.mats.filter(x => x.r.fullCount).map(x => `<tr><td>${esc(x.m.name)} ${x.m.t} мм</td><td>${esc(x.m.code)}</td><td class="n">${x.r.fullCount} лист.</td><td class="n">${fmt(x.r.fullCount * x.m.L * x.m.W / 1e6, 2)}</td></tr>`).join('')}
       ${R.edges.map(e => `<tr><td>${esc(e.name)}</td><td>${esc(e.code)}</td><td class="n">${fmt(e.mat, 1)} м</td><td></td></tr>`).join('')}
@@ -902,7 +971,7 @@ function reportModel(ro) {
       caption: `Карта ${i + 1} · ${g.s.L}×${g.s.W} · ${g.n} шт · деталей ${g.s.items.length}`,
       cuts: ro.cuts && x.mode !== 'cnc' ? g.s.cuts.map(c => c.d === 'T' ? `Торцовка ${c.len} ×2` : (c.d === 'H' ? 'Продольный Y ' + fmt(c.y + g.s.ty, 1) : 'Поперечный X ' + fmt(c.x + g.s.tx, 1)) + ', ' + fmt(c.len, 1)) : null })) });
   });
-  return { title: `Отчёт: ${P.name || 'проект'}`, head: [`Заказчик: ${P.order || '—'}`, `Дата заказа: ${d(P.date)} · готовность: ${d(P.due)}`, ...(P.note ? [P.note] : [])], blocks };
+  return { title: `Отчёт: ${P.name || 'проект'} · ${relLabel()}`, head: [`Заказчик: ${P.order || '—'}`, `Дата заказа: ${d(P.date)} · готовность: ${d(P.due)}`, ...(P.note ? [P.note] : [])], blocks };
 }
 let logoCache = null;
 async function logoData() {
@@ -936,6 +1005,37 @@ function printFallback(kind, title) {
   sec.querySelector('.bar').after(box);
 }
 /* --- Смета и КП клиенту --- */
+/* --- Выпуск в работу: проверка и фиксация версии, по которой готовятся карты, этикетки и файлы --- */
+const machineLimits = () => ({ sawL: +base.sawMaxL || 0, sawW: +base.sawMaxW || 0, cncL: +base.cncMaxL || 0, cncW: +base.cncMaxW || 0 });
+function releaseBanner() {
+  const st = core.releaseState(P, R); if (!st.last) return '';
+  const d = new Date(st.last.at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  return st.changed
+    ? `<div class="printbox bad relbar">${st.why === 'maps' ? 'Карты раскроя пересчитались после выпуска' : 'Заказ изменён после выпуска'} версии ${st.last.n} (${d})${st.why === 'maps' ? ': изменились настройки раскроя или склад остатков' : ''}. В цехе карты и этикетки версии ${st.last.n}. Выпустите заново, чтобы цех работал по новой версии. <button class="btn xs" data-relopen>Выпустить заново</button></div>`
+    : `<div class="printbox good relbar">В работе версия ${st.last.n} от ${d}${st.last.by ? ', выпустил ' + esc(st.last.by) : ''}: ${st.last.sheets} лист., ${st.last.parts} дет.</div>`;
+}
+function releasePanel() {
+  const chk = core.releaseCheck(P, R, C, E, machineLimits()), n = (P.releases || []).reduce((a, x) => Math.max(a, x.n), 0) + 1;
+  return `<section class="panel" id="relPanel"><div class="bar"><h2>Выпуск в работу: версия ${n}</h2><button class="btn sm" id="relClose">Закрыть</button></div>
+    ${chk.errors.length ? `<div class="printbox bad"><b>Выпустить нельзя, сначала исправьте (${chk.errors.length}):</b><ul>${chk.errors.map(t => `<li>${esc(t)}</li>`).join('')}</ul></div>`
+      : '<p class="note">Комплектность, геометрия карт и ограничения станков в порядке.</p>'}
+    ${chk.warnings.length ? `<div class="printbox"><b>Обратите внимание:</b><ul>${chk.warnings.map(t => `<li>${esc(t)}</li>`).join('')}</ul></div>` : ''}
+    <p class="note">После выпуска версия фиксируется: в отчёте будет её номер, а если заказ изменят, программа покажет, что в цехе другая версия.</p>
+    <div class="row"><button class="btn sm primary" id="relDo" ${chk.errors.length ? 'disabled' : ''}>Выпустить версию ${n}</button></div></section>`;
+}
+function bindRelease(main) {
+  main.querySelectorAll('#relOpen,[data-relopen]').forEach(b => b.onclick = () => setUi({ rel: true, screen: 'project' }));
+  const c = main.querySelector('#relClose'); if (c) c.onclick = () => setUi({ rel: false });
+  const d = main.querySelector('#relDo'); if (d) d.onclick = () => {
+    if (core.releaseCheck(P, R, C, E, machineLimits()).errors.length) return render();
+    const rel = core.makeRelease(P, R, C, { by: siteState?.user || '' });
+    ui.rel = false;
+    change(() => { P.releases = [...(P.releases || []), rel]; if (core.STATUSES.indexOf(P.status) < core.STATUSES.indexOf('В работе')) P.status = 'В работе'; });
+    toast(`Версия ${rel.n} выпущена в работу`);
+  };
+}
+const relLabel = () => { const st = core.releaseState(P, R); return st.last ? `версия ${st.last.n}${st.changed ? (st.why === 'maps' ? ' (карты пересчитаны после выпуска)' : ' (изменён после выпуска)') : ''}` : 'не выпущен в работу'; };
+
 function renderEstimate(main) {
   const e = E.e, G = core.GROUP_NAME;
   const num = (k, label, suf = '%') => `<label class="note">${label} <input class="inp n" style="width:64px" type="number" min="0" data-est="${k}" value="${e[k] || 0}"> ${suf}</label>`;
@@ -944,7 +1044,13 @@ function renderEstimate(main) {
   const sec = g => E.groups[g].length ? `<tr class="grp"><th colspan="4">${G[g]}</th></tr>${E.groups[g].map(line).join('')}<tr class="sub"><td colspan="3">Итого ${G[g].toLowerCase()}</td><td class="n"><b>${fmt(E.totals[g])}</b></td></tr>` : '';
   const items = siteCat?.items || [];
   const empty = !E.groups.mat.length && !E.groups.work.length && !E.groups.kit.length;
-  main.innerHTML = `<section class="panel">${screenHead('Смета и КП', '<div class="row"><button class="btn sm primary" id="pdfK">КП клиенту (PDF)</button></div>')}
+  const kp = P.kp, kd = core.kpDiff(kp, E), dd = t => new Date(t).toLocaleDateString('ru-RU');
+  const btns = !kp ? `<button class="btn sm" id="pdfDraft">Черновик КП (PDF)</button><button class="btn sm primary" id="kpOk" ${E.missing.length || empty ? 'disabled title="Сначала заполните цены"' : ''}>Утвердить КП</button>`
+    : `<button class="btn sm primary" id="pdfK">КП №${kp.n} (PDF)</button>${kd.changed ? '<button class="btn sm" id="pdfDraft">Черновик по текущей смете</button><button class="btn sm" id="kpOk">Утвердить заново</button>' : ''}`;
+  const kpBar = !kp ? (E.missing.length ? '<p class="note warn">Клиентское КП можно утвердить, когда у всех позиций есть цена. Черновик можно скачать уже сейчас.</p>' : '')
+    : kd.changed ? `<div class="printbox bad">КП №${kp.n} утверждено ${dd(kp.at)} на ${fmt(kp.total)} сом. Смета с тех пор изменилась: сейчас ${fmt(E.total)} сом (${kd.diff > 0 ? '+' : ''}${fmt(kd.diff)}). Клиенту действует утверждённая сумма, пока вы не утвердите КП заново.</div>`
+    : `<div class="printbox good">КП №${kp.n} утверждено ${dd(kp.at)}: ${fmt(kp.total)} сом. Обновление прайса эту сумму не меняет.</div>`;
+  main.innerHTML = `<section class="panel">${screenHead('Смета и КП', `<div class="row">${btns}</div>`)}${kpBar}
     <div class="row bar2">${chk('ownSheets', 'Плита заказчика')}${chk('ownBands', 'Кромка заказчика')}${num('markupMat', 'Наценка на материалы')}${num('markupWork', 'Наценка на работы')}${num('discount', 'Скидка')}${num('validDays', 'КП действует', 'дн.')}</div>
     <p class="note">${siteCat ? `Цены материалов и работ берутся из прайса сайта (плит ${fmt(siteCat.sheets?.length)}, кромок ${fmt(siteCat.bands?.length)}, товаров ${fmt(items.length)}). Цена, указанная в операции, важнее прайса.`
       : 'Цены работ берутся из «Настроек», цены материалов указываются в операции или в «Каталоге материалов». Когда программа открыта на сайте, цены подтягиваются из прайса сайта.'}</p>
@@ -974,11 +1080,18 @@ function renderEstimate(main) {
     change(() => { P.extras = P.extras || []; P.extras.push({ name, code: x?.code || '', kind: $('#kitK').value, qty: +$('#kitN').value || 1, unit: 'шт', price: +$('#kitP').value || 0 }); });
     toast('Добавлено: ' + name);
   };
-  $('#pdfK').onclick = () => makePdf($('#pdfK'), async () => [await reportPdf(kpModel()), `КП ${P.order || P.name || ''}.pdf`]);
+  const pk = $('#pdfK'); if (pk) pk.onclick = () => makePdf(pk, async () => [await reportPdf(kpModel(P.kp, false)), `КП ${P.kp.n} ${P.order || P.name || ''}.pdf`]);
+  const pd = $('#pdfDraft'); if (pd) pd.onclick = () => makePdf(pd, async () => [await reportPdf(kpModel(E, true)), `Черновик КП ${P.order || P.name || ''}.pdf`]);
+  const ok = $('#kpOk'); if (ok) ok.onclick = () => {
+    if (E.missing.length) return toast('Сначала заполните цены у всех позиций');
+    const n = (P.kp?.n || 0) + 1;
+    change(() => { P.kp = core.freezeKp(E, { n }); });
+    toast(`КП №${n} утверждено: ${fmt(E.total)} сом`);
+  };
 }
 /** КП клиенту: позиции с ценами (уже с наценкой), без себестоимости и карт раскроя. */
-function kpModel() {
-  const d = v => v ? new Date(v).toLocaleDateString('ru-RU') : '—', G = core.GROUP_NAME, today = new Date();
+function kpModel(E, draft) {
+  const d = v => v ? new Date(v).toLocaleDateString('ru-RU') : '—', G = core.GROUP_NAME, today = draft ? new Date() : new Date(E.at);
   const until = new Date(today.getTime() + (+E.e.validDays || 7) * 864e5);
   const cols = [{ t: '№', w: 9, r: 1 }, { t: 'Наименование', w: 101 }, { t: 'Кол-во', w: 24, r: 1 }, { t: 'Цена, сом', w: 24, r: 1 }, { t: 'Сумма, сом', w: 26, r: 1 }];
   const blocks = []; let n = 0;
@@ -989,12 +1102,12 @@ function kpModel() {
   if (E.discount) tot.push([`Скидка ${E.e.discount}%`, '−' + fmt(E.discount)]);
   blocks.push({ h: 'Итого' }, { table: { cols: [{ t: '', w: 150 }, { t: 'сом', w: 34, r: 1 }], rows: tot, total: ['К оплате', fmt(E.total)] } });
   const own = [E.e.ownSheets && 'плита', E.e.ownBands && 'кромка'].filter(Boolean);
-  return { title: 'Коммерческое предложение', head: [
+  return { title: draft ? 'Черновик коммерческого предложения' : `Коммерческое предложение №${E.n}`, head: [
     'Artisan, мебельный цех · artisan.shop.kg',
     `Заказчик: ${P.order || '—'}${P.name ? ' · ' + P.name : ''}`,
     `Дата: ${today.toLocaleDateString('ru-RU')} · действует до ${until.toLocaleDateString('ru-RU')}${P.due ? ' · готовность: ' + d(P.due) : ''}`,
     ...(own.length ? [`Материал заказчика: ${own.join(' и ')} (в стоимость не входит)`] : []),
-    `Листов: ${fmt(C.sheets)} · кромка ${fmt(C.edgeM, 1)} м · отверстий ${fmt(C.holes)}`], blocks };
+    ...(draft ? ['ЧЕРНОВИК: цены не утверждены и могут измениться'] : [])], blocks };
 }
 function renderSettings(main) {
   main.innerHTML = `<section class="panel">${screenHead('Настройки')}

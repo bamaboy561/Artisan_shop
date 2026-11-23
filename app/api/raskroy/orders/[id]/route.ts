@@ -47,9 +47,14 @@ export async function PUT(request: Request, { params }: Ctx) {
       userId: session.userId,
       name: [session.firstName, session.lastName].filter(Boolean).join(" ") || session.email,
     });
-    if (result === "missing") return Response.json({ ok: false, error: "missing" }, { status: 404 });
-    if (result === "too_large") return Response.json({ ok: false, error: "too_large" }, { status: 413 });
-    return Response.json({ ok: true, savedAt: new Date().toISOString() });
+    if (result.status === "missing") return Response.json({ ok: false, error: "missing" }, { status: 404 });
+    if (result.status === "too_large") return Response.json({ ok: false, error: "too_large" }, { status: 413 });
+    if (result.status === "conflict")
+      return Response.json(
+        { ok: false, error: "conflict", version: result.version, savedAt: result.savedAt, savedBy: result.savedBy },
+        { status: 409 },
+      );
+    return Response.json({ ok: true, version: result.version, savedAt: result.savedAt });
   } catch (error) {
     console.error("[raskroy] save failed", error);
     return Response.json({ ok: false }, { status: 500 });
