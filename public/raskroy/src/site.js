@@ -58,3 +58,19 @@ export async function loadCatalog() {
   if (status === 401) throw new Error('Войдите на сайт заново');
   return data?.ok ? data.catalog : null;
 }
+
+/** Общий склад остатков на сайте: {stock, ledger, version} или null, если сайт недоступен. */
+export async function loadStock() {
+  const { status, data } = await call('/api/raskroy/stock');
+  if (status === 401) throw new Error('Войдите на сайт заново');
+  return data?.ok ? { stock: data.stock || [], ledger: data.ledger || [], version: data.version || 0 } : null;
+}
+
+/** Сохранить склад. Если его тем временем изменили на другом компьютере, бросает ошибку с conflict = true. */
+export async function saveStock(body) {
+  const { status, data } = await call('/api/raskroy/stock', { method: 'PUT', body: JSON.stringify(body) });
+  if (status === 401) throw new Error('Войдите на сайт заново');
+  if (status === 409) { const e = new Error('Склад изменили на другом компьютере'); e.conflict = true; throw e; }
+  if (!data?.ok) throw new Error(status === 413 ? 'Склад слишком большой' : 'Сайт не сохранил склад');
+  return { version: data.version };
+}
