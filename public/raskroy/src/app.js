@@ -27,6 +27,10 @@ let siteCat = store.get('sitecat', null); // прайс сайта: плиты, 
 const eff = () => siteCat ? { ...base, ...core.servicesToBase(siteCat.services) } : base;
 let stock = store.get('stock', []);
 let ledger = store.get('stockops', []); // складские операции по заказам (см. core/stockops.js)
+/* Общий склад на сайте: stockVer — версия, с которой этот компьютер правил склад; stockShared — склад берётся с сайта;
+   stockDirty — правка не дошла до сайта (нет связи), её отправим при следующей связи, если склад на сайте не менялся. */
+const stockSel = new Set();
+let stockVer = store.get('stockver', 0), stockShared = false, stockDirty = store.get('stockdirty', false), stockAt = 0;
 const sheetPrices = store.get('sheetPrices', {});
 let P = null, R = null, C = null, E = null;
 /* Вид программы на этом компьютере: тема и размер текста. */
@@ -643,13 +647,14 @@ function subSheets(op) {
 }
 function bindSheets(op, pan) {
   pan.querySelectorAll('[data-sheet]').forEach(el => el.onchange = () => change(() => { op.m[el.dataset.sheet] = +el.value || op.m[el.dataset.sheet]; }));
-  pan.querySelectorAll('[data-rmstock]').forEach(b => b.onclick = () => { stock = stock.filter(s => String(s.id) !== b.dataset.rmstock); store.set('stock', stock); recalc(); render(); });
+  pan.querySelectorAll('[data-rmstock]').forEach(b => b.onclick = () => { const id = b.dataset.rmstock; mutateStock(s => ({ ...s, stock: s.stock.filter(x => String(x.id) !== id) })); });
   pan.querySelectorAll('[data-ff]').forEach(el => el.onchange = () => change(() => { const f = op.m.formats[+el.closest('[data-fmt]').dataset.fmt]; const v = el.value === '' ? undefined : +el.value; if (el.dataset.ff === 'price') { if (v === undefined) delete f.price; else f.price = v; } else f[el.dataset.ff] = Math.max(0, v || 0); }));
   pan.querySelectorAll('[data-rmfmt]').forEach(b => b.onclick = () => change(() => { op.m.formats.splice(+b.dataset.rmfmt, 1); }));
   $('#addFmt').onclick = () => { const l = +$('#fmtL').value, w = +$('#fmtW').value, qty = +$('#fmtQ').value || 1; if (!(l > 0 && w > 0)) return toast('Укажите длину и ширину формата');
     change(() => { op.m.formats = op.m.formats || []; op.m.formats.push({ id: Date.now(), l, w, qty }); }); };
   $('#addOff').onclick = () => { const l = +$('#offL').value, w = +$('#offW').value; if (!(l > 0 && w > 0)) return toast('Укажите длину и ширину остатка');
-    stock.push({ id: Date.now(), mat: core.matKey(op.m), name: op.m.name, t: op.m.t, l, w, from: 'вручную' }); store.set('stock', stock); recalc(); render(); };
+    const it = { id: newStockId(), mat: core.matKey(op.m), name: op.m.name, t: op.m.t, l, w, from: 'вручную', at: Date.now(), by: siteState?.user || '' };
+    mutateStock(s => ({ ...s, stock: [...s.stock, it] })); };
 }
 
 /** Все проблемы раскроя материала: деталь больше листа, не разложена, ошибка геометрии карты. */
@@ -819,9 +824,68 @@ function saveOffcuts(r) {
   if (res.blocked) return toast(`Остатки прежней карты уже взял в раскрой ${res.blocked[0].from || 'другой заказ'}. Склад не изменён.`);
   if (!res.done) return toast('Остатки этой карты уже на складе');
   if (P.fresh) { delete P.fresh; saveProject(P); } // проект попадает в список, чтобы операция склада была привязана к нему
-  stock = res.stock; ledger = res.ledger; store.set('stock', stock); store.set('stockops', ledger);
-  toast(res.replaced ? 'Склад обновлён по новой карте' : `На склад: +${r.offcuts.length}${r.stockUsed.length ? `, списано ${r.stockUsed.length}` : ''}`);
-  recalc(); render();
+  const opt = { uid: P.uid, matId: r.m.id, from: P.name || 'заказ', newId: newStockId };
+  mutateStock(s => {
+    const need = new Set(r.stockUsed.map(u => u.stock.id)), mine = new Set(core.stockForProject(s.stock, s.ledger, P.uid).map(x => x.id));
+    if ([...need].some(id => !mine.has(id))) { toast('Остаток, взятый в эту карту, уже забрали на другом компьютере. Пересчитайте карту.'); return null; }
+    const q = core.applyStockOp(s.stock, s.ledger, r, opt);
+    return q.done ? { stock: q.stock, ledger: q.ledger } : null;
+  }).then(ok => ok && toast(res.replaced ? 'Склад обновлён по новой карте' : `На склад: +${r.offcuts.length}${r.stockUsed.length ? `, списано ${r.stockUsed.length}` : ''}`));
+}
+const newStockId = () => (globalThis.crypto?.randomUUID ? crypto.randomUUID() : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`);
+function setStock(st, led) { stock = st; ledger = led; store.set('stock', stock); store.set('stockops', ledger); }
+const markDirty = v => { stockDirty = v; store.set('stockdirty', v); };
+/** Любая правка склада: fn({stock, ledger}) → новый {stock, ledger} или null (нечего менять).
+ *  Правки идут строго по очереди: следующая начинается, когда предыдущая сохранена на сайте, поэтому ни одна не применится дважды.
+ *  На сайте склад сохраняется с проверкой версии: если его тем временем изменили на другом компьютере, перечитываем и повторяем правку. */
+let stockQueue = Promise.resolve();
+function mutateStock(fn) { const job = stockQueue.then(() => runStockEdit(fn)); stockQueue = job.catch(() => false); return job; }
+async function runStockEdit(fn) {
+  const first = fn({ stock, ledger }); if (!first) return false;
+  setStock(first.stock, first.ledger); recalc(); render();
+  if (!stockShared) { if (store.get('stocksynced', false)) markDirty(true); return true; } // без связи: отправим, когда сайт снова будет доступен
+  for (let i = 0; i < 4; i++) {
+    try {
+      const res = await site.saveStock({ stock, ledger, baseVersion: stockVer });
+      stockVer = res.version; stockAt = Date.now(); store.set('stockver', stockVer); store.set('stocksynced', true); markDirty(false); render(); return true;
+    } catch (e) {
+      if (!e.conflict) { markDirty(true); toast('Склад сохранён на этом компьютере, на сайт уйдёт при следующей связи: ' + e.message); render(); return true; }
+      const fresh = await site.loadStock().catch(() => null); if (!fresh) break;
+      stockVer = fresh.version; store.set('stockver', stockVer);
+      const again = fn({ stock: fresh.stock, ledger: fresh.ledger });
+      setStock(again ? again.stock : fresh.stock, again ? again.ledger : fresh.ledger); recalc(); render();
+      if (!again) return false;
+    }
+  }
+  markDirty(true); toast('Не удалось сохранить склад на сайте, попробуйте ещё раз'); render(); return false;
+}
+/** Склад этого компьютера, которого ещё нет на сайте, добавляется к складу сайта (ничего не удаляет). */
+function mergeStock(remote, local) {
+  const ids = new Set(remote.stock.map(x => String(x.id))), ops = new Set(remote.ledger.map(o => o.uid + '|' + o.mat));
+  const addS = local.stock.filter(x => !ids.has(String(x.id))), addL = local.ledger.filter(o => !ops.has(o.uid + '|' + o.mat));
+  return { stock: [...remote.stock, ...addS], ledger: [...remote.ledger, ...addL] };
+}
+/** Взять склад с сайта. Первый раз склад этого компьютера добавляется к общему. */
+function syncStock() { const job = stockQueue.then(syncStockNow); stockQueue = job.catch(() => false); return job; }
+async function syncStockNow() {
+  if (!siteState || siteState.login) return;
+  let r; try { r = await site.loadStock(); } catch (e) { return; }
+  if (!r) return;
+  const was = stockShared; stockShared = true;
+  if (was && !stockDirty && r.version === stockVer) { stockAt = Date.now(); return; }
+  if (!store.get('stocksynced', false)) {
+    const local = { stock, ledger };
+    stockVer = r.version; setStock(r.stock, r.ledger);
+    if (local.stock.length || local.ledger.length) {
+      await runStockEdit(s => mergeStock(s, local));
+      toast('Склад этого компьютера добавлен к общему складу на сайте');
+    } else { store.set('stocksynced', true); store.set('stockver', stockVer); recalc(); render(); }
+    return;
+  }
+  if (stockDirty && r.version === stockVer) { await runStockEdit(s => ({ ...s })); return; }
+  if (stockDirty) toast('Склад на сайте успели изменить, правки этого компьютера без связи не сохранились');
+  stockVer = r.version; stockAt = Date.now(); store.set('stockver', stockVer); markDirty(false);
+  setStock(r.stock, r.ledger); recalc(); render();
 }
 function copyText(ta) { (navigator.clipboard ? navigator.clipboard.writeText(ta.value) : Promise.reject()).then(() => toast('Скопировано')).catch(() => { ta.focus(); ta.select(); toast('Выделено, нажмите Ctrl+C'); }); }
 
@@ -898,14 +962,64 @@ function renderProjects(main) {
   });
 }
 function renderStock(main) {
-  main.innerHTML = `<section class="panel">${screenHead('Склад остатков')}
-   <p class="note">Деловые остатки из прошлых заказов. В операции раскроя они видны во вкладке «Листы и остатки» и заполняются раньше новых листов.</p>
-   ${stock.length ? `<div class="tbl"><table><thead><tr><th>Материал</th><th class="r">Толщ.</th><th class="r">Длина</th><th class="r">Ширина</th><th class="r">Площадь, м²</th><th>Откуда</th><th></th></tr></thead><tbody>
-   ${stock.map((s, i) => `<tr><td>${esc(s.name)}</td><td class="n">${s.t}</td><td class="n">${s.l}</td><td class="n">${s.w}</td><td class="n">${fmt(s.l * s.w / 1e6, 2)}</td><td>${esc(s.from)}</td><td><button class="btn xs" data-rm="${i}" aria-label="Убрать остаток">✕</button></td></tr>`).join('')}
-   </tbody></table></div><button class="btn sm" id="clearStock" style="margin-top:8px">Очистить склад</button>` : '<div class="empty">Склад пуст. На вкладке «Раскрой» нажмите «Остатки раскроя на склад».</div>'}
-   <p class="note">Сейчас склад хранится в этом браузере. Дальше он будет общим для всех компьютеров и сайта.</p></section>`;
-  main.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { stock.splice(+b.dataset.rm, 1); store.set('stock', stock); recalc(); render(); });
-  const c = $('#clearStock'); if (c) c.onclick = () => { if (c.dataset.sure) { stock = []; store.set('stock', stock); recalc(); render(); } else { c.dataset.sure = 1; c.textContent = 'Точно очистить?'; } };
+  const q = (ui.stockQ || '').trim().toLowerCase(), sel = stockSel;
+  const known = new Map();
+  [...P.materials, ...(catalog.materials || []), ...(siteCat?.sheets || [])].forEach(m => { if (m?.name && m.t) known.set(core.matKey(m), { name: m.name, t: +m.t }); });
+  stock.forEach(s => known.set(s.mat, { name: s.name, t: s.t }));
+  const list = stock.filter(s => !q || `${s.name} ${s.t} ${s.place || ''} ${s.from || ''} ${s.note || ''}`.toLowerCase().includes(q))
+    .sort((a, b) => a.name.localeCompare(b.name, 'ru') || a.t - b.t || b.l * b.w - a.l * a.w);
+  const groups = {}; list.forEach(s => { const g = groups[s.mat] = groups[s.mat] || { name: s.name, t: s.t, n: 0, a: 0 }; g.n++; g.a += s.l * s.w / 1e6; });
+  const d = t => t ? new Date(t).toLocaleDateString('ru-RU') : '';
+  const where = stockShared ? `<span class="chip good">общий склад на сайте</span>${stockDirty ? '<span class="chip bad">есть правки, не дошедшие до сайта</span>' : ''}`
+    : '<span class="chip">склад только в этом браузере</span>';
+  main.innerHTML = `<section class="panel">${screenHead('Склад остатков', `<div class="row">${where}${stockShared ? '<button class="btn sm" id="stockReload">Обновить</button>' : ''}</div>`)}
+   <p class="note">Деловые остатки цеха. В раскрое они видны во вкладке «Листы и остатки» и заполняются раньше новых листов. ${stockShared ? 'Склад общий: что добавлено на одном компьютере, видно на всех.' : 'Общим для всех компьютеров склад становится, когда программа открыта на artisan.shop.kg/raskroy и вы вошли на сайт.'}</p>
+   <h3>Добавить кусок</h3>
+   <div class="row bar2 stockadd">
+     <input class="inp t" id="sMat" list="sMats" placeholder="Материал" aria-label="Материал" style="min-width:220px" value="${esc(ui.sMat || '')}">
+     <datalist id="sMats">${[...known.values()].map(m => `<option value="${esc(m.name)}">${m.t} мм</option>`).join('')}</datalist>
+     <input class="inp" id="sT" type="number" step="0.1" placeholder="толщ." aria-label="Толщина" style="width:70px" value="${esc(ui.sT || '')}">
+     <input class="inp" id="sL" type="number" placeholder="длина" aria-label="Длина" style="width:84px">
+     <input class="inp" id="sW" type="number" placeholder="ширина" aria-label="Ширина" style="width:84px">
+     <input class="inp" id="sN" type="number" min="1" value="1" aria-label="Количество" title="Количество" style="width:60px">
+     <input class="inp t" id="sPlace" placeholder="место хранения" aria-label="Место хранения" style="width:140px" value="${esc(ui.sPlace || '')}">
+     <input class="inp t" id="sNote" placeholder="примечание" aria-label="Примечание" style="width:140px">
+     <button class="btn sm primary" id="sAdd">Добавить</button></div>
+   <div class="row bar2"><input class="inp t" id="stockQ" placeholder="Поиск: материал, место, заказ" value="${esc(ui.stockQ || '')}" style="width:100%;max-width:360px" aria-label="Поиск по складу">
+     <button class="btn sm" id="sLabels" ${list.length ? '' : 'disabled'}>Этикетки${sel.size ? ' на выбранные (' + sel.size + ')' : ' на все показанные'}</button>
+     ${sel.size ? `<button class="btn sm" id="sDelSel">Убрать выбранные (${sel.size})</button>` : ''}</div>
+   ${Object.keys(groups).length ? `<div class="row bar2">${Object.values(groups).map(g => `<span class="chip">${esc(g.name)} ${g.t} мм: ${g.n} шт, ${fmt(g.a, 2)} м²</span>`).join('')}</div>` : ''}
+   ${list.length ? `<div class="tbl"><table><thead><tr><th><input type="checkbox" id="sAll" aria-label="Выбрать все" ${sel.size && list.every(s => sel.has(String(s.id))) ? 'checked' : ''}></th><th>Материал</th><th class="r">Толщ.</th><th class="r">Длина</th><th class="r">Ширина</th><th class="r">м²</th><th>Место</th><th>Откуда</th><th>Добавлен</th><th></th></tr></thead><tbody>
+   ${list.map(s => `<tr data-sid="${esc(s.id)}"><td><input type="checkbox" data-ssel ${sel.has(String(s.id)) ? 'checked' : ''} aria-label="Выбрать"></td><td>${esc(s.name)}${s.note ? `<div class="note">${esc(s.note)}</div>` : ''}</td><td class="n">${s.t}</td><td class="n">${s.l}</td><td class="n">${s.w}</td><td class="n">${fmt(s.l * s.w / 1e6, 2)}</td>
+     <td><input class="cell name" data-splace value="${esc(s.place || '')}" placeholder="—" aria-label="Место хранения" style="width:110px"></td><td>${esc(s.from || '')}</td><td>${d(s.at)}${s.by ? `<div class="note">${esc(s.by)}</div>` : ''}</td>
+     <td><button class="btn xs" data-rm aria-label="Убрать остаток">✕</button></td></tr>`).join('')}
+   </tbody></table></div>` : `<div class="empty">${stock.length ? 'Ничего не найдено.' : 'Склад пуст. Добавьте кусок выше или на вкладке «Раскрой» нажмите «Остатки раскроя на склад».'}</div>`}</section>`;
+  const idOf = el => el.closest('tr').dataset.sid;
+  const matT = () => { const name = $('#sMat').value.trim(), hit = [...known.values()].find(m => m.name === name); if (hit) $('#sT').value = hit.t; };
+  $('#sMat').onchange = matT; $('#sT').onfocus = e => e.target.select();
+  $('#sAdd').onclick = () => {
+    const name = $('#sMat').value.trim(), t = +$('#sT').value, l = +$('#sL').value, w = +$('#sW').value, n = Math.max(1, Math.min(100, +$('#sN').value || 1));
+    if (!name) return toast('Укажите материал'); if (!(t > 0)) return toast('Укажите толщину'); if (!(l > 0 && w > 0)) return toast('Укажите длину и ширину');
+    const place = $('#sPlace').value.trim(), note = $('#sNote').value.trim(), at = Date.now(), by = siteState?.user || '';
+    const items = Array.from({ length: n }, () => ({ id: newStockId(), mat: core.matKey({ name, t }), name, t, l: Math.max(l, w), w: Math.min(l, w), from: 'вручную', place, note, at, by }));
+    Object.assign(ui, { sMat: name, sT: String(t), sPlace: place });
+    mutateStock(s => ({ ...s, stock: [...s.stock, ...items] })).then(() => { toast(`На склад: ${name} ${Math.max(l, w)}×${Math.min(l, w)}${n > 1 ? ' × ' + n : ''}`); const el = $('#sL'); if (el) el.focus(); });
+  };
+  ['sL', 'sW', 'sN', 'sNote'].forEach(k => { $('#' + k).onkeydown = e => { if (e.key === 'Enter') $('#sAdd').click(); }; });
+  const sq = $('#stockQ'); sq.oninput = () => { ui.stockQ = sq.value; clearTimeout(sq._t); sq._t = setTimeout(() => { render(); const el = $('#stockQ'); if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); } }, 250); };
+  main.querySelectorAll('[data-ssel]').forEach(c => c.onchange = () => { const id = idOf(c); c.checked ? sel.add(id) : sel.delete(id); render(); });
+  const all = $('#sAll'); if (all) all.onchange = () => { list.forEach(s => all.checked ? sel.add(String(s.id)) : sel.delete(String(s.id))); render(); };
+  main.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { const id = idOf(b); sel.delete(id); mutateStock(s => ({ ...s, stock: s.stock.filter(x => String(x.id) !== id) })); });
+  main.querySelectorAll('[data-splace]').forEach(el => el.onchange = () => { const id = idOf(el), v = el.value.trim();
+    mutateStock(s => s.stock.some(x => String(x.id) === id) ? { ...s, stock: s.stock.map(x => String(x.id) === id ? { ...x, place: v } : x) } : null); });
+  const ds = $('#sDelSel'); if (ds) ds.onclick = () => { if (!ds.dataset.sure) { ds.dataset.sure = 1; ds.textContent = `Точно убрать ${sel.size}?`; return; }
+    const ids = new Set(sel); sel.clear(); mutateStock(s => ({ ...s, stock: s.stock.filter(x => !ids.has(String(x.id))) })); };
+  const rl = $('#stockReload'); if (rl) rl.onclick = async () => { rl.disabled = true; await syncStock(); render(); toast('Склад обновлён'); };
+  $('#sLabels').onclick = () => makePdf($('#sLabels'), async () => {
+    const pick = sel.size ? stock.filter(s => sel.has(String(s.id))) : list, tpl = ui.lblTpl || 'NESTING', t = TEMPLATES[tpl], logo = await logoData(), now = new Date();
+    const svgs = pick.map(s => labelSvg({ kind: 'offcut', project: s.from && s.from !== 'вручную' ? s.from : 'Склад', material: `${s.name} ${s.t}`, l: s.l, w: s.w, t: s.t }, tpl, { now, logo }));
+    return [await labelsPdf(svgs, { w: t.w, h: t.h, layout: ui.lblLayout || 'sheet' }), 'Этикетки остатков.pdf'];
+  });
 }
 function renderCatalog(main) {
   const cols = { materials: [['name', 'Наименование', 't'], ['code', 'Код', 't'], ['t', 'Толщ.'], ['L', 'Длина'], ['W', 'Ширина'], ['price', 'Цена листа'], ['priceM2', 'Цена м²']],
@@ -1276,6 +1390,9 @@ site.checkSite().then(async st => {
   siteState = st; if (!st) return;
   if (P.site) siteStatus('Заявка с сайта');
   try { const cat = await site.loadCatalog(); if (cat) { siteCat = { ...cat, at: Date.now() }; store.set('sitecat', siteCat); recalc(); } } catch (e) { /* остаётся прежний прайс */ }
+  await syncStock();
   render();
 });
+// Склад общий: когда возвращаемся в окно программы, подтягиваем изменения с других компьютеров.
+window.addEventListener('focus', () => { if (stockShared && Date.now() - stockAt > 20000) syncStock(); });
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
