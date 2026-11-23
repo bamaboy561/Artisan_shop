@@ -10,7 +10,9 @@ import { optimizeLinear } from './linear.js';
 export const DEFAULTS = {
   kerf: 4.4, trim: 10, sizeMode: 1, round: 'none', stack: 1, offArea: 0, dir: 'any', grain: 'file', minPart: 0, offMin1: 300, offMin2: 100, useStock: true,
   edgeAdd: 30, edgeWaste: 0, joint: 0,
-  toolD: 6, overcut: 0.5, spindle: 18000, feedXY: 8000, feedZ: 3000, safeZ: 30, cncDraft: false,
+  // ЧПУ Excitech: значения как в программах со станка цеха (ноль Z на столе, предрез 2 прохода с оставлением 1,2 мм).
+  toolD: 6, overcut: 0, spindle: 18000, feedXY: 15000, feedZ: 5000, lift: 20, preCut: true, preStep: 15, preLeave: 1.2, lead: 97, overlap: 3,
+  drillTools: '7=16, 8=17, 10=21, 22=22', cncDraft: false, machineSub: false,
   cutMode: 'sheet', cutPrice: 300, edgePrice: 28, holePrice: 10, millPrice: 25, curvePrice: 200, groovePrice: 200,
   // Присадка: цена отверстия по диаметру, как в прайсе сайта. Диаметр не из списка — по holePrice.
   holePrices: { 3: 4, 5: 6, 6: 8, 7: 8, 8: 10, 10: 10, 15: 13, 20: 20, 25: 21, 35: 32 },
