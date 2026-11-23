@@ -1171,7 +1171,7 @@ export function FurnitureConstructor({
           summary={`${partCount} деталей`}
           defaultOpen
         >
-          <div className="grid grid-cols-3 gap-2 text-center">
+          <div className="grid grid-cols-[1.4fr_1fr_1fr] gap-2 text-center">
             {[
               {
                 label: "Габариты",
@@ -1182,10 +1182,12 @@ export function FurnitureConstructor({
             ].map((item) => (
               <div
                 key={item.label}
-                className="rounded-xl border border-[color:var(--line)] p-3"
+                className="min-w-0 rounded-xl border border-[color:var(--line)] px-2 py-3"
               >
                 <p className="text-[11px] text-[var(--muted)]">{item.label}</p>
-                <p className="mt-1 text-sm font-semibold">{item.value}</p>
+                <p className="mt-1 text-[13px] font-semibold [overflow-wrap:anywhere] tabular-nums sm:text-sm">
+                  {item.value}
+                </p>
               </div>
             ))}
           </div>

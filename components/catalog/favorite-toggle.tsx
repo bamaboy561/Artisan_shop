@@ -32,9 +32,9 @@ export function FavoriteToggle({
           "group/favorite inline-flex items-center justify-center border border-[color:var(--line)] bg-[var(--surface-strong)]/92 text-[var(--foreground)] shadow-[0_12px_30px_rgba(21,20,17,0.08)] backdrop-blur transition duration-300 hover:border-[var(--foreground)] hover:bg-[var(--foreground)] hover:text-[var(--background)]",
           variant === "floating" && "size-9 rounded-full sm:size-10",
           variant === "inline" &&
-            "h-9 gap-2 rounded-full px-3 font-mono text-[9px] tracking-[0.14em] uppercase",
+            "h-9 gap-2 rounded-full px-3 text-[13px] font-medium tracking-[0.02em] uppercase",
           variant === "product" &&
-            "h-10 gap-2 rounded-full px-4 font-mono text-[10px] tracking-[0.14em] uppercase",
+            "h-10 gap-2 rounded-full px-4 text-sm font-medium tracking-[0.02em] uppercase",
           isFavorite &&
             "border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-ink)] hover:border-[var(--foreground)]",
         )}

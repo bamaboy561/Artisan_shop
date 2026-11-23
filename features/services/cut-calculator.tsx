@@ -3778,7 +3778,7 @@ export function CutCalculator({
                     ? "Файл с мебелью из конструктора получит менеджер вместе с заявкой"
                     : undefined
                 }
-                className="w-full sm:w-auto"
+                className="w-full px-3 text-[13px] whitespace-nowrap sm:w-auto sm:px-5 sm:text-sm"
               >
                 <FileDown className="size-4" />
                 Экспорт GibLab
@@ -3786,7 +3786,7 @@ export function CutCalculator({
               <Button
                 variant="secondary"
                 onClick={resetCalculator}
-                className="w-full sm:w-auto"
+                className="w-full px-3 text-[13px] whitespace-nowrap sm:w-auto sm:px-5 sm:text-sm"
               >
                 Сбросить расчет
               </Button>

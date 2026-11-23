@@ -92,6 +92,34 @@ button {
     opacity 180ms ease;
 }
 
+/* Кнопка «Выбрать файл» вместо системной серой «Choose Files». */
+@layer base {
+  input[type="file"] {
+    max-width: 100%;
+    font-size: 0.8125rem;
+    color: var(--muted);
+  }
+
+  input[type="file"]::file-selector-button {
+    margin-right: 0.75rem;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--surface-strong, #fff);
+    padding: 0.4rem 0.9rem;
+    color: var(--foreground);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    transition:
+      background-color 180ms ease,
+      border-color 180ms ease;
+  }
+
+  input[type="file"]::file-selector-button:hover {
+    border-color: var(--foreground);
+  }
+}
+
 ::selection {
   background: color-mix(in srgb, var(--accent) 24%, white);
   color: var(--ink);

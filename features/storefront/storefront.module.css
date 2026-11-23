@@ -46,9 +46,9 @@
   outline: 2px solid var(--pv-accent);
   outline-offset: 4px;
 }
-.root button {
-  font: inherit;
-}
+/* font: inherit для кнопок уже задаёт preflight Tailwind (слой base).
+   Здесь правило было вне слоёв и перебивало text-[…]/font-… у всех кнопок
+   сайта: подписи шагов и кнопки калькулятора не помещались на телефоне. */
 .container {
   width: calc(100% - 96px);
   max-width: 1440px;
@@ -350,6 +350,16 @@
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 24px;
 }
+/* Без «дыры» в последнем ряду: 3, 5 или 6 разделов встают ровными рядами. */
+@media (min-width: 851px) {
+  .categoryGrid:has(> :nth-child(5):last-child) {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+  .categoryGrid:has(> :nth-child(3):last-child),
+  .categoryGrid:has(> :nth-child(6):last-child) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
 .categoryTile > div {
   position: relative;
   aspect-ratio: 1.32;
@@ -502,6 +512,12 @@
   justify-content: space-between;
   gap: 8px;
   margin-top: auto;
+}
+.productBottom > div {
+  min-width: 0;
+}
+.productBottom > :last-child {
+  flex-shrink: 0;
 }
 .productBottom strong {
   display: block;
@@ -3827,5 +3843,34 @@
   }
   .productPage .detailPrice strong {
     font-size: 26px;
+  }
+}
+
+/* Телефон: цена в карточке занимает всю строку, кнопка корзины — под ней
+   справа, рядом с ценой за м². Длинная цена («1 274 678 сом») больше не
+   залезает под кнопку и не обрезается краем карточки. */
+@media (max-width: 600px) {
+  .productBottom {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: 6px;
+    row-gap: 2px;
+  }
+  .productBottom > div {
+    display: contents;
+  }
+  .productBottom strong {
+    grid-column: 1 / -1;
+    font-size: 15px;
+    letter-spacing: -0.01em;
+  }
+  .productBottom > div > :not(strong) {
+    grid-column: 1;
+  }
+  .productBottom > :last-child {
+    grid-column: 2;
+    grid-row: 2 / span 2;
+    justify-self: end;
   }
 }
