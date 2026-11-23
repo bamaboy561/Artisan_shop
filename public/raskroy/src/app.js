@@ -28,6 +28,14 @@ let stock = store.get('stock', []);
 let ledger = store.get('stockops', []); // складские операции по заказам (см. core/stockops.js)
 const sheetPrices = store.get('sheetPrices', {});
 let P = null, R = null, C = null, E = null;
+/* Вид программы на этом компьютере: тема и размер текста. */
+let look = { theme: 'light', size: 'm', ...store.get('look', {}) };
+function applyLook() {
+  const r = document.documentElement;
+  if (look.theme === 'auto') delete r.dataset.theme; else r.dataset.theme = look.theme;
+  if (look.size === 'm') delete r.dataset.size; else r.dataset.size = look.size;
+}
+applyLook();
 let ui = { screen: 'project', top: 'ops', op: null, sub: 'parts', sheet: 0, paste: false, ...store.get('ui', {}) };
 let undo = [], redo = [];
 let catalog = { materials: [], bands: [], ...store.get('catalog', {}) };
@@ -1136,12 +1144,17 @@ function kpModel(E, draft) {
     ...(draft ? ['ЧЕРНОВИК: цены не утверждены и могут измениться'] : [])], blocks };
 }
 function renderSettings(main) {
+  const opt = (k, v, t) => `<option value="${v}" ${look[k] === v ? 'selected' : ''}>${t}</option>`;
   main.innerHTML = `<section class="panel">${screenHead('Настройки')}
+    <h3>Вид на этом компьютере</h3><div class="look">
+      <label class="note">Тема <select class="inp" data-look="theme">${opt('theme', 'light', 'Светлая')}${opt('theme', 'dark', 'Тёмная')}${opt('theme', 'auto', 'Как в системе')}</select></label>
+      <label class="note">Размер текста <select class="inp" data-look="size">${opt('size', 'm', 'Обычный')}${opt('size', 'l', 'Крупный')}${opt('size', 'xl', 'Очень крупный')}</select></label></div>
     <p class="note">Значения по умолчанию для всех операций. У каждой операции во вкладке «Параметры» можно задать своё.</p>
     ${siteCat ? `<p class="printbox">Распил, кромкование, присадка, фрезеровка и пазы считаются по прайсу сайта (страница «Прайс работ» в админке). Изменить их можно там, здесь значения ниже не действуют.</p>` : ''}
     <div class="params">${propsTable(F_BASE, f => base[f[0]], 'base:')}
     <h3>Присадка по диаметрам, сом за отверстие</h3><div class="row holes">${Object.entries(base.holePrices || {}).map(([d, v]) => `<label class="note">Ø${d} <input class="inp n" type="number" step="0.5" style="width:64px" data-hp="${d}" value="${v}"></label>`).join('')}</div>
     <div class="note"><button class="btn sm" id="resetBase">Вернуть заводские</button></div></div></section>`;
+  main.querySelectorAll('[data-look]').forEach(el => el.onchange = () => { look[el.dataset.look] = el.value; store.set('look', look); applyLook(); });
   main.querySelectorAll('[data-hp]').forEach(el => el.onchange = () => { base.holePrices = { ...base.holePrices, [el.dataset.hp]: +el.value || 0 }; store.set('base', base); recalc(); renderSoon(); });
   main.querySelector('.props').addEventListener('change', e => { const el = e.target, k = el.dataset.k; if (!k) return;
     base[k] = el.type === 'checkbox' ? el.checked : el.type === 'number' ? +el.value : el.value; store.set('base', base); recalc(); renderSoon(); });
