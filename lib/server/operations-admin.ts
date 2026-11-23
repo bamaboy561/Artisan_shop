@@ -25,6 +25,13 @@ export async function getAdminManagers() {
 
   return db.user.findMany({
     where: {
+      // Удалённый сотрудник остаётся в списке, только если за ним есть
+      // заказы или заявки: иначе выбор менеджера в них сбросился бы.
+      OR: [
+        { deletedAt: null },
+        { managedOrders: { some: {} } },
+        { managedRequests: { some: {} } },
+      ],
       role: {
         code: {
           in: [

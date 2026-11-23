@@ -54,6 +54,7 @@ export async function getStaffAccountDirectory(
   const requestedScope = normalizeScope(filters.scope);
   const scope = query && requestedScope === "staff" ? "all" : requestedScope;
   const where: Prisma.UserWhereInput = {
+    deletedAt: null,
     ...buildUserSearchWhere(query),
     ...getScopeWhere(scope),
   };
@@ -64,7 +65,7 @@ export async function getStaffAccountDirectory(
       orderBy: { code: "asc" },
       select: {
         code: true,
-        _count: { select: { users: true } },
+        _count: { select: { users: { where: { deletedAt: null } } } },
       },
     }),
   ]);

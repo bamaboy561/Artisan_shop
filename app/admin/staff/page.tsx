@@ -8,6 +8,7 @@ import {
 import { CuttingManagerForm } from "@/app/admin/staff/cutting-manager-form";
 import { ProductionAccountForm } from "@/app/admin/staff/production-account-form";
 import { AdminSubmitButton } from "@/components/admin/admin-submit-button";
+import { DeleteStaffButton } from "@/components/admin/delete-staff-button";
 import { StaffAccessButton } from "@/components/admin/staff-access-button";
 import { SetupState } from "@/components/admin/setup-state";
 import { StatusBadge } from "@/components/admin/status-badge";
@@ -63,6 +64,10 @@ const noticeMessages: Record<string, string> = {
     "Нельзя изменить роль единственного активного супер-администратора.",
   "account-missing":
     "Аккаунт не найден. Обновите страницу и повторите действие.",
+  deleted: "Сотрудник удалён. Его заказы, заявки и смены остались в истории.",
+  "self-delete": "Нельзя удалить аккаунт, под которым вы сейчас работаете.",
+  "delete-forbidden":
+    "Этот аккаунт удалить нельзя: он не найден или для этой роли нужны права супер-администратора.",
 };
 
 const errorNotices = new Set([
@@ -77,6 +82,8 @@ const errorNotices = new Set([
   "role-forbidden",
   "last-super-admin",
   "account-missing",
+  "self-delete",
+  "delete-forbidden",
 ]);
 
 const employeeRoleSet = new Set<RoleCode>(employeeRoleCodes);
@@ -197,6 +204,11 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
     const canChangeAccess =
       !isCurrentAccount &&
       canManageStaffAccess(session.roleCode, account.role.code);
+    const canDelete =
+      canChangeAccess ||
+      (!isCurrentAccount &&
+        session.roleCode === RoleCode.SUPER_ADMIN &&
+        account.role.code === RoleCode.ADMIN);
 
     return {
       account: (
@@ -340,6 +352,17 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
               id={account.id}
               name={account.email}
               isActive={account.isActive}
+            />
+          ) : null}
+
+          {canDelete ? (
+            <DeleteStaffButton
+              id={account.id}
+              name={
+                [account.firstName, account.lastName]
+                  .filter(Boolean)
+                  .join(" ") || account.email
+              }
             />
           ) : null}
 

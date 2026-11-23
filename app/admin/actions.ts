@@ -7447,12 +7447,13 @@ export async function updateStaffAccountRoleAction(formData: FormData) {
     select: {
       id: true,
       isActive: true,
+      deletedAt: true,
       productionStation: true,
       role: { select: { code: true } },
     },
   });
 
-  if (!account) {
+  if (!account || account.deletedAt) {
     redirect("/admin/staff?notice=account-missing");
   }
 
@@ -7548,6 +7549,7 @@ export async function resetCuttingManagerPasswordAction(formData: FormData) {
   const manager = await getDb().user.findFirst({
     where: {
       id,
+      deletedAt: null,
       role: {
         code: {
           in: [
