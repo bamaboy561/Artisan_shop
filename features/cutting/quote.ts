@@ -34,21 +34,40 @@ export type CuttingExtrasPrice = {
   groove: number;
 } & Record<OtherWorkPriceKey, number>;
 
-// Поля других работ: листы ХДФ и метры остальных.
-export const materialWorkKeys = otherWorks.map((work) => work.key);
+// Поля других работ: листы ХДФ, метры, отверстия под фурнитуру.
+const allWorkKeys = otherWorks.map((work) => work.key);
+// Материалы (ХДФ, HPL, столешница…) — без отверстий под фурнитуру.
+export const materialWorkKeys = otherWorks
+  .filter((work) => work.group === "material")
+  .map((work) => work.key);
+// Отверстия под фурнитуру по своей цене: минификс, конфирмат, шкант…
+export const hardwareWorkKeys = otherWorks
+  .filter((work) => work.group === "hardware")
+  .map((work) => work.key);
 type MaterialWorkKey = OtherWorkKey;
 
-function validSheets(value: unknown) {
+function validSheets(value: unknown, max = 10000) {
   return typeof value === "number" &&
     Number.isInteger(value) &&
     value >= 0 &&
-    value <= 10000
+    value <= max
     ? value
     : null;
 }
 
+// Отверстий может быть много, как в присадке по диаметрам.
+function validCount(key: MaterialWorkKey, value: unknown) {
+  const unit = otherWorks.find((work) => work.key === key)?.unit;
+  return validSheets(value, unit === "pcs" ? 1_000_000 : 10000);
+}
+
+// Листы и штуки — целые числа, метры — с сотыми.
 function isSheetKey(key: MaterialWorkKey) {
-  return otherWorks.some((work) => work.key === key && work.unit === "sheet");
+  return otherWorks.some((work) => work.key === key && work.unit !== "m");
+}
+
+function hasHardwareWork(extras: CuttingExtras | null | undefined) {
+  return hardwareWorkKeys.some((key) => (extras?.[key] ?? 0) > 0);
 }
 
 export function hasMaterialWork(extras: CuttingExtras | null | undefined) {
@@ -62,7 +81,8 @@ export function hasMachiningExtras(extras: CuttingExtras | null | undefined) {
     (Object.keys(extras.drilling).length > 0 ||
       extras.curveMeters > 0 ||
       extras.bevelMeters > 0 ||
-      (extras.grooveMeters ?? 0) > 0),
+      (extras.grooveMeters ?? 0) > 0 ||
+      hasHardwareWork(extras)),
   );
 }
 
@@ -152,9 +172,9 @@ export function parseCuttingExtras(value: unknown): CuttingExtras | null {
   if (curveMeters === null || bevelMeters === null || grooveMeters === null)
     return null;
   const materialWork: Partial<Record<MaterialWorkKey, number>> = {};
-  for (const key of materialWorkKeys) {
+  for (const key of allWorkKeys) {
     const amount = isSheetKey(key)
-      ? validSheets(raw[key] ?? 0)
+      ? validCount(key, raw[key] ?? 0)
       : validMeters(raw[key] ?? 0);
     if (amount === null) return null;
     if (amount > 0) materialWork[key] = amount;
@@ -180,7 +200,8 @@ export function hasCuttingExtras(extras: CuttingExtras | null | undefined) {
       extras.curveMeters > 0 ||
       extras.bevelMeters > 0 ||
       (extras.grooveMeters ?? 0) > 0 ||
-      hasMaterialWork(extras)),
+      hasMaterialWork(extras) ||
+      hasHardwareWork(extras)),
   );
 }
 
@@ -293,22 +314,29 @@ export function buildCuttingQuote(
   let extrasCents = 0;
   let unpricedHoles = 0;
 
-  for (const { key, label, unit, price: priceKey } of otherWorks) {
-    const rate = price[priceKey];
-    const amount = extras?.[key] ?? 0;
-    if (!(amount > 0)) continue;
-    const cents = Math.round(amount * Math.round(rate * 100));
-    extrasCents += cents;
-    lines.push({
-      key,
-      label,
-      detail:
-        unit === "sheet"
-          ? `${amount} ${plural(amount, ["лист", "листа", "листов"])} × ${money(rate)}`
-          : `${numberFormatter.format(amount)} м × ${money(rate)}`,
-      amount: cents / 100,
-    });
-  }
+  const pushWorkLines = (group: "material" | "hardware") => {
+    for (const work of otherWorks) {
+      if (work.group !== group) continue;
+      const { key, label, unit, price: priceKey } = work;
+      const rate = price[priceKey];
+      const amount = extras?.[key] ?? 0;
+      if (!(amount > 0)) continue;
+      const cents = Math.round(amount * Math.round(rate * 100));
+      extrasCents += cents;
+      lines.push({
+        key,
+        label,
+        detail:
+          unit === "sheet"
+            ? `${amount} ${plural(amount, ["лист", "листа", "листов"])} × ${money(rate)}`
+            : unit === "pcs"
+              ? `${amount} ${plural(amount, ["отверстие", "отверстия", "отверстий"])} × ${money(rate)}`
+              : `${numberFormatter.format(amount)} м × ${money(rate)}`,
+        amount: cents / 100,
+      });
+    }
+  };
+  pushWorkLines("material");
   const drillingRows = Object.entries(extras?.drilling ?? {})
     .map(([key, holes]) => ({ diameter: Number(key), holes }))
     .filter((row) => row.diameter > 0 && row.holes > 0)
@@ -337,6 +365,8 @@ export function buildCuttingQuote(
       amount: cents / 100,
     });
   }
+
+  pushWorkLines("hardware");
 
   const milling: Array<[string, string, number, number]> = [
     [
@@ -409,19 +439,19 @@ export function cuttingExtrasFromForm(
     return { ok: false, message: "Проверьте метры фрезеровки." };
 
   const materialWork: Partial<Record<MaterialWorkKey, number>> = {};
-  for (const key of materialWorkKeys) {
+  for (const key of allWorkKeys) {
     const raw = form.get(key);
     const value = typeof raw === "string" ? raw.trim().replace(",", ".") : "";
     if (!value) continue;
     touched = true;
     const amount = isSheetKey(key)
-      ? validSheets(Number(value))
+      ? validCount(key, Number(value))
       : validMeters(Number(value));
     if (amount === null)
       return {
         ok: false,
         message: isSheetKey(key)
-          ? "Листов ХДФ — целое число от 0 до 10 000."
+          ? `${otherWorks.find((work) => work.key === key)?.label ?? "Количество"}: целое число от 0.`
           : "Проверьте метры в «Другие работы».",
       };
     if (amount > 0) materialWork[key] = amount;

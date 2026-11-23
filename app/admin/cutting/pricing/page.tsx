@@ -5,7 +5,11 @@ import {
   getCuttingPrice,
   getSiteCuttingPrices,
 } from "@/lib/server/cutting-pricing";
-import { drillingDiameters, otherWorks } from "@/features/cutting/site-prices";
+import {
+  drillingDiameters,
+  otherWorks,
+  workUnitLabel,
+} from "@/features/cutting/site-prices";
 import { saveCuttingPriceAction, saveSiteCuttingPricesAction } from "./actions";
 import { Input } from "@/components/ui/input";
 import { AdminSubmitButton } from "@/components/admin/admin-submit-button";
@@ -224,18 +228,41 @@ function SitePricesForm({
       </div>
       <fieldset className="grid gap-3">
         <legend className="mb-2 text-sm font-semibold">
+          Отверстия под фурнитуру, сом за одно отверстие
+        </legend>
+        <p className="text-xs text-zinc-500">
+          Эти отверстия считаются по своей цене, а не по диаметру.
+        </p>
+        <div className="grid gap-5 sm:grid-cols-2">
+          {otherWorks
+            .filter((work) => work.group === "hardware")
+            .map((work) => (
+              <PriceField
+                key={work.price}
+                label={work.label}
+                name={`site_${work.price}`}
+                value={prices[work.price]}
+                disabled={!canEdit}
+              />
+            ))}
+        </div>
+      </fieldset>
+      <fieldset className="grid gap-3">
+        <legend className="mb-2 text-sm font-semibold">
           Другие работы: ХДФ, HPL, столешница, утолщёнка, Gola
         </legend>
         <div className="grid gap-5 sm:grid-cols-2">
-          {otherWorks.map((work) => (
-            <PriceField
-              key={work.price}
-              label={`${work.label}, сом за ${work.unit === "sheet" ? "лист" : "метр"}`}
-              name={`site_${work.price}`}
-              value={prices[work.price]}
-              disabled={!canEdit}
-            />
-          ))}
+          {otherWorks
+            .filter((work) => work.group === "material")
+            .map((work) => (
+              <PriceField
+                key={work.price}
+                label={`${work.label}, сом за ${workUnitLabel[work.unit].per}`}
+                name={`site_${work.price}`}
+                value={prices[work.price]}
+                disabled={!canEdit}
+              />
+            ))}
         </div>
       </fieldset>
       {canEdit ? (

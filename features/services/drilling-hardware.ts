@@ -6,7 +6,7 @@
 // Стороны: bottom — y = 0, top — y = ширина, left — x = 0, right — x = длина.
 // В калькуляторе «верх» и «низ» — длинные стороны, как у кромки.
 
-import type { DrillCounts } from "@/lib/drilling-price";
+import type { DrillCounts, HardwareWorkHoles } from "@/lib/drilling-price";
 
 export type PartSide = "top" | "right" | "bottom" | "left";
 
@@ -509,4 +509,40 @@ export function buildDrillingProgram(
     : "";
 
   return `<?xml version="1.0" encoding="UTF-8"?><program dx="${round(length)}" dy="${round(width)}" dz="${round(thickness)}">${toolsXml}${vars}${body}</program>`;
+}
+
+// Отверстия фурнитуры, у которых в прайсе своя цена за отверстие:
+// корпус минификса Ø15 (отверстие под шток в торец — по диаметру),
+// конфирмат и шкант в торец, наметки под саморезы планки петли («сверление
+// под метку»). Остальные считаются по диаметру.
+export function hardwareWorkHoles(
+  items: HardwareItem[] | undefined,
+  length: number,
+  width: number,
+  thickness: number,
+): HardwareWorkHoles[] {
+  const counts = new Map<string, HardwareWorkHoles>();
+  for (const item of items ?? []) {
+    const key =
+      item.kind === "minifix"
+        ? "minifixHoles"
+        : item.kind === "confirmatEdge"
+          ? "confirmatHoles"
+          : item.kind === "dowelEdge"
+            ? "dowelHoles"
+            : item.kind === "hingePlate"
+              ? "markHoles"
+              : null;
+    if (!key) continue;
+    for (const hole of hardwareHoles([item], length, width, thickness)) {
+      // У минификса своя цена только у корпуса в пласти.
+      if (item.kind === "minifix" && hole.kind !== "face") continue;
+      const diameter = Math.round(hole.diameter * 10) / 10;
+      const id = `${key}:${diameter}`;
+      const entry = counts.get(id) ?? { key, diameter, holes: 0 };
+      entry.holes += 1;
+      counts.set(id, entry);
+    }
+  }
+  return [...counts.values()];
 }

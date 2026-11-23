@@ -1,6 +1,7 @@
 import { Input } from "@/components/ui/input";
 import { drillingDiameters } from "@/features/cutting/site-prices";
 import type { CuttingExtras } from "@/features/cutting/quote";
+import { CuttingMaterialFields } from "@/components/cutting/cutting-material-fields";
 
 // Поля присадки и фрезеровки для менеджера: отверстий по диаметрам и
 // метры фрезеровки. Имена полей читает cuttingExtrasFromForm.
@@ -37,6 +38,13 @@ export function CuttingExtrasFields({
             />
           </label>
         ))}
+      </div>
+      <div className="grid gap-1">
+        <p className="text-xs font-medium text-[var(--muted)]">
+          Отверстия под фурнитуру — по своей цене (не вписывайте их ещё и по
+          диаметру)
+        </p>
+        <CuttingMaterialFields extras={extras} group="hardware" />
       </div>
       <div className="grid grid-cols-2 gap-2">
         <label className="grid gap-1 text-xs font-medium text-[var(--foreground)]">

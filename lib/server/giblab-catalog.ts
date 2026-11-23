@@ -11,6 +11,7 @@ import {
   type GibLabCatalogRow,
   type GibLabCatalogSettings,
 } from "@/features/production/giblab-catalog";
+import { otherWorks } from "@/features/cutting/site-prices";
 import { ProductStatus } from "@/generated/prisma";
 import { canManageProduction } from "@/lib/auth/roles";
 import type { SessionPayload } from "@/lib/auth/session";
@@ -89,6 +90,13 @@ export async function getGibLabCatalogRows(): Promise<GibLabCatalogRow[]> {
     milling: site.milling,
     bevel: site.bevel,
     groove: site.groove,
+    works: otherWorks.map((work) => ({
+      price: work.price,
+      label: work.label,
+      unit: work.unit,
+      group: work.group,
+      rate: site[work.price],
+    })),
   });
   return buildGibLabCatalogRows(categories, products, services);
 }

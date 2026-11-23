@@ -19,6 +19,7 @@ import {
   HARDWARE,
   SIDE_LABELS,
   hardwareHoles,
+  hardwareWorkHoles,
   holesToDrillCounts,
   type HardwareField,
   type HardwareItem,
@@ -727,10 +728,17 @@ export function DrillingEditor({
   const price = useMemo(
     () =>
       priceDrilling(
-        [{ drill: holesToDrillCounts(holes), quantity }],
+        [
+          {
+            drill: holesToDrillCounts(holes),
+            work: hardwareWorkHoles(value, length, width, thickness),
+            quantity,
+          },
+        ],
         prices.drilling,
+        prices,
       ),
-    [holes, prices.drilling, quantity],
+    [holes, length, prices, quantity, thickness, value, width],
   );
 
   const update = (id: string, patch: Partial<HardwareItem>) =>
