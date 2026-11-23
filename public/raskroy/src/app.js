@@ -209,7 +209,7 @@ function saveProject(Q) {
   store.set('p_' + Q.uid, Q);
   store.set('projects', core.upsertMeta(libIndex(), core.projectMeta(Q)));
 }
-function openProject(Q) { P = { date: '', due: '', note: '', ...Q }; undo = []; redo = []; sel.clear(); ui.op = null; ui.sheet = 0; ui.screen = 'project'; ui.skipStart = false; ui.rel = false; recalc(); clearTimeout(siteT); siteStatus(P.site ? 'Заявка с сайта ' + (P.site.number || '') : ''); if (P.site?.conflict) siteConflict(P.site.conflict); render(); }
+function openProject(Q) { P = { date: '', due: '', note: '', ...Q }; undo = []; redo = []; sel.clear(); ui.op = null; ui.sheet = 0; ui.screen = 'project'; ui.skipStart = false; ui.rel = false; ui.wiz = null; ui.wizFocus = ''; recalc(); clearTimeout(siteT); siteStatus(P.site ? 'Заявка с сайта ' + (P.site.number || '') : ''); if (P.site?.conflict) siteConflict(P.site.conflict); render(); }
 /** Любое изменение проекта: запоминаем прежнее состояние для «Отменить», считаем заново, перерисовываем. */
 function change(fn) {
   undo.push(JSON.stringify(P)); if (undo.length > 60) undo.shift(); redo = [];
@@ -262,20 +262,20 @@ const isEmpty = () => !P.materials.length && !P.parts.length && !(P.linear || []
 const matLabel = c => `${c.name}${c.t && !String(c.name).includes(c.t + ' мм') ? ' ' + c.t + ' мм' : ''}`;
 function renderStart(main) {
   const mats = pickList('materials'), recent = libIndex().filter(x => x.uid !== P.uid).slice(0, 6);
-  const named = P.name && P.name !== 'Новый проект' ? P.name : '', w = ui.wiz || { op: 'CS' };
+  const named = P.name && P.name !== 'Новый проект' ? P.name : '', w = ui.wiz || { op: 'CS' }, v = (k, d) => esc(w[k] ?? d); // черновик мастера переживает перерисовку
   main.innerHTML = `<section class="panel start">
     <h2>Новый заказ</h2>
     <p class="note">Заполните три шага и нажмите «Дальше». Всё, что здесь не указано, можно поменять потом.</p>
     <div class="wstep"><span class="wn">1</span><div><h3>Заказ</h3>
-      <div class="row wrow"><label>Название заказа<input class="inp t big" id="wName" value="${esc(named)}" placeholder="например, Кухня на Ахунбаева"></label>
-      <label>Заказчик<input class="inp t big" id="wOrder" value="${esc(P.order || '')}" placeholder="имя или телефон"></label>
-      <label>Готовность к<input class="inp t big" id="wDue" type="date" value="${esc(P.due || '')}"></label></div></div></div>
+      <div class="row wrow"><label>Название заказа<input class="inp t big" id="wName" value="${v('wName', named)}" placeholder="например, Кухня на Ахунбаева"></label>
+      <label>Заказчик<input class="inp t big" id="wOrder" value="${v('wOrder', P.order || '')}" placeholder="имя или телефон"></label>
+      <label>Готовность к<input class="inp t big" id="wDue" type="date" value="${v('wDue', P.due || '')}"></label></div></div></div>
     <div class="wstep"><span class="wn">2</span><div><h3>Материал</h3>
-      <div class="row wrow"><label class="grow">Материал${mats.length ? ' (начните печатать, чтобы найти в каталоге)' : ''}<input class="inp t big" id="wMat" list="wMats" placeholder="например, ЛДСП Белый" autocomplete="off">
+      <div class="row wrow"><label class="grow">Материал${mats.length ? ' (начните печатать, чтобы найти в каталоге)' : ''}<input class="inp t big" id="wMat" value="${v('wMat', '')}" list="wMats" placeholder="например, ЛДСП Белый" autocomplete="off">
         <datalist id="wMats">${mats.map(c => `<option value="${esc(matLabel(c))}">${c.L ? c.L + '×' + c.W : ''}${c.price ? ' · ' + fmt(c.price) + ' сом' : ''}</option>`).join('')}</datalist></label>
-      <label>Толщина, мм<input class="inp big" id="wT" type="number" value="16"></label>
-      <label>Лист, мм<span class="row"><input class="inp big" id="wL" type="number" value="2750" aria-label="Длина листа"> × <input class="inp big" id="wW" type="number" value="1830" aria-label="Ширина листа"></span></label>
-      <label>Цена листа, сом<input class="inp big" id="wP" type="number" placeholder="можно потом"></label></div>
+      <label>Толщина, мм<input class="inp big" id="wT" type="number" value="${v('wT', 16)}"></label>
+      <label>Лист, мм<span class="row"><input class="inp big" id="wL" type="number" value="${v('wL', 2750)}" aria-label="Длина листа"> × <input class="inp big" id="wW" type="number" value="${v('wW', 1830)}" aria-label="Ширина листа"></span></label>
+      <label>Цена листа, сом<input class="inp big" id="wP" type="number" value="${v('wP', '')}" placeholder="можно потом"></label></div>
       <div class="row wrow" role="radiogroup" aria-label="Где режем"><b>Где режем:</b>
         <label class="pick"><input type="radio" name="wOp" value="CS" ${w.op !== 'CN' ? 'checked' : ''}> на пиле</label>
         <label class="pick"><input type="radio" name="wOp" value="CN" ${w.op === 'CN' ? 'checked' : ''}> на ЧПУ (нестинг Excitech)</label></div></div></div>
@@ -291,8 +291,10 @@ function renderStart(main) {
   </section>`;
   const fill = () => { const c = mats.find(c => matLabel(c) === $('#wMat').value); if (!c) return;
     if (c.t) $('#wT').value = c.t; if (c.L) $('#wL').value = c.L; if (c.W) $('#wW').value = c.W; $('#wP').value = c.price ?? ''; };
-  $('#wMat').oninput = fill;
-  main.querySelectorAll('[name=wOp]').forEach(r => r.onchange = () => { ui.wiz = { op: r.value }; });
+  const keep = () => { const d = { op: main.querySelector('[name=wOp]:checked').value };
+    ['wName', 'wOrder', 'wDue', 'wMat', 'wT', 'wL', 'wW', 'wP'].forEach(k => { d[k] = $('#' + k).value; }); ui.wiz = d; const a = document.activeElement; if (a?.id && main.contains(a)) ui.wizFocus = a.id; };
+  main.querySelector('.start').addEventListener('input', keep); main.querySelector('.start').addEventListener('change', keep);
+  $('#wMat').addEventListener('input', () => { fill(); keep(); });
   $('#wGo').onclick = () => {
     const name = $('#wMat').value.trim(), c = mats.find(c => matLabel(c) === name) || {};
     const L = +$('#wL').value, W = +$('#wW').value, t = +$('#wT').value;
@@ -303,14 +305,16 @@ function renderStart(main) {
       if (!P.date) P.date = new Date().toISOString().slice(0, 10);
       const m = { id, name: c.name || name || 'ЛДСП', code: c.code || '', t, L, W, op, params: {} };
       const price = $('#wP').value; if (price !== '') m.price = +price; if (c.priceM2) m.priceM2 = c.priceM2;
-      P.materials.push(m); ui.op = 'm:' + id; ui.sub = 'parts'; ui.top = 'ops'; ui.wiz = null;
+      P.materials.push(m); ui.op = 'm:' + id; ui.sub = 'parts'; ui.top = 'ops'; ui.wiz = null; ui.wizFocus = '';
     });
     setTimeout(() => $('#qL')?.focus(), 60);
   };
   $('#wSkip').onclick = () => setUi({ skipStart: true });
   const ws = $('#wSite'); if (ws) ws.onclick = () => setUi({ screen: 'projects', lib: { ...(ui.lib || {}), folder: 'site' } });
   main.querySelectorAll('[data-ropen]').forEach(a => a.onclick = e => { e.preventDefault(); const Q = store.get('p_' + a.dataset.ropen, null); if (!Q) return toast('Заказ не найден в памяти браузера'); saveProject(P); openProject(Q); });
-  if (!named) $('#wName').focus();
+  const f = ui.wizFocus && main.querySelector('#' + ui.wizFocus);
+  if (f) { f.focus(); const val = f.value; f.value = ''; f.value = val; /* курсор в конец, и в числовом поле тоже */ }
+  else if (!named) $('#wName').focus();
 }
 
 /* Шаги заказа над таблицей: что сделано и что делать дальше. */
