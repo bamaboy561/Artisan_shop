@@ -279,3 +279,14 @@ details.more summary{list-style:none}details.more summary::-webkit-details-marke
 .hextra label{display:flex;flex-direction:column;gap:2px;font-size:.86em;color:var(--muted)}
 .hextra label.grow{flex:1;min-width:180px}.hextra label.grow .inp{width:100%}
 @media print{.steps{display:none}}
+/* Выбор из каталога с поиском */
+.pk{position:relative;width:100%}
+.pk .inp{width:100%}
+.pkl{position:absolute;z-index:20;left:0;right:0;top:calc(100% + 2px);max-height:340px;overflow:auto;background:var(--panel);border:1px solid var(--field-line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.16);min-width:280px}
+.pkh{padding:6px 10px;font-size:.82em;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;background:var(--head)}
+.pki{padding:7px 10px;cursor:pointer;border-top:1px solid var(--line-soft);display:flex;flex-direction:column;gap:1px}
+.pki b{font-weight:500;color:var(--ink)}
+.pki span{font-size:.86em;color:var(--muted)}
+.pki:hover,.pki.on{background:var(--sel)}
+.pkw{min-width:260px;flex:1;max-width:380px}
+.catbox .pk{max-width:520px}

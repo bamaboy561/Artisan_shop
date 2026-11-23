@@ -209,7 +209,7 @@ function saveProject(Q) {
   store.set('p_' + Q.uid, Q);
   store.set('projects', core.upsertMeta(libIndex(), core.projectMeta(Q)));
 }
-function openProject(Q) { P = { date: '', due: '', note: '', ...Q }; undo = []; redo = []; sel.clear(); ui.op = null; ui.sheet = 0; ui.screen = 'project'; ui.skipStart = false; ui.rel = false; ui.wiz = null; ui.wizFocus = ''; recalc(); clearTimeout(siteT); siteStatus(P.site ? 'Заявка с сайта ' + (P.site.number || '') : ''); if (P.site?.conflict) siteConflict(P.site.conflict); render(); }
+function openProject(Q) { P = { date: '', due: '', note: '', ...Q }; undo = []; redo = []; sel.clear(); ui.op = null; ui.sheet = 0; ui.screen = 'project'; ui.skipStart = false; ui.rel = false; ui.wiz = null; ui.wizFocus = ''; ui.wizPick = ''; recalc(); clearTimeout(siteT); siteStatus(P.site ? 'Заявка с сайта ' + (P.site.number || '') : ''); if (P.site?.conflict) siteConflict(P.site.conflict); render(); }
 /** Любое изменение проекта: запоминаем прежнее состояние для «Отменить», считаем заново, перерисовываем. */
 function change(fn) {
   undo.push(JSON.stringify(P)); if (undo.length > 60) undo.shift(); redo = [];
@@ -245,8 +245,7 @@ function renderHeader() {
   const fo = '<option value="">без папки</option>' + fl.map(f => `<option value="${esc(f)}">${esc(f)}</option>`).join('');
   if (hf.innerHTML !== fo) hf.innerHTML = fo;
   if (!P.status) P.status = core.STATUSES[0];
-  $('#hMore').onclick = () => { const x = $('#hExtra'), open = x.hidden; x.hidden = !open; $('#hMore').setAttribute('aria-expanded', open); $('#hMore').textContent = open ? 'Скрыть поля' : 'Ещё поля'; };
-document.querySelectorAll('[data-h]').forEach(el => { if (document.activeElement !== el) el.value = P[el.dataset.h] || ''; });
+  document.querySelectorAll('[data-h]').forEach(el => { if (document.activeElement !== el) el.value = P[el.dataset.h] || ''; });
 }
 function renderTotals() {
   $('#totals').innerHTML = `<div class="mh">Стоимость, сом</div>
@@ -271,8 +270,7 @@ function renderStart(main) {
       <label>Заказчик<input class="inp t big" id="wOrder" value="${v('wOrder', P.order || '')}" placeholder="имя или телефон"></label>
       <label>Готовность к<input class="inp t big" id="wDue" type="date" value="${v('wDue', P.due || '')}"></label></div></div></div>
     <div class="wstep"><span class="wn">2</span><div><h3>Материал</h3>
-      <div class="row wrow"><label class="grow">Материал${mats.length ? ' (начните печатать, чтобы найти в каталоге)' : ''}<input class="inp t big" id="wMat" value="${v('wMat', '')}" list="wMats" placeholder="например, ЛДСП Белый" autocomplete="off">
-        <datalist id="wMats">${mats.map(c => `<option value="${esc(matLabel(c))}">${c.L ? c.L + '×' + c.W : ''}${c.price ? ' · ' + fmt(c.price) + ' сом' : ''}</option>`).join('')}</datalist></label>
+      <div class="row wrow"><label class="grow">Материал${mats.length ? ' (поиск по названию, цвету, коду, толщине)' : ''}${pickerHtml('wMat', 'например, белый 16 или egger', w.wMat ?? '')}</label>
       <label>Толщина, мм<input class="inp big" id="wT" type="number" value="${v('wT', 16)}"></label>
       <label>Лист, мм<span class="row"><input class="inp big" id="wL" type="number" value="${v('wL', 2750)}" aria-label="Длина листа"> × <input class="inp big" id="wW" type="number" value="${v('wW', 1830)}" aria-label="Ширина листа"></span></label>
       <label>Цена листа, сом<input class="inp big" id="wP" type="number" value="${v('wP', '')}" placeholder="можно потом"></label></div>
@@ -289,14 +287,14 @@ function renderStart(main) {
     <button class="btn" id="wSkip">Пустой заказ (кромка, погонаж, комплектация)</button></div>
     ${recent.length ? `<h3 style="margin-top:14px">Продолжить заказ</h3><div class="tbl"><table><tbody>${recent.map(x => `<tr><td><a href="#" data-ropen="${esc(x.uid)}">${esc(x.name)}</a></td><td>${esc(x.order)}</td><td>${esc(x.status)}</td><td class="n">${fmt(x.parts)} дет.</td></tr>`).join('')}</tbody></table></div>` : ''}
   </section>`;
-  const fill = () => { const c = mats.find(c => matLabel(c) === $('#wMat').value); if (!c) return;
+  const fill = c => { if (!c) return;
     if (c.t) $('#wT').value = c.t; if (c.L) $('#wL').value = c.L; if (c.W) $('#wW').value = c.W; $('#wP').value = c.price ?? ''; };
   const keep = () => { const d = { op: main.querySelector('[name=wOp]:checked').value };
     ['wName', 'wOrder', 'wDue', 'wMat', 'wT', 'wL', 'wW', 'wP'].forEach(k => { d[k] = $('#' + k).value; }); ui.wiz = d; const a = document.activeElement; if (a?.id && main.contains(a)) ui.wizFocus = a.id; };
   main.querySelector('.start').addEventListener('input', keep); main.querySelector('.start').addEventListener('change', keep);
-  $('#wMat').addEventListener('input', () => { fill(); keep(); });
+  bindPicker('wMat', () => mats, 'materials', c => { $('#wMat').value = matLabel(c); fill(c); keep(); ui.wizPick = itemKey(c); $('#wT').focus(); });
   $('#wGo').onclick = () => {
-    const name = $('#wMat').value.trim(), c = mats.find(c => matLabel(c) === name) || {};
+    const name = $('#wMat').value.trim(), c = mats.find(x => itemKey(x) === ui.wizPick && matLabel(x) === name) || mats.find(x => matLabel(x) === name) || {};
     const L = +$('#wL').value, W = +$('#wW').value, t = +$('#wT').value;
     if (!(L > 0 && W > 0 && t > 0)) return toast('Укажите толщину и размер листа');
     const op = main.querySelector('[name=wOp]:checked').value, id = 'm' + Date.now();
@@ -305,7 +303,7 @@ function renderStart(main) {
       if (!P.date) P.date = new Date().toISOString().slice(0, 10);
       const m = { id, name: c.name || name || 'ЛДСП', code: c.code || '', t, L, W, op, params: {} };
       const price = $('#wP').value; if (price !== '') m.price = +price; else if (c.priceM2) m.priceM2 = c.priceM2; // цена за м² сильнее цены листа, поэтому берём её, только если цену листа не ввели
-      P.materials.push(m); ui.op = 'm:' + id; ui.sub = 'parts'; ui.top = 'ops'; ui.wiz = null; ui.wizFocus = '';
+      P.materials.push(m); ui.op = 'm:' + id; ui.sub = 'parts'; ui.top = 'ops'; ui.wiz = null; ui.wizFocus = ''; ui.wizPick = '';
     });
     setTimeout(() => $('#qL')?.focus(), 60);
   };
@@ -491,17 +489,73 @@ function pickList(kind) {
     : (siteCat.bands || []).map(x => ({ name: x.name, code: x.code, t: x.t, w: x.w, matPrice: x.price, site: 1 }));
   return [...own, ...extra];
 }
+/* --- Выбор материала или кромки с поиском: по словам из названия, коду, цвету и толщине; недавние сверху --- */
+const norm = x => String(x ?? '').toLowerCase().replace(/ё/g, 'е').replace(/э/g, 'е').replace(/,/g, '.');
+const LAT = { a: 'а', b: 'б', c: 'к', d: 'д', e: 'е', f: 'ф', g: 'г', h: 'х', i: 'и', j: 'дж', k: 'к', l: 'л', m: 'м', n: 'н', o: 'о', p: 'п', q: 'к', r: 'р', s: 'с', t: 'т', u: 'у', v: 'в', w: 'в', x: 'кс', y: 'и', z: 'з' };
+const cyr = x => x.replace(/[a-z]/g, ch => LAT[ch]); // «кроно» находит Kronospan, «егер» — Egger
+const itemKey = c => `${c.name}|${c.t ?? ''}|${c.code ?? ''}`;
+/** Все слова запроса должны найтись в строке позиции: «бел 16», «egger w980», «18 мм дуб». */
+function searchItems(list, q) {
+  const words = norm(q).split(/\s+/).filter(Boolean);
+  if (!words.length) return list;
+  return list.filter(c => { const hay = norm(`${c.name} ${c.code || ''} ${c.t ?? ''} ${c.t ?? ''}мм ${c.t ?? ''} мм ${c.L ? c.L + 'x' + c.W + ' ' + c.L + '×' + c.W : ''} ${c.w ? 'ширина ' + c.w : ''}`), hay2 = cyr(hay).replace(/(.)\1/g, '$1');
+    return words.every(w => {
+      // Число — это толщина, размер или код целиком («16» не должно находить код K160)
+      if (/^\d+(\.\d+)?(мм)?$/.test(w)) { const n = parseFloat(w); return +c.t === n || +c.L === n || +c.W === n || +c.w === n || norm(c.code) === w || norm(c.name).split(/[^0-9a-zа-я.]+/).includes(String(n)); }
+      return hay.includes(w) || hay2.includes(w.replace(/(.)\1/g, '$1'));
+    }); });
+}
+const recentKeys = kind => store.get('recent_' + kind, []);
+function rememberPick(kind, c) { store.set('recent_' + kind, [itemKey(c), ...recentKeys(kind).filter(k => k !== itemKey(c))].slice(0, 8)); }
+/** Поле поиска с выпадающим списком. Возвращает HTML; привязка — bindPicker с тем же id. */
+const pickerHtml = (id, ph, value = '') => `<div class="pk"><input class="inp t big" id="${id}" value="${esc(value)}" placeholder="${esc(ph)}" autocomplete="off" role="combobox" aria-expanded="false" aria-autocomplete="list"><div class="pkl" id="${id}L" role="listbox" hidden></div></div>`;
+function pickLine(c) {
+  const size = c.L ? `${c.L}×${c.W}` : c.w ? `ширина ${c.w}` : '', price = c.price ?? c.matPrice;
+  return `<b>${esc(c.name)}</b><span>${[c.t != null && !String(c.name).includes(c.t + ' мм') ? c.t + ' мм' : '', size, c.code ? 'код ' + esc(c.code) : '', price != null ? fmt(price) + ' сом' : '', c.site ? 'сайт' : ''].filter(Boolean).join(' · ')}</span>`;
+}
+function bindPicker(id, getList, kind, onPick) {
+  const inp = document.getElementById(id), box = document.getElementById(id + 'L'); if (!inp || !box) return;
+  let shown = [], cur = -1;
+  const draw = () => {
+    const list = getList(), q = inp.value.trim(), rec = recentKeys(kind);
+    let head = '';
+    if (!q) { const r = rec.map(k => list.find(c => itemKey(c) === k)).filter(Boolean); shown = [...r, ...list.filter(c => !r.includes(c))].slice(0, 60); head = r.length ? `<div class="pkh">Недавние</div>` : ''; 
+      if (r.length) { box.innerHTML = head + shown.map((c, i) => (i === r.length ? '<div class="pkh">Все</div>' : '') + `<div class="pki" role="option" data-i="${i}">${pickLine(c)}</div>`).join(''); }
+      else box.innerHTML = shown.map((c, i) => `<div class="pki" role="option" data-i="${i}">${pickLine(c)}</div>`).join('');
+    } else {
+      const found = searchItems(list, q); shown = found.slice(0, 60);
+      box.innerHTML = shown.length ? `<div class="pkh">Найдено: ${found.length}${found.length > 60 ? ', показаны первые 60, уточните' : ''}</div>` + shown.map((c, i) => `<div class="pki" role="option" data-i="${i}">${pickLine(c)}</div>`).join('')
+        : `<div class="pkh">Ничего не найдено. Попробуйте часть слова, код или толщину${kind === 'materials' ? ', или впишите свой материал' : ''}.</div>`;
+    }
+    if (!list.length) box.innerHTML = '<div class="pkh">Каталог пуст: добавьте материалы в «Каталоге материалов» или откройте программу на сайте.</div>';
+    cur = -1; box.hidden = false; inp.setAttribute('aria-expanded', 'true');
+  };
+  const close = () => { box.hidden = true; inp.setAttribute('aria-expanded', 'false'); };
+  const pick = i => { const c = shown[i]; if (!c) return; rememberPick(kind, c); close(); onPick(c); };
+  const mark = () => box.querySelectorAll('.pki').forEach((el, i) => { el.classList.toggle('on', i === cur); if (i === cur) el.scrollIntoView({ block: 'nearest' }); });
+  inp.addEventListener('focus', draw); inp.addEventListener('input', draw);
+  inp.addEventListener('blur', () => setTimeout(close, 150));
+  inp.addEventListener('keydown', e => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); if (box.hidden) draw(); cur = Math.min(cur + 1, shown.length - 1); mark(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); cur = Math.max(cur - 1, 0); mark(); }
+    else if (e.key === 'Enter' && !box.hidden && shown.length && (cur >= 0 || shown.length === 1)) { e.preventDefault(); e.stopPropagation(); pick(cur >= 0 ? cur : 0); }
+    else if (e.key === 'Escape') close();
+  });
+  box.addEventListener('mousedown', e => { const it = e.target.closest('.pki'); if (it) { e.preventDefault(); pick(+it.dataset.i); } });
+}
+
 function catalogBox(op) {
   const kind = op.m ? 'materials' : op.type === 'EL' ? 'bands' : null; if (!kind) return '';
   const list = pickList(kind);
-  return `<div class="catbox"><b>${kind === 'materials' ? 'Взять материал из каталога' : 'Взять кромку из каталога'}</b><div class="row"><select class="inp" id="catPick" aria-label="Взять из каталога"><option value="">— выберите —</option>${list.map((c, i) => `<option value="${i}">${c.site ? 'сайт · ' : ''}${esc(c.name)}${c.t && !String(c.name).includes(c.t + ' мм') ? ' ' + c.t + ' мм' : ''}${c.price ?? c.matPrice ? ' · ' + fmt(c.price ?? c.matPrice) + ' сом' : ''}</option>`).join('')}</select>
-    <button class="btn sm" id="catSave">Сохранить в каталог</button></div></div>`;
+  return `<div class="catbox"><b>${kind === 'materials' ? 'Взять материал из каталога' : 'Взять кромку из каталога'}</b>
+    ${pickerHtml('catPick', kind === 'materials' ? 'Поиск: название, цвет, код, толщина' : 'Поиск кромки: цвет, код, толщина')}
+    <div class="row"><span class="note">Найдено в каталоге: ${fmt(list.length)}. Размеры и цена подставятся сами.</span><button class="btn sm" id="catSave">Сохранить в свой каталог</button></div></div>`;
 }
 function bindCatalog(op) {
   const kind = op.m ? 'materials' : op.type === 'EL' ? 'bands' : null; if (!kind) return;
   const target = op.m || op.band;
   const keys = kind === 'materials' ? ['name', 'code', 't', 'L', 'W', 'price', 'priceM2'] : ['name', 'code', 't', 'w', 'matPrice', 'price'];
-  $('#catPick').onchange = e => { const c = pickList(kind)[+e.target.value]; if (!c) return; change(() => { keys.forEach(k => { if (c[k] != null && c[k] !== '') target[k] = c[k]; }); }); toast('Взято из каталога: ' + c.name); };
+  bindPicker('catPick', () => pickList(kind), kind, c => { change(() => { keys.forEach(k => { if (c[k] != null && c[k] !== '') target[k] = c[k]; }); }); toast('Взято из каталога: ' + c.name); });
   $('#catSave').onclick = () => { const c = {}; keys.forEach(k => { if (target[k] != null && target[k] !== '') c[k] = target[k]; });
     const i = catalog[kind].findIndex(x => x.name === c.name && (x.t ?? '') === (c.t ?? '')); if (i >= 0) catalog[kind][i] = c; else catalog[kind].push(c);
     store.set('catalog', catalog); toast('Сохранено в каталог'); render(); };
@@ -1090,9 +1144,10 @@ function renderProjects(main) {
 function renderStock(main) {
   const q = (ui.stockQ || '').trim().toLowerCase(), sel = stockSel;
   const known = new Map();
-  [...P.materials, ...(catalog.materials || []), ...(siteCat?.sheets || [])].forEach(m => { if (m?.name && m.t) known.set(core.matKey(m), { name: m.name, t: +m.t }); });
+  [...P.materials, ...(catalog.materials || []), ...(siteCat?.sheets || [])].forEach(m => { if (m?.name && m.t) known.set(core.matKey(m), { name: m.name, t: +m.t, code: m.code || '' }); });
   stock.forEach(s => known.set(s.mat, { name: s.name, t: s.t }));
-  const list = stock.filter(s => !q || `${s.name} ${s.t} ${s.place || ''} ${s.from || ''} ${s.note || ''}`.toLowerCase().includes(q))
+  const qw = norm(q).split(/\s+/).filter(Boolean);
+  const list = stock.filter(s => { const hay = norm(`${s.name} ${s.t} ${s.t}мм ${s.l}x${s.w} ${s.place || ''} ${s.from || ''} ${s.note || ''}`); return qw.every(w => hay.includes(w)); })
     .sort((a, b) => a.name.localeCompare(b.name, 'ru') || a.t - b.t || b.l * b.w - a.l * a.w);
   const groups = {}; list.forEach(s => { const g = groups[s.mat] = groups[s.mat] || { name: s.name, t: s.t, n: 0, a: 0 }; g.n++; g.a += s.l * s.w / 1e6; });
   const d = t => t ? new Date(t).toLocaleDateString('ru-RU') : '';
@@ -1102,8 +1157,7 @@ function renderStock(main) {
    <p class="note">Деловые остатки цеха. В раскрое они видны во вкладке «Листы и остатки» и заполняются раньше новых листов. ${stockShared ? 'Склад общий: что добавлено на одном компьютере, видно на всех.' : 'Общим для всех компьютеров склад становится, когда программа открыта на artisan.shop.kg/raskroy и вы вошли на сайт.'}</p>
    <h3>Добавить кусок</h3>
    <div class="row bar2 stockadd">
-     <input class="inp t" id="sMat" list="sMats" placeholder="Материал" aria-label="Материал" style="min-width:220px" value="${esc(ui.sMat || '')}">
-     <datalist id="sMats">${[...known.values()].map(m => `<option value="${esc(m.name)}">${m.t} мм</option>`).join('')}</datalist>
+     <div class="pkw">${pickerHtml('sMat', 'Материал: поиск по названию, цвету, коду', ui.sMat || '')}</div>
      <input class="inp" id="sT" type="number" step="0.1" placeholder="толщ." aria-label="Толщина" style="width:70px" value="${esc(ui.sT || '')}">
      <input class="inp" id="sL" type="number" placeholder="длина" aria-label="Длина" style="width:84px">
      <input class="inp" id="sW" type="number" placeholder="ширина" aria-label="Ширина" style="width:84px">
@@ -1121,8 +1175,8 @@ function renderStock(main) {
      <td><button class="btn xs" data-rm aria-label="Убрать остаток">✕</button></td></tr>`).join('')}
    </tbody></table></div>` : `<div class="empty">${stock.length ? 'Ничего не найдено.' : 'Склад пуст. Добавьте кусок выше или на вкладке «Раскрой» нажмите «Остатки раскроя на склад».'}</div>`}</section>`;
   const idOf = el => el.closest('tr').dataset.sid;
-  const matT = () => { const name = $('#sMat').value.trim(), hit = [...known.values()].find(m => m.name === name); if (hit) $('#sT').value = hit.t; };
-  $('#sMat').onchange = matT; $('#sT').onfocus = e => e.target.select();
+  bindPicker('sMat', () => [...known.values()], 'materials', c => { $('#sMat').value = c.name; $('#sT').value = c.t; $('#sL').focus(); });
+  $('#sT').onfocus = e => e.target.select();
   $('#sAdd').onclick = () => {
     const name = $('#sMat').value.trim(), t = +$('#sT').value, l = +$('#sL').value, w = +$('#sW').value, n = Math.max(1, Math.min(100, +$('#sN').value || 1));
     if (!name) return toast('Укажите материал'); if (!(t > 0)) return toast('Укажите толщину'); if (!(l > 0 && w > 0)) return toast('Укажите длину и ширину');
@@ -1164,13 +1218,13 @@ function renderCatalog(main) {
 /** Прайс сайта на экране каталога: только просмотр, править цены нужно на сайте. */
 function siteCatalogPanel() {
   if (!siteCat) return `<section class="panel"><h2>Прайс сайта</h2><p class="note">${siteState && !siteState.login ? 'Прайс сайта пока не загрузился.' : 'Плиты и кромки с ценами подтянутся с artisan.shop.kg, когда программа открыта на сайте и вы вошли.'}</p>${siteState && !siteState.login ? '<button class="btn sm" id="catReload">Загрузить с сайта</button>' : ''}</section>`;
-  const q = (ui.catQ || '').trim().toLowerCase(), hit = x => !q || `${x.name} ${x.code || ''}`.toLowerCase().includes(q);
+  const q = (ui.catQ || '').trim(), hit = x => !q || searchItems([x], q).length > 0;
   const sh = (siteCat.sheets || []).filter(hit), bd = (siteCat.bands || []).filter(hit), cap = 200;
   const when = siteCat.at ? new Date(siteCat.at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
   const rows = (list, f) => list.slice(0, cap).map(f).join('') + (list.length > cap ? `<tr><td colspan="6" class="note">и ещё ${list.length - cap}, уточните поиск</td></tr>` : '');
   return `<section class="panel"><div class="bar"><h2>Прайс сайта</h2><button class="btn sm" id="catReload">Обновить с сайта</button></div>
     <p class="note">Плит ${fmt(siteCat.sheets?.length || 0)}, кромок ${fmt(siteCat.bands?.length || 0)}${when ? `, загружено ${when}` : ''}. Эти позиции видны в операции во вкладке «Параметры» в списке «взять из каталога» с пометкой «сайт», а их цены идут в смету. Цены меняются на сайте, в админке товаров.</p>
-    <input class="inp t" id="catQ" placeholder="Поиск: название или код" value="${esc(ui.catQ || '')}" style="width:100%;max-width:420px;margin-bottom:8px" aria-label="Поиск по прайсу сайта">
+    <input class="inp t" id="catQ" placeholder="Поиск: название, цвет, код, толщина (например, белый 16)" value="${esc(ui.catQ || '')}" style="width:100%;max-width:420px;margin-bottom:8px" aria-label="Поиск по прайсу сайта">
     <h3>Плиты</h3><div class="tbl"><table><thead><tr><th>Наименование</th><th>Код</th><th class="r">Толщ.</th><th class="r">Длина</th><th class="r">Ширина</th><th class="r">Цена листа</th></tr></thead><tbody>
       ${rows(sh, x => `<tr><td>${esc(x.name)}</td><td>${esc(x.code || '')}</td><td class="n">${x.t ?? ''}</td><td class="n">${x.L ?? ''}</td><td class="n">${x.W ?? ''}</td><td class="n">${x.price != null ? fmt(x.price) : '—'}</td></tr>`) || '<tr><td colspan="6" class="empty">Не найдено.</td></tr>'}</tbody></table></div>
     <h3 style="margin-top:16px">Кромка</h3><div class="tbl"><table><thead><tr><th>Наименование</th><th>Код</th><th class="r">Толщ.</th><th class="r">Ширина</th><th class="r">Цена за м</th></tr></thead><tbody>
@@ -1501,6 +1555,7 @@ document.querySelectorAll('[data-act]').forEach(b => b.onclick = () => {
     if (!m) { m = { id: 'm' + Date.now(), name: 'Новый материал', code: '', t: 16, L: 2750, W: 1830, op: 'CS', params: {} }; change(() => { P.materials.push(m); }); }
     setUi({ screen: 'project', top: 'ops', op: 'm:' + m.id, sub: 'parts', paste: true }); setTimeout(() => $('#pasteText')?.focus(), 30); }
 });
+$('#hMore').onclick = () => { const x = $('#hExtra'), open = x.hidden; x.hidden = !open; $('#hMore').setAttribute('aria-expanded', open); $('#hMore').textContent = open ? 'Скрыть поля' : 'Ещё поля'; };
 document.querySelectorAll('[data-h]').forEach(el => el.addEventListener('change', () => change(() => { P[el.dataset.h] = el.value; })));
 document.addEventListener('keydown', e => {
   if (!(e.ctrlKey || e.metaKey) || ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) return;
