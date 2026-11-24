@@ -7,6 +7,7 @@ import {
 } from "@/features/cutting/labor-price";
 import {
   defaultSiteCuttingPrices,
+  drillHoleRate,
   isValidSitePrice,
   otherWorks,
   type OtherWorkKey,
@@ -263,9 +264,7 @@ function plural(count: number, forms: [string, string, string]) {
 }
 
 function holePrice(diameter: number, prices: Record<number, number>) {
-  // Ø4,9 и Ø5,1 в проектах — то же сверло Ø5.
-  const rounded = Math.round(diameter);
-  return Math.abs(diameter - rounded) <= 0.2 ? (prices[rounded] ?? null) : null;
+  return drillHoleRate(diameter, prices);
 }
 
 // Строки счёта. Без количества листов (или метража при выбранной кромке)
@@ -343,7 +342,8 @@ export function buildCuttingQuote(
     .sort((left, right) => left.diameter - right.diameter);
 
   for (const row of drillingRows) {
-    const rate = holePrice(row.diameter, price.drilling);
+    const hole = holePrice(row.diameter, price.drilling);
+    const rate = hole?.rate ?? null;
     const label = `Присадка Ø${numberFormatter.format(row.diameter)} мм`;
     const holes = `${row.holes} ${plural(row.holes, ["отверстие", "отверстия", "отверстий"])}`;
     if (rate === null) {
@@ -361,7 +361,10 @@ export function buildCuttingQuote(
     lines.push({
       key: `drill-${row.diameter}`,
       label,
-      detail: `${holes} × ${money(rate)}`,
+      detail:
+        hole && Math.abs(hole.base - row.diameter) > 0.2
+          ? `${holes} × ${money(rate)} (по цене Ø${numberFormatter.format(hole.base)})`
+          : `${holes} × ${money(rate)}`,
       amount: cents / 100,
     });
   }

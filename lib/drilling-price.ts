@@ -1,5 +1,6 @@
 import {
   defaultSiteCuttingPrices,
+  drillHoleRate,
   otherWorks,
   type OtherWorkKey,
   type OtherWorkPriceKey,
@@ -36,9 +37,7 @@ export function drillingHolePrice(
   diameter: number,
   prices: Record<number, number> = defaultSiteCuttingPrices.drilling,
 ) {
-  // Ø4,9 и Ø5,1 в проектах — то же сверло Ø5.
-  const rounded = Math.round(diameter);
-  return Math.abs(diameter - rounded) <= 0.2 ? (prices[rounded] ?? null) : null;
+  return drillHoleRate(diameter, prices)?.rate ?? null;
 }
 
 const diameterKey = (diameter: number) => Math.round(diameter * 10) / 10;
