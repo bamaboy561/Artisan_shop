@@ -52,115 +52,93 @@ export async function StorefrontBento({
 }) {
   const offers =
     buildCuttingSiteIncentive(await getSiteCuttingPrices())?.offers ?? [];
+  const sheet = offers[0];
+  const street = companyContacts.address.replace(/^г\. Бишкек, /, "");
   return (
-    <section
-      className={`${s.container} ${s.bento}`}
-      aria-label="Artisan в Бишкеке"
-    >
-      <div className={`${s.tile} ${s.heroTile}`}>
-        <div className={s.tileBody}>
-          <p className={s.tileTag}>
-            <i />
-            {companyContacts.hours} ·{" "}
-            {companyContacts.address.replace(/^г\. Бишкек, (ул\. )?/, "")}
-          </p>
-          <h1>ЛДСП, МДФ, фурнитура и распил в Бишкеке</h1>
+    <>
+      <section className={s.tsHero} aria-label="Artisan в Бишкеке">
+        <div className={s.tsHeroText}>
+          <h1>Материалы для мебели и распил ЛДСП в Бишкеке</h1>
           <p>
-            Соберите материалы, отправьте детали на распил и заберите готовое.
-            Без предоплаты на сайте.
+            ЛДСП, МДФ, столешницы и фурнитура со склада. Распилим по вашим
+            размерам и поклеим кромку, оплата при получении.
           </p>
-          <div className={s.heroActions}>
-            <Link href="/calculator" className={s.primaryButton}>
-              Рассчитать распил <ArrowRight size={19} />
+          {sheet && (
+            <p className={s.tsFact}>
+              <strong>
+                {sheet.now} {sheet.unit}
+              </strong>{" "}
+              распил листа, было {sheet.was}
+            </p>
+          )}
+          <div className={s.tsActions}>
+            <Link href="/calculator" className={s.tsButton}>
+              Рассчитать распил <ArrowRight size={18} />
             </Link>
-            <Link href="/catalog" className={s.ghostButton}>
-              Открыть каталог
+            <Link href="/catalog" className={s.tsGhost}>
+              Смотреть каталог
             </Link>
           </div>
-          {offers.length > 0 && (
-            <div className={s.offerPills}>
-              {offers.map((offer) => (
-                <Link key={offer.label} href="/calculator">
-                  <del>{offer.was}</del>
-                  <strong>{offer.now}</strong>
-                  <span>
-                    {offer.label}, {offer.unit}
-                  </span>
+        </div>
+        <div className={s.tsHeroPhoto}>
+          <Image
+            src="/storefront/interior-1.webp"
+            alt="Кухня из декоров Extravert"
+            fill
+            unoptimized
+            priority
+            sizes="55vw"
+            className={s.cover}
+          />
+        </div>
+      </section>
+      {promotion && (
+        <Link href={promotion.href} className={s.tsPromo}>
+          <span className={s.tsWrap}>
+            <strong>{promotionValue(promotion)}</strong> {promotion.name}
+            <ArrowUpRight size={18} />
+          </span>
+        </Link>
+      )}
+      <section className={s.tsVisit} aria-labelledby="visit-title">
+        <div className={s.tsWrap}>
+          <h2 id="visit-title">Приезжайте на склад</h2>
+          <p className={s.tsStreet}>{street}</p>
+          <dl className={s.tsVisitFacts}>
+            <div>
+              <dt>Часы</dt>
+              <dd>{companyContacts.hours.replace("-", "–")}</dd>
+            </div>
+            <div>
+              <dt>Телефон</dt>
+              <dd>
+                <a href={`tel:${companyContacts.phoneTel}`}>
+                  {companyContacts.phone}
+                </a>
+              </dd>
+            </div>
+            <div>
+              <dt>Оплата</dt>
+              <dd>При получении, без предоплаты на сайте</dd>
+            </div>
+          </dl>
+          <div className={s.tsDecor}>
+            <h3>Декоры по цвету</h3>
+            <div>
+              {swatches.map((swatch) => (
+                <Link
+                  key={swatch.query}
+                  href={`/catalog?q=${encodeURIComponent(swatch.query)}`}
+                  title={swatch.label}
+                >
+                  <i style={{ background: swatch.background }} />
+                  {swatch.label}
                 </Link>
               ))}
             </div>
-          )}
+          </div>
         </div>
-      </div>
-      <Link
-        href="/catalog?brand=extravert"
-        className={`${s.tile} ${s.imageTile}`}
-      >
-        <Image
-          src="/storefront/interior-1.webp"
-          alt="Кухня из декоров Extravert"
-          fill
-          unoptimized
-          priority
-          sizes="(max-width: 1150px) 50vw, 30vw"
-          className={s.tileImage}
-        />
-        <span className={s.tileShade} />
-        <span className={s.tileBody}>
-          <span className={s.tileTag}>
-            <i />
-            Декоры в интерьере
-          </span>
-          <h2>ЛДСП Extravert</h2>
-          <p>
-            Смотреть декоры <ArrowUpRight size={15} />
-          </p>
-        </span>
-      </Link>
-      {promotion ? (
-        <Link href={promotion.href} className={`${s.tile} ${s.promoTile}`}>
-          <span className={s.tileTag}>
-            <i />
-            {promotion.endsAt
-              ? `Акция до ${promotion.endsAt.toLocaleDateString("ru-RU", {
-                  day: "numeric",
-                  month: "long",
-                })}`
-              : "Акция"}
-          </span>
-          <span className={s.promoValue}>{promotionValue(promotion)}</span>
-          <strong>{promotion.name}</strong>
-          <span>{promotion.hrefLabel} →</span>
-        </Link>
-      ) : (
-        <Link href="/account" className={`${s.tile} ${s.promoTile}`}>
-          <span className={s.tileTag}>
-            <i />
-            Программа лояльности
-          </span>
-          <span className={s.promoValue}>Баллы</span>
-          <strong>за каждую покупку, ими можно оплатить часть заказа</strong>
-          <span>Узнать условия →</span>
-        </Link>
-      )}
-      <div className={`${s.tile} ${s.colorTile}`}>
-        <div>
-          <p className={s.eyebrow}>Подбор декора</p>
-          <h2>Выберите по цвету</h2>
-          <p>ЛДСП и МДФ нужного оттенка в одно касание</p>
-        </div>
-        <div className={s.swatches}>
-          {swatches.map((swatch) => (
-            <Link
-              key={swatch.query}
-              href={`/catalog?q=${encodeURIComponent(swatch.query)}`}
-            >
-              <i style={{ background: swatch.background }} />
-              {swatch.label}
-            </Link>
-          ))}
-        </div>
-      </div>
-    </section>
+      </section>
+    </>
   );
 }

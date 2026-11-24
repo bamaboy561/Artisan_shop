@@ -1,15 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import {
-  ArrowRight,
-  ArrowUpRight,
-  Drill,
-  Gift,
-  MapPin,
-  Ruler,
-  Scissors,
-  Wallet,
-} from "lucide-react";
+import { ArrowRight, ArrowUpRight } from "lucide-react";
 import { ProductImage } from "@/components/catalog/product-image";
 import { getBrandProfiles } from "@/features/brands/data";
 import {
@@ -40,213 +31,110 @@ export async function StorefrontHome() {
   return (
     <>
       <StorefrontBento promotion={promotions[0]} />
-      <ul
-        className={`${s.container} ${s.trustStrip}`}
-        aria-label="Почему Artisan"
-      >
-        <li>
-          <Wallet size={20} />
-          <span>
-            <strong>Оплата при получении</strong>
-            Без предоплаты на сайте
-          </span>
-        </li>
-        <li>
-          <Scissors size={20} />
-          <span>
-            <strong>Распил и кромление</strong>
-            По вашим размерам
-          </span>
-        </li>
-        <li>
-          <MapPin size={20} />
-          <span>
-            <strong>Самовывоз</strong>
-            {companyContacts.address.replace(/^г\. /, "")}
-          </span>
-        </li>
-        <li>
-          <Gift size={20} />
-          <span>
-            <strong>Бонусы</strong>
-            Баллы за каждую покупку
-          </span>
-        </li>
-      </ul>
-      {promotional.length > 0 && (
-        <section className={`${s.section} ${s.container}`}>
-          <div className={s.sectionHeading}>
-            <div>
-              <p className={s.eyebrow}>Выгодно сейчас</p>
-              <h2>Акции</h2>
-            </div>
+      <section className={s.tsSection} aria-labelledby="offer-title">
+        <div className={s.tsWrap}>
+          <div className={s.tsHead}>
+            <h2 id="offer-title">Что есть на складе</h2>
+            <Link href="/catalog" className={s.tsLink}>
+              Весь каталог <ArrowUpRight size={18} />
+            </Link>
           </div>
-          <div className={s.homeProducts}>
-            {promotional.map((product, index) => (
-              <StorefrontCard
-                key={product.slug}
-                product={product}
-                eager={index < 2}
-                isFavorite={favorites.has(product.slug)}
-                next="/"
-              />
+          <div className={s.tsCats}>
+            {categories.map((category, index) => (
+              <Link key={category.slug} href={`/catalog/${category.slug}`}>
+                <span className={s.tsPhoto}>
+                  <ProductImage
+                    src={category.coverImage}
+                    alt={category.name}
+                    fallbackLabel={category.name}
+                    fill
+                    sizes="(max-width: 700px) 100vw, 33vw"
+                    loading={index < 3 ? "eager" : undefined}
+                    className={s.cover}
+                  />
+                </span>
+                <strong>{category.name}</strong>
+                <span>{category.summary}</span>
+              </Link>
             ))}
           </div>
-        </section>
-      )}
-      <section className={`${s.section} ${s.container}`}>
-        <div className={s.sectionHeading}>
-          <div>
-            <p className={s.eyebrow}>Всё начинается с материала</p>
-            <h2>Основа красивой мебели</h2>
-          </div>
-          <Link href="/catalog" className={s.textLink}>
-            Весь каталог <ArrowUpRight size={19} />
-          </Link>
-        </div>
-        <div className={s.categoryGrid}>
-          {categories.map((category, index) => (
-            <Link
-              key={category.slug}
-              href={`/catalog/${category.slug}`}
-              className={s.categoryTile}
-            >
-              <div>
-                <ProductImage
-                  src={category.coverImage}
-                  alt={category.name}
-                  fallbackLabel={category.name}
-                  fill
-                  sizes="(max-width: 600px) 50vw, 25vw"
-                  loading={index < 4 ? "eager" : undefined}
-                  className={s.cover}
-                />
-              </div>
-              <h3>
-                {category.name}
-                <ArrowUpRight size={20} />
-              </h3>
-              <p>{category.summary}</p>
-            </Link>
-          ))}
         </div>
       </section>
-      {products.length > 0 && (
-        <section className={s.collectionBand}>
-          <div className={`${s.container} ${s.section}`}>
-            <div className={s.sectionHeading}>
-              <div>
-                <p className={s.eyebrow}>Для вашего проекта</p>
-                <h2>Материалы и детали</h2>
-              </div>
-              <Link href="/catalog" className={s.textLink}>
-                Смотреть всё <ArrowUpRight size={19} />
+      {(promotional.length > 0 || products.length > 0) && (
+        <section className={s.tsSection} aria-labelledby="goods-title">
+          <div className={s.tsWrap}>
+            <div className={s.tsHead}>
+              <h2 id="goods-title">
+                {promotional.length > 0 ? "Акции" : "Часто берут"}
+              </h2>
+              <Link href="/catalog" className={s.tsLink}>
+                Смотреть всё <ArrowUpRight size={18} />
               </Link>
             </div>
             <div className={s.homeProducts}>
-              {products.map((product) => (
-                <StorefrontCard
-                  key={product.slug}
-                  product={product}
-                  isFavorite={favorites.has(product.slug)}
-                  next="/"
-                />
-              ))}
+              {(promotional.length > 0 ? promotional : products).map(
+                (product, index) => (
+                  <StorefrontCard
+                    key={product.slug}
+                    product={product}
+                    eager={index < 2}
+                    isFavorite={favorites.has(product.slug)}
+                    next="/"
+                  />
+                ),
+              )}
             </div>
+            <p className={s.tsBrands}>
+              {brands.map((brand, index) => (
+                <span key={brand.slug}>
+                  <Link href={brand.brandPageHref}>{brand.name}</Link>
+                  {index < brands.length - 1 && ", "}
+                </span>
+              ))}
+            </p>
           </div>
         </section>
       )}
-      <section id="brands" className={`${s.container} ${s.section}`}>
-        <div className={s.sectionHeading}>
-          <div>
-            <p className={s.eyebrow}>Партнёры Artisan</p>
-            <h2>Имена, за которыми качество</h2>
-          </div>
-          <Link href="/brands" className={s.textLink}>
-            Все бренды <ArrowUpRight size={19} />
+      <section id="services" className={s.tsWorkshop}>
+        <div className={s.tsWorkshopPhoto}>
+          <Image
+            src="/storefront/interior-2.webp"
+            alt="Шкаф из ЛДСП с распилом и кромкой Artisan"
+            fill
+            unoptimized
+            sizes="50vw"
+            className={s.cover}
+          />
+        </div>
+        <div className={s.tsWorkshopText}>
+          <h2>Распил, кромка и присадка в своём цехе</h2>
+          <p>
+            Пилим на HOMAG и ALTENDORF, кромку клеим на PUR-клей. Пришлите
+            размеры деталей или файл из Базиса.
+          </p>
+          <ul>
+            <li>Распил</li>
+            <li>Кромление</li>
+            <li>Присадка</li>
+            <li>Фрезеровка</li>
+          </ul>
+          <Link href="/calculator" className={s.tsButton}>
+            Рассчитать распил <ArrowRight size={18} />
           </Link>
         </div>
-        <div className={s.brandGrid}>
-          {brands.map((brand) => (
-            <Link
-              key={brand.slug}
-              href={brand.brandPageHref}
-              title={`Товары ${brand.name}`}
-            >
-              {brand.logoUrl ? (
-                <ProductImage
-                  src={
-                    brand.slug === "albero" &&
-                    brand.logoUrl === "/brands/albero-logo.png"
-                      ? "/storefront/albero.webp"
-                      : brand.logoUrl
-                  }
-                  alt={brand.name}
-                  fallbackLabel={brand.name}
-                  width={180}
-                  height={45}
-                />
-              ) : (
-                <span>{brand.name}</span>
-              )}
-              <ArrowUpRight size={16} />
-            </Link>
-          ))}
-        </div>
       </section>
-      <section id="services" className={s.serviceBand}>
-        <div className={`${s.container} ${s.serviceGrid}`}>
-          <div className={s.serviceVisual}>
-            <Image
-              src="/storefront/interior-2.webp"
-              alt="Мебель из декоров Extravert"
-              fill
-              unoptimized
-              sizes="(max-width: 700px) 100vw, 50vw"
-              className={s.cover}
-            />
-          </div>
-          <div className={s.serviceText}>
-            <p className={s.eyebrow}>От замысла к готовой детали</p>
-            <h2>
-              Ваш материал.
-              <br />
-              Наша точность.
-            </h2>
-            <p>Распил, кромление и присадка для вашего проекта.</p>
-            <div className={s.serviceSteps}>
-              <span>
-                <Scissors size={22} />
-                Распил
-              </span>
-              <span>
-                <Ruler size={22} />
-                Кромление
-              </span>
-              <span>
-                <Drill size={22} />
-                Присадка
-              </span>
-            </div>
-            <Link href="/calculator" className={s.lightButton}>
-              Рассчитать распил <ArrowUpRight size={21} />
-            </Link>
-          </div>
+      <section className={s.tsClose}>
+        <div className={s.tsWrap}>
+          <h2>Не нашли нужный декор? Спросите в WhatsApp</h2>
+          <a
+            href={companyContacts.whatsapp}
+            target="_blank"
+            rel="noreferrer"
+            className={s.tsButton}
+          >
+            Написать в WhatsApp <ArrowRight size={18} />
+          </a>
         </div>
-      </section>
-      <section className={`${s.container} ${s.contactBand}`}>
-        <div>
-          <p className={s.eyebrow}>Вместе найдём нужное</p>
-          <h2>Обсудим ваш проект?</h2>
-        </div>
-        <a
-          href={companyContacts.whatsapp}
-          target="_blank"
-          rel="noreferrer"
-          className={s.primaryButton}
-        >
-          Связаться с нами <ArrowRight size={21} />
-        </a>
       </section>
     </>
   );
