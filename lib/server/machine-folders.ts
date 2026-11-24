@@ -452,87 +452,95 @@ async function autoAdvance(input: {
     },
   });
   for (const request of requests) {
-    let from: CuttingStage | null = null;
-    let to: CuttingStage | null = null;
-    let machine = "";
-    const stage = request.cuttingStage;
-    if (
-      input.started.has(request.id) &&
-      (stage === null || stage === CuttingStage.ACCEPTED)
-    ) {
-      from = stage;
-      to = CuttingStage.CUTTING;
-      machine = input.started.get(request.id)!;
-    } else if (
-      input.finished.has(request.id) &&
-      stage === CuttingStage.CUTTING &&
-      !input.started.has(request.id)
-    ) {
-      const stillThere = await db.productionMachineFile.count({
-        where: {
-          requestId: request.id,
-          removedAt: null,
-          folderId: { in: cuttingFolders },
-        },
+    // До двух шагов за один отчёт: если в одном снимке ушли и последние файлы
+    // пилы, и файлы присадки, заказ проходит «Распил → Кромка → Готово».
+    let stage = request.cuttingStage;
+    let status = request.status;
+    let pickupCell = request.cuttingPickupCell;
+    for (let step = 0; step < 2; step += 1) {
+      let to: CuttingStage | null = null;
+      let machine = "";
+      if (
+        input.started.has(request.id) &&
+        (stage === null || stage === CuttingStage.ACCEPTED)
+      ) {
+        to = CuttingStage.CUTTING;
+        machine = input.started.get(request.id)!;
+      } else if (
+        input.finished.has(request.id) &&
+        stage === CuttingStage.CUTTING &&
+        !input.started.has(request.id)
+      ) {
+        const stillThere = await db.productionMachineFile.count({
+          where: {
+            requestId: request.id,
+            removedAt: null,
+            folderId: { in: cuttingFolders },
+          },
+        });
+        if (stillThere) break;
+        to = CuttingStage.EDGING;
+        machine = input.finished.get(request.id)!;
+      } else if (
+        input.drilled.has(request.id) &&
+        (stage === CuttingStage.EDGING || stage === CuttingStage.DRILLING)
+      ) {
+        // Присадка — последняя операция: файл сняли со станка, значит готово.
+        // С «Кромки» тоже: оператор кромки мог не нажать «На присадку».
+        const stillThere = await db.productionMachineFile.count({
+          where: {
+            requestId: request.id,
+            removedAt: null,
+            folderId: { in: drillingFolders },
+          },
+        });
+        if (stillThere) break;
+        to = CuttingStage.READY_FOR_PICKUP;
+        machine = input.drilled.get(request.id)!;
+      }
+      if (!to) break;
+      const from = stage;
+      const updated = await updateRequestCuttingProgress({
+        requestId: request.id,
+        stage: to,
+        expectedStage: from,
       });
-      if (stillThere) continue;
-      from = stage;
-      to = CuttingStage.EDGING;
-      machine = input.finished.get(request.id)!;
-    } else if (
-      input.drilled.has(request.id) &&
-      (stage === CuttingStage.EDGING || stage === CuttingStage.DRILLING)
-    ) {
-      // Присадка — последняя операция: файл сняли со станка, значит готово.
-      // С «Кромки» тоже: оператор кромки мог не нажать «На присадку».
-      const stillThere = await db.productionMachineFile.count({
-        where: {
-          requestId: request.id,
-          removedAt: null,
-          folderId: { in: drillingFolders },
-        },
+      if (!updated) break;
+      await logOperationEvent({
+        entityType: "request",
+        entityId: request.id,
+        eventType: "cutting_stage",
+        title: `Распил: ${cuttingStageLabels[to]}`,
+        description:
+          to === CuttingStage.CUTTING
+            ? `Файл передан на станок ${machine} (GibLab).`
+            : to === CuttingStage.READY_FOR_PICKUP
+              ? `Файл снят со станка ${machine}: присадка сделана. Ячейка выдачи пока не указана.`
+              : `Файл снят со станка ${machine}: распил закончен.`,
+        fromStatus: from,
+        toStatus: to,
+        isVisibleToClient: true,
+        actorName: `Станок ${machine}`,
       });
-      if (stillThere) continue;
-      from = stage;
-      to = CuttingStage.READY_FOR_PICKUP;
-      machine = input.drilled.get(request.id)!;
+      lines.push(
+        `➡️ ${request.number ?? request.id.slice(0, 8)}: ${cuttingStageLabels[to]} (автоматически)`,
+      );
+      // Те же уведомления, что при нажатии кнопки: клиенту и в «Распил».
+      await syncRequestById(request.id, {
+        previousStatus: status,
+        previousCuttingStage: from,
+        previousCuttingPickupCell: pickupCell,
+      }).catch((error) =>
+        console.error("[machine-folders] request sync failed", error),
+      );
+      stage = to;
+      status = updated.status;
+      pickupCell = updated.cuttingPickupCell;
     }
-    if (!to) continue;
-    const updated = await updateRequestCuttingProgress({
-      requestId: request.id,
-      stage: to,
-      expectedStage: from,
-    });
-    if (!updated) continue;
-    await logOperationEvent({
-      entityType: "request",
-      entityId: request.id,
-      eventType: "cutting_stage",
-      title: `Распил: ${cuttingStageLabels[to]}`,
-      description:
-        to === CuttingStage.CUTTING
-          ? `Файл передан на станок ${machine} (GibLab).`
-          : to === CuttingStage.READY_FOR_PICKUP
-            ? `Файл снят со станка ${machine}: присадка сделана. Ячейка выдачи пока не указана.`
-            : `Файл снят со станка ${machine}: распил закончен.`,
-      fromStatus: from,
-      toStatus: to,
-      isVisibleToClient: true,
-      actorName: `Станок ${machine}`,
-    });
-    lines.push(
-      `➡️ ${request.number ?? request.id.slice(0, 8)}: ${cuttingStageLabels[to]} (автоматически)`,
-    );
-    // Те же уведомления, что при нажатии кнопки: клиенту и в «Распил».
-    await syncRequestById(request.id, {
-      previousStatus: request.status,
-      previousCuttingStage: from,
-      previousCuttingPickupCell: request.cuttingPickupCell,
-    }).catch((error) =>
-      console.error("[machine-folders] request sync failed", error),
-    );
-    revalidatePath(`/admin/production/${request.id}`);
-    revalidatePath(`/admin/requests/${request.id}`);
+    if (stage !== request.cuttingStage) {
+      revalidatePath(`/admin/production/${request.id}`);
+      revalidatePath(`/admin/requests/${request.id}`);
+    }
   }
   if (lines.length) {
     revalidatePath("/admin/production");
