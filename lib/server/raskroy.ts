@@ -3,7 +3,7 @@ import "server-only";
 import { RequestStatus, RequestType } from "@/generated/prisma";
 import { getDb } from "@/lib/db";
 import { gibLabOrderFileName } from "@/features/production/giblab-orders";
-import { buildContent } from "@/lib/server/giblab-orders";
+import { buildContent, getRequestBazisCode } from "@/lib/server/giblab-orders";
 import { applyRequestCuttingDetails } from "@/lib/server/request-inbox";
 
 // Программа раскроя цеха (/raskroy): заявки на распил открываются в ней
@@ -122,7 +122,9 @@ export async function getRaskroyOrder(id: string) {
       productionComment: true,
       createdAt: true,
       productionPlan: { select: { dueDate: true } },
-      files: { select: { fileName: true, fileUrl: true, createdAt: true } },
+      files: {
+        select: { id: true, fileName: true, fileUrl: true, createdAt: true },
+      },
     },
   });
   if (!r) return null;
@@ -162,6 +164,8 @@ export async function getRaskroyOrder(id: string) {
     id: r.id,
     contactName: r.contactName,
     contactPhone: r.contactPhone,
+    // Код для QR «СБОРКА», как в имени файла заказа GibLab.
+    code: (await getRequestBazisCode(r.id, r.files))?.code,
   }).replace(/\.project$/i, "");
   const { bytes, source } = await buildContent(
     name,
