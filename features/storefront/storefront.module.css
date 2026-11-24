@@ -3913,3 +3913,380 @@
     font-size: 13px;
   }
 }
+
+/* Смелый вариант главной 2026-11-24: первый экран на всю ширину,
+   крупные разделы с фото, бренды строкой, появление блоков при прокрутке. */
+.stage {
+  position: relative;
+  margin-top: 20px;
+  min-height: min(78svh, 720px);
+  border-radius: var(--ws-radius);
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  color: white;
+  isolation: isolate;
+}
+.stageMedia {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+}
+.stageMedia img {
+  animation: stageZoom 1800ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.stageMedia::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(
+      90deg,
+      #17201cf2 0%,
+      #17201cc7 38%,
+      #17201c33 70%,
+      #17201c00 100%
+    ),
+    linear-gradient(0deg, #17201ce6 0%, #17201c00 38%);
+}
+.stageBody {
+  align-self: center;
+  max-width: 640px;
+  padding: 64px 56px 32px;
+  animation: stageRise 900ms 150ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.root .stageBody h1 {
+  font-size: clamp(40px, 5.6vw, 76px);
+  line-height: 1.02;
+  font-weight: 800;
+  letter-spacing: -0.035em;
+}
+.stageBody p {
+  margin-top: 22px;
+  max-width: 470px;
+  font-size: 17px;
+  line-height: 1.6;
+  color: #e3e9e5;
+}
+.stageActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px 28px;
+  margin-top: 34px;
+}
+.stageLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  border-bottom: 1px solid #ffffff66;
+  padding-block: 4px;
+}
+.stageLink:hover {
+  border-color: white;
+}
+.stageFacts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-top: 1px solid #ffffff2e;
+  margin: 0 56px;
+  animation: stageRise 900ms 350ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.stageFacts li {
+  padding: 22px 20px 26px 0;
+}
+.stageFacts strong {
+  display: block;
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.stageFacts small {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+.stageFacts span {
+  display: block;
+  margin-top: 6px;
+  font-size: 13px;
+  color: #c9d3cd;
+}
+.stageFacts del {
+  margin-left: 4px;
+  opacity: 0.7;
+}
+.promoStrip {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 12px;
+  padding: 16px 22px;
+  border-radius: var(--ws-radius-sm);
+  background: var(--pv-accent);
+  color: white;
+  font-weight: 600;
+}
+.promoStrip strong {
+  font-size: 20px;
+  font-weight: 800;
+}
+.promoStrip svg {
+  margin-left: auto;
+}
+.swatchBand {
+  display: flex;
+  align-items: center;
+  gap: 40px;
+  padding-block: 48px 8px;
+}
+.root .swatchBand h2 {
+  flex: 0 0 auto;
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1.15;
+  max-width: 220px;
+}
+.swatchBand .swatches {
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+}
+.swatchBand .swatches i {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+}
+
+/* Разделы — крупные фото с подписью поверх */
+.root .categoryTile {
+  position: relative;
+  display: block;
+  border-radius: var(--ws-radius);
+  overflow: hidden;
+  background: var(--ws-forest);
+  color: white;
+  padding: 0;
+}
+.root .categoryTile > div {
+  aspect-ratio: 4 / 3.4;
+  border-radius: 0;
+}
+.root .categoryTile > div::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(0deg, #17201ccc 0%, #17201c00 55%);
+}
+.root .categoryTile img {
+  transition: transform 700ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.root .categoryTile:hover img {
+  transform: scale(1.06);
+}
+.root .categoryTile h3 {
+  position: absolute;
+  left: 24px;
+  bottom: 44px;
+  margin: 0;
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.root .categoryTile p {
+  position: absolute;
+  left: 24px;
+  right: 24px;
+  bottom: 20px;
+  margin: 0;
+  color: #dfe6e2;
+  font-size: 13px;
+}
+.root .sectionHeading h2 {
+  font-size: clamp(28px, 3.2vw, 44px);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+.root .section {
+  padding-block: 72px 0;
+}
+
+/* Бренды — спокойной строкой, без плиток */
+.brandRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 18px 48px;
+  padding-block: 8px;
+}
+.brandRow a {
+  color: #8a867c;
+  transition: color 200ms ease;
+}
+.brandRow a:hover {
+  color: var(--pv-ink);
+}
+.brandRow span {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+.brandRow img {
+  height: 32px;
+  width: auto;
+  object-fit: contain;
+  filter: grayscale(1) opacity(0.6);
+  transition: filter 200ms ease;
+}
+.brandRow a:hover img {
+  filter: none;
+}
+.root .serviceBand {
+  border-radius: var(--ws-radius);
+}
+
+@keyframes stageZoom {
+  from {
+    transform: scale(1.08);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+@keyframes stageRise {
+  from {
+    opacity: 0;
+    transform: translateY(28px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes revealUp {
+  from {
+    opacity: 0;
+    transform: translateY(48px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .reveal {
+      animation: revealUp linear both;
+      animation-timeline: view();
+      animation-range: entry 5% entry 45%;
+    }
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .stageMedia img,
+  .stageBody,
+  .stageFacts {
+    animation: none;
+  }
+}
+
+@media (max-width: 850px) {
+  .stage {
+    min-height: 0;
+    margin-top: 12px;
+  }
+  .stageMedia::after {
+    background: linear-gradient(
+      0deg,
+      #17201cf5 0%,
+      #17201cd9 55%,
+      #17201c4d 100%
+    );
+  }
+  .stageBody {
+    padding: 150px 22px 20px;
+  }
+  .stageBody p {
+    font-size: 15px;
+  }
+  .stageActions .primaryButton {
+    width: 100%;
+    justify-content: center;
+  }
+  .stageFacts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin: 0 22px;
+  }
+  .stageFacts li {
+    padding: 16px 10px 16px 0;
+  }
+  .stageFacts strong {
+    font-size: 21px;
+  }
+  .swatchBand {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 18px;
+    padding-block: 32px 0;
+  }
+  .root .swatchBand h2 {
+    max-width: none;
+    font-size: 21px;
+  }
+  .swatchBand .swatches {
+    display: flex;
+    width: 100%;
+    overflow-x: auto;
+    gap: 14px;
+    padding-bottom: 6px;
+    scrollbar-width: none;
+  }
+  .swatchBand .swatches a {
+    flex: 0 0 64px;
+  }
+  .root .section {
+    padding-block: 48px 0;
+  }
+  .root .categoryTile h3 {
+    font-size: 20px;
+    left: 16px;
+    bottom: 36px;
+  }
+  .root .categoryTile p {
+    left: 16px;
+    right: 16px;
+    bottom: 14px;
+    font-size: 12px;
+  }
+  .brandRow {
+    gap: 14px 28px;
+  }
+  .brandRow span {
+    font-size: 18px;
+  }
+  .brandRow img {
+    height: 24px;
+  }
+}
+.root .serviceBand {
+  margin-top: 72px;
+}
+@media (max-width: 850px) {
+  .root .serviceBand {
+    margin-top: 48px;
+  }
+}
+@media (max-width: 600px) {
+  .root .categoryGrid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .root .categoryTile > div {
+    aspect-ratio: 16 / 9;
+  }
+  .root .categoryTile h3 {
+    font-size: 24px;
+  }
+}

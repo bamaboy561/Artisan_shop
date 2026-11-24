@@ -52,94 +52,82 @@ export async function StorefrontBento({
 }) {
   const offers =
     buildCuttingSiteIncentive(await getSiteCuttingPrices())?.offers ?? [];
+  const address = companyContacts.address.replace(/^г\. Бишкек, (ул\. )?/, "");
   return (
-    <section
-      className={`${s.container} ${s.bento}`}
-      aria-label="Artisan в Бишкеке"
-    >
-      <div className={`${s.tile} ${s.heroTile}`}>
-        <div className={s.tileBody}>
-          <p className={s.tileTag}>
-            <i />
-            {companyContacts.hours} ·{" "}
-            {companyContacts.address.replace(/^г\. Бишкек, (ул\. )?/, "")}
-          </p>
-          <h1>ЛДСП, МДФ, фурнитура и&nbsp;распил в&nbsp;Бишкеке</h1>
+    <>
+      <section
+        className={`${s.container} ${s.stage}`}
+        aria-label="Artisan в Бишкеке"
+      >
+        <div className={s.stageMedia}>
+          <Image
+            src="/storefront/interior-1.webp"
+            alt="Кухня из декоров Extravert"
+            fill
+            unoptimized
+            priority
+            sizes="100vw"
+            className={s.cover}
+          />
+        </div>
+        <div className={s.stageBody}>
+          <h1>ЛДСП, фурнитура и&nbsp;распил в&nbsp;Бишкеке</h1>
           <p>
-            Соберите материалы, отправьте детали на распил и заберите готовое.
-            Без предоплаты на сайте.
+            Подберите декор, пришлите размеры деталей и&nbsp;заберите готовый
+            раскрой на {address}. Оплата при получении.
           </p>
-          <div className={s.heroActions}>
+          <div className={s.stageActions}>
             <Link href="/calculator" className={s.primaryButton}>
               Рассчитать распил <ArrowRight size={19} />
             </Link>
-            <Link href="/catalog" className={s.ghostButton}>
-              Открыть каталог
+            <Link href="/catalog" className={s.stageLink}>
+              Каталог материалов <ArrowUpRight size={17} />
             </Link>
           </div>
-          {offers.length > 0 && (
-            <div className={s.offerPills}>
-              {offers.map((offer) => (
-                <Link key={offer.label} href="/calculator">
-                  <del>{offer.was}</del>
-                  <strong>{offer.now}</strong>
-                  <span>
-                    {offer.label}, {offer.unit}
-                  </span>
-                </Link>
-              ))}
-            </div>
-          )}
         </div>
-      </div>
-      <Link
-        href="/catalog?brand=extravert"
-        className={`${s.tile} ${s.imageTile}`}
-      >
-        <Image
-          src="/storefront/interior-1.webp"
-          alt="Кухня из декоров Extravert"
-          fill
-          unoptimized
-          priority
-          sizes="(max-width: 1150px) 50vw, 30vw"
-          className={s.tileImage}
-        />
-        <span className={s.tileShade} />
-        <span className={s.tileBody}>
-          <h2>ЛДСП Extravert</h2>
-          <p>
-            Смотреть декоры <ArrowUpRight size={15} />
-          </p>
-        </span>
-      </Link>
-      {promotion ? (
-        <Link href={promotion.href} className={`${s.tile} ${s.promoTile}`}>
-          <span className={s.tileTag}>
-            <i />
-            {promotion.endsAt
-              ? `Акция до ${promotion.endsAt.toLocaleDateString("ru-RU", {
-                  day: "numeric",
-                  month: "long",
-                })}`
-              : "Акция"}
+        <ul className={s.stageFacts}>
+          {offers.map((offer) => (
+            <li key={offer.label}>
+              <strong>
+                {offer.now} <small>{offer.unit}</small>
+              </strong>
+              <span>
+                {offer.label} <del>{offer.was}</del>
+              </span>
+            </li>
+          ))}
+          <li>
+            <strong>0 сом</strong>
+            <span>предоплаты на сайте</span>
+          </li>
+          <li>
+            <strong>{companyContacts.hours.replace(/^Пн-Пт /, "")}</strong>
+            <span>Пн–Пт, {address}</span>
+          </li>
+        </ul>
+      </section>
+      {promotion && (
+        <Link
+          href={promotion.href}
+          className={`${s.container} ${s.promoStrip}`}
+        >
+          <strong>{promotionValue(promotion)}</strong>
+          <span>
+            {promotion.name}
+            {promotion.endsAt &&
+              ` · до ${promotion.endsAt.toLocaleDateString("ru-RU", {
+                day: "numeric",
+                month: "long",
+              })}`}
           </span>
-          <span className={s.promoValue}>{promotionValue(promotion)}</span>
-          <strong>{promotion.name}</strong>
-          <span>{promotion.hrefLabel} →</span>
-        </Link>
-      ) : (
-        <Link href="/account" className={`${s.tile} ${s.promoTile}`}>
-          <span className={s.promoValue}>Баллы</span>
-          <strong>за каждую покупку, ими можно оплатить часть заказа</strong>
-          <span>Узнать условия →</span>
+          <ArrowUpRight size={18} />
         </Link>
       )}
-      <div className={`${s.tile} ${s.colorTile}`}>
-        <div>
-          <h2>Выберите по цвету</h2>
-          <p>ЛДСП и МДФ нужного оттенка в одно касание</p>
-        </div>
+      <section
+        className={`${s.container} ${s.swatchBand} ${s.reveal}`}
+        aria-labelledby="swatch-title"
+      >
+        <h2 id="swatch-title">Подберите декор по цвету</h2>
         <div className={s.swatches}>
           {swatches.map((swatch) => (
             <Link
@@ -151,7 +139,7 @@ export async function StorefrontBento({
             </Link>
           ))}
         </div>
-      </div>
-    </section>
+      </section>
+    </>
   );
 }

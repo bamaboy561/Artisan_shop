@@ -1,15 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import {
-  ArrowRight,
-  ArrowUpRight,
-  Drill,
-  Gift,
-  MapPin,
-  Ruler,
-  Scissors,
-  Wallet,
-} from "lucide-react";
+import { ArrowRight, ArrowUpRight, Drill, Ruler, Scissors } from "lucide-react";
 import { ProductImage } from "@/components/catalog/product-image";
 import { getBrandProfiles } from "@/features/brands/data";
 import {
@@ -40,41 +31,8 @@ export async function StorefrontHome() {
   return (
     <>
       <StorefrontBento promotion={promotions[0]} />
-      <ul
-        className={`${s.container} ${s.trustStrip}`}
-        aria-label="Почему Artisan"
-      >
-        <li>
-          <Wallet size={20} />
-          <span>
-            <strong>Оплата при получении</strong>
-            Без предоплаты на сайте
-          </span>
-        </li>
-        <li>
-          <Scissors size={20} />
-          <span>
-            <strong>Распил и кромление</strong>
-            По вашим размерам
-          </span>
-        </li>
-        <li>
-          <MapPin size={20} />
-          <span>
-            <strong>Самовывоз</strong>
-            {companyContacts.address.replace(/^г\. /, "")}
-          </span>
-        </li>
-        <li>
-          <Gift size={20} />
-          <span>
-            <strong>Бонусы</strong>
-            Баллы за каждую покупку
-          </span>
-        </li>
-      </ul>
       {promotional.length > 0 && (
-        <section className={`${s.section} ${s.container}`}>
+        <section className={`${s.section} ${s.container} ${s.reveal}`}>
           <div className={s.sectionHeading}>
             <div>
               <h2>Акции</h2>
@@ -93,7 +51,7 @@ export async function StorefrontHome() {
           </div>
         </section>
       )}
-      <section className={`${s.section} ${s.container}`}>
+      <section className={`${s.section} ${s.container} ${s.reveal}`}>
         <div className={s.sectionHeading}>
           <div>
             <h2>Разделы каталога</h2>
@@ -127,7 +85,7 @@ export async function StorefrontHome() {
         </div>
       </section>
       {products.length > 0 && (
-        <section className={s.collectionBand}>
+        <section className={`${s.collectionBand} ${s.reveal}`}>
           <div className={`${s.container} ${s.section}`}>
             <div className={s.sectionHeading}>
               <div>
@@ -150,7 +108,10 @@ export async function StorefrontHome() {
           </div>
         </section>
       )}
-      <section id="brands" className={`${s.container} ${s.section}`}>
+      <section
+        id="brands"
+        className={`${s.container} ${s.section} ${s.reveal}`}
+      >
         <div className={s.sectionHeading}>
           <div>
             <h2>Бренды на складе</h2>
@@ -159,34 +120,19 @@ export async function StorefrontHome() {
             Все бренды <ArrowUpRight size={19} />
           </Link>
         </div>
-        <div className={s.brandGrid}>
+        <div className={s.brandRow}>
           {brands.map((brand) => (
             <Link
               key={brand.slug}
               href={brand.brandPageHref}
               title={`Товары ${brand.name}`}
             >
-              {brand.logoUrl ? (
-                <ProductImage
-                  src={
-                    brand.slug === "albero" &&
-                    brand.logoUrl === "/brands/albero-logo.png"
-                      ? "/storefront/albero.webp"
-                      : brand.logoUrl
-                  }
-                  alt={brand.name}
-                  fallbackLabel={brand.name}
-                  width={180}
-                  height={45}
-                />
-              ) : (
-                <span>{brand.name}</span>
-              )}
+              <span>{brand.name}</span>
             </Link>
           ))}
         </div>
       </section>
-      <section id="services" className={s.serviceBand}>
+      <section id="services" className={`${s.serviceBand} ${s.reveal}`}>
         <div className={`${s.container} ${s.serviceGrid}`}>
           <div className={s.serviceVisual}>
             <Image
@@ -224,7 +170,7 @@ export async function StorefrontHome() {
           </div>
         </div>
       </section>
-      <section className={`${s.container} ${s.contactBand}`}>
+      <section className={`${s.container} ${s.contactBand} ${s.reveal}`}>
         <div>
           <h2>Не нашли нужный декор?</h2>
           <p>Напишите в WhatsApp, подскажем по наличию и срокам.</p>
