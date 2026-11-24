@@ -15,6 +15,7 @@ import {
   updateRequestCuttingDetailsAction,
   updateRequestCuttingProgressAction,
   updateRequestProductionResultAction,
+  uploadRequestClientFilesAction,
   uploadRequestResultFilesAction,
 } from "@/app/admin/actions";
 import { AdminSubmitButton } from "@/components/admin/admin-submit-button";
@@ -508,10 +509,60 @@ export default async function AdminRequestDetailPage({
               </div>
             ) : (
               <p className="mt-5 text-sm text-[var(--muted)]">
-                Клиент не приложил файл. Менеджер может работать по текстовым
-                параметрам или запросить вложение дополнительно.
+                Клиент не приложил файл. Если он прислал проект Базиса в
+                WhatsApp или Telegram, добавьте его ниже.
               </p>
             )}
+
+            <details
+              className="mt-5 border-t border-[color:var(--line)] pt-5"
+              open={clientFiles.length === 0}
+            >
+              <summary className="cursor-pointer text-sm font-semibold text-[var(--foreground)]">
+                Добавить файл клиента (проект Базиса .b3d)
+              </summary>
+              <form
+                action={uploadRequestClientFilesAction}
+                className="mt-4 grid gap-3"
+              >
+                <input type="hidden" name="requestId" value={request.id} />
+                <label className="grid gap-2 text-sm font-medium text-[var(--foreground)]">
+                  Файлы
+                  <Input
+                    name="files"
+                    type="file"
+                    multiple
+                    required
+                    accept={withBazisAccept(
+                      ".b3d,.pdf,.xls,.xlsx,.csv,.txt,.doc,.docx,.zip,.rar,.jpg,.jpeg,.png,.webp,.heic,.dwg,.dxf,.project,.bpr,.sto,.xml",
+                    )}
+                  />
+                </label>
+                <p className="text-xs leading-5 text-[var(--muted)]">
+                  Файл Базиса сразу откроется на макете, попадёт в заказ GibLab
+                  и даст QR-код «СБОРКА». Если из мессенджера файл пришёл без
+                  «.b3d» в названии, сайт сам его узнает.
+                </p>
+                <label className="flex items-center gap-2 text-sm text-[var(--muted)]">
+                  <input
+                    type="checkbox"
+                    name="isVisibleToClient"
+                    defaultChecked={Boolean(request.userId)}
+                    className="size-4 rounded border-[color:var(--line-strong)] accent-[var(--accent)]"
+                  />
+                  Показать файл клиенту в личном кабинете
+                </label>
+                <div>
+                  <AdminSubmitButton
+                    type="submit"
+                    variant="accent"
+                    size="sm"
+                    idleLabel="Добавить в файлы заявки"
+                    pendingLabel="Загружаем..."
+                  />
+                </div>
+              </form>
+            </details>
           </section>
 
           <section className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-white/82 p-6">
@@ -762,33 +813,44 @@ export default async function AdminRequestDetailPage({
             {resultFiles.length > 0 ? (
               <div className="mt-5 space-y-3">
                 {resultFiles.map((file) => (
-                  <a
-                    key={file.id}
-                    href={file.fileUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex flex-col gap-1 rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] px-4 py-3 transition hover:border-[color:var(--line-strong)]"
-                  >
-                    <span className="flex flex-wrap items-center gap-2 font-medium text-[var(--foreground)]">
-                      {file.fileName}
-                      {file.isVisibleToClient ? (
-                        <StatusBadge tone="success">Виден клиенту</StatusBadge>
-                      ) : (
-                        <StatusBadge tone="neutral">Внутренний</StatusBadge>
-                      )}
-                    </span>
-                    <span className="text-xs text-[var(--muted)]">
-                      {file.size
-                        ? `${Math.max(file.size / 1024 / 1024, 0.01).toFixed(2)} МБ`
-                        : "Размер не указан"}{" "}
-                      · {formatDate(file.createdAt)}
-                    </span>
-                    {file.note ? (
-                      <span className="text-xs text-[var(--muted)]">
-                        {file.note}
+                  <div key={file.id} className="grid gap-2">
+                    <a
+                      href={file.fileUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex flex-col gap-1 rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] px-4 py-3 transition hover:border-[color:var(--line-strong)]"
+                    >
+                      <span className="flex flex-wrap items-center gap-2 font-medium text-[var(--foreground)]">
+                        {file.fileName}
+                        {file.isVisibleToClient ? (
+                          <StatusBadge tone="success">
+                            Виден клиенту
+                          </StatusBadge>
+                        ) : (
+                          <StatusBadge tone="neutral">Внутренний</StatusBadge>
+                        )}
                       </span>
+                      <span className="text-xs text-[var(--muted)]">
+                        {file.size
+                          ? `${Math.max(file.size / 1024 / 1024, 0.01).toFixed(2)} МБ`
+                          : "Размер не указан"}{" "}
+                        · {formatDate(file.createdAt)}
+                      </span>
+                      {file.note ? (
+                        <span className="text-xs text-[var(--muted)]">
+                          {file.note}
+                        </span>
+                      ) : null}
+                    </a>
+                    {/\.b3d$/i.test(file.fileName) ? (
+                      <Link
+                        href={`/admin/requests/${request.id}/bazis/${file.id}`}
+                        className="inline-flex h-10 items-center justify-center bg-[var(--foreground)] px-4 text-sm font-semibold text-white transition hover:bg-[var(--accent)]"
+                      >
+                        Открыть проект Базиса: макет и список деталей
+                      </Link>
                     ) : null}
-                  </a>
+                  </div>
                 ))}
               </div>
             ) : null}

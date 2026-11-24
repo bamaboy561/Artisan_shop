@@ -38,6 +38,7 @@ import {
   ProductionStation,
   PromotionStatus,
   PromotionTargetType,
+  RequestFileKind,
   RequestStatus,
   RequestType,
   RoleCode,
@@ -5206,6 +5207,46 @@ export async function uploadRequestResultFilesAction(formData: FormData) {
       description:
         getOptionalString(formData, "note") ??
         "К заявке прикреплены файлы карты раскроя, ведомости или экспорта Giblab.",
+      isVisibleToClient,
+      actor,
+    });
+  }
+
+  revalidateAdminOperations();
+}
+
+// Менеджер добавляет файл в «Файлы заявки» как будто его приложил клиент:
+// чаще всего проект Базиса (.b3d), присланный в WhatsApp. Такой файл сразу
+// открывается в просмотрщике Базиса, идёт в заказ GibLab и даёт QR «СБОРКА».
+export async function uploadRequestClientFilesAction(formData: FormData) {
+  const requestId = getString(formData, "requestId");
+  const files = await withBazisExtensions(getFileList(formData, "files"));
+
+  if (!requestId || files.length === 0) {
+    return;
+  }
+
+  const actor = await ensureRequestAdminAccess(requestId);
+  const isVisibleToClient = getString(formData, "isVisibleToClient") === "on";
+
+  const savedFilesCount = await addRequestResultFiles({
+    requestId,
+    files,
+    note: getOptionalString(formData, "note"),
+    isVisibleToClient,
+    actor,
+    kind: RequestFileKind.CLIENT_UPLOAD,
+  });
+
+  if (savedFilesCount > 0) {
+    await logOperationEvent({
+      entityType: "request",
+      entityId: requestId,
+      eventType: "client_files",
+      title: `Менеджер добавил файлы заявки: ${savedFilesCount}`,
+      description:
+        getOptionalString(formData, "note") ??
+        "К заявке добавлены файлы клиента (например, проект Базиса).",
       isVisibleToClient,
       actor,
     });
