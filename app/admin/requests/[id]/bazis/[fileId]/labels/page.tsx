@@ -13,7 +13,8 @@ import {
   BAZIS_PART_LINK_DAYS,
   createBazisPartToken,
 } from "@/lib/server/bazis-part-link";
-import { getOrCreateBazisProjectCode } from "@/lib/server/bazis-project-code";
+import { orderedBazisFiles } from "@/features/production/giblab-orders";
+import { getRequestBazisCode } from "@/lib/server/giblab-orders";
 import { readRequestFileBytes } from "@/lib/server/request-file-content";
 import { getRequestDetailById } from "@/lib/server/request-inbox";
 
@@ -150,15 +151,13 @@ export default async function BazisLabelsPage({
   }
 
   const requestNumber = request.number ?? request.id.slice(0, 8).toUpperCase();
+  // Код один на заявку: так же он стоит в имени файла заказа GibLab.
   const projectCode =
     labels.length > 0
-      ? await getOrCreateBazisProjectCode(request.id, file.id).catch(
-          (error) => {
-            console.error("[bazis:project-code]", error);
-            return null;
-          },
-        )
+      ? await getRequestBazisCode(request.id, request.files)
       : null;
+  const bazisFiles = orderedBazisFiles(request.files);
+  const fileNumber = bazisFiles.findIndex((item) => item.id === file.id) + 1;
   const basePath = `/admin/requests/${request.id}/bazis/${file.id}/labels`;
 
   return (
@@ -224,9 +223,14 @@ export default async function BazisLabelsPage({
             </span>
           </p>
           <p className="mt-2 text-[var(--muted)]">
-            Впишите этот код в название проекта в GibLab, без пробелов внутри
-            кода. Например: «{requestNumber}_{projectCode.code}». Тогда QR-код
-            на этикетке GibLab откроет ту же страницу детали. Код действует до{" "}
+            Сайт сам дописывает этот код в имя файла заказа GibLab. Если проект
+            создали вручную, впишите код в название, без пробелов внутри кода.
+            Например: «{requestNumber}_{projectCode.code}». Тогда QR-код на
+            этикетке GibLab откроет ту же страницу детали.
+            {bazisFiles.length > 1 && fileNumber > 0
+              ? ` Файлов Базиса в заявке ${bazisFiles.length}, этот — ${fileNumber}-й: в GibLab его позиции идут как «${fileNumber}-5».`
+              : ""}{" "}
+            Код действует до{" "}
             {new Intl.DateTimeFormat("ru-RU", {
               timeZone: "Asia/Bishkek",
               day: "2-digit",

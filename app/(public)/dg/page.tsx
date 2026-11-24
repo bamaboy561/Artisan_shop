@@ -5,6 +5,7 @@ import {
   PartPageView,
   type PartPageResult,
 } from "@/features/bazis/part-page";
+import { parseGibLabPartPosition } from "@/features/production/giblab-orders";
 import { resolveBazisProjectCode } from "@/lib/server/bazis-project-code";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +17,8 @@ export const metadata: Metadata = {
 
 // Страница детали по QR-коду с этикетки GibLab:
 //   /dg?c=<название проекта GibLab с кодом сайта>&p=<номер позиции детали>
-// Номер позиции в GibLab тот же, что в проекте Базиса.
+// Номер позиции в GibLab тот же, что в проекте Базиса. Если в заявке
+// несколько файлов Базиса, впереди номер файла: «2-5» — файл 2, поз. 5.
 type GibLabPartPageProps = {
   searchParams: Promise<{
     c?: string | string[];
@@ -47,10 +49,14 @@ async function loadProject(
     return null;
   }
 
-  const project = await loadBazisViewProject(ref.requestId, ref.fileId);
+  const target = parseGibLabPartPosition(position, ref.fileIds.length);
+  const project = await loadBazisViewProject(
+    ref.requestId,
+    ref.fileIds[target.fileIndex] ?? ref.fileId,
+  );
   // «007» и «7» считаем одной позицией.
   const normalize = (value: string) => value.trim().replace(/^0+(?=\d)/, "");
-  const wanted = normalize(position);
+  const wanted = normalize(target.position);
   const panelIndex =
     project?.panels.findIndex(
       (panel) => normalize(panel.position) === wanted,

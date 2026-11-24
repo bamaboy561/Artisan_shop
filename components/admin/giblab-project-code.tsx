@@ -1,28 +1,20 @@
-import { getOrCreateBazisProjectCode } from "@/lib/server/bazis-project-code";
+import { orderedBazisFiles } from "@/features/production/giblab-orders";
+import { getRequestBazisCode } from "@/lib/server/giblab-orders";
 
-type RequestFileRef = { id: string; fileName: string };
+type RequestFileRef = {
+  id: string;
+  fileName: string;
+  createdAt?: Date | string | null;
+};
 
-// Код проекта для GibLab у заявки с файлом Базиса. Оператор цеха дописывает
-// его к названию проекта в GibLab, и QR-код «СБОРКА» на этикетке детали
-// открывает её место на макете.
+// Код проекта для GibLab у заявки с файлом Базиса. Сайт сам дописывает его
+// в имя файла заказа GibLab, и QR-код «СБОРКА» на этикетке детали
+// открывает её место на макете. Один код на заявку, на все файлы Базиса.
 export async function getGibLabProjectCode(
   requestId: string,
   files: RequestFileRef[],
 ) {
-  const file = files.find((item) => /\.b3d$/i.test(item.fileName));
-
-  if (!file) {
-    return null;
-  }
-
-  try {
-    return (
-      (await getOrCreateBazisProjectCode(requestId, file.id))?.code ?? null
-    );
-  } catch (error) {
-    console.error("[bazis:project-code]", error);
-    return null;
-  }
+  return (await getRequestBazisCode(requestId, files))?.code ?? null;
 }
 
 export async function GibLabProjectCode({
@@ -41,6 +33,7 @@ export async function GibLabProjectCode({
   }
 
   const example = `${(clientName ?? "Клиент").trim().split(/\s+/)[0] || "Клиент"}_${code}`;
+  const severalFiles = orderedBazisFiles(files).length > 1;
 
   return (
     <div className="border border-[color:var(--line-strong)] bg-[var(--surface)] p-4 text-sm leading-6">
@@ -51,9 +44,13 @@ export async function GibLabProjectCode({
         </span>
       </p>
       <p className="mt-2 text-[var(--muted)]">
-        Перед распилом допишите код к названию проекта в GibLab через
-        подчёркивание, без пробелов: «{example}». Тогда QR-код «СБОРКА» на
-        этикетке покажет сборщику, где стоит деталь.
+        Сайт сам дописывает этот код в имя файла заказа GibLab, и QR-код
+        «СБОРКА» на этикетке покажет сборщику, где стоит деталь. Если проект в
+        GibLab создали вручную, допишите код к названию без пробелов внутри
+        кода: «{example}».
+        {severalFiles
+          ? " Файлов Базиса несколько: в GibLab позиция идёт с номером файла, «2-5» — файл 2, позиция 5."
+          : ""}
       </p>
     </div>
   );
