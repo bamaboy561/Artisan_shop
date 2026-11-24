@@ -9,7 +9,9 @@ test("hole prices follow the workshop price list", () => {
   assert.equal(drillingHolePrice(8), 10);
   assert.equal(drillingHolePrice(5.1), 6);
   assert.equal(drillingHolePrice(12), 10);
+  // Ø2,5 — как Ø3, Ø4 — посередине, берём больший Ø5.
   assert.equal(drillingHolePrice(2.5), 4);
+  assert.equal(drillingHolePrice(4), 6);
   // Диаметра нет в прайсе — цена ближайшего (Ø18 → Ø20).
   assert.equal(drillingHolePrice(18), 20);
 });

@@ -163,10 +163,9 @@ export type SiteCuttingPrices = {
 } & Record<OtherWorkPriceKey, number>;
 
 // Ø5 — как отверстие под полкодержатель, Ø8 — как отверстие D8.
-// Ø2,5 и Ø4 — кернение и саморезы из GibLab, Ø12 — шканты/втулки.
-export const drillingDiameters = [
-  2.5, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20, 25, 35,
-] as const;
+// Отверстие другого диаметра считается по ближайшему диаметру из прайса
+// (Ø2,5 — как Ø3, Ø12 — как Ø10), см. drillHoleRate.
+export const drillingDiameters = [3, 5, 6, 7, 8, 10, 15, 20, 25, 35] as const;
 
 export const defaultSiteCuttingPrices: SiteCuttingPrices = {
   sheet: 300,
@@ -174,15 +173,12 @@ export const defaultSiteCuttingPrices: SiteCuttingPrices = {
   edge: 28,
   edgeRegular: 30,
   drilling: {
-    2.5: 4,
     3: 4,
-    4: 6,
     5: 6,
     6: 8,
     7: 8,
     8: 10,
     10: 10,
-    12: 10,
     15: 13,
     20: 20,
     25: 21,
