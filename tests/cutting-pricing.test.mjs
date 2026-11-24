@@ -349,10 +349,7 @@ test("site prices: admin and cutting-manager edits reach the calculator, broken 
   form.set("siteEdgeRegular", "35");
   for (const diameter of sitePrices.drillingDiameters)
     form.set(`drill${diameter}`, String(diameter));
-  await assert.rejects(
-    actions.saveSiteCuttingPricesAction(form),
-    /Нет прав/,
-  );
+  await assert.rejects(actions.saveSiteCuttingPricesAction(form), /Нет прав/);
   assert.equal(saved, undefined);
   actor = { roleCode: "CUTTING_MANAGER", userId: "cm" };
   form.set("drill35", "");
@@ -498,21 +495,22 @@ test("quote lists sheets, edge, drilling by diameter and milling", () => {
     { cuttingSheetCount: 4, cuttingEdgeMeters: 12.5, edgeOption: "ABS" },
     extras,
   );
-  // 1513 работ + 4×32 + 20×10 + 1,5×200 = 2141; Ø12 без цены.
-  assert.equal(result.total, 2141);
-  assert.equal(result.unpricedHoles, 2);
+  // 1513 работ + 4×32 + 20×10 + 2×10 (Ø12 по цене Ø8) + 1,5×200 = 2161.
+  assert.equal(result.total, 2161);
+  assert.equal(result.unpricedHoles, 0);
   assert.deepEqual(
     result.lines.map((line) => [line.key, line.amount]),
     [
       ["sheets", 1200],
       ["edge", 312.5],
       ["drill-8", 200],
-      ["drill-12", null],
+      ["drill-12", 20],
       ["drill-35", 128],
       ["curve", 300],
     ],
   );
   assert.match(result.lines[0].detail, /4 листа × 300 сом/);
+  assert.match(result.lines[3].detail, /по цене Ø8/);
   assert.match(result.lines[4].detail, /4 отверстия × 32 сом/);
   assert.equal(
     quote.buildCuttingQuote(fullPrice, { cuttingSheetCount: null }, extras),

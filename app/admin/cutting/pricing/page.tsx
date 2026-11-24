@@ -198,7 +198,7 @@ function SitePricesForm({
           {drillingDiameters.map((diameter) => (
             <PriceField
               key={diameter}
-              label={`Ø${diameter} мм`}
+              label={`Ø${String(diameter).replace(".", ",")} мм`}
               name={`drill${diameter}`}
               value={prices.drilling[diameter]}
               disabled={!canEdit}
