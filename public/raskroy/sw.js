@@ -1,5 +1,5 @@
 // Офлайн-режим: файлы программы кешируются при первом открытии, дальше она работает без интернета.
-const CACHE = 'raskroy-v29';
+const CACHE = 'raskroy-v30';
 const CORE = ['./', 'index.html', 'css/app.css', 'manifest.webmanifest', 'icons/icon.svg',
   'src/app.js', 'src/core/index.js', 'src/core/project.js', 'src/core/xml.js', 'src/core/optimizer.js',
   'src/core/edges.js', 'src/core/cost.js', 'src/core/cnc.js', 'src/core/operations.js', 'src/core/linear.js', 'src/core/xlsx.js', 'src/core/library.js', 'src/core/manual.js', 'src/core/drill.js', 'src/core/estimate.js', 'src/core/stockops.js', 'src/core/release.js', 'src/core/ptx.js', 'icons/artisan-logo.png', 'src/labels.js', 'vendor/qrcode.min.js', 'src/pdf.js', 'src/site.js', 'src/machines.js', 'vendor/jspdf.umd.min.js', 'vendor/fonts/DejaVuSansCondensed.ttf', 'vendor/fonts/DejaVuSansCondensed-Bold.ttf'];

@@ -73,10 +73,12 @@ const F = {
     ['Остаток'], ['offMin1', 'Мин. размер первой стороны, мм', 'num', 'p'], ['offMin2', 'Мин. размер второй стороны, мм', 'num', 'p'],
     ['offArea', 'Мин. площадь остатка, м²', 'num', 'p', 0.01], ['useStock', 'Брать остатки со склада', 'chk', 'p'],
     ['Стоимость работы'], ['cutMode', 'Распил считать', 'sel', 'p'], ['cutPrice', 'Цена распила, сом', 'num', 'p']],
-  CN: [...F_MAT, ['Фреза'], ['toolD', 'Диаметр фрезы, мм', 'num', 'p'], ['overcut', 'Заход в стол, мм', 'num', 'p', 0.1],
+  CN: [...F_MAT, ['Фреза'], ['toolD', 'Диаметр фрезы, мм', 'num', 'p'], ['toolT', 'Номер фрезы T', 'num', 'p'], ['overcut', 'Заход в стол, мм', 'num', 'p', 0.1],
     ['spindle', 'Обороты S', 'num', 'p'], ['feedXY', 'Подача XY, мм/мин', 'num', 'p'], ['feedZ', 'Подача Z, мм/мин', 'num', 'p'],
     ['lift', 'Отвод над листом, мм', 'num', 'p'], ['preCut', 'Предрез перед чистовым обходом', 'chk', 'p'], ['preStep', 'Предрез: шаг по глубине, мм', 'num', 'p', 0.1],
-    ['preLeave', 'Предрез: оставить слой, мм', 'num', 'p', 0.1], ['Раскрой'], ['trimL', 'Торцовка по длине, мм', 'num', 'p', 1, 'trim'], ['trimW', 'Торцовка по ширине, мм', 'num', 'p', 1, 'trim'], ['grain', 'Текстура', 'sel', 'p'],
+    ['preLeave', 'Предрез: оставить слой, мм', 'num', 'p', 0.1], ['lead', 'Заход на деталь от угла, мм', 'num', 'p'], ['overlap', 'Перекрытие в конце обхода, мм', 'num', 'p', 0.5],
+    ['Присадка (сверловка в пласть)'], ['drillTools', 'Свёрла: диаметр=номер T', 'text', 'p'], ['drillS', 'Обороты сверла S (0 — как у фрезы)', 'num', 'p'], ['drillFeed', 'Подача сверла Z, мм/мин (0 — как у фрезы)', 'num', 'p'],
+    ['Раскрой'], ['trimL', 'Торцовка по длине, мм', 'num', 'p', 1, 'trim'], ['trimW', 'Торцовка по ширине, мм', 'num', 'p', 1, 'trim'], ['grain', 'Текстура', 'sel', 'p'],
     ['Остаток'], ['offMin1', 'Мин. размер первой стороны, мм', 'num', 'p'], ['offMin2', 'Мин. размер второй стороны, мм', 'num', 'p'],
     ['Стоимость работы'], ['millPrice', 'Фрезеровка контура, сом за м', 'num', 'p']],
   EL: [['Кромка'], ['name', 'Наименование', 'text', 'b'], ['code', 'Код', 'text', 'b'], ['t', 'Толщина, мм', 'num', 'b', 0.1],
@@ -96,11 +98,11 @@ const F_BASE = [['Пила'], ['kerf', 'Толщина пилы, мм', 'num', '
   ['dir', 'Первые резы', 'sel', 'base'], ['grain', 'Текстура', 'sel', 'base'], ['minPart', 'Мин. размер детали, мм', 'num', 'base'],
   ['offMin1', 'Деловой остаток от, мм', 'num', 'base'], ['offMin2', 'и шириной от, мм', 'num', 'base'], ['useStock', 'Брать остатки со склада', 'chk', 'base'],
   ['Кромка'], ['edgeAdd', 'Свес на сторону, мм', 'num', 'base'], ['edgeWaste', 'Отход, %', 'num', 'base'], ['joint', 'Прифуговка, мм', 'num', 'base', 0.5],
-  ['ЧПУ Excitech'], ['toolD', 'Фреза, мм', 'num', 'base'], ['overcut', 'Заход в стол, мм', 'num', 'base', 0.1], ['spindle', 'Обороты S', 'num', 'base'],
+  ['ЧПУ Excitech'], ['toolD', 'Фреза, мм', 'num', 'base'], ['toolT', 'Номер фрезы T', 'num', 'base'], ['overcut', 'Заход в стол, мм', 'num', 'base', 0.1], ['spindle', 'Обороты S', 'num', 'base'],
   ['feedXY', 'Подача XY, мм/мин', 'num', 'base'], ['feedZ', 'Подача Z, мм/мин', 'num', 'base'], ['lift', 'Отвод над листом, мм', 'num', 'base'],
   ['preCut', 'Предрез перед чистовым обходом', 'chk', 'base'], ['preStep', 'Предрез: шаг по глубине, мм', 'num', 'base', 0.1], ['preLeave', 'Предрез: оставить слой, мм', 'num', 'base', 0.1],
   ['lead', 'Заход на деталь от угла, мм', 'num', 'base'], ['overlap', 'Перекрытие в конце обхода, мм', 'num', 'base', 0.5],
-  ['drillTools', 'Свёрла: диаметр=номер T', 'text', 'base'], ['cncDraft', 'Показывать текст программы ЧПУ на карте', 'chk', 'base'],
+  ['drillTools', 'Свёрла: диаметр=номер T', 'text', 'base'], ['drillS', 'Сверло: обороты S (0 — как у фрезы)', 'num', 'base'], ['drillFeed', 'Сверло: подача Z, мм/мин (0 — как у фрезы)', 'num', 'base'],
   ['Ограничения станков (0 — не проверять)'], ['sawMaxL', 'Пила: макс. длина листа, мм', 'num', 'base'], ['sawMaxW', 'Пила: макс. ширина листа, мм', 'num', 'base'],
   ['cncMaxL', 'ЧПУ: макс. длина листа, мм', 'num', 'base'], ['cncMaxW', 'ЧПУ: макс. ширина листа, мм', 'num', 'base'],
   ['Расценки, сом'], ['cutMode', 'Распил считать', 'sel', 'base'], ['cutPrice', 'Цена распила', 'num', 'base'], ['edgePrice', 'Кромкование за м', 'num', 'base'],
@@ -483,7 +485,7 @@ function subParams(op) {
   // Как в GibLab: все параметры в две колонки по группам — слева материал, детали, остатки, стоимость; справа раскрой и станок.
   const fields = shownFields(op.type), secs = [];
   fields.forEach(f => { if (f.length === 1 || !secs.length) secs.push([]); secs[secs.length - 1].push(f); });
-  const RIGHT = ['Раскрой', 'Фреза', 'Обработка', 'Остаток'];
+  const RIGHT = ['Раскрой', 'Фреза', 'Присадка (сверловка в пласть)', 'Обработка', 'Остаток'];
   const two = secs.length > 2 && secs.some(q => RIGHT.includes(q[0][0]));
   const table = two ? `<div class="pcols"><div>${propsTable(secs.filter(q => !RIGHT.includes(q[0][0])).flat(), f => fieldValue(f, op), op.key + ':')}</div>
       <div>${propsTable(secs.filter(q => RIGHT.includes(q[0][0])).flat(), f => fieldValue(f, op), op.key + ':')}</div></div>`
@@ -576,7 +578,8 @@ function bindCatalog(op) {
 }
 function bindParams(op, pan) {
   if (pan.querySelector('#catPick')) bindCatalog(op);
-  pan.querySelector('.props').addEventListener('change', e => {
+  // Параметры в две колонки — это две таблицы .props: слушаем обе, иначе правки правой колонки (пила, фреза, остаток) терялись.
+  pan.querySelectorAll('.props').forEach(t => t.addEventListener('change', e => {
     const el = e.target, k = el.dataset.k, w = el.dataset.w; if (!k) return;
     const raw = el.type === 'checkbox' ? el.checked : el.value;
     const num = el.type === 'number';
@@ -588,7 +591,7 @@ function bindParams(op, pan) {
       else if (w === 'g' || w === 'l') { const o = w === 'g' ? op.groove : op.lin; if (val === undefined) { if (['name', 'len'].includes(k)) return; delete o[k]; } else o[k] = val; }
       else if (w === 'b') { if (val === undefined) { if (['name', 't', 'w'].includes(k)) return; delete op.band[k]; } else op.band[k] = val; }
     });
-  });
+  }));
   const ap = $('#allParams'); if (ap) ap.onclick = () => setUi({ allParams: !ui.allParams });
   const rp = $('#resetParams'); if (rp) rp.onclick = () => change(() => { op.m.params = {}; });
 }
@@ -976,10 +979,15 @@ function subCut(op) {
       <h3 style="margin-top:12px">Не разложено${r.unplaced.length ? ': ' + r.unplaced.length : ''}</h3>
       ${r.unplaced.length ? `<div class="tbl"><table><tbody>${r.unplaced.map((u, i) => `<tr><td class="n">№${u.p.id}</td><td>${esc(u.p.name)}</td><td class="n">${u.l}×${u.w}</td><td><button class="btn xs" data-put="${i}">На эту карту</button></td></tr>`).join('')}</tbody></table></div>` : '<p class="note">Все детали на картах.</p>'}
       <div class="row" style="margin-top:10px"><button class="btn sm" id="eSheet">Добавить пустой лист</button>${!s.items.length ? '<button class="btn sm" id="eDelSheet">Убрать пустой лист</button>' : ''}<button class="btn sm primary" id="eDone">Готово</button></div>`
-    : cnc ? (() => { const pr = core.excitechProgram(op.m, s, x.o); return `<h3>Программа для Excitech</h3>
+    : cnc ? (() => { const pr = core.excitechProgram(op.m, s, x.o), ed = core.sheetProgram(pr.text, op.m.cncEdit?.[g.i]); return `<h3>Программа для Excitech, лист ${g.i + 1}</h3>
       <p class="note">Для каждого листа: программа F<i>N</i>_<i>N</i>.anc, программа этикетировщика Label_F<i>N</i>_<i>N</i>.cyc и картинки этикеток .bmp. Формат как в файлах со станка цеха. ${mach.canUseFolders() ? '«Отправить на станок» кладёт их в папку нестинга, выбранную в «Настройках».' : 'Прямая отправка в папку станка работает в Chrome или Edge на компьютере.'} Первый лист после обновления проверьте холостым ходом.</p>
-      ${pr.warnings.map(w => `<p class="note warn">${esc(w)}</p>`).join('')}
-      ${base.cncDraft ? `<textarea class="code" id="gcode" readonly aria-label="Программа ЧПУ">${esc(pr.text)}</textarea>` : ''}`; })()
+      <p class="note">Фреза, обороты, подачи и свёрла задаются во вкладке «Параметры» этой операции. Текст ниже можно поправить руками и нажать «Сохранить правку»: на станок уйдёт ваш вариант. Если потом изменится карта или параметры, правка перестанет действовать, и программа скажет об этом.</p>
+      ${ed.edited ? '<p><span class="chip">G-код листа поправлен вручную</span></p>' : ''}
+      ${ed.stale ? '<p class="note warn">Карта или параметры изменились после ручной правки G-кода, поэтому правка не действует: ниже и на станок идёт автоматическая программа. Поправьте её заново или уберите старую правку.</p>' : ''}
+      ${ed.edited ? '' : pr.warnings.map(w => `<p class="note warn">${esc(w)}</p>`).join('')}
+      <textarea class="code" id="gcode" spellcheck="false" aria-label="G-код листа ${g.i + 1}">${esc(ed.text)}</textarea>
+      <p class="note warn" id="gcodeWarn" hidden>В тексте есть русские буквы или другие знаки не латиницей. NCStudio может их не прочитать, лучше писать комментарии латиницей.</p>
+      <div class="row" style="margin-top:6px"><button class="btn sm primary" id="gSave">Сохранить правку</button>${ed.edited || ed.stale ? '<button class="btn sm" id="gReset">Вернуть автоматическую программу</button>' : ''}<button class="btn sm" id="gCopy">Скачать этот лист .anc</button></div>`; })()
     : null;
   // Правая колонка как в GibLab: миниатюры всех карт или таблица команд пилы.
   const cside = ui.cside === 'cmd' ? 'cmd' : 'maps';
@@ -1050,6 +1058,24 @@ function bindEdit(op, pan, x) {
   pan.querySelectorAll('#eReset').forEach(b => b.onclick = () => { ui.edit = null; change(() => { delete m.manual; }); });
   on('cncZip', () => cncFiles(op, x, $('#cncZip'), false));
   on('cncSend', () => cncFiles(op, x, $('#cncSend'), true));
+  // Ручная правка G-кода листа: хранится в m.cncEdit[номер листа] вместе с отпечатком автоматической программы.
+  const gArea = pan.querySelector('#gcode'), gWarn = pan.querySelector('#gcodeWarn');
+  if (gArea && gWarn) { const chk = () => { gWarn.hidden = !/[^\t\r\n\x20-\x7e]/.test(gArea.value); }; gArea.oninput = chk; chk(); }
+  const gAuto = () => core.excitechProgram(m, g.s, x.o).text;
+  on('gSave', () => {
+    const a = gAuto(), t = gArea.value, same = t.replace(/\r\n/g, '\n').trim() === a.replace(/\r\n/g, '\n').trim();
+    if (!t.trim()) return toast('Программа пустая. Чтобы вернуть автоматическую, нажмите «Вернуть автоматическую программу»');
+    change(() => {
+      if (same) { if (m.cncEdit) { delete m.cncEdit[g.i]; if (!Object.keys(m.cncEdit).length) delete m.cncEdit; } }
+      else (m.cncEdit ||= {})[g.i] = { text: t, base: core.gcodeHash(a) };
+    });
+    toast(same ? 'Текст совпадает с автоматической программой, правка не нужна' : `Правка G-кода листа ${g.i + 1} сохранена`);
+  });
+  on('gReset', () => change(() => { if (m.cncEdit) { delete m.cncEdit[g.i]; if (!Object.keys(m.cncEdit).length) delete m.cncEdit; } }));
+  on('gCopy', async () => {
+    const n = g.i + 1, text = core.sheetProgram(gAuto(), m.cncEdit?.[g.i]).text;
+    try { await saveFile(new Blob([text], { type: 'text/plain' }), `F${n}_${n}.anc`); } catch (e) { if (e?.code !== 'declined') toast('Не удалось сохранить: ' + (e?.message || e)); }
+  });
   on('ptxSave', () => ptxFile(x, $('#ptxSave'), false));
   on('ptxSend', () => ptxFile(x, $('#ptxSend'), true));
   on('eStart', () => { ui.edit = op.key; ui.qi = null; ui.sheet = r.manual ? ui.sheet : 0; if (r.manual) return render(); change(() => { m.manual = core.snapshotManual(r); }); });
@@ -1443,9 +1469,11 @@ async function cncFiles(op, x, btn, send) {
       return name;
     };
     for (const [i, s] of x.r.sheets.entries()) {
-      const n = i + 1, pr = core.excitechProgram(x.m, s, x.o); pr.warnings.forEach(w => warn.add(w));
+      const n = i + 1, pr = core.excitechProgram(x.m, s, x.o), ed = core.sheetProgram(pr.text, x.m.cncEdit?.[i]);
+      if (ed.edited) warn.add(`лист ${n}: G-код поправлен вручную`); else pr.warnings.forEach(w => warn.add(w));
+      if (ed.stale) warn.add(`лист ${n}: ручная правка G-кода устарела, взята автоматическая программа`);
       for (const it of s.items) await bmpOf(it);
-      files.push({ name: `F${n}_${n}.anc`, data: pr.text }, { name: `Label_F${n}_${n}.cyc`, data: core.labelProgram(s, x.o, it => `${it.p.id}.bmp`) });
+      files.push({ name: `F${n}_${n}.anc`, data: ed.text }, { name: `Label_F${n}_${n}.cyc`, data: core.labelProgram(s, x.o, it => `${it.p.id}.bmp`) });
     }
     for (const [name, data] of imgs) files.push({ name, data });
     const label = `${core.cncText(P.name) || 'zakaz'} ${core.cncText(x.m.name)} ${x.m.t}`.replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, '_').trim();

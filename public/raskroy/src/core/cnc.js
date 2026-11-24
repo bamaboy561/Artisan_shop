@@ -72,7 +72,8 @@ export function preDepths(t, stepZ, leave) {
 /**
  * Программа одного листа нестинга для Excitech (NCStudio, файл .anc).
  * o: toolD, spindle, feedXY, feedZ, lift (отвод над листом), overcut (рез ниже стола), preCut, preStep, preLeave,
- *    lead (заход на кромке детали от угла), overlap (перекрытие в конце обхода), drillTools («7=16, 8=17»: диаметр сверла = номер T).
+ *    lead (заход на кромке детали от угла), overlap (перекрытие в конце обхода), drillTools («7=16, 8=17»: диаметр сверла = номер T),
+ *    drillS и drillFeed (обороты и подача сверла; 0 — как у фрезы).
  * Возвращает { text, warnings }.
  */
 export function excitechProgram(m, s, o) {
@@ -88,10 +89,10 @@ export function excitechProgram(m, s, o) {
   for (const [d, hs] of Object.entries(byD).sort((a, b) => a[0] - b[0])) {
     const T = drillTable(o.drillTools)[d];
     if (!T) { warnings.push(`Нет сверла ${d} мм в таблице инструментов: ${hs.length} отв. пропущено`); continue; }
-    add(`//${d}MM Bore${d}`); add(`T${T}`); add(`M03 S${o.drillS || o.spindle}`); add('M744'); add(`G0 Z${f1(safe)}`);
+    add(`//${d}MM Bore${d}`); add(`T${T}`); add(`M03 S${+o.drillS || o.spindle}`); add('M744'); add(`G0 Z${f1(safe)}`);
     hs.sort((a, b) => a.X - b.X || a.Y - b.Y).forEach(h => {
       add('//Drill'); add(`G0 X${f1(-(h.Y + ty))} Y${f1(h.X + tx)}`); add(`G1 Z${f1(t)}`);
-      add(`G1 Z${f1(Math.max(t - h.dp, zCut))} F${o.feedZ}`); add(`G0 Z${f1(safe)}`); // сквозное — не глубже, чем фреза заходит в стол
+      add(`G1 Z${f1(Math.max(t - h.dp, zCut))} F${+o.drillFeed || o.feedZ}`); add(`G0 Z${f1(safe)}`); // сквозное — не глубже, чем фреза заходит в стол
     });
     add('M05');
   }
@@ -118,6 +119,23 @@ export function excitechProgram(m, s, o) {
   }
   TAIL.forEach(add);
   return { text: L.join('\r\n') + '\r\n', warnings };
+}
+
+/** Короткий отпечаток текста программы: по нему видно, что автоматическая программа листа изменилась. */
+export function gcodeHash(text) {
+  let h = 0x811c9dc5;
+  for (const ch of String(text ?? '').replace(/\r\n/g, '\n')) { h ^= ch.charCodeAt(0); h = Math.imul(h, 0x01000193) >>> 0; }
+  return h.toString(16).padStart(8, '0');
+}
+
+/** Ручная правка программы листа. edit = { text, base } — текст оператора и отпечаток автоматической программы,
+    с которой он начинал. Если карта или параметры с тех пор изменились, правка устарела и на станок идёт автоматическая программа.
+    Возвращает { text, edited, stale }; text всегда со строками \r\n, как ждёт NCStudio. */
+export function sheetProgram(auto, edit) {
+  if (!edit || typeof edit.text !== 'string') return { text: auto, edited: false, stale: false };
+  if (edit.base !== gcodeHash(auto)) return { text: auto, edited: false, stale: true };
+  const t = edit.text.replace(/\r\n|\r/g, '\n').replace(/\n*$/, '\n').replace(/\n/g, '\r\n');
+  return { text: t, edited: true, stale: false };
 }
 
 /** Программа этикетировщика (.cyc): этикетка в центр каждой детали. img(it) — имя картинки этикетки. */
