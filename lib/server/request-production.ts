@@ -38,6 +38,9 @@ type RequestResultFilesInput = {
   note?: string | null;
   isVisibleToClient: boolean;
   actor: ActorSnapshot;
+  // CLIENT_UPLOAD — файл в «Файлы заявки» (например, проект Базиса, который
+  // клиент прислал в WhatsApp). MANAGER_RESULT — файл результата распила.
+  kind?: RequestFileKind;
 };
 
 type CuttingProgressInput = {
@@ -78,24 +81,27 @@ export async function updateRequestProductionResult(input: RequestResultInput) {
     return null;
   }
 
-  return getDb().$transaction(async (tx) => {
-    const price = await readCuttingPrice(tx, input.requestId);
-    return tx.request.update({
-    where: { id: input.requestId },
-    data: {
-      ...(!price ? { quotedTotal: input.quotedTotal ?? null } : {}),
-      productionComment: input.productionComment ?? null,
-      ...(input.status ? { status: input.status } : {}),
+  return getDb().$transaction(
+    async (tx) => {
+      const price = await readCuttingPrice(tx, input.requestId);
+      return tx.request.update({
+        where: { id: input.requestId },
+        data: {
+          ...(!price ? { quotedTotal: input.quotedTotal ?? null } : {}),
+          productionComment: input.productionComment ?? null,
+          ...(input.status ? { status: input.status } : {}),
+        },
+        select: {
+          id: true,
+          number: true,
+          status: true,
+          quotedTotal: true,
+          productionComment: true,
+        },
+      });
     },
-    select: {
-      id: true,
-      number: true,
-      status: true,
-      quotedTotal: true,
-      productionComment: true,
-    },
-    });
-  }, { isolationLevel: "Serializable" });
+    { isolationLevel: "Serializable" },
+  );
 }
 
 export async function updateRequestCuttingProgress(
@@ -198,9 +204,11 @@ export async function addRequestResultFiles(input: RequestResultFilesInput) {
     return 0;
   }
 
+  const kind = input.kind ?? RequestFileKind.MANAGER_RESULT;
   const storedFiles = await persistRequestFiles(input.requestId, allowedFiles, {
-    directorySlug: "results",
-    kind: RequestFileKind.MANAGER_RESULT,
+    directorySlug:
+      kind === RequestFileKind.MANAGER_RESULT ? "results" : "manager",
+    kind,
     isVisibleToClient: input.isVisibleToClient,
     uploadedByUserId: input.actor.userId ?? null,
     uploadedByName: getActorName(input.actor),
@@ -210,7 +218,7 @@ export async function addRequestResultFiles(input: RequestResultFilesInput) {
   await getDb().requestFile.createMany({
     data: storedFiles.map((file) => ({
       requestId: input.requestId,
-      kind: file.kind ?? RequestFileKind.MANAGER_RESULT,
+      kind: file.kind ?? kind,
       isVisibleToClient: file.isVisibleToClient ?? input.isVisibleToClient,
       uploadedByUserId: file.uploadedByUserId ?? null,
       uploadedByName: file.uploadedByName ?? getActorName(input.actor),

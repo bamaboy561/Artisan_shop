@@ -382,42 +382,7 @@ try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::
 $Headers = @{ Authorization = "Bearer $Key" }
 $Host.UI.RawUI.WindowTitle = 'Artisan - papki stankov'
 Write-Host 'Artisan: slezhu za papkami stankov. Okno ne zakryvayte.' -ForegroundColor Green
-$Loop = 0
-$CatHash = ''
-$CatDone = ''
-while ($true) {
-  $wait = ${watcherIntervalSeconds}
-  try {
-    $cfg = Invoke-RestMethod -Uri $Api -Headers $Headers -TimeoutSec 30
-    if ($cfg.intervalSeconds) { $wait = [int]$cfg.intervalSeconds }
-    $report = @()
-    foreach ($f in @($cfg.folders)) {
-      if (-not $f -or -not $f.path) { continue }
-      $root = [string]$f.path
-      $ok = Test-Path -LiteralPath $root
-      $files = @()
-      $truncated = $false
-      if ($ok) {
-        $prefix = (Get-Item -LiteralPath $root).FullName.TrimEnd('\') + '\'
-        if ($f.recurse) { $all = @(Get-ChildItem -LiteralPath $root -File -Recurse -ErrorAction SilentlyContinue) }
-        else { $all = @(Get-ChildItem -LiteralPath $root -File -ErrorAction SilentlyContinue) }
-        $truncated = $all.Count -gt ${maxFilesPerFolder}
-        $items = @($all | Sort-Object LastWriteTime -Descending | Select-Object -First ${maxFilesPerFolder})
-        foreach ($i in $items) {
-          $rel = $i.FullName
-          if ($rel.StartsWith($prefix)) { $rel = $rel.Substring($prefix.Length) }
-          $files += @{ name = $rel; size = $i.Length; modified = $i.LastWriteTimeUtc.ToString('o') }
-        }
-      }
-      $report += @{ id = $f.id; ok = $ok; truncated = $truncated; files = $files }
-    }
-    $json = ConvertTo-Json -InputObject @{ computer = $env:COMPUTERNAME; folders = $report } -Depth 6 -Compress
-    $bytes = [Text.Encoding]::UTF8.GetBytes($json)
-    $null = Invoke-RestMethod -Uri $Api -Method Post -Headers $Headers -ContentType 'application/json; charset=utf-8' -Body $bytes -TimeoutSec 60
-    Write-Host ((Get-Date -Format 'HH:mm:ss') + ' OK, papok: ' + $report.Count)
-  } catch {
-    Write-Host ((Get-Date -Format 'HH:mm:ss') + ' Oshibka: ' + $_.Exception.Message) -ForegroundColor Yellow
-  }
+function Sync-GibLabOrders {
   # Novye zakazy saita -> papka proektov GibLab (imena v base64: kirillica).
   try {
     $OrdersApi = "$Site/api/production/giblab-orders"
@@ -462,6 +427,44 @@ while ($true) {
   } catch {
     Write-Host ((Get-Date -Format 'HH:mm:ss') + ' GibLab oshibka: ' + $_.Exception.Message) -ForegroundColor Yellow
   }
+}
+$Loop = 0
+$CatHash = ''
+$CatDone = ''
+while ($true) {
+  $wait = ${watcherIntervalSeconds}
+  try {
+    $cfg = Invoke-RestMethod -Uri $Api -Headers $Headers -TimeoutSec 30
+    if ($cfg.intervalSeconds) { $wait = [int]$cfg.intervalSeconds }
+    $report = @()
+    foreach ($f in @($cfg.folders)) {
+      if (-not $f -or -not $f.path) { continue }
+      $root = [string]$f.path
+      $ok = Test-Path -LiteralPath $root
+      $files = @()
+      $truncated = $false
+      if ($ok) {
+        $prefix = (Get-Item -LiteralPath $root).FullName.TrimEnd('\') + '\'
+        if ($f.recurse) { $all = @(Get-ChildItem -LiteralPath $root -File -Recurse -ErrorAction SilentlyContinue) }
+        else { $all = @(Get-ChildItem -LiteralPath $root -File -ErrorAction SilentlyContinue) }
+        $truncated = $all.Count -gt ${maxFilesPerFolder}
+        $items = @($all | Sort-Object LastWriteTime -Descending | Select-Object -First ${maxFilesPerFolder})
+        foreach ($i in $items) {
+          $rel = $i.FullName
+          if ($rel.StartsWith($prefix)) { $rel = $rel.Substring($prefix.Length) }
+          $files += @{ name = $rel; size = $i.Length; modified = $i.LastWriteTimeUtc.ToString('o') }
+        }
+      }
+      $report += @{ id = $f.id; ok = $ok; truncated = $truncated; files = $files }
+    }
+    $json = ConvertTo-Json -InputObject @{ computer = $env:COMPUTERNAME; folders = $report } -Depth 6 -Compress
+    $bytes = [Text.Encoding]::UTF8.GetBytes($json)
+    $null = Invoke-RestMethod -Uri $Api -Method Post -Headers $Headers -ContentType 'application/json; charset=utf-8' -Body $bytes -TimeoutSec 60
+    Write-Host ((Get-Date -Format 'HH:mm:ss') + ' OK, papok: ' + $report.Count)
+  } catch {
+    Write-Host ((Get-Date -Format 'HH:mm:ss') + ' Oshibka: ' + $_.Exception.Message) -ForegroundColor Yellow
+  }
+  Sync-GibLabOrders
   # Katalog materialov saita -> goods.xls dlya GibLab (raz v 10 ciklov).
   if (($Loop % 10) -eq 0) {
     try {
@@ -499,7 +502,14 @@ while ($true) {
   }
   $Loop++
   if ($wait -lt 15) { $wait = 15 }
-  Start-Sleep -Seconds $wait
+  # Zakazy GibLab - kazhdye 15 s, papki stankov - raz v cikl.
+  $slept = 0
+  while ($slept -lt $wait) {
+    $step = [Math]::Min(15, $wait - $slept)
+    Start-Sleep -Seconds $step
+    $slept += $step
+    if ($slept -lt $wait) { Sync-GibLabOrders }
+  }
 }
 `;
   const lines = [

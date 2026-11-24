@@ -8,7 +8,12 @@ test("hole prices follow the workshop price list", () => {
   assert.equal(drillingHolePrice(15), 13);
   assert.equal(drillingHolePrice(8), 10);
   assert.equal(drillingHolePrice(5.1), 6);
-  assert.equal(drillingHolePrice(12), null);
+  assert.equal(drillingHolePrice(12), 10);
+  // Ø2,5 — как Ø3, Ø4 — посередине, берём больший Ø5.
+  assert.equal(drillingHolePrice(2.5), 4);
+  assert.equal(drillingHolePrice(4), 6);
+  // Диаметра нет в прайсе — цена ближайшего (Ø18 → Ø20).
+  assert.equal(drillingHolePrice(18), 20);
 });
 
 test("holes are summed with quantities and priced", () => {
@@ -19,11 +24,11 @@ test("holes are summed with quantities and priced", () => {
   ]);
   assert.deepEqual(result.rows, [
     { diameter: 35, holes: 6, price: 32, cost: 192 },
-    { diameter: 12, holes: 1, price: null, cost: 0 },
+    { diameter: 12, holes: 1, price: 10, cost: 10 },
     { diameter: 8, holes: 3, price: 10, cost: 30 },
     { diameter: 5, holes: 12, price: 6, cost: 72 },
   ]);
   assert.equal(result.holes, 22);
-  assert.equal(result.cost, 294);
-  assert.equal(result.unpricedHoles, 1);
+  assert.equal(result.cost, 304);
+  assert.equal(result.unpricedHoles, 0);
 });

@@ -27,6 +27,7 @@ import {
 import { logOperationEvent } from "@/lib/server/operation-events";
 import { sendStaffNotice } from "@/lib/server/commercial-integrations";
 import { absoluteUrl } from "@/lib/seo";
+import { ADMIN_CREATED_REQUEST_MARKER } from "@/features/admin/request-origin";
 import { readRequestFileBytes } from "@/lib/server/request-file-content";
 import { getOrCreateBazisProjectCode } from "@/lib/server/bazis-project-code";
 
@@ -112,14 +113,23 @@ export type RequestFileRef = {
 // её файлы Базиса. null — Базиса нет или базы нет.
 export async function getRequestBazisCode(
   requestId: string,
-  files: Array<{ id?: string; fileName: string; createdAt?: Date | string | null }>,
+  files: Array<{
+    id?: string;
+    fileName: string;
+    createdAt?: Date | string | null;
+  }>,
 ) {
   const ids = orderedBazisFiles(files)
     .map((file) => file.id)
     .filter((id): id is string => Boolean(id));
   if (ids.length === 0) return null;
   try {
-    return await getOrCreateBazisProjectCode(requestId, ids[0], new Date(), ids);
+    return await getOrCreateBazisProjectCode(
+      requestId,
+      ids[0],
+      new Date(),
+      ids,
+    );
   } catch (error) {
     console.error("[bazis:project-code]", error);
     return null;
@@ -240,7 +250,18 @@ export async function getPendingGibLabOrders(limit = 10) {
   const since = new Date(settings.since);
   // Файлы заявки (проект калькулятора, Базис) сохраняются уже после самой
   // заявки: ждём 2 минуты, чтобы не выгрузить пустой проект вместо них.
-  const ready = new Date(Date.now() - 2 * 60_000);
+  // Не ждём, если файлы уже на месте (их пишут разом в конце сохранения)
+  // и если заявку создал менеджер в админке: там файлы сохраняются до ответа.
+  const now = Date.now();
+  const ready = new Date(now - 2 * 60_000);
+  const filesSettled = new Date(now - 15_000);
+  const isReady = {
+    OR: [
+      { createdAt: { lte: ready } },
+      { message: { startsWith: ADMIN_CREATED_REQUEST_MARKER } },
+      { createdAt: { lte: filesSettled }, files: { some: {} } },
+    ],
+  };
   const done = await db.productionGibLabOrder.findMany({
     where: {
       OR: [
@@ -259,12 +280,13 @@ export async function getPendingGibLabOrders(limit = 10) {
             status: {
               notIn: [RequestStatus.COMPLETED, RequestStatus.CANCELED],
             },
-            createdAt: { gte: since, lte: ready },
+            createdAt: { gte: since },
+            ...isReady,
           }
         : {
             status: RequestStatus.IN_PROGRESS,
             updatedAt: { gte: since },
-            createdAt: { lte: ready },
+            ...isReady,
           }),
     },
     orderBy: { createdAt: "asc" },

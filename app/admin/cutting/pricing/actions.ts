@@ -21,6 +21,12 @@ import {
   repriceCuttingRequest,
   siteCuttingPricesKey,
 } from "@/lib/server/cutting-pricing";
+import {
+  applyGibLabProjectToRequest,
+  isGibLabProjectFileName,
+  readRequestGibLabSummary,
+} from "@/lib/server/giblab-project-apply";
+import { logOperationEvent } from "@/lib/server/operation-events";
 
 export async function saveCuttingPriceAction(form: FormData) {
   const actor = await requireAdminSession("/login", "/admin/cutting/pricing");
@@ -169,4 +175,71 @@ export async function repriceCuttingRequestAction(form: FormData) {
   revalidatePath("/admin");
   revalidatePath("/account/requests");
   redirect(`/admin/requests/${encodeURIComponent(id)}`);
+}
+
+// «Взять из GibLab»: оператор доделал заказ в GibLab, файл .project
+// приложен к заявке. Листы, кромка, присадка и фрезеровка переносятся в
+// заявку, сумма работ пересчитывается по прайсу.
+export async function applyGibLabProjectAction(form: FormData) {
+  const id = String(form.get("requestId") ?? "").trim();
+  const fileId = String(form.get("fileId") ?? "").trim();
+  const actor = await requireAdminSession("/login", `/admin/requests/${id}`);
+  if (!canAccessRequestType(actor.roleCode, RequestType.CUTTING_SERVICE))
+    throw new Error("Нет доступа.");
+  const back = (message?: string) =>
+    redirect(
+      `/admin/requests/${encodeURIComponent(id)}${
+        message ? `?pricingError=${encodeURIComponent(message)}` : ""
+      }#giblab`,
+    );
+  if (!hasDatabaseUrl()) back("База данных не подключена.");
+  const file = await getDb().requestFile.findFirst({
+    where: { id: fileId, requestId: id },
+    select: { fileName: true, fileUrl: true },
+  });
+  if (!file || !isGibLabProjectFileName(file.fileName))
+    back("Файл GibLab не найден в заявке.");
+  let message: string | null = null;
+  try {
+    const summary = await readRequestGibLabSummary(file!.fileUrl);
+    if (!summary) throw new Error("Не удалось прочитать файл GibLab.");
+    const extras = await applyGibLabProjectToRequest(id, summary);
+    await logOperationEvent({
+      entityType: "request",
+      entityId: id,
+      eventType: "production_result",
+      title: "Данные взяты из заказа GibLab",
+      description: [
+        `Файл: ${file!.fileName}.`,
+        ...summary.sheets.map((sheet) => `${sheet.name}: ${sheet.sheets} л.`),
+        ...summary.bands.map((band) => `${band.name}: ${band.meters} м.`),
+        `Отверстий: ${summary.faceHoles + summary.edgeHoles}.`,
+      ].join(" "),
+      isVisibleToClient: false,
+      actor,
+    });
+    try {
+      await repriceCuttingRequest(id, actor.userId, extras);
+    } catch (error) {
+      message =
+        error instanceof Error &&
+        error.message === "Сначала заполните прайс работ."
+          ? "Данные из GibLab перенесены, но прайс работ не заполнен: сумма не пересчитана."
+          : "Данные из GibLab перенесены, но сумму пересчитать не удалось.";
+    }
+  } catch (error) {
+    console.error("[giblab:apply]", error);
+    message =
+      error instanceof Error && error.message.startsWith("В проекте GibLab")
+        ? error.message
+        : error instanceof Error &&
+            error.message === "Не удалось прочитать файл GibLab."
+          ? error.message
+          : "Не удалось перенести данные из GibLab. Повторите попытку.";
+  }
+  revalidatePath(`/admin/requests/${id}`);
+  revalidatePath(`/admin/requests/${id}/route-sheet`);
+  revalidatePath("/admin/cutting");
+  revalidatePath("/account/requests");
+  back(message ?? undefined);
 }

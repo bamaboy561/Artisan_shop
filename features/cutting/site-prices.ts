@@ -163,7 +163,8 @@ export type SiteCuttingPrices = {
 } & Record<OtherWorkPriceKey, number>;
 
 // Ø5 — как отверстие под полкодержатель, Ø8 — как отверстие D8.
-// Отверстие другого диаметра цену не получает: его посчитает менеджер.
+// Отверстие другого диаметра считается по ближайшему диаметру из прайса
+// (Ø2,5 — как Ø3, Ø12 — как Ø10), см. drillHoleRate.
 export const drillingDiameters = [3, 5, 6, 7, 8, 10, 15, 20, 25, 35] as const;
 
 export const defaultSiteCuttingPrices: SiteCuttingPrices = {
@@ -310,4 +311,31 @@ export function buildCuttingSiteIncentive(
         : []),
     ],
   };
+}
+
+// Цена одного отверстия. Сначала точный диаметр из прайса, потом то же
+// сверло (Ø4,9 и Ø5,1 — это Ø5), а если такого диаметра в прайсе нет —
+// цена ближайшего диаметра (при равенстве — большего): так в сумму входят
+// все отверстия проекта, какого бы диаметра они ни были.
+export function drillHoleRate(
+  diameter: number,
+  prices: Record<number, number>,
+): { rate: number; base: number } | null {
+  if (!(diameter > 0)) return null;
+  const priced = Object.entries(prices)
+    .map(([key, value]) => ({ base: Number(key), rate: value }))
+    .filter((row) => row.base > 0 && isValidSitePrice(row.rate));
+  if (priced.length === 0) return null;
+  const exact = priced.find((row) => Math.abs(row.base - diameter) < 0.01);
+  if (exact) return exact;
+  const rounded = Math.round(diameter);
+  if (Math.abs(diameter - rounded) <= 0.2) {
+    const same = priced.find((row) => row.base === rounded);
+    if (same) return same;
+  }
+  return priced.reduce((best, row) => {
+    const d = Math.abs(row.base - diameter);
+    const bestD = Math.abs(best.base - diameter);
+    return d < bestD || (d === bestD && row.base > best.base) ? row : best;
+  });
 }
