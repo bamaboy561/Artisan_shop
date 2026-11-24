@@ -3874,3 +3874,42 @@
     justify-self: end;
   }
 }
+
+/* Дизайн-проход витрины 2026-11-24: цены тем же шрифтом, что и текст,
+   ровные переносы заголовков, без лишних подписей над секциями. */
+.offerPills strong,
+.promoValue,
+.productBottom strong,
+.detailPrice strong,
+.stickyBuy strong {
+  font-family: var(--font-manrope), Arial, sans-serif;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+.productBottom strong {
+  font-size: 21px;
+}
+.root h1,
+.root h2 {
+  text-wrap: balance;
+}
+.serviceText h2 {
+  font-size: clamp(28px, 3vw, 40px);
+}
+.serviceText > p:not(.eyebrow) {
+  max-width: 440px;
+}
+.contactBand > div > p {
+  margin-top: 8px;
+  color: var(--pv-muted);
+}
+.brandGrid span {
+  overflow-wrap: normal;
+  word-break: normal;
+}
+@media (max-width: 600px) {
+  .brandGrid span {
+    font-size: 13px;
+  }
+}

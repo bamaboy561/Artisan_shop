@@ -77,7 +77,6 @@ export async function StorefrontHome() {
         <section className={`${s.section} ${s.container}`}>
           <div className={s.sectionHeading}>
             <div>
-              <p className={s.eyebrow}>Выгодно сейчас</p>
               <h2>Акции</h2>
             </div>
           </div>
@@ -97,8 +96,7 @@ export async function StorefrontHome() {
       <section className={`${s.section} ${s.container}`}>
         <div className={s.sectionHeading}>
           <div>
-            <p className={s.eyebrow}>Всё начинается с материала</p>
-            <h2>Основа красивой мебели</h2>
+            <h2>Разделы каталога</h2>
           </div>
           <Link href="/catalog" className={s.textLink}>
             Весь каталог <ArrowUpRight size={19} />
@@ -122,10 +120,7 @@ export async function StorefrontHome() {
                   className={s.cover}
                 />
               </div>
-              <h3>
-                {category.name}
-                <ArrowUpRight size={20} />
-              </h3>
+              <h3>{category.name}</h3>
               <p>{category.summary}</p>
             </Link>
           ))}
@@ -136,8 +131,7 @@ export async function StorefrontHome() {
           <div className={`${s.container} ${s.section}`}>
             <div className={s.sectionHeading}>
               <div>
-                <p className={s.eyebrow}>Для вашего проекта</p>
-                <h2>Материалы и детали</h2>
+                <h2>Популярные материалы</h2>
               </div>
               <Link href="/catalog" className={s.textLink}>
                 Смотреть всё <ArrowUpRight size={19} />
@@ -159,8 +153,7 @@ export async function StorefrontHome() {
       <section id="brands" className={`${s.container} ${s.section}`}>
         <div className={s.sectionHeading}>
           <div>
-            <p className={s.eyebrow}>Партнёры Artisan</p>
-            <h2>Имена, за которыми качество</h2>
+            <h2>Бренды на складе</h2>
           </div>
           <Link href="/brands" className={s.textLink}>
             Все бренды <ArrowUpRight size={19} />
@@ -189,7 +182,6 @@ export async function StorefrontHome() {
               ) : (
                 <span>{brand.name}</span>
               )}
-              <ArrowUpRight size={16} />
             </Link>
           ))}
         </div>
@@ -207,13 +199,11 @@ export async function StorefrontHome() {
             />
           </div>
           <div className={s.serviceText}>
-            <p className={s.eyebrow}>От замысла к готовой детали</p>
-            <h2>
-              Ваш материал.
-              <br />
-              Наша точность.
-            </h2>
-            <p>Распил, кромление и присадка для вашего проекта.</p>
+            <h2>Распил, кромление и присадка в своём цехе</h2>
+            <p>
+              Пилим на немецких HOMAG и ALTENDORF, кромку клеим на PUR-клей.
+              Пришлите размеры деталей или файл из Базиса, остальное сделаем мы.
+            </p>
             <div className={s.serviceSteps}>
               <span>
                 <Scissors size={22} />
@@ -236,8 +226,8 @@ export async function StorefrontHome() {
       </section>
       <section className={`${s.container} ${s.contactBand}`}>
         <div>
-          <p className={s.eyebrow}>Вместе найдём нужное</p>
-          <h2>Обсудим ваш проект?</h2>
+          <h2>Не нашли нужный декор?</h2>
+          <p>Напишите в WhatsApp, подскажем по наличию и срокам.</p>
         </div>
         <a
           href={companyContacts.whatsapp}
@@ -245,7 +235,7 @@ export async function StorefrontHome() {
           rel="noreferrer"
           className={s.primaryButton}
         >
-          Связаться с нами <ArrowRight size={21} />
+          Написать в WhatsApp <ArrowRight size={21} />
         </a>
       </section>
     </>

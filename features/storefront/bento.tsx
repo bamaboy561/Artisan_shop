@@ -64,7 +64,7 @@ export async function StorefrontBento({
             {companyContacts.hours} ·{" "}
             {companyContacts.address.replace(/^г\. Бишкек, (ул\. )?/, "")}
           </p>
-          <h1>ЛДСП, МДФ, фурнитура и распил в Бишкеке</h1>
+          <h1>ЛДСП, МДФ, фурнитура и&nbsp;распил в&nbsp;Бишкеке</h1>
           <p>
             Соберите материалы, отправьте детали на распил и заберите готовое.
             Без предоплаты на сайте.
@@ -107,10 +107,6 @@ export async function StorefrontBento({
         />
         <span className={s.tileShade} />
         <span className={s.tileBody}>
-          <span className={s.tileTag}>
-            <i />
-            Декоры в интерьере
-          </span>
           <h2>ЛДСП Extravert</h2>
           <p>
             Смотреть декоры <ArrowUpRight size={15} />
@@ -134,10 +130,6 @@ export async function StorefrontBento({
         </Link>
       ) : (
         <Link href="/account" className={`${s.tile} ${s.promoTile}`}>
-          <span className={s.tileTag}>
-            <i />
-            Программа лояльности
-          </span>
           <span className={s.promoValue}>Баллы</span>
           <strong>за каждую покупку, ими можно оплатить часть заказа</strong>
           <span>Узнать условия →</span>
@@ -145,7 +137,6 @@ export async function StorefrontBento({
       )}
       <div className={`${s.tile} ${s.colorTile}`}>
         <div>
-          <p className={s.eyebrow}>Подбор декора</p>
           <h2>Выберите по цвету</h2>
           <p>ЛДСП и МДФ нужного оттенка в одно касание</p>
         </div>
