@@ -1,15 +1,5 @@
-import Image from "next/image";
 import Link from "next/link";
-import {
-  ArrowRight,
-  ArrowUpRight,
-  Drill,
-  Gift,
-  MapPin,
-  Ruler,
-  Scissors,
-  Wallet,
-} from "lucide-react";
+import { ArrowRight, ArrowUpRight } from "lucide-react";
 import { ProductImage } from "@/components/catalog/product-image";
 import { getBrandProfiles } from "@/features/brands/data";
 import {
@@ -40,46 +30,10 @@ export async function StorefrontHome() {
   return (
     <>
       <StorefrontBento promotion={promotions[0]} />
-      <ul
-        className={`${s.container} ${s.trustStrip}`}
-        aria-label="Почему Artisan"
-      >
-        <li>
-          <Wallet size={20} />
-          <span>
-            <strong>Оплата при получении</strong>
-            Без предоплаты на сайте
-          </span>
-        </li>
-        <li>
-          <Scissors size={20} />
-          <span>
-            <strong>Распил и кромление</strong>
-            По вашим размерам
-          </span>
-        </li>
-        <li>
-          <MapPin size={20} />
-          <span>
-            <strong>Самовывоз</strong>
-            {companyContacts.address.replace(/^г\. /, "")}
-          </span>
-        </li>
-        <li>
-          <Gift size={20} />
-          <span>
-            <strong>Бонусы</strong>
-            Баллы за каждую покупку
-          </span>
-        </li>
-      </ul>
       {promotional.length > 0 && (
         <section className={`${s.section} ${s.container}`}>
           <div className={s.sectionHeading}>
-            <div>
-              <p className={s.eyebrow}>Выгодно сейчас</p>
-              <h2>Акции</h2>
-            </div>
+            <h2>Акции</h2>
           </div>
           <div className={s.homeProducts}>
             {promotional.map((product, index) => (
@@ -96,49 +50,37 @@ export async function StorefrontHome() {
       )}
       <section className={`${s.section} ${s.container}`}>
         <div className={s.sectionHeading}>
-          <div>
-            <p className={s.eyebrow}>Всё начинается с материала</p>
-            <h2>Основа красивой мебели</h2>
-          </div>
+          <h2>Разделы</h2>
           <Link href="/catalog" className={s.textLink}>
             Весь каталог <ArrowUpRight size={19} />
           </Link>
         </div>
-        <div className={s.categoryGrid}>
-          {categories.map((category, index) => (
-            <Link
-              key={category.slug}
-              href={`/catalog/${category.slug}`}
-              className={s.categoryTile}
-            >
-              <div>
-                <ProductImage
-                  src={category.coverImage}
-                  alt={category.name}
-                  fallbackLabel={category.name}
-                  fill
-                  sizes="(max-width: 600px) 50vw, 25vw"
-                  loading={index < 4 ? "eager" : undefined}
-                  className={s.cover}
-                />
-              </div>
-              <h3>
-                {category.name}
-                <ArrowUpRight size={20} />
-              </h3>
-              <p>{category.summary}</p>
-            </Link>
+        <ol className={s.indexList}>
+          {categories.map((category) => (
+            <li key={category.slug}>
+              <Link href={`/catalog/${category.slug}`}>
+                <strong>{category.name}</strong>
+                <span className={s.indexSummary}>{category.summary}</span>
+                <span className={s.indexThumb}>
+                  <ProductImage
+                    src={category.coverImage}
+                    alt=""
+                    fallbackLabel={category.name}
+                    fill
+                    sizes="240px"
+                    className={s.cover}
+                  />
+                </span>
+              </Link>
+            </li>
           ))}
-        </div>
+        </ol>
       </section>
       {products.length > 0 && (
         <section className={s.collectionBand}>
           <div className={`${s.container} ${s.section}`}>
             <div className={s.sectionHeading}>
-              <div>
-                <p className={s.eyebrow}>Для вашего проекта</p>
-                <h2>Материалы и детали</h2>
-              </div>
+              <h2>Часто берут</h2>
               <Link href="/catalog" className={s.textLink}>
                 Смотреть всё <ArrowUpRight size={19} />
               </Link>
@@ -156,88 +98,53 @@ export async function StorefrontHome() {
           </div>
         </section>
       )}
-      <section id="brands" className={`${s.container} ${s.section}`}>
-        <div className={s.sectionHeading}>
-          <div>
-            <p className={s.eyebrow}>Партнёры Artisan</p>
-            <h2>Имена, за которыми качество</h2>
-          </div>
-          <Link href="/brands" className={s.textLink}>
-            Все бренды <ArrowUpRight size={19} />
+      <section id="services" className={`${s.container} ${s.workshop}`}>
+        <div>
+          <h2>Свой цех на Кулатова</h2>
+          <p>
+            Распил, кромка и присадка в одном месте. Пришлите размеры деталей
+            или файл из Базиса.
+          </p>
+          <Link href="/calculator" className={s.primaryButton}>
+            Рассчитать распил <ArrowRight size={19} />
           </Link>
         </div>
-        <div className={s.brandGrid}>
-          {brands.map((brand) => (
-            <Link
-              key={brand.slug}
-              href={brand.brandPageHref}
-              title={`Товары ${brand.name}`}
-            >
-              {brand.logoUrl ? (
-                <ProductImage
-                  src={
-                    brand.slug === "albero" &&
-                    brand.logoUrl === "/brands/albero-logo.png"
-                      ? "/storefront/albero.webp"
-                      : brand.logoUrl
-                  }
-                  alt={brand.name}
-                  fallbackLabel={brand.name}
-                  width={180}
-                  height={45}
-                />
-              ) : (
-                <span>{brand.name}</span>
-              )}
-              <ArrowUpRight size={16} />
-            </Link>
-          ))}
-        </div>
+        <table className={s.machineTable}>
+          <tbody>
+            <tr>
+              <th>Распил</th>
+              <td>HOMAG S-100, ALTENDORF F45</td>
+            </tr>
+            <tr>
+              <th>Кромка</th>
+              <td>HOMAG S-240, клей PUR</td>
+            </tr>
+            <tr>
+              <th>Присадка</th>
+              <td>EXCITECH EHSW1228 с ЧПУ</td>
+            </tr>
+            <tr>
+              <th>Фрезеровка</th>
+              <td>Нестинг-центр EK-2128</td>
+            </tr>
+          </tbody>
+        </table>
       </section>
-      <section id="services" className={s.serviceBand}>
-        <div className={`${s.container} ${s.serviceGrid}`}>
-          <div className={s.serviceVisual}>
-            <Image
-              src="/storefront/interior-2.webp"
-              alt="Мебель из декоров Extravert"
-              fill
-              unoptimized
-              sizes="(max-width: 700px) 100vw, 50vw"
-              className={s.cover}
-            />
-          </div>
-          <div className={s.serviceText}>
-            <p className={s.eyebrow}>От замысла к готовой детали</p>
-            <h2>
-              Ваш материал.
-              <br />
-              Наша точность.
-            </h2>
-            <p>Распил, кромление и присадка для вашего проекта.</p>
-            <div className={s.serviceSteps}>
-              <span>
-                <Scissors size={22} />
-                Распил
-              </span>
-              <span>
-                <Ruler size={22} />
-                Кромление
-              </span>
-              <span>
-                <Drill size={22} />
-                Присадка
-              </span>
-            </div>
-            <Link href="/calculator" className={s.lightButton}>
-              Рассчитать распил <ArrowUpRight size={21} />
-            </Link>
-          </div>
-        </div>
+      <section id="brands" className={`${s.container} ${s.brandLine}`}>
+        <h2>Бренды</h2>
+        <p>
+          {brands.map((brand, index) => (
+            <span key={brand.slug}>
+              <Link href={brand.brandPageHref}>{brand.name}</Link>
+              {index < brands.length - 1 && " / "}
+            </span>
+          ))}
+        </p>
       </section>
       <section className={`${s.container} ${s.contactBand}`}>
         <div>
-          <p className={s.eyebrow}>Вместе найдём нужное</p>
-          <h2>Обсудим ваш проект?</h2>
+          <h2>Не нашли нужный декор?</h2>
+          <p>Напишите в WhatsApp, подскажем по наличию и срокам.</p>
         </div>
         <a
           href={companyContacts.whatsapp}
@@ -245,7 +152,7 @@ export async function StorefrontHome() {
           rel="noreferrer"
           className={s.primaryButton}
         >
-          Связаться с нами <ArrowRight size={21} />
+          Написать в WhatsApp <ArrowRight size={21} />
         </a>
       </section>
     </>

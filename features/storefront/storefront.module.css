@@ -3874,3 +3874,424 @@
     justify-self: end;
   }
 }
+
+/* Impeccable, 2026-11-24. Мир — чертёж и карта раскроя: бумажный фон,
+   тушь, один оранжевый акцент. Момент — карта раскроя на первом экране,
+   детали ложатся на лист по очереди. Моноширинный — только для размеров. */
+.root {
+  --im-paper: #f3f0e8;
+  --im-ink: #1d1c19;
+  --im-ink-2: #55524a;
+  --im-rule: #1d1c1926;
+  background: var(--im-paper);
+}
+.root ::selection {
+  background: #c4532b33;
+}
+.root h1,
+.root h2 {
+  font-weight: 600;
+  text-wrap: balance;
+}
+.drawHero {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  gap: 64px;
+  align-items: center;
+  padding-block: 72px 56px;
+}
+.root .drawText h1 {
+  font-size: clamp(40px, 4.8vw, 68px);
+  line-height: 1.02;
+  letter-spacing: -0.035em;
+  color: var(--im-ink);
+}
+.drawText > p {
+  margin-top: 24px;
+  max-width: 46ch;
+  font-size: 17px;
+  line-height: 1.6;
+  color: var(--im-ink-2);
+}
+.root .drawText .drawPrices {
+  margin-top: 16px;
+  font-size: 15px;
+  color: var(--im-ink);
+  font-weight: 600;
+}
+.drawActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px 28px;
+  margin-top: 32px;
+}
+.drawLink {
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: var(--im-rule);
+  text-underline-offset: 6px;
+  transition: text-decoration-color 160ms ease;
+}
+.drawLink:hover {
+  text-decoration-color: currentColor;
+}
+.cutMap {
+  margin: 0;
+  background: #fbfaf6;
+  border: 1px solid var(--im-rule);
+  border-radius: 6px;
+  padding: 28px 28px 16px;
+  box-shadow: 0 18px 40px -24px #1d1c1940;
+}
+.cutMap svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.cutMap figcaption {
+  margin-top: 12px;
+  font-family: var(--font-ibm-plex-mono), ui-monospace, monospace;
+  font-size: 12px;
+  color: var(--im-ink-2);
+}
+.cutSheet {
+  fill: #e9e3d6;
+  stroke: var(--im-ink);
+  stroke-width: 6;
+}
+.cutHatch {
+  stroke: #1d1c1933;
+  stroke-width: 4;
+}
+.cutPart rect {
+  fill: #fffdf8;
+  stroke: var(--im-ink);
+  stroke-width: 4;
+}
+.cutPart:first-of-type rect,
+.cutPart:nth-of-type(2) rect {
+  fill: #f6e3d9;
+  stroke: #c4532b;
+}
+.cutPart {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: cutDrop 560ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.cutName {
+  font-family: var(--font-manrope), Arial, sans-serif;
+  font-size: 64px;
+  font-weight: 600;
+  fill: var(--im-ink);
+}
+.cutSize,
+.cutDim {
+  font-family: var(--font-ibm-plex-mono), ui-monospace, monospace;
+  font-size: 52px;
+  fill: var(--im-ink-2);
+}
+.cutDim {
+  font-size: 44px;
+}
+@keyframes cutDrop {
+  from {
+    opacity: 0;
+    transform: translateY(-18px) scale(0.98);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cutPart {
+    animation: none;
+  }
+}
+.drawPromo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-block: 16px;
+  border-block: 1px solid var(--im-rule);
+  font-weight: 600;
+}
+.drawPromo strong {
+  color: var(--pv-accent);
+}
+.drawPromo svg {
+  margin-left: auto;
+}
+/* Декоры веером, как в образцах у поставщика */
+.fanSection {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 40px;
+  align-items: end;
+  padding-block: 32px 16px;
+  border-top: 1px solid var(--im-rule);
+}
+.root .fanSection h2 {
+  font-size: 26px;
+  align-self: start;
+  padding-top: 24px;
+}
+.fan {
+  display: grid;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+  height: 220px;
+  align-items: end;
+}
+.fan a {
+  position: relative;
+  height: 180px;
+  margin-right: -10px;
+  border-radius: 4px 4px 2px 2px;
+  box-shadow:
+    inset 0 0 0 1px #00000014,
+    -6px 0 14px -8px #00000059;
+  transition: height 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.fan a:hover,
+.fan a:focus-visible {
+  height: 216px;
+}
+.fan span {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%) rotate(-90deg);
+  transform-origin: center;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 3px;
+  background: #fffdf8e6;
+  color: var(--im-ink);
+  translate: 0 -40px;
+}
+/* Разделы — указатель, а не плитки */
+.indexList {
+  border-top: 1px solid var(--im-ink);
+}
+.indexList li {
+  border-bottom: 1px solid var(--im-rule);
+}
+.indexList a {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 4fr) minmax(0, 6fr) 120px;
+  gap: 24px;
+  align-items: center;
+  padding-block: 20px;
+  transition: background-color 160ms ease;
+}
+.indexList a:hover {
+  background: #1d1c1908;
+}
+.indexList strong {
+  font-size: clamp(28px, 3vw, 40px);
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 1.1;
+}
+.indexSummary {
+  color: var(--im-ink-2);
+  font-size: 15px;
+}
+.indexThumb {
+  position: relative;
+  width: 120px;
+  height: 80px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #e9e3d6;
+}
+.root .sectionHeading h2 {
+  font-size: clamp(28px, 3vw, 40px);
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+.root .productCard,
+.root .categoryTile {
+  border-radius: 8px;
+}
+/* Цех — таблица станков */
+.workshop {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  gap: 64px;
+  margin-top: 80px;
+  padding: 56px;
+  background: var(--im-ink);
+  color: #f3f0e8;
+  border-radius: 8px;
+}
+.root .workshop h2 {
+  font-size: clamp(28px, 3vw, 40px);
+  letter-spacing: -0.025em;
+}
+.workshop p {
+  margin-block: 16px 28px;
+  color: #c9c4b8;
+  max-width: 40ch;
+}
+.machineTable {
+  width: 100%;
+  border-collapse: collapse;
+  align-self: center;
+}
+.machineTable th,
+.machineTable td {
+  text-align: left;
+  padding: 16px 0;
+  border-bottom: 1px solid #f3f0e826;
+  font-size: 16px;
+}
+.machineTable th {
+  width: 34%;
+  font-weight: 600;
+}
+.machineTable td {
+  font-family: var(--font-ibm-plex-mono), ui-monospace, monospace;
+  font-size: 14px;
+  color: #c9c4b8;
+}
+.brandLine {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 40px;
+  padding-block: 72px 0;
+}
+.root .brandLine h2 {
+  font-size: 26px;
+}
+.brandLine p {
+  font-size: clamp(22px, 2.4vw, 32px);
+  line-height: 1.4;
+  letter-spacing: -0.02em;
+  color: var(--im-ink-2);
+}
+.brandLine a {
+  color: var(--im-ink);
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 6px;
+  transition: text-decoration-color 160ms ease;
+}
+.brandLine a:hover {
+  text-decoration-color: currentColor;
+}
+.root .contactBand {
+  margin-top: 72px;
+  border-radius: 8px;
+  background: #fbfaf6;
+  border: 1px solid var(--im-rule);
+}
+.contactBand > div > p {
+  margin-top: 8px;
+  color: var(--im-ink-2);
+}
+.root .contactBand h2 {
+  font-weight: 600;
+}
+.productBrand {
+  text-transform: none;
+  letter-spacing: 0;
+}
+@media (max-width: 850px) {
+  .drawHero {
+    grid-template-columns: 1fr;
+    gap: 32px;
+    padding-block: 32px 24px;
+  }
+  .drawActions .primaryButton {
+    width: 100%;
+    justify-content: center;
+  }
+  .cutMap {
+    padding: 14px 14px 10px;
+  }
+  .fanSection,
+  .brandLine {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  .root .fanSection h2 {
+    padding-top: 16px;
+  }
+  .fan {
+    height: 170px;
+    overflow-x: auto;
+    grid-template-columns: repeat(10, 56px);
+    padding-left: 4px;
+  }
+  .fan a {
+    height: 140px;
+  }
+  .indexList a {
+    grid-template-columns: 1fr 88px;
+    gap: 4px 16px;
+  }
+  .indexSummary {
+    grid-column: 1;
+    font-size: 13px;
+  }
+  .indexThumb {
+    grid-row: 1 / span 2;
+    grid-column: 2;
+    width: 88px;
+    height: 64px;
+  }
+  .workshop {
+    grid-template-columns: 1fr;
+    gap: 24px;
+    padding: 28px 22px;
+    margin-top: 48px;
+  }
+  .brandLine {
+    padding-block: 48px 0;
+  }
+}
+.fan {
+  padding-right: 10px;
+}
+.root .fan span {
+  left: 8px;
+  bottom: 10px;
+  transform: rotate(180deg);
+  translate: none;
+  writing-mode: vertical-rl;
+  padding: 8px 2px;
+}
+.offerPills strong,
+.productBottom strong,
+.detailPrice strong,
+.stickyBuy strong {
+  font-family: var(--font-manrope), Arial, sans-serif;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.productBottom strong {
+  font-size: 21px;
+}
+.specChips {
+  gap: 0;
+}
+.specChips span {
+  background: none;
+  padding: 0;
+  font-family: var(--font-ibm-plex-mono), ui-monospace, monospace;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--im-ink-2);
+}
+.specChips span + span::before {
+  content: "·";
+  margin: 0 8px;
+}
