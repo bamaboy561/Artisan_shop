@@ -177,6 +177,8 @@ async function openSiteOrder(id, fresh = false) {
       if (local.site.version !== Q.site.version) local.site.conflict = { version: o.version ?? null, savedAt: o.savedAt || null, savedBy: o.savedBy || '' };
       Q = local;
     }
+    // Код сайта для QR «СБОРКА» на этикетках: без него в названии QR не найдёт проект.
+    if (o.code && !String(Q.name || '').toUpperCase().includes(o.code)) Q.name = [Q.name, o.code].filter(Boolean).join(' ');
     saveProject(P); openProject(Q);
     if (P.site?.conflict) siteConflict(P.site.conflict);
     else siteStatus(o.savedAt ? 'Открыт проект, сохранённый на сайте' : `Заявка открыта (${o.source || 'с сайта'})`);

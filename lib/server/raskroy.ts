@@ -134,8 +134,12 @@ export async function getRaskroyOrder(id: string) {
     `SELECT "data", "updatedAt", "version", "savedByName" FROM "RaskroyProject" WHERE "requestId" = $1`,
     id,
   );
+  // Код для QR «СБОРКА» на этикетках раскроя: программа дописывает его
+  // к названию проекта, как в имени файла заказа GibLab. null — нет Базиса.
+  const code = (await getRequestBazisCode(r.id, r.files))?.code ?? null;
   const meta = {
     id: r.id,
+    code,
     number: r.number,
     client: r.contactName,
     material: r.material || r.subject,
@@ -164,8 +168,6 @@ export async function getRaskroyOrder(id: string) {
     id: r.id,
     contactName: r.contactName,
     contactPhone: r.contactPhone,
-    // Код для QR «СБОРКА», как в имени файла заказа GibLab.
-    code: (await getRequestBazisCode(r.id, r.files))?.code,
   }).replace(/\.project$/i, "");
   const { bytes, source } = await buildContent(
     name,
