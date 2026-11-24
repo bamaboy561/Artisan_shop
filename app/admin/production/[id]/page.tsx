@@ -33,7 +33,7 @@ import {
   RequestType,
 } from "@/generated/prisma";
 import { cuttingStageSteps } from "@/features/cutting/progress";
-import { getProductionTransition } from "@/features/production/workflow";
+import { getProductionTransitions } from "@/features/production/workflow";
 import { GibLabProjectCode } from "@/components/admin/giblab-project-code";
 import { requireAdminSession } from "@/lib/auth/dal";
 import {
@@ -210,10 +210,15 @@ export default async function ProductionRequestPage({
         ? `Заказ № ${unpaidOrders.map((order) => order.number ?? "без номера").join(", ")} не оплачен.`
         : "";
   const canDeleteRequest = canDeleteRequests(session.roleCode);
-  const transition =
+  const transitions =
     operator && session.productionStation
-      ? getProductionTransition(session.productionStation, request.cuttingStage)
-      : null;
+      ? getProductionTransitions(
+          session.productionStation,
+          request.cuttingStage,
+        )
+      : [];
+  const transition = transitions[0] ?? null;
+  const asksPickupCell = transitions.some((item) => item.requiresPickupCell);
   const isClosed = new Set<RequestStatus>([
     RequestStatus.CANCELED,
     RequestStatus.COMPLETED,
@@ -453,7 +458,11 @@ export default async function ProductionRequestPage({
 
         <section className="order-1 border-t-2 border-emerald-700 bg-white p-4 sm:p-5 xl:order-2">
           <h2 className="text-lg font-semibold text-[var(--foreground)]">
-            {transition ? transition.label : "Действие станции"}
+            {transition
+              ? transitions.length > 1
+                ? "Кромка готова"
+                : transition.label
+              : "Действие станции"}
           </h2>
 
           {isClosed ? (
@@ -467,7 +476,7 @@ export default async function ProductionRequestPage({
             >
               <input type="hidden" name="requestId" value={request.id} />
               <input type="hidden" name="returnTo" value={returnTo} />
-              {transition.requiresPickupCell ? (
+              {asksPickupCell ? (
                 <label className="grid gap-2 text-sm font-medium text-[var(--foreground)]">
                   Ячейка выдачи
                   <div className="relative">
@@ -475,9 +484,13 @@ export default async function ProductionRequestPage({
                     <Input
                       name="cuttingPickupCell"
                       defaultValue={request.cuttingPickupCell ?? ""}
-                      placeholder="Например, A-12"
+                      placeholder={
+                        transitions.length > 1
+                          ? "Нужна для «Готово к выдаче», например A-12"
+                          : "Например, A-12"
+                      }
                       className="pl-10 sm:pl-10"
-                      required
+                      required={transitions.length === 1}
                     />
                   </div>
                 </label>
@@ -495,14 +508,19 @@ export default async function ProductionRequestPage({
                   />
                 </label>
               </details>
-              <AdminSubmitButton
-                type="submit"
-                variant="accent"
-                size="lg"
-                idleLabel={transition.label}
-                pendingLabel="Сохраняем..."
-                className="w-full"
-              />
+              {transitions.map((item, index) => (
+                <AdminSubmitButton
+                  key={item.to}
+                  type="submit"
+                  name="targetStage"
+                  value={item.to}
+                  variant={index === 0 ? "accent" : "secondary"}
+                  size="lg"
+                  idleLabel={item.label}
+                  pendingLabel="Сохраняем..."
+                  className="w-full"
+                />
+              ))}
             </form>
           ) : operator ? (
             <div className="mt-4 border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">

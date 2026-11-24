@@ -13,7 +13,10 @@ import {
   validDate,
 } from "../features/production/queue";
 import { canManageProduction } from "../lib/auth/roles";
-import { getProductionTransition } from "../features/production/workflow";
+import {
+  getProductionTransition,
+  getProductionTransitions,
+} from "../features/production/workflow";
 
 test("dates reject impossible days and normalize a reversed range", () => {
   assert.equal(validDate("2026-02-29"), "");
@@ -118,5 +121,26 @@ test("planning stays manager-only and existing station transitions remain unchan
     getProductionTransition(ProductionStation.DRILLING, CuttingStage.DRILLING)
       ?.requiresPickupCell,
     true,
+  );
+});
+
+test("after edging the operator chooses drilling or ready for pickup", () => {
+  const edging = getProductionTransitions(
+    ProductionStation.EDGING,
+    CuttingStage.EDGING,
+  );
+  assert.deepEqual(
+    edging.map((item) => item.to),
+    [CuttingStage.DRILLING, CuttingStage.READY_FOR_PICKUP],
+  );
+  assert.equal(edging[1].requiresPickupCell, true);
+  assert.equal(
+    getProductionTransitions(ProductionStation.DRILLING, CuttingStage.DRILLING)
+      .length,
+    1,
+  );
+  assert.deepEqual(
+    getProductionTransitions(ProductionStation.EDGING, CuttingStage.CUTTING),
+    [],
   );
 });

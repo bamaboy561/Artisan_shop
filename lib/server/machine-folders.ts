@@ -9,6 +9,7 @@ import {
   matchRequestByName,
   normalizeMachineFolders,
   mergeNewDefaultFolders,
+  upgradeFolderStages,
   parseMachineFolders,
   defaultMachineFolders,
   type MachineFolder,
@@ -27,10 +28,12 @@ import { sendStaffNotice } from "@/lib/server/commercial-integrations";
 import { logOperationEvent } from "@/lib/server/operation-events";
 import { updateRequestCuttingProgress } from "@/lib/server/request-production";
 import { prepareShifts } from "@/lib/server/production-shifts";
+import { syncRequestById } from "@/lib/server/request-sync";
 
 const keySetting = "machineWatcherKey";
 const foldersSetting = "machineFolders";
 const offeredSetting = "machineFoldersOffered";
+const stagesUpgradeSetting = "machineFolderStagesV2";
 const statusSetting = "machineWatcherStatus";
 
 let schemaReady = false;
@@ -121,12 +124,19 @@ export async function getMachineFolders(): Promise<MachineFolder[]> {
     offered = null;
   }
   const merged = mergeNewDefaultFolders(saved, offered);
-  if (merged.changed) {
-    if (merged.folders.length !== saved.length)
-      await writeSetting(foldersSetting, JSON.stringify(merged.folders));
-    await writeSetting(offeredSetting, JSON.stringify(merged.offered));
+  let folders = merged.folders;
+  let foldersChanged = merged.folders.length !== saved.length;
+  if (!(await readSetting(stagesUpgradeSetting))) {
+    const upgraded = upgradeFolderStages(folders);
+    folders = upgraded.folders;
+    foldersChanged ||= upgraded.changed;
+    await writeSetting(stagesUpgradeSetting, new Date().toISOString());
   }
-  return merged.folders;
+  if (foldersChanged)
+    await writeSetting(foldersSetting, JSON.stringify(folders));
+  if (merged.changed)
+    await writeSetting(offeredSetting, JSON.stringify(merged.offered));
+  return folders;
 }
 
 export async function saveMachineFolders(
@@ -137,6 +147,7 @@ export async function saveMachineFolders(
   if (!(await prepareMachineFolders())) return "unavailable" as const;
   const normalized = normalizeMachineFolders(folders);
   await writeSetting(foldersSetting, JSON.stringify(normalized));
+  await writeSetting(stagesUpgradeSetting, new Date().toISOString());
   // Список сохранён руками: все станки по умолчанию уже были на экране.
   await writeSetting(
     offeredSetting,
@@ -300,11 +311,18 @@ export async function ingestWatcherReport(report: WatcherReport) {
   const noticeLines: string[] = [];
   const started = new Map<string, string>();
   const finished = new Map<string, string>();
+  const drilled = new Map<string, string>();
   for (const folder of reported) {
     const machine = known.get(folder.id)!.name;
     const diff = diffFolder(active, folder);
     status[folder.id] = { ok: folder.ok, files: folder.files.length };
     const requests = await matchRequests(diff.added);
+    if (known.get(folder.id)!.stage === "drilling") {
+      for (const id of diff.removedIds) {
+        const row = active.find((r) => r.id === id);
+        if (row?.requestId) drilled.set(row.requestId, machine);
+      }
+    }
     if (known.get(folder.id)!.stage === "cutting") {
       for (const file of diff.added) {
         const request = requests.get(file.name);
@@ -372,7 +390,9 @@ export async function ingestWatcherReport(report: WatcherReport) {
       folders: status,
     }),
   );
-  noticeLines.push(...(await autoAdvance({ started, finished, folders })));
+  noticeLines.push(
+    ...(await autoAdvance({ started, finished, drilled, folders })),
+  );
   if (noticeLines.length)
     await sendStaffNotice({
       title: "Artisan · станки: изменения в папках GibLab",
@@ -397,6 +417,8 @@ export async function ingestWatcherReport(report: WatcherReport) {
 async function autoAdvance(input: {
   started: Map<string, string>;
   finished: Map<string, string>;
+  // Файлы сняты с присадки (Excitech): заказ готов к выдаче.
+  drilled: Map<string, string>;
   folders: MachineFolder[];
 }) {
   const lines: string[] = [];
@@ -404,7 +426,16 @@ async function autoAdvance(input: {
   const cuttingFolders = input.folders
     .filter((f) => f.stage === "cutting")
     .map((f) => f.id);
-  const ids = [...new Set([...input.started.keys(), ...input.finished.keys()])];
+  const drillingFolders = input.folders
+    .filter((f) => f.stage === "drilling")
+    .map((f) => f.id);
+  const ids = [
+    ...new Set([
+      ...input.started.keys(),
+      ...input.finished.keys(),
+      ...input.drilled.keys(),
+    ]),
+  ];
   if (!ids.length) return lines;
   const requests = await db.request.findMany({
     where: {
@@ -412,7 +443,13 @@ async function autoAdvance(input: {
       type: RequestType.CUTTING_SERVICE,
       status: { notIn: [RequestStatus.COMPLETED, RequestStatus.CANCELED] },
     },
-    select: { id: true, number: true, cuttingStage: true },
+    select: {
+      id: true,
+      number: true,
+      cuttingStage: true,
+      status: true,
+      cuttingPickupCell: true,
+    },
   });
   for (const request of requests) {
     let from: CuttingStage | null = null;
@@ -442,6 +479,23 @@ async function autoAdvance(input: {
       from = stage;
       to = CuttingStage.EDGING;
       machine = input.finished.get(request.id)!;
+    } else if (
+      input.drilled.has(request.id) &&
+      (stage === CuttingStage.EDGING || stage === CuttingStage.DRILLING)
+    ) {
+      // Присадка — последняя операция: файл сняли со станка, значит готово.
+      // С «Кромки» тоже: оператор кромки мог не нажать «На присадку».
+      const stillThere = await db.productionMachineFile.count({
+        where: {
+          requestId: request.id,
+          removedAt: null,
+          folderId: { in: drillingFolders },
+        },
+      });
+      if (stillThere) continue;
+      from = stage;
+      to = CuttingStage.READY_FOR_PICKUP;
+      machine = input.drilled.get(request.id)!;
     }
     if (!to) continue;
     const updated = await updateRequestCuttingProgress({
@@ -458,7 +512,9 @@ async function autoAdvance(input: {
       description:
         to === CuttingStage.CUTTING
           ? `Файл передан на станок ${machine} (GibLab).`
-          : `Файл снят со станка ${machine}: распил закончен.`,
+          : to === CuttingStage.READY_FOR_PICKUP
+            ? `Файл снят со станка ${machine}: присадка сделана. Ячейка выдачи пока не указана.`
+            : `Файл снят со станка ${machine}: распил закончен.`,
       fromStatus: from,
       toStatus: to,
       isVisibleToClient: true,
@@ -466,6 +522,14 @@ async function autoAdvance(input: {
     });
     lines.push(
       `➡️ ${request.number ?? request.id.slice(0, 8)}: ${cuttingStageLabels[to]} (автоматически)`,
+    );
+    // Те же уведомления, что при нажатии кнопки: клиенту и в «Распил».
+    await syncRequestById(request.id, {
+      previousStatus: request.status,
+      previousCuttingStage: from,
+      previousCuttingPickupCell: request.cuttingPickupCell,
+    }).catch((error) =>
+      console.error("[machine-folders] request sync failed", error),
     );
     revalidatePath(`/admin/production/${request.id}`);
     revalidatePath(`/admin/requests/${request.id}`);
@@ -572,6 +636,7 @@ export async function linkMachineFile(input: {
     await autoAdvance({
       started: new Map([[request.id, file.machine]]),
       finished: new Map(),
+      drilled: new Map(),
       folders,
     });
   return "linked" as const;

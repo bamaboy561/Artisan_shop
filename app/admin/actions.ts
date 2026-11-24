@@ -1,6 +1,7 @@
 "use server";
 
 import { setStaffAccountAccessAction } from "@/app/admin/staff/actions";
+import { syncRequestById } from "@/lib/server/request-sync";
 import {
   parseMaterialLines,
   summarizeMaterialLines,
@@ -59,7 +60,6 @@ import {
   handleCuttingRequestCreated,
   handleOrderUpdated,
   handleOrderCreated,
-  handleRequestUpdated,
   sendTelegramTestNotification,
   type TelegramThreadKey,
 } from "@/lib/server/commercial-integrations";
@@ -70,7 +70,7 @@ import {
 } from "@/features/admin/operations-filters";
 import { cuttingStageLabels } from "@/features/cutting/progress";
 import { cuttingExtrasFromForm } from "@/features/cutting/quote";
-import { getProductionTransition } from "@/features/production/workflow";
+import { getProductionTransitions } from "@/features/production/workflow";
 import { requireAdminSession } from "@/lib/auth/dal";
 import {
   canAccessGeneralAdmin,
@@ -885,48 +885,6 @@ async function syncOrderById(orderId: string, transition?: TransitionSnapshot) {
       unitPrice: item.unitPrice,
       total: item.total,
     })),
-  });
-}
-
-async function syncRequestById(
-  requestId: string,
-  transition?: TransitionSnapshot,
-) {
-  const request = await getRequestInboxItemById(requestId);
-
-  if (!request) {
-    return;
-  }
-
-  await handleRequestUpdated({
-    id: request.id,
-    userId: request.userId ?? null,
-    number: request.number,
-    requestType: request.type,
-    subject: request.subject,
-    status: request.status,
-    contactName: request.contactName,
-    contactPhone: request.contactPhone,
-    contactEmail: request.contactEmail,
-    messengerType: request.messengerType,
-    messengerHandle: request.messengerHandle,
-    material: request.material,
-    cuttingSheetCount: request.cuttingSheetCount,
-    edgeOption: request.edgeOption,
-    estimatedBudget: request.estimatedBudget,
-    deliveryNeeded: request.deliveryNeeded,
-    message: request.message,
-    createdAt: request.createdAt.toISOString(),
-    manager: request.manager,
-    previousStatus: transition?.previousStatus,
-    previousManager: transition?.previousManager,
-    cuttingStage: request.cuttingStage,
-    cuttingPickupCell: request.cuttingPickupCell,
-    previousCuttingStage: transition?.previousCuttingStage,
-    previousCuttingPickupCell: transition?.previousCuttingPickupCell,
-    cuttingStageNote: transition?.cuttingStageNote,
-    cuttingStageNoteInternal: transition?.cuttingStageNoteInternal,
-    product: request.product,
   });
 }
 
@@ -5031,9 +4989,14 @@ export async function advanceProductionStageAction(formData: FormData) {
   }
 
   const request = await getRequestInboxItemById(requestId);
-  const transition = request
-    ? getProductionTransition(actor.productionStation, request.cuttingStage)
-    : null;
+  // Кнопка присылает этап, куда передать; без него — первое действие.
+  const transitions = request
+    ? getProductionTransitions(actor.productionStation, request.cuttingStage)
+    : [];
+  const target = getString(formData, "targetStage");
+  const transition =
+    transitions.find((item) => item.to === target) ??
+    (target ? null : (transitions[0] ?? null));
 
   if (!request || !transition) {
     redirect(productionActionReturn(formData, requestId, "stage-conflict"));
