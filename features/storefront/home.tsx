@@ -32,7 +32,7 @@ export async function StorefrontHome() {
     <>
       <StorefrontBento promotion={promotions[0]} />
       {promotional.length > 0 && (
-        <section className={`${s.section} ${s.container} ${s.reveal}`}>
+        <section className={`${s.section} ${s.container}`}>
           <div className={s.sectionHeading}>
             <div>
               <h2>Акции</h2>
@@ -51,7 +51,7 @@ export async function StorefrontHome() {
           </div>
         </section>
       )}
-      <section className={`${s.section} ${s.container} ${s.reveal}`}>
+      <section className={`${s.section} ${s.container}`}>
         <div className={s.sectionHeading}>
           <div>
             <h2>Разделы каталога</h2>
@@ -85,7 +85,7 @@ export async function StorefrontHome() {
         </div>
       </section>
       {products.length > 0 && (
-        <section className={`${s.collectionBand} ${s.reveal}`}>
+        <section className={`${s.collectionBand}`}>
           <div className={`${s.container} ${s.section}`}>
             <div className={s.sectionHeading}>
               <div>
@@ -108,10 +108,7 @@ export async function StorefrontHome() {
           </div>
         </section>
       )}
-      <section
-        id="brands"
-        className={`${s.container} ${s.section} ${s.reveal}`}
-      >
+      <section id="brands" className={`${s.container} ${s.section}`}>
         <div className={s.sectionHeading}>
           <div>
             <h2>Бренды на складе</h2>
@@ -132,7 +129,7 @@ export async function StorefrontHome() {
           ))}
         </div>
       </section>
-      <section id="services" className={`${s.serviceBand} ${s.reveal}`}>
+      <section id="services" className={`${s.serviceBand}`}>
         <div className={`${s.container} ${s.serviceGrid}`}>
           <div className={s.serviceVisual}>
             <Image
@@ -170,7 +167,7 @@ export async function StorefrontHome() {
           </div>
         </div>
       </section>
-      <section className={`${s.container} ${s.contactBand} ${s.reveal}`}>
+      <section className={`${s.container} ${s.contactBand}`}>
         <div>
           <h2>Не нашли нужный декор?</h2>
           <p>Напишите в WhatsApp, подскажем по наличию и срокам.</p>

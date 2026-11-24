@@ -124,7 +124,7 @@ export async function StorefrontBento({
         </Link>
       )}
       <section
-        className={`${s.container} ${s.swatchBand} ${s.reveal}`}
+        className={`${s.container} ${s.swatchBand}`}
         aria-labelledby="swatch-title"
       >
         <h2 id="swatch-title">Подберите декор по цвету</h2>
