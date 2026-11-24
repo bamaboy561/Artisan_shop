@@ -30,6 +30,7 @@ import { Select } from "@/components/ui/select";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { Textarea } from "@/components/ui/textarea";
 import { GibLabProjectCode } from "@/components/admin/giblab-project-code";
+import { GibLabProjectPanel } from "@/components/admin/giblab-project-panel";
 import { ClientTelegramConnect } from "@/components/admin/client-telegram-connect";
 import { requireAdminSession } from "@/lib/auth/dal";
 import {
@@ -454,6 +455,14 @@ export default async function AdminRequestDetailPage({
               </div>
             ) : null}
           </section>
+
+          {request.type === RequestType.CUTTING_SERVICE ? (
+            <GibLabProjectPanel
+              requestId={request.id}
+              files={request.files}
+              error={pricingError}
+            />
+          ) : null}
 
           <section className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-white/82 p-6">
             <div className="flex items-center justify-between gap-3">
