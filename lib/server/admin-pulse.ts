@@ -3,6 +3,7 @@ import "server-only";
 import { OrderStatus, RequestStatus, RequestType } from "@/generated/prisma";
 import { ADMIN_CREATED_REQUEST_MARKER } from "@/features/admin/request-origin";
 import { getDb, hasDatabaseUrl } from "@/lib/db";
+import { revenueOrderStatuses } from "@/lib/server/admin-data";
 import {
   getProductionBoard,
   type BoardColumnKey,
@@ -117,57 +118,77 @@ export async function getAdminPulse(now = new Date()): Promise<AdminPulse> {
 
   const db = getDb();
   const notCanceled = { not: OrderStatus.CANCELED };
-  const [todayOrders, lastWeek, cuttingToday, siteWaiting, board, events] =
-    await Promise.all([
-      db.order.findMany({
-        where: { createdAt: { gte: start }, status: notCanceled },
-        select: { total: true, createdAt: true },
-      }),
-      db.order.aggregate({
-        where: {
-          createdAt: { gte: weekAgoStart, lt: weekAgoNow },
-          status: notCanceled,
+  // Выручка считается как в отчётах (revenueOrderStatuses: без новых и
+  // брони), а «Заказы сегодня» — все неотменённые.
+  const revenueStatuses = { in: [...revenueOrderStatuses] };
+  const [
+    todayOrders,
+    lastWeekRevenue,
+    lastWeekOrders,
+    cuttingToday,
+    siteWaiting,
+    board,
+    events,
+  ] = await Promise.all([
+    db.order.findMany({
+      where: { createdAt: { gte: start }, status: notCanceled },
+      select: { total: true, createdAt: true, status: true },
+    }),
+    db.order.aggregate({
+      where: {
+        createdAt: { gte: weekAgoStart, lt: weekAgoNow },
+        status: revenueStatuses,
+      },
+      _sum: { total: true },
+    }),
+    db.order.count({
+      where: {
+        createdAt: { gte: weekAgoStart, lt: weekAgoNow },
+        status: notCanceled,
+      },
+    }),
+    db.request.aggregate({
+      where: {
+        type: RequestType.CUTTING_SERVICE,
+        createdAt: { gte: start },
+        status: { not: RequestStatus.CANCELED },
+      },
+      _sum: { cuttingSheetCount: true },
+      _count: { _all: true },
+    }),
+    db.request.findMany({
+      where: {
+        status: RequestStatus.NEW,
+        // Как в списке заявок: без текста — тоже с сайта.
+        OR: [
+          { message: null },
+          { NOT: { message: { startsWith: ADMIN_CREATED_REQUEST_MARKER } } },
+        ],
+      },
+      select: { createdAt: true },
+      take: 500,
+    }),
+    getProductionBoard().catch(() => null),
+    db.operationEvent
+      .findMany({
+        orderBy: { createdAt: "desc" },
+        take: 8,
+        select: {
+          id: true,
+          entityType: true,
+          entityId: true,
+          title: true,
+          description: true,
+          createdAt: true,
         },
-        _sum: { total: true },
-        _count: { _all: true },
-      }),
-      db.request.aggregate({
-        where: {
-          type: RequestType.CUTTING_SERVICE,
-          createdAt: { gte: start },
-          status: { not: RequestStatus.CANCELED },
-        },
-        _sum: { cuttingSheetCount: true },
-        _count: { _all: true },
-      }),
-      db.request.findMany({
-        where: {
-          status: RequestStatus.NEW,
-          NOT: { message: { startsWith: ADMIN_CREATED_REQUEST_MARKER } },
-        },
-        select: { createdAt: true },
-        take: 500,
-      }),
-      getProductionBoard().catch(() => null),
-      db.operationEvent
-        .findMany({
-          orderBy: { createdAt: "desc" },
-          take: 8,
-          select: {
-            id: true,
-            entityType: true,
-            entityId: true,
-            title: true,
-            description: true,
-            createdAt: true,
-          },
-        })
-        .catch(() => []),
-    ]);
+      })
+      .catch(() => []),
+  ]);
 
   const hourly = [...empty.hourly];
   let revenueToday = 0;
   for (const order of todayOrders) {
+    if (!revenueOrderStatuses.has(order.status)) continue;
     revenueToday += order.total;
     const hour = new Date(order.createdAt.getTime() + OFFSET_MS).getUTCHours();
     const index = Math.min(hours - 1, Math.max(0, hour - PULSE_FIRST_HOUR));
@@ -230,10 +251,10 @@ export async function getAdminPulse(now = new Date()): Promise<AdminPulse> {
   return {
     ...empty,
     revenueToday,
-    revenueSameTimeLastWeek: lastWeek._sum.total ?? 0,
+    revenueSameTimeLastWeek: lastWeekRevenue._sum.total ?? 0,
     hourly,
     ordersToday: todayOrders.length,
-    ordersLastWeek: lastWeek._count._all,
+    ordersLastWeek: lastWeekOrders,
     cuttingToday: cuttingToday._count._all,
     cuttingSheetsToday: cuttingToday._sum.cuttingSheetCount ?? 0,
     sheetsInWork,

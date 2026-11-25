@@ -72,7 +72,11 @@ export function CommandPalette({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [found, setFound] = useState<Result[]>([]);
+  // Результаты помнят, на какой запрос пришли: старые не показываем.
+  const [found, setFound] = useState<{ query: string; results: Result[] }>({
+    query: "",
+    results: [],
+  });
   const [loading, setLoading] = useState(false);
   const [active, setActive] = useState(0);
   const input = useRef<HTMLInputElement>(null);
@@ -81,7 +85,7 @@ export function CommandPalette({
   const close = useCallback(() => {
     setOpen(false);
     setQuery("");
-    setFound([]);
+    setFound({ query: "", results: [] });
     setActive(0);
   }, []);
 
@@ -122,9 +126,11 @@ export function CommandPalette({
           { signal: controller.signal },
         );
         const data = response.ok ? await response.json() : { results: [] };
-        setFound(data.results ?? []);
+        setFound({ query: text, results: data.results ?? [] });
       } catch {
-        // Отменённый запрос — пользователь печатает дальше.
+        // Отменённый запрос — пользователь печатает дальше; при ошибке
+        // показываем «ничего не нашлось», а не старые результаты.
+        if (!controller.signal.aborted) setFound({ query: text, results: [] });
       } finally {
         if (!controller.signal.aborted) setLoading(false);
       }
@@ -137,8 +143,8 @@ export function CommandPalette({
 
   const searching = canSearch && query.trim().length >= 2;
   const shownFound = useMemo(
-    () => (searching ? found : []),
-    [searching, found],
+    () => (searching && found.query === query.trim() ? found.results : []),
+    [searching, found, query],
   );
   const groups = useMemo(() => {
     const text = normalize(query);
