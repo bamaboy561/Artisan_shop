@@ -1,9 +1,12 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { Bell, Calculator, FileStack, Home, LogOut } from "lucide-react";
+import { Calculator, FileStack, Home, LogOut } from "lucide-react";
 
 import { Container } from "@/components/ui/container";
-import { AdminSearchForm } from "@/components/admin/admin-search-form";
+import {
+  CommandPalette,
+  CommandTrigger,
+} from "@/components/admin/command-palette";
 import { DashboardNav } from "@/components/layout/dashboard-nav";
 import type { NavItem } from "@/types/navigation";
 
@@ -14,6 +17,8 @@ type DashboardFrameProps = {
   items: NavItem[];
   actions?: ReactNode;
   variant?: "admin" | "account";
+  // Окно Ctrl+K ищет клиентов и заказы только для менеджеров и админов.
+  canSearch?: boolean;
   children: ReactNode;
 };
 
@@ -22,11 +27,11 @@ function AdminFrame({
   description,
   items,
   actions,
+  canSearch = false,
   children,
 }: DashboardFrameProps) {
   const requestBadge =
     items.find((item) => item.href === "/admin/requests")?.badge ?? "0";
-  const notificationBadge = requestBadge;
   const topLinkClass =
     "inline-flex h-10 shrink-0 items-center gap-2 rounded-[var(--radius-control)] border border-[color:var(--line)] bg-[var(--surface-strong)] px-3.5 font-medium transition hover:border-[color:var(--line-strong)]";
 
@@ -57,15 +62,12 @@ function AdminFrame({
             </Link>
           </div>
 
-          <Link
-            href="/"
-            className="mt-4 hidden h-10 items-center justify-center gap-2 rounded-[var(--radius-control)] border border-[color:var(--sidebar-border)] px-3 text-sm font-medium text-[var(--sidebar-fg)] transition hover:bg-[var(--sidebar-hover)] lg:inline-flex"
-          >
-            <Home className="size-4" strokeWidth={1.85} />
-            На сайт
-          </Link>
+          <CommandTrigger
+            variant="dark"
+            className="mt-4 hidden w-full lg:flex"
+          />
 
-          <div className="mt-2.5 min-h-0 overflow-hidden [scrollbar-width:none] lg:mt-6 lg:flex-1 lg:overflow-y-auto lg:pr-1 [&::-webkit-scrollbar]:hidden">
+          <div className="mt-2.5 min-h-0 overflow-hidden [scrollbar-width:none] lg:mt-4 lg:flex-1 lg:overflow-y-auto lg:pr-1 [&::-webkit-scrollbar]:hidden">
             <DashboardNav items={items} variant="admin" />
           </div>
 
@@ -86,7 +88,7 @@ function AdminFrame({
       <div className="min-w-0 overflow-x-clip print:overflow-visible">
         <header className="sticky top-0 z-20 hidden border-b border-[color:var(--line)] bg-[var(--background)]/85 backdrop-blur-xl lg:block print:hidden">
           <nav className="flex min-h-16 items-center justify-end gap-2 px-6 text-sm xl:px-7">
-            <AdminSearchForm className="mr-auto w-full max-w-sm" />
+            <CommandTrigger className="mr-auto w-full max-w-sm" />
             <Link href="/calculator" className={topLinkClass}>
               <Calculator className="size-4" strokeWidth={1.8} />
               Калькулятор
@@ -100,14 +102,9 @@ function AdminFrame({
                 </span>
               ) : null}
             </Link>
-            <Link href="/admin" className={topLinkClass}>
-              <Bell className="size-4" strokeWidth={1.8} />
-              Уведомления
-              {notificationBadge !== "0" ? (
-                <span className="rounded-full bg-[var(--accent)] px-1.5 py-0.5 text-[11px] font-semibold text-[var(--accent-ink)]">
-                  {notificationBadge}
-                </span>
-              ) : null}
+            <Link href="/" className={topLinkClass}>
+              <Home className="size-4" strokeWidth={1.8} />
+              На сайт
             </Link>
           </nav>
         </header>
@@ -123,6 +120,7 @@ function AdminFrame({
           {children}
         </main>
       </div>
+      <CommandPalette items={items} canSearch={canSearch} />
     </div>
   );
 }

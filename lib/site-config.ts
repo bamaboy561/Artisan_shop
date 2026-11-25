@@ -66,7 +66,7 @@ export const adminNavigation: NavItem[] = [
   },
   {
     href: "/admin/requests",
-    label: "Запросы на расчет",
+    label: "Заявки",
     description: "Расчет и входящий поток.",
   },
   {

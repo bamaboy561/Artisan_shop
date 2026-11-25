@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useSyncExternalStore } from "react";
 import {
   BadgePercent,
   Calculator,
+  ChevronDown,
   ClipboardCheck,
   ClipboardList,
   FileText,
@@ -21,6 +23,7 @@ import {
   Rocket,
   ShoppingBag,
   Scissors,
+  TrendingUp,
   UserCog,
   Users2,
 } from "lucide-react";
@@ -53,6 +56,8 @@ const iconMap = {
   "/admin/production/shifts": ClipboardList,
   "/admin/production/machines": HardDrive,
   "/admin/promotions": BadgePercent,
+  "/admin/price-trends": TrendingUp,
+  "/admin/calculator": Calculator,
   "/admin/content": FileText,
   "/calculator": Calculator,
   "/account": LayoutDashboard,
@@ -86,7 +91,7 @@ function AdminNavItem({ item, pathname }: { item: NavItem; pathname: string }) {
       href={item.href}
       title={item.description ?? item.label}
       className={cn(
-        "group flex h-10 shrink-0 items-center justify-between gap-3 rounded-lg px-3 text-[13px] font-medium transition focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none lg:w-full",
+        "group flex h-10 shrink-0 items-center justify-between gap-3 rounded-lg px-3 text-[13px] font-medium transition focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none lg:h-9 lg:w-full",
         active
           ? "bg-[var(--sidebar-active-bg)] font-semibold text-[var(--sidebar-active-fg)]"
           : "text-[var(--sidebar-muted)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--sidebar-fg)]",
@@ -203,10 +208,174 @@ export function DashboardNav({
   }
 
   return (
-    <nav className="flex gap-2 overflow-x-auto pb-1 lg:grid lg:gap-1 lg:overflow-visible lg:pb-0">
-      {items.map((item) => (
-        <AdminNavItem key={item.href} item={item} pathname={pathname} />
-      ))}
+    <>
+      <nav className="flex gap-2 overflow-x-auto pb-1 lg:hidden">
+        {items.map((item) => (
+          <AdminNavItem key={item.href} item={item} pathname={pathname} />
+        ))}
+      </nav>
+      <AdminGroupedNav items={items} pathname={pathname} />
+    </>
+  );
+}
+
+// Меню админки по группам. Группа «Настройки» по умолчанию свёрнута;
+// какие группы свёрнуты — запоминается в браузере.
+const adminGroups: Array<{
+  key: string;
+  title: string | null;
+  hrefs: string[];
+}> = [
+  { key: "main", title: null, hrefs: ["/admin", "/admin/launch"] },
+  {
+    key: "sales",
+    title: "Продажи",
+    hrefs: [
+      "/admin/orders",
+      "/admin/requests",
+      "/admin/sales-floor",
+      "/admin/users",
+    ],
+  },
+  {
+    key: "workshop",
+    title: "Цех",
+    hrefs: [
+      "/admin/cutting",
+      "/admin/production/board",
+      "/admin/production",
+      "/admin/production/shift",
+      "/admin/production/shifts",
+      "/admin/production/machines",
+    ],
+  },
+  {
+    key: "catalog",
+    title: "Каталог",
+    hrefs: [
+      "/admin/products",
+      "/admin/categories",
+      "/admin/brands",
+      "/admin/promotions",
+      "/admin/price-trends",
+    ],
+  },
+];
+const collapsedKey = "artisan-admin-nav-collapsed";
+const collapsedEvent = "artisan-admin-nav-collapsed";
+
+function readCollapsed() {
+  try {
+    return window.localStorage.getItem(collapsedKey);
+  } catch {
+    return null;
+  }
+}
+
+function subscribeCollapsed(callback: () => void) {
+  window.addEventListener("storage", callback);
+  window.addEventListener(collapsedEvent, callback);
+  return () => {
+    window.removeEventListener("storage", callback);
+    window.removeEventListener(collapsedEvent, callback);
+  };
+}
+
+function parseCollapsed(raw: string | null): string[] {
+  try {
+    const value = raw ? JSON.parse(raw) : null;
+    return Array.isArray(value) ? value : ["settings"];
+  } catch {
+    return ["settings"];
+  }
+}
+
+function AdminGroupedNav({
+  items,
+  pathname,
+}: {
+  items: NavItem[];
+  pathname: string;
+}) {
+  const collapsed = parseCollapsed(
+    useSyncExternalStore(subscribeCollapsed, readCollapsed, () => null),
+  );
+
+  function toggle(key: string) {
+    const next = collapsed.includes(key)
+      ? collapsed.filter((item) => item !== key)
+      : [...collapsed, key];
+    try {
+      window.localStorage.setItem(collapsedKey, JSON.stringify(next));
+    } catch {
+      // Без localStorage меню просто не запомнит выбор.
+    }
+    window.dispatchEvent(new Event(collapsedEvent));
+  }
+
+  const grouped = new Set(adminGroups.flatMap((group) => group.hrefs));
+  const groups = [
+    ...adminGroups.map((group) => ({
+      ...group,
+      items: group.hrefs
+        .map((href) => items.find((item) => item.href === href))
+        .filter((item): item is NavItem => Boolean(item)),
+    })),
+    {
+      key: "settings",
+      title: "Настройки",
+      hrefs: [],
+      items: items.filter((item) => !grouped.has(item.href)),
+    },
+  ].filter((group) => group.items.length > 0);
+
+  return (
+    <nav aria-label="Разделы админки" className="hidden gap-3 lg:grid">
+      {groups.map((group) => {
+        const hasActive = group.items.some((item) =>
+          isItemActive(pathname, item.href),
+        );
+        const badge = group.items.reduce(
+          (sum, item) => sum + (Number(item.badge) || 0),
+          0,
+        );
+        const open =
+          !group.title || hasActive || !collapsed.includes(group.key);
+
+        return (
+          <div key={group.key} className="grid gap-0.5">
+            {group.title ? (
+              <button
+                type="button"
+                onClick={() => toggle(group.key)}
+                aria-expanded={open}
+                className="flex h-7 items-center justify-between rounded-md px-3 text-[11.5px] font-semibold text-zinc-500 transition hover:text-[var(--sidebar-fg)]"
+              >
+                <span>{group.title}</span>
+                <span className="flex items-center gap-2">
+                  {!open && badge > 0 ? (
+                    <span className="rounded-full bg-[var(--sidebar-hover)] px-1.5 text-[10.5px] text-[var(--sidebar-fg)]">
+                      {badge}
+                    </span>
+                  ) : null}
+                  <ChevronDown
+                    className={cn("size-3.5 transition", !open && "-rotate-90")}
+                  />
+                </span>
+              </button>
+            ) : null}
+            {open
+              ? group.items.map((item) => (
+                  <AdminNavItem
+                    key={item.href}
+                    item={item}
+                    pathname={pathname}
+                  />
+                ))
+              : null}
+          </div>
+        );
+      })}
     </nav>
   );
 }

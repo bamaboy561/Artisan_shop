@@ -1,27 +1,38 @@
 import { formatPrice } from "@/lib/commerce";
-import Form from "next/form";
 import Link from "next/link";
-import { Plus, Printer, RotateCcw, Search } from "lucide-react";
+import {
+  CalendarRange,
+  Plus,
+  Printer,
+  RotateCcw,
+  Search,
+  SquarePen,
+} from "lucide-react";
 
-import { RequestStatus } from "@/generated/prisma";
-import { updateRequestAction } from "@/app/admin/actions";
+import { CuttingStage, RequestStatus } from "@/generated/prisma";
+import {
+  setProductionStageAction,
+  updateRequestAction,
+} from "@/app/admin/actions";
 import { AdminSubmitButton } from "@/components/admin/admin-submit-button";
 import { DeleteRequestButton } from "@/components/admin/delete-request-button";
-import { MetricCard } from "@/components/admin/metric-card";
+import { AutoFilterForm } from "@/components/admin/list/auto-filter-form";
+import { ListHeader } from "@/components/admin/list/list-header";
+import { RowMenu, rowMenuItemClass } from "@/components/admin/list/row-menu";
+import { StageBar } from "@/components/admin/list/stage-bar";
 import { SetupState } from "@/components/admin/setup-state";
 import { StatusBadge } from "@/components/admin/status-badge";
-import { getButtonClassName } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import { SectionHeading } from "@/components/ui/section-heading";
 import { DataTable } from "@/components/ui/table";
 import {
   getManagerDisplayName,
   requestStatusLabels,
 } from "@/features/admin/operations-filters";
-import { cuttingStageLabels } from "@/features/cutting/progress";
 import { requireAdminSession } from "@/lib/auth/dal";
-import { canDeleteRequests } from "@/lib/auth/roles";
+import { canDeleteRequests, canManageProduction } from "@/lib/auth/roles";
+import { formatListDate } from "@/features/admin/list-format";
+import { cn } from "@/lib/utils";
 import { hasDatabaseUrl, isDemoModeEnabled } from "@/lib/db";
 import { PageLinks } from "@/components/admin/page-links";
 import {
@@ -47,15 +58,50 @@ function getFirstSearchValue(
   return Array.isArray(value) ? (value[0] ?? "") : (value ?? "");
 }
 
-function formatDate(date: Date) {
-  return new Intl.DateTimeFormat("ru-RU", {
-    timeZone: "Asia/Bishkek",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
+const headerButton =
+  "inline-flex h-10 items-center gap-2 rounded-[var(--radius-control)] border border-[color:var(--line)] bg-white px-4 text-[13.5px] font-semibold whitespace-nowrap transition hover:border-[color:var(--line-strong)]";
+
+const stageStep: Record<CuttingStage, number> = {
+  [CuttingStage.ACCEPTED]: 1,
+  [CuttingStage.CUTTING]: 2,
+  [CuttingStage.EDGING]: 3,
+  [CuttingStage.DRILLING]: 4,
+  [CuttingStage.READY_FOR_PICKUP]: 5,
+};
+
+const stageShortLabels: Record<CuttingStage, string> = {
+  [CuttingStage.ACCEPTED]: "В очереди",
+  [CuttingStage.CUTTING]: "Распил",
+  [CuttingStage.EDGING]: "Кромка",
+  [CuttingStage.DRILLING]: "Присадка",
+  [CuttingStage.READY_FOR_PICKUP]: "Готово",
+};
+
+// Одна кнопка «что дальше» вместо выпадающего списка и «Обновить».
+function nextStage(stage: CuttingStage | null) {
+  switch (stage) {
+    case null:
+      return { stage: CuttingStage.ACCEPTED, label: "Запустить" };
+    case CuttingStage.ACCEPTED:
+      return { stage: CuttingStage.CUTTING, label: "На распил" };
+    case CuttingStage.CUTTING:
+      return { stage: CuttingStage.EDGING, label: "На кромку" };
+    case CuttingStage.EDGING:
+      return { stage: CuttingStage.DRILLING, label: "На присадку" };
+    case CuttingStage.DRILLING:
+      // Для «Готово» нужна ячейка выдачи — её вводят в карточке.
+      return {
+        stage: CuttingStage.READY_FOR_PICKUP,
+        label: "Готово",
+        needsCell: true,
+      };
+    default:
+      return {
+        stage: CuttingStage.READY_FOR_PICKUP,
+        label: "Выдать",
+        needsCell: true,
+      };
+  }
 }
 
 function isValidDateInput(value: string) {
@@ -124,6 +170,7 @@ export default async function AdminCuttingPage({
     "/admin/cutting",
   );
   const canDeleteRequest = canDeleteRequests(session.roleCode);
+  const canMoveStage = canManageProduction(session.roleCode);
 
   const resolvedSearchParams = await searchParams;
 
@@ -171,305 +218,382 @@ export default async function AdminCuttingPage({
     statusFilter !== "all" ||
     dateSort !== "date-desc";
 
-  const rows = filteredRequests.map((request) => ({
-    request: (
-      <div className="space-y-1">
-        <Link
-          href={`/admin/requests/${request.id}`}
-          className="font-semibold text-[var(--foreground)] transition hover:text-[var(--accent)]"
-        >
-          {request.number ?? request.id.slice(0, 8)}
-        </Link>
-        <p className="text-xs text-[var(--muted)]">{request.contactName}</p>
-        {isSiteRequest(request) ? (
-          <p
-            className={
-              needsSiteAttention(request)
-                ? "inline-flex rounded-full bg-red-600 px-2 py-0.5 text-[11px] font-semibold text-white"
-                : "inline-flex rounded-full border border-red-300 px-2 py-0.5 text-[11px] font-semibold text-red-700"
-            }
-          >
-            {needsSiteAttention(request)
-              ? "С сайта · не обработана"
-              : "С сайта"}
+  const now = new Date();
+  const currentHref = baseHref;
+  const tabHref = (status: string) =>
+    status === "all" ? "/admin/cutting" : `/admin/cutting?status=${status}`;
+  const notice = getFirstSearchValue(resolvedSearchParams, "notice");
+  const noticeText =
+    notice === "stage-updated"
+      ? "Заявка перенесена на следующий этап."
+      : notice === "stage-conflict"
+        ? "Этап уже изменили на другом устройстве. Список обновлён."
+        : notice === "action-forbidden"
+          ? "Для этого аккаунта действие недоступно."
+          : null;
+
+  const rows = filteredRequests.map((request) => {
+    const site = isSiteRequest(request);
+    const closed =
+      request.status === RequestStatus.COMPLETED ||
+      request.status === RequestStatus.CANCELED;
+    const step = request.cuttingStage ? stageStep[request.cuttingStage] : 0;
+    const next = closed ? null : nextStage(request.cuttingStage);
+    const amount = request.quotedTotal ?? request.estimatedBudget ?? null;
+    const facts = [
+      request.cuttingSheetCount ? `${request.cuttingSheetCount} л.` : null,
+      request.cuttingEdgeMeters
+        ? `${Math.round(request.cuttingEdgeMeters)} м кромки`
+        : null,
+      request._count.files > 0 ? `файлов: ${request._count.files}` : null,
+    ].filter(Boolean);
+
+    return {
+      request: (
+        <div className="max-w-[200px]">
+          <p className="flex items-center gap-2">
+            <Link
+              href={`/admin/requests/${request.id}`}
+              className="font-bold text-[var(--foreground)] transition hover:text-[var(--accent)]"
+            >
+              {request.number ?? request.id.slice(0, 8)}
+            </Link>
+            {site ? (
+              <span className="rounded-full bg-red-50 px-1.5 py-px text-[11px] font-semibold text-red-600">
+                с сайта
+              </span>
+            ) : null}
           </p>
-        ) : null}
-      </div>
-    ),
-    date: (
-      <time
-        dateTime={request.createdAt.toISOString()}
-        className="text-sm whitespace-nowrap text-[var(--foreground)]"
-      >
-        {formatDate(request.createdAt)}
-      </time>
-    ),
-    material: (
-      <div className="space-y-1">
-        <p className="font-medium text-[var(--foreground)]">
-          {request.product?.name ?? request.material ?? "Материал уточняется"}
-        </p>
-        <p className="text-xs text-[var(--muted)]">{request.subject}</p>
-      </div>
-    ),
-    files: (
-      <StatusBadge tone={request._count.files > 0 ? "accent" : "neutral"}>
-        {request._count.files > 0
-          ? `Файлы ${request._count.files}`
-          : "Без файлов"}
-      </StatusBadge>
-    ),
-    stage: (
-      <div className="space-y-2">
-        <StatusBadge tone={request.cuttingStage ? "accent" : "neutral"}>
-          {request.cuttingStage
-            ? cuttingStageLabels[request.cuttingStage]
-            : "Не запущен"}
-        </StatusBadge>
-        {request.cuttingPickupCell ? (
-          <p className="text-xs font-semibold text-emerald-700">
-            Ячейка № {request.cuttingPickupCell}
+          <p className="mt-0.5 truncate text-[12.5px] text-[var(--muted)]">
+            {request.contactName}
           </p>
-        ) : null}
-      </div>
-    ),
-    status: (
-      <div className="space-y-2">
-        <StatusBadge tone={getStatusTone(request.status)}>
-          {requestStatusLabels[request.status]}
-        </StatusBadge>
-        <p className="text-xs text-[var(--muted)]">
-          {request.manager
-            ? getManagerDisplayName(request.manager)
-            : "Без менеджера"}
-        </p>
-      </div>
-    ),
-    budget: formatBudget(
-      request.quotedTotal ?? request.estimatedBudget ?? null,
-    ),
-    manage: (
-      <div className="grid gap-2">
-        <Link
-          href={`/admin/requests/${request.id}/route-sheet`}
-          className="inline-flex h-9 items-center justify-center gap-2 border border-[color:var(--line-strong)] px-3 text-xs font-semibold transition hover:border-[color:var(--foreground)] hover:bg-[var(--foreground)] hover:text-white"
+        </div>
+      ),
+      date: (
+        <time
+          dateTime={request.createdAt.toISOString()}
+          className="text-sm whitespace-nowrap tabular-nums"
         >
-          <Printer className="size-3.5" />
-          Маршрут
-        </Link>
-        <form action={updateRequestAction} className="grid gap-2">
-          <input type="hidden" name="id" value={request.id} />
-          <input
-            type="hidden"
-            name="managerId"
-            value={request.managerId ?? ""}
-          />
-          <Select
-            name="status"
-            defaultValue={request.status}
-            className="h-9 text-xs"
-          >
-            <option value={RequestStatus.NEW}>Новая</option>
-            <option value={RequestStatus.IN_REVIEW}>На расчете</option>
-            <option value={RequestStatus.WAITING_FOR_CLIENT}>
-              Ждём клиента
-            </option>
-            <option value={RequestStatus.QUOTE_SENT}>КП отправлено</option>
-            <option value={RequestStatus.IN_PROGRESS}>В производстве</option>
-            <option value={RequestStatus.COMPLETED}>Завершена</option>
-            <option value={RequestStatus.CANCELED}>Отменена</option>
-          </Select>
-          <AdminSubmitButton
-            type="submit"
-            variant="secondary"
-            size="sm"
-            idleLabel="Обновить"
-            pendingLabel="Сохраняем..."
-          />
-        </form>
-        {canDeleteRequest ? (
-          <DeleteRequestButton
-            requestId={request.id}
-            requestNumber={request.number ?? request.id.slice(0, 8)}
-            returnTo="/admin/cutting"
-          />
-        ) : null}
-      </div>
-    ),
-  }));
+          {formatListDate(request.createdAt, now)}
+        </time>
+      ),
+      material: (
+        <div className="max-w-[220px]">
+          <p className="truncate font-semibold">
+            {request.product?.name ?? request.material ?? "Материал уточняется"}
+          </p>
+          <p className="text-[12.5px] text-[var(--muted)]">
+            {facts.length ? facts.join(" · ") : request.subject}
+          </p>
+        </div>
+      ),
+      stage: (
+        <StageBar
+          step={step}
+          label={
+            request.cuttingStage
+              ? stageShortLabels[request.cuttingStage]
+              : closed
+                ? "—"
+                : "не запущена"
+          }
+          note={
+            request.cuttingPickupCell
+              ? `ячейка ${request.cuttingPickupCell}`
+              : null
+          }
+        />
+      ),
+      status: (
+        <div>
+          <StatusBadge tone={getStatusTone(request.status)}>
+            {requestStatusLabels[request.status]}
+          </StatusBadge>
+          <p className="mt-1 text-xs text-[var(--muted)]">
+            {request.manager
+              ? getManagerDisplayName(request.manager)
+              : "без менеджера"}
+          </p>
+        </div>
+      ),
+      budget: (
+        <span className="font-semibold whitespace-nowrap tabular-nums">
+          {formatBudget(amount)}
+        </span>
+      ),
+      manage: (
+        <div className="flex items-center justify-end gap-1.5">
+          {next && canMoveStage ? (
+            next.needsCell ? (
+              <Link
+                href={`/admin/production/${request.id}`}
+                className="inline-flex h-8 items-center rounded-[8px] bg-[var(--foreground)] px-3 text-[12.5px] font-semibold whitespace-nowrap text-white transition hover:opacity-90"
+              >
+                {next.label} →
+              </Link>
+            ) : (
+              <form action={setProductionStageAction}>
+                <input type="hidden" name="requestId" value={request.id} />
+                <input
+                  type="hidden"
+                  name="expectedStage"
+                  value={request.cuttingStage ?? ""}
+                />
+                <input type="hidden" name="cuttingStage" value={next.stage} />
+                <input type="hidden" name="returnTo" value={currentHref} />
+                <input type="hidden" name="origin" value="cutting-list" />
+                <AdminSubmitButton
+                  type="submit"
+                  size="sm"
+                  className="h-8 rounded-[8px] px-3 text-[12.5px] whitespace-nowrap"
+                  idleLabel={`${next.label} →`}
+                  pendingLabel="..."
+                />
+              </form>
+            )
+          ) : null}
+          <RowMenu label={`Действия с заявкой ${request.number ?? ""}`}>
+            <Link
+              href={`/admin/requests/${request.id}`}
+              className={rowMenuItemClass}
+            >
+              <SquarePen className="size-4 text-[var(--muted)]" />
+              Открыть заявку
+            </Link>
+            <Link
+              href={`/admin/requests/${request.id}/route-sheet`}
+              className={rowMenuItemClass}
+            >
+              <Printer className="size-4 text-[var(--muted)]" />
+              Маршрутный лист
+            </Link>
+            <form
+              action={updateRequestAction}
+              className="flex items-center gap-1.5 border-t border-[color:var(--line)] px-1 pt-2 pb-1"
+            >
+              <input type="hidden" name="id" value={request.id} />
+              <input
+                type="hidden"
+                name="managerId"
+                value={request.managerId ?? ""}
+              />
+              <Select
+                name="status"
+                defaultValue={request.status}
+                aria-label="Статус заявки"
+                className="h-8 min-w-0 flex-1 text-xs"
+              >
+                {Object.values(RequestStatus).map((status) => (
+                  <option key={status} value={status}>
+                    {requestStatusLabels[status]}
+                  </option>
+                ))}
+              </Select>
+              <AdminSubmitButton
+                type="submit"
+                variant="secondary"
+                size="sm"
+                className="h-8 px-3 text-xs"
+                idleLabel="Сохранить"
+                pendingLabel="..."
+              />
+            </form>
+            {canDeleteRequest ? (
+              <div className="border-t border-[color:var(--line)] pt-1">
+                <DeleteRequestButton
+                  requestId={request.id}
+                  requestNumber={request.number ?? request.id.slice(0, 8)}
+                  returnTo="/admin/cutting"
+                  variant="menu"
+                />
+              </div>
+            ) : null}
+          </RowMenu>
+        </div>
+      ),
+    };
+  });
 
   return (
-    <div className="space-y-5">
-      <section className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-white/82 p-6 sm:p-7">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <SectionHeading
-            title="Распил"
-            description="Производственная очередь: клиентские файлы, расчет, Giblab-результат, карта раскроя и выдача заказа."
-            titleClassName="text-2xl sm:text-3xl"
-            descriptionClassName="max-w-3xl text-sm leading-7"
-          />
-          {/* Статическая программа из public/raskroy — обычная ссылка, не Link. */}
-          <a
-            href="/raskroy"
-            className={getButtonClassName("secondary", "md", "shrink-0")}
-          >
-            Программа раскроя
-          </a>
-          <Link
-            href="/admin/cutting/pricing"
-            className={getButtonClassName("secondary", "md", "shrink-0")}
-          >
-            Прайс работ
-          </Link>
-          <Link
-            href="/admin/cutting/new"
-            className={getButtonClassName("accent", "md", "shrink-0")}
-          >
-            <Plus className="size-4" />
-            Новый распил
-          </Link>
-        </div>
-      </section>
+    <div className="space-y-4">
+      <ListHeader
+        title="Распил"
+        tabs={[
+          {
+            label: "Все",
+            href: tabHref("all"),
+            count: metrics.total,
+            active: statusFilter === "all",
+          },
+          {
+            label: "Новые",
+            href: tabHref(RequestStatus.NEW),
+            count: metrics.siteNew || null,
+            alert: true,
+            active: statusFilter === RequestStatus.NEW,
+          },
+          {
+            label: "На расчёте",
+            href: tabHref(RequestStatus.IN_REVIEW),
+            active: statusFilter === RequestStatus.IN_REVIEW,
+          },
+          {
+            label: "В цеху",
+            href: tabHref(RequestStatus.IN_PROGRESS),
+            count: metrics.inProduction,
+            active: statusFilter === RequestStatus.IN_PROGRESS,
+          },
+          {
+            label: "Завершены",
+            href: tabHref(RequestStatus.COMPLETED),
+            active: statusFilter === RequestStatus.COMPLETED,
+          },
+        ]}
+        actions={
+          <>
+            {/* Статическая программа из public/raskroy — обычная ссылка, не Link. */}
+            <a
+              href="/raskroy"
+              className={cn(headerButton, "hidden sm:inline-flex")}
+            >
+              Программа раскроя
+            </a>
+            <Link
+              href="/admin/cutting/pricing"
+              className={cn(headerButton, "hidden sm:inline-flex")}
+            >
+              Прайс работ
+            </Link>
+            <Link
+              href="/admin/cutting/new"
+              className={cn(
+                headerButton,
+                "border-[color:var(--accent)] bg-[var(--accent)] text-white hover:bg-[var(--accent-strong)]",
+              )}
+            >
+              <Plus className="size-4" />
+              Новый распил
+            </Link>
+          </>
+        }
+      />
 
-      {metrics.siteNew > 0 ? (
-        <Link
-          href="/admin/cutting?status=NEW"
-          className="flex items-center justify-between gap-3 rounded-[var(--radius-inner)] border-2 border-red-500 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 transition hover:bg-red-100"
+      {noticeText ? (
+        <p
+          role="status"
+          className={cn(
+            "rounded-[var(--radius-inner)] px-4 py-2.5 text-sm font-medium",
+            notice === "stage-updated"
+              ? "bg-emerald-50 text-emerald-800"
+              : "bg-red-50 text-red-800",
+          )}
         >
-          <span>
-            Новых заявок с сайта: {metrics.siteNew} — их ещё никто не взял в
-            работу
-          </span>
-          <span aria-hidden="true">→</span>
-        </Link>
+          {noticeText}
+        </p>
       ) : null}
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard
-          label="Всего заявок"
-          value={metrics.total}
-          detail="Все заявки на распил"
-        />
-        <MetricCard
-          label="Активные"
-          value={metrics.active}
-          detail="Требуют расчета или производства"
-        />
-        <MetricCard
-          label="С файлами"
-          value={metrics.withFiles}
-          detail="Есть Excel/PDF/DXF/DWG или архив"
-        />
-        <MetricCard
-          label="В производстве"
-          value={metrics.inProduction}
-          detail="Переданы в цех"
-        />
-      </section>
-
-      <section className="surface-glow space-y-3 rounded-[var(--radius-card)] border border-[color:var(--line)] bg-white/82 p-6">
-        <Form
-          action="/admin/cutting"
-          className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(240px,1.5fr)_180px_155px_155px_190px_auto] xl:items-end"
+      <AutoFilterForm
+        action="/admin/cutting"
+        className="grid grid-cols-2 gap-2 lg:grid-cols-[minmax(0,1fr)_auto_auto_auto]"
+      >
+        <label className="relative col-span-2 lg:col-span-1">
+          <span className="sr-only">Поиск</span>
+          <Search className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-[var(--muted)]" />
+          <Input
+            name="q"
+            type="search"
+            defaultValue={query}
+            placeholder="Клиент, телефон, материал или номер"
+            className="h-10 rounded-[var(--radius-control)] pl-10 sm:h-10 sm:pl-10"
+          />
+        </label>
+        <Select
+          name="status"
+          defaultValue={statusFilter}
+          aria-label="Статус"
+          wrapperClassName="lg:w-48"
+          className="h-10 rounded-[var(--radius-control)] sm:h-10 sm:pr-10"
         >
-          <label className="grid gap-1.5">
-            <span className="text-xs font-semibold text-[var(--muted)]">
-              Поиск
-            </span>
-            <Input
-              name="q"
-              defaultValue={query}
-              placeholder="Клиент, материал или номер"
-            />
-          </label>
-          <label className="grid gap-1.5">
-            <span className="text-xs font-semibold text-[var(--muted)]">
-              Статус
-            </span>
-            <Select name="status" defaultValue={statusFilter}>
-              <option value="all">Все статусы</option>
-              {Object.values(RequestStatus).map((status) => (
-                <option key={status} value={status}>
-                  {requestStatusLabels[status]}
-                </option>
-              ))}
-            </Select>
-          </label>
-          <label className="grid gap-1.5">
-            <span className="text-xs font-semibold text-[var(--muted)]">
-              Дата с
-            </span>
-            <Input
-              type="date"
-              name="dateFrom"
-              defaultValue={dateFrom}
-              max={dateTo || undefined}
-            />
-          </label>
-          <label className="grid gap-1.5">
-            <span className="text-xs font-semibold text-[var(--muted)]">
-              Дата по
-            </span>
-            <Input
-              type="date"
-              name="dateTo"
-              defaultValue={dateTo}
-              min={dateFrom || undefined}
-            />
-          </label>
-          <label className="grid gap-1.5">
-            <span className="text-xs font-semibold text-[var(--muted)]">
-              Порядок
-            </span>
-            <Select name="sort" defaultValue={dateSort}>
-              <option value="date-desc">Сначала новые</option>
-              <option value="date-asc">Сначала ранние</option>
-            </Select>
-          </label>
-          <div className="flex items-center gap-2">
-            <button
-              type="submit"
-              className={getButtonClassName("secondary", "md", "flex-1")}
-            >
-              <Search className="size-4" />
-              Найти
-            </button>
-            {hasActiveFilters ? (
-              <Link
-                href="/admin/cutting"
-                className={getButtonClassName("ghost", "icon")}
-                title="Сбросить фильтры"
-                aria-label="Сбросить фильтры"
-              >
-                <RotateCcw className="size-4" />
-              </Link>
-            ) : null}
+          <option value="all">Любой статус</option>
+          {Object.values(RequestStatus).map((status) => (
+            <option key={status} value={status}>
+              {requestStatusLabels[status]}
+            </option>
+          ))}
+        </Select>
+        <Select
+          name="sort"
+          defaultValue={dateSort}
+          aria-label="Порядок"
+          wrapperClassName="lg:w-44"
+          className="h-10 rounded-[var(--radius-control)] sm:h-10 sm:pr-10"
+        >
+          <option value="date-desc">Сначала новые</option>
+          <option value="date-asc">Сначала ранние</option>
+        </Select>
+        <details
+          className="group relative col-span-2 lg:col-span-1"
+          open={Boolean(dateFrom || dateTo)}
+        >
+          <summary className="flex h-10 cursor-pointer list-none items-center gap-2 rounded-[var(--radius-control)] border border-[color:var(--line)] bg-white px-3.5 text-sm font-medium whitespace-nowrap">
+            <CalendarRange className="size-4 text-[var(--muted)]" />
+            {dateFrom || dateTo ? "Даты" : "За всё время"}
+          </summary>
+          <div className="absolute right-0 z-20 mt-2 grid w-72 gap-2 rounded-[12px] border border-[color:var(--line)] bg-white p-3 shadow-[0_16px_40px_rgba(0,0,0,0.12)]">
+            <label className="grid gap-1 text-xs text-[var(--muted)]">
+              С
+              <Input
+                type="date"
+                name="dateFrom"
+                defaultValue={dateFrom}
+                max={dateTo || undefined}
+              />
+            </label>
+            <label className="grid gap-1 text-xs text-[var(--muted)]">
+              По
+              <Input
+                type="date"
+                name="dateTo"
+                defaultValue={dateTo}
+                min={dateFrom || undefined}
+              />
+            </label>
           </div>
-        </Form>
-        <p className="text-xs text-[var(--muted)]">
-          Найдено {list.filteredTotal} из {metrics.total} заявок
+        </details>
+      </AutoFilterForm>
+      <div className="flex items-center justify-between gap-3 text-xs text-[var(--muted)]">
+        <span>
+          Найдено {list.filteredTotal} из {metrics.total}
           {list.pageCount > 1
             ? ` · страница ${list.page} из ${list.pageCount}`
             : ""}
-          . Сортировка по дате создания заявки.
-        </p>
-      </section>
+        </span>
+        {hasActiveFilters ? (
+          <Link
+            href="/admin/cutting"
+            className="inline-flex items-center gap-1 font-semibold text-[var(--accent)] hover:underline"
+          >
+            <RotateCcw className="size-3.5" />
+            Сбросить фильтры
+          </Link>
+        ) : null}
+      </div>
 
       <DataTable
         columns={[
           { key: "request", label: "Заявка" },
-          { key: "date", label: "Дата" },
+          { key: "date", label: "Принята" },
           { key: "material", label: "Материал" },
-          { key: "files", label: "Файлы" },
-          { key: "stage", label: "Этап распила" },
+          { key: "stage", label: "Где сейчас" },
           { key: "status", label: "Статус" },
-          { key: "budget", label: "Ориентир" },
-          { key: "manage", label: "Быстро" },
+          { key: "budget", label: "Сумма" },
+          { key: "manage", label: "Действие" },
         ]}
         rows={rows}
         rowTones={filteredRequests.map((request) =>
           needsSiteAttention(request) ? "alert" : undefined,
         )}
+        compact
         caption="Очередь распила по дате создания"
         emptyMessage="По текущим фильтрам заявок на распил нет."
       />

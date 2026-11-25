@@ -1,6 +1,7 @@
 "use client";
 
 import { LoaderCircle, Trash2 } from "lucide-react";
+import { useState } from "react";
 import { useFormStatus } from "react-dom";
 
 import { deleteOrderAction } from "@/app/admin/actions";
@@ -10,46 +11,68 @@ type DeleteOrderButtonProps = {
   orderNumber: string;
 };
 
-function DeleteOrderSubmitButton({ orderNumber }: { orderNumber: string }) {
+function ConfirmSubmit() {
   const { pending } = useFormStatus();
 
   return (
     <button
       type="submit"
+      autoFocus
       disabled={pending}
-      aria-label={`Удалить заказ ${orderNumber}`}
-      title={`Удалить заказ ${orderNumber}`}
-      className="inline-flex size-8 shrink-0 items-center justify-center border border-red-200 text-red-700 transition hover:border-red-700 hover:bg-red-700 hover:text-white disabled:cursor-wait disabled:opacity-60"
+      className="inline-flex h-8 items-center gap-1.5 rounded-[8px] bg-red-600 px-3 text-xs font-semibold text-white transition hover:bg-red-700 disabled:cursor-wait disabled:opacity-60"
     >
       {pending ? (
-        <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
-      ) : (
-        <Trash2 className="size-4" aria-hidden="true" />
-      )}
+        <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" />
+      ) : null}
+      {pending ? "Удаляем..." : "Да, удалить"}
     </button>
   );
 }
 
+// Пункт «Удалить…» в меню «⋯» строки заказа. Подтверждение прямо на
+// странице, а не окном браузера: окно браузер может заблокировать.
 export function DeleteOrderButton({
   orderId,
   orderNumber,
 }: DeleteOrderButtonProps) {
-  return (
-    <form
-      action={deleteOrderAction}
-      onSubmit={(event) => {
-        const confirmed = window.confirm(
-          `Удалить заказ ${orderNumber}? Это действие нельзя отменить. Резерв товара вернется в остатки, а бонусы будут пересчитаны.`,
-        );
+  const [armed, setArmed] = useState(false);
 
-        if (!confirmed) {
-          event.preventDefault();
-        }
-      }}
-    >
+  return (
+    <form action={deleteOrderAction}>
       <input type="hidden" name="orderId" value={orderId} />
       <input type="hidden" name="confirmDeleteOrder" value="DELETE" />
-      <DeleteOrderSubmitButton orderNumber={orderNumber} />
+      {armed ? (
+        <div
+          role="alertdialog"
+          aria-live="assertive"
+          className="grid gap-2 rounded-[10px] border border-red-200 bg-red-50 p-3"
+        >
+          <p className="text-xs leading-5 text-red-900">
+            Удалить заказ {orderNumber}? Резерв вернётся в остатки, бонусы
+            пересчитаются. Отменить нельзя.
+          </p>
+          <div className="flex items-center gap-3">
+            <ConfirmSubmit />
+            <button
+              type="button"
+              onClick={() => setArmed(false)}
+              className="text-xs text-zinc-600 underline underline-offset-2"
+            >
+              Отмена
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setArmed(true)}
+          aria-label={`Удалить заказ ${orderNumber}`}
+          className="flex h-9 w-full items-center gap-2.5 rounded-[8px] px-2.5 text-sm font-medium text-red-700 transition hover:bg-red-50"
+        >
+          <Trash2 className="size-4" aria-hidden="true" />
+          Удалить…
+        </button>
+      )}
     </form>
   );
 }

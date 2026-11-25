@@ -24,9 +24,14 @@ export function BulkSelectionTools({
     const syncState = () => {
       const checkboxes = readCheckboxes(checkboxSelector);
 
-      setAvailableCount(checkboxes.length);
+      // Каждая строка есть дважды: карточкой (телефон) и в таблице.
+      setAvailableCount(new Set(checkboxes.map((item) => item.value)).size);
       setSelectedCount(
-        checkboxes.filter((checkbox) => checkbox.checked).length,
+        new Set(
+          checkboxes
+            .filter((checkbox) => checkbox.checked)
+            .map((item) => item.value),
+        ).size,
       );
     };
 
@@ -61,7 +66,7 @@ export function BulkSelectionTools({
         size="sm"
         onClick={() => toggleCheckboxes(true)}
         disabled={availableCount === 0}
-        className="rounded-full px-3 text-[10px] tracking-[0.12em]"
+        className="h-9 rounded-[var(--radius-control)] px-3 text-[13px]"
       >
         Выделить все
       </Button>
@@ -71,7 +76,7 @@ export function BulkSelectionTools({
         size="sm"
         onClick={() => toggleCheckboxes(false)}
         disabled={selectedCount === 0}
-        className="rounded-full px-3 text-[10px] tracking-[0.12em]"
+        className="h-9 rounded-[var(--radius-control)] px-3 text-[13px]"
       >
         Снять выбор
       </Button>

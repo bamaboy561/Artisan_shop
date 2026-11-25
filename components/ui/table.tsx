@@ -1,3 +1,4 @@
+import { cn } from "@/lib/utils";
 import type { ReactNode } from "react";
 
 type Column = {
@@ -20,6 +21,8 @@ type DataTableProps = {
   // "cards" — карточки на любой ширине (для узких колонок, например в кабинете,
   // где 8 столбцов таблицы не помещаются и текст ломается по слову в строке).
   layout?: "auto" | "cards";
+  // Плотные строки для рабочих списков админки.
+  compact?: boolean;
 };
 
 export function DataTable({
@@ -30,6 +33,7 @@ export function DataTable({
   variant = "card",
   rowTones,
   layout = "auto",
+  compact = false,
 }: DataTableProps) {
   const isEmbedded = variant === "embedded";
   const cardsOnly = layout === "cards";
@@ -107,7 +111,12 @@ export function DataTable({
               {columns.map((column) => (
                 <th
                   key={column.key}
-                  className="px-5 py-3 text-xs font-medium text-[var(--muted)]"
+                  className={cn(
+                    "py-3 text-xs font-medium text-[var(--muted)]",
+                    compact
+                      ? "px-4 first:pl-5 last:pr-5 last:text-right"
+                      : "px-5",
+                  )}
                 >
                   {column.label}
                 </th>
@@ -121,15 +130,22 @@ export function DataTable({
                 <tr
                   key={`row-${rowIndex}`}
                   className={
-                    rowTones?.[rowIndex] === "alert"
-                      ? "border-b border-l-4 border-[color:var(--line)] border-l-red-600 bg-red-50 text-[var(--foreground)] transition last:border-b-0 hover:bg-red-100"
-                      : "border-b border-[color:var(--line)] text-[var(--foreground)] transition last:border-0 hover:bg-[#faf8f5]"
+                    rowTones?.[rowIndex] === "alert" && compact
+                      ? "border-b border-[color:var(--line)] bg-[#fffafa] text-[var(--foreground)] shadow-[inset_3px_0_0_#dc2626] transition last:border-b-0 hover:bg-red-50"
+                      : rowTones?.[rowIndex] === "alert"
+                        ? "border-b border-l-4 border-[color:var(--line)] border-l-red-600 bg-red-50 text-[var(--foreground)] transition last:border-b-0 hover:bg-red-100"
+                        : "border-b border-[color:var(--line)] text-[var(--foreground)] transition last:border-0 hover:bg-[#faf8f5]"
                   }
                 >
                   {columns.map((column) => (
                     <td
                       key={column.key}
-                      className="max-w-[18rem] px-5 py-3.5 align-middle break-words"
+                      className={cn(
+                        "align-middle break-words",
+                        compact
+                          ? "px-4 py-2.5 first:pl-5 last:pr-5"
+                          : "max-w-[18rem] px-5 py-3.5",
+                      )}
                     >
                       {row[column.key]}
                     </td>
