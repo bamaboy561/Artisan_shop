@@ -2721,14 +2721,14 @@
 .eyebrow {
   color: var(--pv-accent);
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 .sectionHeading h2,
 .contactBand h2 {
   font-size: 34px;
-  font-weight: 800;
+  font-weight: 600;
   line-height: 1.15;
 }
 .textLink {
@@ -2782,7 +2782,7 @@
   align-items: center;
   gap: 8px;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -2808,7 +2808,7 @@
 .root .heroTile h1 {
   font-family: var(--font-manrope), Arial, sans-serif;
   font-size: clamp(36px, 3.6vw, 52px);
-  font-weight: 800;
+  font-weight: 600;
   line-height: 1.04;
   letter-spacing: -0.035em;
   margin: 20px 0 16px;
@@ -2869,7 +2869,7 @@
 }
 .imageTile h2 {
   font-size: 24px;
-  font-weight: 800;
+  font-weight: 600;
   line-height: 1.15;
   margin-top: 8px;
 }
@@ -2912,39 +2912,13 @@
 }
 .colorTile h2 {
   font-size: 26px;
-  font-weight: 800;
+  font-weight: 600;
   line-height: 1.1;
 }
 .colorTile > div:first-child p {
   margin-top: 8px;
   color: var(--pv-muted);
   font-size: 14px;
-}
-.swatches {
-  flex: 1;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
-  gap: 12px 8px;
-}
-.swatches a {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  font-weight: 600;
-  text-align: center;
-  line-height: 1.2;
-}
-.swatches i {
-  width: 52px;
-  height: 52px;
-  border-radius: 16px;
-  border: 1px solid #0000001a;
-  transition: transform 200ms ease;
-}
-.swatches a:hover i {
-  transform: translateY(-3px) scale(1.04);
 }
 
 /* Полоса преимуществ */
@@ -2982,7 +2956,7 @@
 }
 .categoryTile h3 {
   font-size: 19px;
-  font-weight: 800;
+  font-weight: 600;
   padding-inline: 18px;
 }
 .categoryTile p {
@@ -3024,7 +2998,7 @@
   bottom: auto;
   left: 12px;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 600;
   padding: 5px 12px;
   border-radius: 999px;
   background: var(--pv-accent);
@@ -3035,7 +3009,7 @@
 }
 .productBrand {
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--pv-muted);
@@ -3123,7 +3097,7 @@
 }
 .serviceText h2 {
   font-size: 42px;
-  font-weight: 800;
+  font-weight: 600;
   line-height: 1.1;
 }
 .serviceSteps span {
@@ -3146,7 +3120,7 @@
 
 /* Каталог */
 .catalogHeading h1 {
-  font-weight: 800;
+  font-weight: 600;
 }
 .breadcrumbs {
   font-size: 13px;
@@ -3176,7 +3150,7 @@
   align-self: start;
 }
 .detailInfo h1 {
-  font-weight: 800;
+  font-weight: 600;
   line-height: 1.15;
 }
 .sku {
@@ -3280,16 +3254,6 @@
   }
   .colorTile h2 {
     font-size: 22px;
-  }
-  .swatches {
-    display: flex;
-    overflow-x: auto;
-    scrollbar-width: none;
-    margin-inline: -22px;
-    padding-inline: 22px;
-  }
-  .swatches a {
-    flex: 0 0 68px;
   }
   .trustStrip li {
     padding: 12px 14px;
@@ -3401,11 +3365,6 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-}
-@media (min-width: 601px) {
-  .swatches {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-  }
 }
 .quickAddTrigger {
   border-radius: 50%;
@@ -3872,5 +3831,644 @@
     grid-column: 2;
     grid-row: 2 / span 2;
     justify-self: end;
+  }
+}
+
+/* Дизайн-проход витрины 2026-11-24: цены тем же шрифтом, что и текст,
+   ровные переносы заголовков, без лишних подписей над секциями. */
+.offerPills strong,
+.promoValue,
+.productBottom strong,
+.detailPrice strong,
+.stickyBuy strong {
+  font-family: var(--font-manrope), Arial, sans-serif;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+.productBottom strong {
+  font-size: 21px;
+}
+.root h1,
+.root h2 {
+  text-wrap: balance;
+}
+.serviceText h2 {
+  font-size: clamp(28px, 3vw, 40px);
+}
+.serviceText > p:not(.eyebrow) {
+  max-width: 440px;
+}
+.contactBand > div > p {
+  margin-top: 8px;
+  color: var(--pv-muted);
+}
+.brandGrid span {
+  overflow-wrap: normal;
+  word-break: normal;
+}
+@media (max-width: 600px) {
+  .brandGrid span {
+    font-size: 13px;
+  }
+}
+
+/* Смелый вариант главной 2026-11-24: первый экран на всю ширину,
+   крупные разделы с фото, бренды строкой, появление блоков при прокрутке. */
+.stageActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px 28px;
+  margin-top: 34px;
+}
+.stageLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  border-bottom: 1px solid #ffffff66;
+  padding-block: 4px;
+}
+.stageLink:hover {
+  border-color: white;
+}
+.promoStrip {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 12px;
+  padding: 16px 22px;
+  border-radius: var(--ws-radius-sm);
+  background: var(--pv-accent);
+  color: white;
+  font-weight: 600;
+}
+.promoStrip strong {
+  font-size: 20px;
+  font-weight: 600;
+}
+.promoStrip svg {
+  margin-left: auto;
+}
+
+/* Разделы — крупные фото с подписью поверх */
+.root .categoryTile {
+  position: relative;
+  display: block;
+  border-radius: var(--ws-radius);
+  overflow: hidden;
+  background: var(--ws-forest);
+  color: white;
+  padding: 0;
+}
+.root .categoryTile > div {
+  aspect-ratio: 4 / 3.4;
+  border-radius: 0;
+}
+.root .categoryTile > div::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(0deg, #17201ccc 0%, #17201c00 55%);
+}
+.root .categoryTile img {
+  transition: transform 700ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.root .categoryTile:hover img {
+  transform: scale(1.06);
+}
+.root .categoryTile h3 {
+  position: absolute;
+  left: 24px;
+  bottom: 44px;
+  margin: 0;
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.root .categoryTile p {
+  position: absolute;
+  left: 24px;
+  right: 24px;
+  bottom: 20px;
+  margin: 0;
+  color: #dfe6e2;
+  font-size: 13px;
+}
+.root .sectionHeading h2 {
+  font-size: clamp(28px, 3.2vw, 44px);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+.root .section {
+  padding-block: 72px 0;
+}
+
+/* Бренды — спокойной строкой, без плиток */
+.brandRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 18px 48px;
+  padding-block: 8px;
+}
+.brandRow a {
+  color: #8a867c;
+  transition: color 200ms ease;
+}
+.brandRow a:hover {
+  color: var(--pv-ink);
+}
+.brandRow span {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+.brandRow img {
+  height: 32px;
+  width: auto;
+  object-fit: contain;
+  filter: grayscale(1) opacity(0.6);
+  transition: filter 200ms ease;
+}
+.brandRow a:hover img {
+  filter: none;
+}
+.root .serviceBand {
+  border-radius: var(--ws-radius);
+}
+
+@media (max-width: 850px) {
+  .stageActions .primaryButton {
+    width: 100%;
+    justify-content: center;
+  }
+  .root .section {
+    padding-block: 48px 0;
+  }
+  .root .categoryTile h3 {
+    font-size: 20px;
+    left: 16px;
+    bottom: 36px;
+  }
+  .root .categoryTile p {
+    left: 16px;
+    right: 16px;
+    bottom: 14px;
+    font-size: 12px;
+  }
+  .brandRow {
+    gap: 14px 28px;
+  }
+  .brandRow span {
+    font-size: 18px;
+  }
+  .brandRow img {
+    height: 24px;
+  }
+}
+.root .serviceBand {
+  margin-top: 72px;
+}
+@media (max-width: 850px) {
+  .root .serviceBand {
+    margin-top: 48px;
+  }
+}
+@media (max-width: 600px) {
+  .root .categoryGrid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .root .categoryTile > div {
+    aspect-ratio: 16 / 9;
+  }
+  .root .categoryTile h3 {
+    font-size: 24px;
+  }
+}
+
+/* Unslop, 2026-11-24. Направление: точный, деловой, тёплый как мастерская.
+   Мир — цех и склад плит. Яркие моменты: фото первого экрана и образцы декора
+   срезом плиты. Подпись — размеры моноширинным шрифтом, как на раскрое. */
+.root h1,
+.root h2,
+.root .sectionHeading h2,
+.root .serviceText h2,
+.root .contactBand h2,
+.root .categoryTile h3 {
+  font-weight: 500;
+}
+.root .sectionHeading h2 {
+  letter-spacing: -0.02em;
+}
+.root h3 {
+  letter-spacing: 0;
+}
+/* Без подписей капсом с разрядкой */
+.productBrand,
+.tileTag {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 600;
+}
+/* Размеры — моноширинным шрифтом, как на карте раскроя */
+.specChips {
+  gap: 0;
+}
+.specChips span {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+  font-family: var(--font-ibm-plex-mono), ui-monospace, monospace;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--pv-muted);
+  font-variant-numeric: tabular-nums;
+}
+.specChips span + span::before {
+  content: "·";
+  margin: 0 8px;
+}
+.offerPills strong,
+.promoValue,
+.productBottom strong,
+.detailPrice strong,
+.stickyBuy strong {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+/* Наведение — смена цвета и поверхности, без увеличения */
+.root .categoryTile:hover img,
+.productVisual > a:hover img,
+.tile:hover .tileImage,
+.categoryTile:hover img {
+  transform: none;
+}
+.root .categoryTile > div::after {
+  transition: opacity 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.root .categoryTile:hover > div::after {
+  opacity: 0.75;
+}
+/* Образцы декора — срез плиты с кромкой, а не круг */
+
+/* Первый экран в 3D, 2026-11-25: лист → распил → кромка → шкаф.
+   Пока сцена грузится (и без JS) это обычный экран высотой в окно;
+   длинным для прокрутки он становится, только когда 3D готово. */
+.cutHero {
+  --cut-bg: #efe8dc;
+  position: relative;
+  height: 100svh;
+  min-height: 560px;
+  background: radial-gradient(
+    ellipse 70% 80% at 68% 42%,
+    #fbf8f2 0%,
+    #f4eee4 45%,
+    var(--cut-bg) 100%
+  );
+}
+.cutHero[data-mode="live"] {
+  height: 340svh;
+}
+.cutSticky {
+  position: sticky;
+  top: 0;
+  height: 100svh;
+  min-height: 560px;
+  overflow: hidden;
+}
+.cutCanvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  opacity: 0;
+  transition: opacity 600ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.cutHero[data-mode="live"] .cutCanvas,
+.cutHero[data-mode="static"] .cutCanvas {
+  opacity: 1;
+}
+.cutHero[data-mode="failed"] .cutSticky::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 0 45%;
+  background: url("/storefront/interior-1.webp") center / cover no-repeat;
+  mask-image: linear-gradient(90deg, transparent, black 30%);
+}
+.cutLayer {
+  position: relative;
+  height: 100%;
+  pointer-events: none;
+}
+.cutIntro,
+.cutStep,
+.cutFinale {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  translate: 0 -50%;
+  max-width: 500px;
+  pointer-events: auto;
+  will-change: opacity, transform;
+}
+.root .cutIntro h1 {
+  font-size: clamp(40px, 4.9vw, 70px);
+  line-height: 1.02;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  text-wrap: balance;
+}
+.cutIntro p,
+.cutStep p,
+.cutFinale p {
+  margin-top: 20px;
+  max-width: 440px;
+  font-size: 17px;
+  line-height: 1.6;
+  color: var(--pv-muted);
+}
+.cutHero .stageLink {
+  border-bottom-color: #1b1c1959;
+}
+.cutHero .stageLink:hover {
+  border-bottom-color: var(--pv-ink);
+}
+.cutHint {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 44px;
+  font-family: var(--font-ibm-plex-mono), ui-monospace, monospace;
+  font-size: 12px;
+  color: var(--pv-muted);
+}
+.cutHint::before {
+  content: "";
+  width: 1px;
+  height: 28px;
+  background: linear-gradient(var(--pv-accent), transparent);
+  animation: cutHintDrop 1600ms cubic-bezier(0.22, 1, 0.36, 1) infinite;
+  transform-origin: top;
+}
+.cutHero[data-mode="static"] .cutHint,
+.cutHero[data-mode="failed"] .cutHint {
+  display: none;
+}
+@keyframes cutHintDrop {
+  from {
+    transform: scaleY(0);
+  }
+  60% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+  to {
+    transform: scaleY(1);
+    opacity: 0;
+  }
+}
+.cutStepIndex {
+  display: block;
+  margin-bottom: 18px;
+  font-family: var(--font-ibm-plex-mono), ui-monospace, monospace;
+  font-size: 12px;
+  color: var(--pv-accent);
+  font-variant-numeric: tabular-nums;
+}
+.root .cutStep h2,
+.root .cutFinale h2 {
+  font-size: clamp(30px, 3.3vw, 48px);
+  line-height: 1.06;
+  font-weight: 500;
+  letter-spacing: -0.025em;
+  text-wrap: balance;
+}
+.cutFinale .stageActions {
+  margin-top: 28px;
+}
+.cutRail {
+  position: absolute;
+  left: 0;
+  bottom: 32px;
+  display: flex;
+  gap: 28px;
+  padding-top: 14px;
+  font-family: var(--font-ibm-plex-mono), ui-monospace, monospace;
+  font-size: 12px;
+  color: var(--pv-muted);
+}
+.cutRail::before,
+.cutRail::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 1px;
+}
+.cutRail::before {
+  right: 0;
+  background: #1b1c1926;
+}
+.cutRail::after {
+  width: calc(var(--cut-progress, 0) * 100%);
+  background: var(--pv-accent);
+}
+.cutRail li {
+  transition: color 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.cutRail li[data-done="true"] {
+  color: var(--pv-ink);
+}
+.cutRail li[data-active="true"] {
+  color: var(--pv-accent);
+}
+.cutHero:not([data-mode="live"]) .cutRail {
+  display: none;
+}
+.cutFacts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-bottom: 1px solid var(--pv-line);
+}
+.cutFacts li {
+  padding: 26px 20px 26px 0;
+}
+.cutFacts strong {
+  display: block;
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+.cutFacts small,
+.cutFacts del {
+  font-family: var(--font-ibm-plex-mono), ui-monospace, monospace;
+  font-size: 13px;
+  font-weight: 400;
+}
+.cutFacts del {
+  margin-left: 4px;
+  color: var(--pv-muted);
+}
+.cutFacts span {
+  display: block;
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--pv-muted);
+}
+
+/* Декоры веером, как образцы у поставщика (из варианта Impeccable) */
+.fanSection {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 40px;
+  align-items: end;
+  padding-block: 40px 16px;
+}
+.root .fanSection h2 {
+  font-size: 26px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  align-self: start;
+  padding-top: 24px;
+}
+.fan {
+  display: grid;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+  height: 220px;
+  align-items: end;
+  padding-right: 10px;
+}
+.fan a {
+  position: relative;
+  height: 180px;
+  margin-right: -10px;
+  border-radius: 4px 4px 2px 2px;
+  box-shadow:
+    inset 0 0 0 1px #00000014,
+    -6px 0 14px -8px #00000059;
+  transition: height 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.fan a:hover,
+.fan a:focus-visible {
+  height: 216px;
+}
+.root .fan span {
+  position: absolute;
+  left: 8px;
+  bottom: 10px;
+  transform: rotate(180deg);
+  writing-mode: vertical-rl;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 2px;
+  border-radius: 3px;
+  background: #fffdf8e6;
+  color: var(--pv-ink);
+}
+
+@media (max-width: 899px) {
+  .cutHero[data-mode="live"] {
+    height: 300svh;
+  }
+  .cutSticky::after {
+    content: "";
+    position: absolute;
+    inset: 42% 0 0;
+    background: linear-gradient(#efe8dc00, var(--cut-bg) 42%);
+    pointer-events: none;
+  }
+  .cutLayer {
+    z-index: 1;
+  }
+  .cutIntro,
+  .cutStep,
+  .cutFinale {
+    top: auto;
+    /* Над нижней панелью «Главная · Каталог · …» */
+    bottom: calc(118px + env(safe-area-inset-bottom));
+    translate: none;
+    max-width: none;
+    right: 0;
+  }
+  .root .cutIntro h1 {
+    font-size: 36px;
+  }
+  .cutIntro p,
+  .cutStep p,
+  .cutFinale p {
+    margin-top: 14px;
+    font-size: 15px;
+  }
+  .root .cutStep h2,
+  .root .cutFinale h2 {
+    font-size: 28px;
+  }
+  .cutStepIndex {
+    margin-bottom: 10px;
+  }
+  .cutIntro .stageActions,
+  .cutFinale .stageActions {
+    margin-top: 22px;
+  }
+  .cutIntro .stageActions .primaryButton,
+  .cutFinale .stageActions .primaryButton {
+    width: 100%;
+    justify-content: center;
+  }
+  .cutHint {
+    display: none;
+  }
+  .cutRail {
+    bottom: calc(80px + env(safe-area-inset-bottom));
+    gap: 18px;
+    font-size: 11px;
+  }
+  .cutFacts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .cutFacts li {
+    padding: 16px 10px 16px 0;
+  }
+  .cutFacts strong {
+    font-size: 21px;
+  }
+  .fanSection {
+    grid-template-columns: 1fr;
+    gap: 16px;
+    padding-block: 32px 0;
+  }
+  .root .fanSection h2 {
+    padding-top: 0;
+    font-size: 21px;
+  }
+  .fan {
+    height: 170px;
+    overflow-x: auto;
+    grid-template-columns: repeat(10, 56px);
+    padding-left: 4px;
+    scrollbar-width: none;
+  }
+  .fan a {
+    height: 140px;
+  }
+  .fan a:hover,
+  .fan a:focus-visible {
+    height: 166px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cutHint::before {
+    animation: none;
+  }
+  .fan a {
+    transition: none;
   }
 }
