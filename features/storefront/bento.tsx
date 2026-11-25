@@ -1,10 +1,13 @@
-import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, ArrowUpRight } from "lucide-react";
 import type { PublicPromotion } from "@/lib/server/promotions-public";
-import { buildCuttingSiteIncentive } from "@/features/cutting/site-prices";
+import {
+  buildCuttingSiteIncentive,
+  formatSitePrice,
+} from "@/features/cutting/site-prices";
 import { getSiteCuttingPrices } from "@/lib/server/cutting-pricing";
 import { companyContacts } from "@/lib/site-config";
+import { CutHero, type CutHeroStep } from "./cut-hero";
 import s from "./storefront.module.css";
 
 // Пока у товаров нет поля «оттенок», образцы ведут на поиск по слову.
@@ -50,62 +53,89 @@ export async function StorefrontBento({
 }: {
   promotion?: PublicPromotion;
 }) {
-  const offers =
-    buildCuttingSiteIncentive(await getSiteCuttingPrices())?.offers ?? [];
+  const prices = await getSiteCuttingPrices();
+  const offers = buildCuttingSiteIncentive(prices)?.offers ?? [];
   const address = companyContacts.address.replace(/^г\. Бишкек, (ул\. )?/, "");
+  const steps: CutHeroStep[] = [
+    {
+      label: "Распил",
+      title: "Лист 2800 × 2070 режем по вашим размерам",
+      text: `Режем на немецких станках HOMAG и Altendorf. Распил через сайт — ${formatSitePrice(prices.sheet)} сом за лист.`,
+      from: 0.1,
+      to: 0.3,
+    },
+    {
+      label: "Кромка",
+      title: "Кромка в цвет декора на PUR-клей",
+      text: `Немецкий клей: шов тоньше, не боится воды и жара. Кромление — ${formatSitePrice(prices.edge)} сом за метр.`,
+      from: 0.37,
+      to: 0.55,
+    },
+    {
+      label: "Сборка",
+      title: "Детали приходят готовыми к сборке",
+      text: "Каждая деталь подписана, а при заказе из Базиса на наклейке есть QR-код: видно, куда она идёт.",
+      from: 0.61,
+      to: 0.86,
+    },
+  ];
   return (
     <>
-      <section
-        className={`${s.container} ${s.stage}`}
-        aria-label="Artisan в Бишкеке"
-      >
-        <div className={s.stageMedia}>
-          <Image
-            src="/storefront/interior-1.webp"
-            alt="Кухня из декоров Extravert"
-            fill
-            unoptimized
-            priority
-            sizes="100vw"
-            className={s.cover}
-          />
-        </div>
-        <div className={s.stageBody}>
-          <h1>ЛДСП, фурнитура и&nbsp;распил в&nbsp;Бишкеке</h1>
-          <p>
-            Подберите декор, пришлите размеры деталей и&nbsp;заберите готовый
-            раскрой на {address}. Оплата при получении.
-          </p>
-          <div className={s.stageActions}>
-            <Link href="/calculator" className={s.primaryButton}>
-              Рассчитать распил <ArrowRight size={19} />
-            </Link>
-            <Link href="/catalog" className={s.stageLink}>
-              Каталог материалов <ArrowUpRight size={17} />
-            </Link>
-          </div>
-        </div>
-        <ul className={s.stageFacts}>
-          {offers.map((offer) => (
-            <li key={offer.label}>
-              <strong>
-                {offer.now} <small>{offer.unit}</small>
-              </strong>
-              <span>
-                {offer.label} <del>{offer.was}</del>
-              </span>
-            </li>
-          ))}
-          <li>
-            <strong>0 сом</strong>
-            <span>предоплаты на сайте</span>
+      <CutHero
+        steps={steps}
+        intro={
+          <>
+            <h1>ЛДСП, фурнитура и&nbsp;распил в&nbsp;Бишкеке</h1>
+            <p>
+              Подберите декор, пришлите размеры деталей и&nbsp;заберите готовый
+              раскрой на {address}. Оплата при получении.
+            </p>
+            <div className={s.stageActions}>
+              <Link href="/calculator" className={s.primaryButton}>
+                Рассчитать распил <ArrowRight size={19} />
+              </Link>
+              <Link href="/catalog" className={s.stageLink}>
+                Каталог материалов <ArrowUpRight size={17} />
+              </Link>
+            </div>
+            <span className={s.cutHint}>Прокрутите: лист станет шкафом</span>
+          </>
+        }
+        finale={
+          <>
+            <h2>Один лист. Один шкаф. Ваши размеры.</h2>
+            <p>
+              Соберите раскрой в калькуляторе или пришлите файл из Базиса, а мы
+              распилим, закромим и подпишем детали.
+            </p>
+            <div className={s.stageActions}>
+              <Link href="/calculator" className={s.primaryButton}>
+                Рассчитать распил <ArrowRight size={19} />
+              </Link>
+            </div>
+          </>
+        }
+      />
+      <ul className={`${s.container} ${s.cutFacts}`}>
+        {offers.map((offer) => (
+          <li key={offer.label}>
+            <strong>
+              {offer.now} <small>{offer.unit}</small>
+            </strong>
+            <span>
+              {offer.label} <del>{offer.was}</del>
+            </span>
           </li>
-          <li>
-            <strong>{companyContacts.hours.replace(/^Пн-Пт /, "")}</strong>
-            <span>Пн–Пт, {address}</span>
-          </li>
-        </ul>
-      </section>
+        ))}
+        <li>
+          <strong>0 сом</strong>
+          <span>предоплаты на сайте</span>
+        </li>
+        <li>
+          <strong>{companyContacts.hours.replace(/^Пн-Пт /, "")}</strong>
+          <span>Пн–Пт, {address}</span>
+        </li>
+      </ul>
       {promotion && (
         <Link
           href={promotion.href}
@@ -124,18 +154,18 @@ export async function StorefrontBento({
         </Link>
       )}
       <section
-        className={`${s.container} ${s.swatchBand}`}
-        aria-labelledby="swatch-title"
+        className={`${s.container} ${s.fanSection}`}
+        aria-labelledby="fan-title"
       >
-        <h2 id="swatch-title">Подберите декор по цвету</h2>
-        <div className={s.swatches}>
+        <h2 id="fan-title">Декоры по цвету</h2>
+        <div className={s.fan}>
           {swatches.map((swatch) => (
             <Link
               key={swatch.query}
               href={`/catalog?q=${encodeURIComponent(swatch.query)}`}
+              style={{ background: swatch.background }}
             >
-              <i style={{ background: swatch.background }} />
-              {swatch.label}
+              <span>{swatch.label}</span>
             </Link>
           ))}
         </div>
