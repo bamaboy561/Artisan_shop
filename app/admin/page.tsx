@@ -29,6 +29,7 @@ import { OrderStatus, RequestStatus, RequestType } from "@/generated/prisma";
 import { cuttingStageLabels } from "@/features/cutting/progress";
 import { AdminSearchForm } from "@/components/admin/admin-search-form";
 import { AttentionPanel } from "@/components/admin/attention-panel";
+import { AdminPulse } from "@/components/admin/pulse/admin-pulse";
 import { requireAdminSession } from "@/lib/auth/dal";
 import { hasDatabaseUrl, isDemoModeEnabled } from "@/lib/db";
 import {
@@ -739,6 +740,7 @@ export default async function AdminPage({
   return (
     <div className="space-y-5">
       <AdminSearchForm className="lg:hidden" />
+      <AdminPulse />
       <AttentionPanel />
       <section className="grid grid-cols-2 gap-2.5 sm:gap-4 xl:grid-cols-3 2xl:grid-cols-6">
         <KpiCard

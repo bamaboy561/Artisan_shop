@@ -1,6 +1,6 @@
 import { formatPrice } from "@/lib/commerce";
-import Form from "next/form";
 import Link from "next/link";
+import { Search, SlidersHorizontal, SquarePen } from "lucide-react";
 
 import { RequestStatus, RequestType } from "@/generated/prisma";
 import {
@@ -10,13 +10,15 @@ import {
 import { AdminSubmitButton } from "@/components/admin/admin-submit-button";
 import { BulkSelectionTools } from "@/components/admin/bulk-selection-tools";
 import { DeleteRequestButton } from "@/components/admin/delete-request-button";
-import { MetricCard } from "@/components/admin/metric-card";
+import { AutoFilterForm } from "@/components/admin/list/auto-filter-form";
+import { ListHeader } from "@/components/admin/list/list-header";
+import { RowMenu, rowMenuItemClass } from "@/components/admin/list/row-menu";
 import { SetupState } from "@/components/admin/setup-state";
 import { StatusBadge } from "@/components/admin/status-badge";
 import { Select } from "@/components/ui/select";
 import { DataTable } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import { SectionHeading } from "@/components/ui/section-heading";
+import { formatListDate } from "@/features/admin/list-format";
 import { requireAdminSession } from "@/lib/auth/dal";
 import { canDeleteRequests } from "@/lib/auth/roles";
 import { hasDatabaseUrl, isDemoModeEnabled } from "@/lib/db";
@@ -54,15 +56,6 @@ const bulkActionOptions = [
   { value: "assign-manager", label: "Назначить менеджера" },
   { value: "clear-manager", label: "Снять менеджера" },
 ] as const;
-
-function formatDate(date: Date) {
-  return new Intl.DateTimeFormat("ru-RU", {
-    timeZone: "Asia/Bishkek",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  }).format(date);
-}
 
 function formatBudget(value: number | null) {
   if (value === null) {
@@ -199,423 +192,395 @@ export default async function AdminRequestsPage({
       : null,
   ].filter(Boolean) as Array<{ key: string; label: string; href: string }>;
 
-  const rows = filteredRequests.map((request) => ({
-    select: (
-      <input
-        type="checkbox"
-        name="requestIds"
-        value={request.id}
-        form="bulk-requests-form"
-        data-request-bulk-checkbox="true"
-        className="size-4 rounded border-[color:var(--line-strong)] accent-[var(--accent)]"
-        aria-label={`Выбрать заявку ${request.number ?? request.id.slice(0, 8)}`}
-      />
-    ),
-    request: (
-      <div className="space-y-1">
-        <Link
-          href={`/admin/requests/${request.id}`}
-          className="font-semibold text-[var(--foreground)] transition hover:text-[var(--accent)]"
-        >
-          {request.number ?? request.id.slice(0, 8)}
-        </Link>
-        <p className="text-xs text-[var(--muted)]">
-          {formatDate(request.createdAt)} · {requestTypeLabels[request.type]}
-        </p>
-        {isSiteRequest(request) ? (
-          <p
-            className={
-              needsSiteAttention(request)
-                ? "inline-flex rounded-full bg-red-600 px-2 py-0.5 text-[11px] font-semibold text-white"
-                : "inline-flex rounded-full border border-red-300 px-2 py-0.5 text-[11px] font-semibold text-red-700"
-            }
-          >
-            {needsSiteAttention(request)
-              ? "С сайта · не обработана"
-              : "С сайта"}
+  const now = new Date();
+  const canTake = managers.some((manager) => manager.id === session.userId);
+  const moreFiltersOpen = Boolean(
+    state.managerId ||
+    state.assignment !== "all" ||
+    state.files !== "all" ||
+    state.origin !== "all",
+  );
+  const emptyState = sanitizeAdminRequestFilterState(
+    parseAdminRequestSearchParams({}),
+    managers,
+  );
+  const isOnly = (overrides: Partial<AdminRequestFilterState>) =>
+    getStateHref(state, { sort: emptyState.sort }) ===
+    getStateHref(emptyState, overrides);
+
+  const rows = filteredRequests.map((request) => {
+    const site = isSiteRequest(request);
+    const number = request.number ?? request.id.slice(0, 8);
+
+    return {
+      select: (
+        <input
+          type="checkbox"
+          name="requestIds"
+          value={request.id}
+          form="bulk-requests-form"
+          data-request-bulk-checkbox="true"
+          className="size-4 rounded border-[color:var(--line-strong)] accent-[var(--accent)]"
+          aria-label={`Выбрать заявку ${number}`}
+        />
+      ),
+      request: (
+        <div className="min-w-[150px]">
+          <p className="flex items-center gap-2">
+            <Link
+              href={`/admin/requests/${request.id}`}
+              className="font-bold text-[var(--foreground)] transition hover:text-[var(--accent)]"
+            >
+              {number}
+            </Link>
+            {site ? (
+              <span className="rounded-full bg-red-50 px-1.5 py-px text-[11px] font-semibold text-red-600">
+                с сайта
+              </span>
+            ) : null}
           </p>
-        ) : null}
-      </div>
-    ),
-    client: (
-      <div className="space-y-1">
-        <p>{request.contactName}</p>
-        <p className="text-xs text-[var(--muted)]">{request.contactPhone}</p>
-        {request.contactEmail ? (
-          <p className="text-xs text-[var(--muted)]">{request.contactEmail}</p>
-        ) : null}
-      </div>
-    ),
-    details: (
-      <div className="space-y-2">
-        <p className="font-medium text-[var(--foreground)]">
-          {request.subject}
-        </p>
-        <p className="text-xs text-[var(--muted)]">
-          {request.product?.name ?? request.material ?? "Материал не указан"}
-        </p>
-        {request.message ? (
-          <p className="text-xs leading-5 text-[var(--muted)]">
-            {request.message.split("\n").slice(0, 3).join(" · ")}
+          <p className="mt-0.5 text-[12.5px] whitespace-nowrap text-[var(--muted)]">
+            {formatListDate(request.createdAt, now)} ·{" "}
+            {requestTypeLabels[request.type]}
           </p>
-        ) : null}
-        <div className="flex flex-wrap gap-2">
-          {request._count.files > 0 ? (
-            <StatusBadge tone="accent">
-              Файлы {request._count.files}
-            </StatusBadge>
-          ) : (
-            <StatusBadge tone="neutral">Без файлов</StatusBadge>
-          )}
-          {request.deliveryNeeded ? (
-            <StatusBadge tone="warning">Нужна доставка</StatusBadge>
-          ) : null}
-          {request.edgeOption ? (
-            <StatusBadge tone="neutral">{request.edgeOption}</StatusBadge>
-          ) : null}
         </div>
-      </div>
-    ),
-    status: (
-      <div className="space-y-2">
-        <div className="flex flex-wrap gap-2">
+      ),
+      client: (
+        <div className="max-w-[190px]">
+          <p className="truncate font-medium">{request.contactName}</p>
+          <p className="text-[12.5px] whitespace-nowrap text-[var(--muted)]">
+            {request.contactPhone}
+          </p>
+        </div>
+      ),
+      details: (
+        <div className="max-w-[300px]">
+          <p className="truncate font-medium">{request.subject}</p>
+          <p className="truncate text-[12.5px] text-[var(--muted)]">
+            {[
+              request.product?.name ?? request.material,
+              request._count.files > 0
+                ? `файлов: ${request._count.files}`
+                : null,
+              request.deliveryNeeded ? "доставка" : null,
+              request.estimatedBudget
+                ? `бюджет ${formatBudget(request.estimatedBudget)}`
+                : null,
+            ]
+              .filter(Boolean)
+              .join(" · ") || "Материал не указан"}
+          </p>
+        </div>
+      ),
+      status: (
+        <div>
           <StatusBadge tone={getStatusTone(request.status)}>
             {requestStatusLabels[request.status]}
           </StatusBadge>
-          <StatusBadge tone={request.managerId ? "neutral" : "warning"}>
+          <p
+            className={
+              request.manager
+                ? "mt-1 text-xs text-[var(--muted)]"
+                : "mt-1 text-xs font-medium text-amber-700"
+            }
+          >
             {request.manager
               ? getManagerDisplayName(request.manager)
-              : "Без менеджера"}
-          </StatusBadge>
+              : "без менеджера"}
+          </p>
         </div>
-        <p className="text-xs text-[var(--muted)]">
-          Бюджет: {formatBudget(request.estimatedBudget)}
-        </p>
-      </div>
-    ),
-    manage: (
-      <div className="grid gap-2">
-        <form action={updateRequestAction} className="grid gap-2">
-          <input type="hidden" name="id" value={request.id} />
-          <Select
-            name="status"
-            defaultValue={request.status}
-            className="h-9 text-xs"
-          >
-            {Object.values(RequestStatus).map((status) => (
-              <option key={status} value={status}>
-                {requestStatusLabels[status]}
-              </option>
-            ))}
-          </Select>
-          <Select
-            name="managerId"
-            defaultValue={request.managerId ?? ""}
-            className="h-9 text-xs"
-          >
-            <option value="">Без менеджера</option>
-            {managers.map((manager) => (
-              <option key={manager.id} value={manager.id}>
-                {getManagerDisplayName(manager)}
-              </option>
-            ))}
-          </Select>
-          <AdminSubmitButton
-            type="submit"
-            variant="secondary"
-            size="sm"
-            idleLabel="Сохранить"
-            pendingLabel="Сохраняем..."
-          />
-        </form>
-        {canDeleteRequest ? (
-          <DeleteRequestButton
-            requestId={request.id}
-            requestNumber={request.number ?? request.id.slice(0, 8)}
-            returnTo="/admin/requests"
-          />
-        ) : null}
-      </div>
-    ),
-  }));
+      ),
+      manage: (
+        <div className="flex items-center justify-end gap-1.5">
+          {!request.managerId &&
+          canTake &&
+          request.status !== RequestStatus.COMPLETED &&
+          request.status !== RequestStatus.CANCELED ? (
+            <form action={updateRequestAction}>
+              <input type="hidden" name="id" value={request.id} />
+              <input type="hidden" name="managerId" value={session.userId} />
+              <input
+                type="hidden"
+                name="status"
+                value={
+                  request.status === RequestStatus.NEW
+                    ? RequestStatus.IN_REVIEW
+                    : request.status
+                }
+              />
+              <AdminSubmitButton
+                type="submit"
+                size="sm"
+                className="h-8 rounded-[8px] px-3 text-[12.5px] whitespace-nowrap"
+                idleLabel="Взять себе"
+                pendingLabel="..."
+              />
+            </form>
+          ) : (
+            <Link
+              href={`/admin/requests/${request.id}`}
+              className="inline-flex h-8 items-center rounded-[8px] border border-[color:var(--line)] px-3 text-[12.5px] font-semibold whitespace-nowrap transition hover:border-[color:var(--line-strong)]"
+            >
+              Открыть
+            </Link>
+          )}
+          <RowMenu label={`Действия с заявкой ${number}`}>
+            <Link
+              href={`/admin/requests/${request.id}`}
+              className={rowMenuItemClass}
+            >
+              <SquarePen className="size-4 text-[var(--muted)]" />
+              Открыть заявку
+            </Link>
+            <form
+              action={updateRequestAction}
+              className="grid gap-1.5 border-t border-[color:var(--line)] px-1 pt-2 pb-1"
+            >
+              <input type="hidden" name="id" value={request.id} />
+              <Select
+                name="status"
+                defaultValue={request.status}
+                aria-label="Статус"
+                className="h-8 text-xs sm:h-8"
+              >
+                {Object.values(RequestStatus).map((status) => (
+                  <option key={status} value={status}>
+                    {requestStatusLabels[status]}
+                  </option>
+                ))}
+              </Select>
+              <Select
+                name="managerId"
+                defaultValue={request.managerId ?? ""}
+                aria-label="Менеджер"
+                className="h-8 text-xs sm:h-8"
+              >
+                <option value="">Без менеджера</option>
+                {managers.map((manager) => (
+                  <option key={manager.id} value={manager.id}>
+                    {getManagerDisplayName(manager)}
+                  </option>
+                ))}
+              </Select>
+              <AdminSubmitButton
+                type="submit"
+                variant="secondary"
+                size="sm"
+                className="h-8 text-xs"
+                idleLabel="Сохранить"
+                pendingLabel="Сохраняем..."
+              />
+            </form>
+            {canDeleteRequest ? (
+              <div className="border-t border-[color:var(--line)] pt-1">
+                <DeleteRequestButton
+                  requestId={request.id}
+                  requestNumber={number}
+                  returnTo="/admin/requests"
+                  variant="menu"
+                />
+              </div>
+            ) : null}
+          </RowMenu>
+        </div>
+      ),
+    };
+  });
 
   return (
-    <div className="space-y-5">
-      <section className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-white/82 p-6 sm:p-7">
-        <SectionHeading
-          title="Заявки"
-          description="Рабочая очередь для запросов цены, консультаций и услуг распила. Команда может быстро выделять срочные обращения и вести их по этапам."
-          titleClassName="text-2xl sm:text-3xl"
-          descriptionClassName="max-w-3xl text-sm leading-7"
-        />
-        <Link
-          href="/admin/requests/bazis-files"
-          className="mt-4 inline-flex h-10 items-center border border-[color:var(--line-strong)] px-4 text-sm font-medium transition hover:border-[color:var(--foreground)]"
-        >
-          Проекты Базиса с сайта (хранятся 2 дня)
-        </Link>
-      </section>
-
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <Link
-          href={getStateHref(state, {
-            origin: "site",
-            status: RequestStatus.NEW,
-          })}
-          className={
-            metrics.siteNew > 0
-              ? "min-w-0 rounded-[var(--radius-inner)] border-2 border-red-500 bg-red-50 p-3.5 transition hover:bg-red-100 sm:p-4"
-              : "min-w-0 rounded-[var(--radius-inner)] border border-[color:var(--line)] bg-white p-3.5 transition hover:border-[color:var(--line-strong)] sm:p-4"
-          }
-        >
-          <p
-            className={
-              metrics.siteNew > 0
-                ? "text-xs font-semibold text-red-700"
-                : "text-xs font-medium text-[var(--muted)]"
-            }
+    <div className="space-y-4">
+      <ListHeader
+        title="Заявки"
+        tabs={[
+          {
+            label: "Все",
+            href: "/admin/requests",
+            count: metrics.total,
+            active: activeFilters.length === 0,
+          },
+          {
+            label: "Новые с сайта",
+            href: getStateHref(emptyState, {
+              origin: "site",
+              status: RequestStatus.NEW,
+            }),
+            count: metrics.siteNew,
+            alert: true,
+            active: isOnly({ origin: "site", status: RequestStatus.NEW }),
+          },
+          {
+            label: "Без менеджера",
+            href: getStateHref(emptyState, { assignment: "unassigned" }),
+            count: metrics.unassigned,
+            active: isOnly({ assignment: "unassigned" }),
+          },
+          {
+            label: "Распил",
+            href: getStateHref(emptyState, {
+              type: RequestType.CUTTING_SERVICE,
+            }),
+            count: metrics.cutting,
+            active: isOnly({ type: RequestType.CUTTING_SERVICE }),
+          },
+          {
+            label: "С файлами",
+            href: getStateHref(emptyState, { files: "with-files" }),
+            count: metrics.withFiles,
+            active: isOnly({ files: "with-files" }),
+          },
+        ]}
+        actions={
+          <Link
+            href="/admin/requests/bazis-files"
+            className="inline-flex h-10 items-center rounded-[var(--radius-control)] border border-[color:var(--line)] bg-white px-4 text-[13.5px] font-semibold whitespace-nowrap transition hover:border-[color:var(--line-strong)]"
           >
-            Новые с сайта
-          </p>
-          <p
-            className={
-              metrics.siteNew > 0
-                ? "mt-3 text-2xl leading-none font-semibold text-red-700 sm:mt-4 sm:text-[1.95rem]"
-                : "mt-3 text-2xl leading-none font-semibold text-[var(--foreground)] sm:mt-4 sm:text-[1.95rem]"
-            }
-          >
-            {metrics.siteNew}
-          </p>
-          <p className="mt-2 text-xs leading-5 text-[var(--muted)]">
-            {metrics.siteNew > 0
-              ? "Ждут менеджера — нажмите, чтобы открыть"
-              : "Все заявки с сайта разобраны"}
-          </p>
-        </Link>
-        <MetricCard
-          label="Всего заявок"
-          value={metrics.total}
-          detail={`${list.filteredTotal} видно по текущему срезу`}
-        />
-        <MetricCard
-          label="Активные"
-          value={metrics.active}
-          detail="Заявки, требующие ответа, расчета или сопровождения"
-        />
-        <MetricCard
-          label="Без менеджера"
-          value={metrics.unassigned}
-          detail="Активные обращения, еще не распределенные в команде"
-        />
-        <MetricCard
-          label="Распил и файлы"
-          value={metrics.cutting}
-          detail={`${metrics.withFiles} заявок уже содержат файлы`}
-        />
-      </section>
+            Проекты Базиса с сайта
+          </Link>
+        }
+      />
 
-      <section className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-white/82 p-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="max-w-2xl">
-            <p className="text-xs font-semibold text-[var(--accent)]">
-              Фильтры очереди
-            </p>
-            <h3 className="mt-3 text-xl font-semibold text-[var(--foreground)]">
-              Сервисный поток
-            </h3>
-            <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-              Можно быстро оставить только заявки на распил, только обращения с
-              файлами или только новые запросы без ответственного менеджера.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            <Link
-              href={getStateHref(state, { origin: "site" })}
-              className="rounded-full border border-red-300 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 transition hover:border-red-500"
-            >
-              С сайта
-            </Link>
-            <Link
-              href={getStateHref(state, { assignment: "unassigned" })}
-              className="rounded-full border border-[color:var(--line)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[var(--muted)] transition hover:border-[color:var(--line-strong)]"
-            >
-              Без менеджера
-            </Link>
-            <Link
-              href={getStateHref(state, { status: RequestStatus.NEW })}
-              className="rounded-full border border-[color:var(--line)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[var(--muted)] transition hover:border-[color:var(--line-strong)]"
-            >
-              Новые
-            </Link>
-            <Link
-              href={getStateHref(state, { type: RequestType.CUTTING_SERVICE })}
-              className="rounded-full border border-[color:var(--line)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[var(--muted)] transition hover:border-[color:var(--line-strong)]"
-            >
-              Распил
-            </Link>
-            <Link
-              href={getStateHref(state, { files: "with-files" })}
-              className="rounded-full border border-[color:var(--line)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[var(--muted)] transition hover:border-[color:var(--line-strong)]"
-            >
-              С файлами
-            </Link>
-          </div>
-        </div>
-
-        <Form
-          action="/admin/requests"
-          scroll={false}
-          className="mt-6 grid gap-4 xl:grid-cols-5"
+      <AutoFilterForm
+        action="/admin/requests"
+        className="grid grid-cols-2 gap-2 lg:grid-cols-[minmax(0,1fr)_auto_auto_auto]"
+      >
+        <label className="relative col-span-2 lg:col-span-1">
+          <span className="sr-only">Поиск</span>
+          <Search className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-[var(--muted)]" />
+          <Input
+            name="q"
+            type="search"
+            defaultValue={state.q}
+            placeholder="Номер, клиент, телефон, тема, материал или SKU"
+            className="h-10 rounded-[var(--radius-control)] pl-10 sm:h-10 sm:pl-10"
+          />
+        </label>
+        <Select
+          name="status"
+          defaultValue={state.status}
+          aria-label="Статус"
+          wrapperClassName="lg:w-44"
+          className="h-10 rounded-[var(--radius-control)] sm:h-10 sm:pr-10"
         >
-          <label className="grid gap-2 xl:col-span-2">
-            <span className="text-sm text-[var(--foreground)]">
-              Поиск по номеру, клиенту, теме, материалу или SKU
-            </span>
-            <Input
-              name="q"
-              defaultValue={state.q}
-              placeholder="Например, распил AGT или 101-004"
-            />
-          </label>
-
-          <label className="grid gap-2">
-            <span className="text-sm text-[var(--foreground)]">Статус</span>
-            <Select name="status" defaultValue={state.status}>
-              <option value="all">Все статусы</option>
-              {Object.values(RequestStatus).map((status) => (
-                <option key={status} value={status}>
-                  {requestStatusLabels[status]}
-                </option>
-              ))}
-            </Select>
-          </label>
-
-          <label className="grid gap-2">
-            <span className="text-sm text-[var(--foreground)]">Тип заявки</span>
-            <Select name="type" defaultValue={state.type}>
-              <option value="all">Все типы</option>
-              {Object.values(RequestType).map((type) => (
-                <option key={type} value={type}>
-                  {requestTypeLabels[type]}
-                </option>
-              ))}
-            </Select>
-          </label>
-
-          <label className="grid gap-2">
-            <span className="text-sm text-[var(--foreground)]">Менеджер</span>
-            <Select name="managerId" defaultValue={state.managerId}>
-              <option value="">Все менеджеры</option>
-              {managers.map((manager) => (
-                <option key={manager.id} value={manager.id}>
-                  {getManagerDisplayName(manager)}
-                </option>
-              ))}
-            </Select>
-          </label>
-
-          <label className="grid gap-2">
-            <span className="text-sm text-[var(--foreground)]">Назначение</span>
-            <Select name="assignment" defaultValue={state.assignment}>
-              <option value="all">Все заявки</option>
-              <option value="assigned">С менеджером</option>
-              <option value="unassigned">Без менеджера</option>
-            </Select>
-          </label>
-
-          <label className="grid gap-2">
-            <span className="text-sm text-[var(--foreground)]">Файлы</span>
-            <Select name="files" defaultValue={state.files}>
-              <option value="all">Все заявки</option>
-              <option value="with-files">Только с файлами</option>
-              <option value="without-files">Без файлов</option>
-            </Select>
-          </label>
-
-          <label className="grid gap-2">
-            <span className="text-sm text-[var(--foreground)]">Откуда</span>
-            <Select name="origin" defaultValue={state.origin}>
-              <option value="all">Все заявки</option>
-              <option value="site">Только с сайта</option>
-            </Select>
-          </label>
-
-          <label className="grid gap-2">
-            <span className="text-sm text-[var(--foreground)]">Сортировка</span>
-            <Select name="sort" defaultValue={state.sort}>
-              {adminRequestSortOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </Select>
-          </label>
-
-          <div className="flex flex-wrap items-end gap-3 xl:col-span-5">
-            <AdminSubmitButton
-              type="submit"
-              variant="accent"
-              idleLabel="Применить"
-              pendingLabel="Применяем..."
-            />
-            <Link
-              href="/admin/requests"
-              className="inline-flex h-11 items-center justify-center rounded-[var(--radius-control)] border border-[color:var(--line-strong)] px-5 text-sm font-semibold text-[var(--foreground)] transition hover:border-[color:var(--foreground)] hover:bg-[var(--foreground)] hover:text-white"
-            >
-              Сбросить всё
-            </Link>
-            <span className="text-sm text-[var(--muted)]">
-              Найдено {list.filteredTotal} из {metrics.total} заявок
-              {list.pageCount > 1
-                ? ` · страница ${list.page} из ${list.pageCount}`
-                : ""}
-            </span>
+          <option value="all">Любой статус</option>
+          {Object.values(RequestStatus).map((status) => (
+            <option key={status} value={status}>
+              {requestStatusLabels[status]}
+            </option>
+          ))}
+        </Select>
+        <Select
+          name="type"
+          defaultValue={state.type}
+          aria-label="Тип заявки"
+          wrapperClassName="lg:w-44"
+          className="h-10 rounded-[var(--radius-control)] sm:h-10 sm:pr-10"
+        >
+          <option value="all">Все типы</option>
+          {Object.values(RequestType).map((type) => (
+            <option key={type} value={type}>
+              {requestTypeLabels[type]}
+            </option>
+          ))}
+        </Select>
+        <details
+          className="relative col-span-2 lg:col-span-1"
+          open={moreFiltersOpen ? true : undefined}
+        >
+          <summary className="flex h-10 cursor-pointer list-none items-center gap-2 rounded-[var(--radius-control)] border border-[color:var(--line)] bg-white px-3.5 text-sm font-medium whitespace-nowrap">
+            <SlidersHorizontal className="size-4 text-[var(--muted)]" />
+            Ещё фильтры
+          </summary>
+          <div className="absolute right-0 z-20 mt-2 grid w-72 gap-2.5 rounded-[12px] border border-[color:var(--line)] bg-white p-3 shadow-[0_16px_40px_rgba(0,0,0,0.12)]">
+            <label className="grid gap-1 text-xs text-[var(--muted)]">
+              Менеджер
+              <Select name="managerId" defaultValue={state.managerId}>
+                <option value="">Все менеджеры</option>
+                {managers.map((manager) => (
+                  <option key={manager.id} value={manager.id}>
+                    {getManagerDisplayName(manager)}
+                  </option>
+                ))}
+              </Select>
+            </label>
+            <label className="grid gap-1 text-xs text-[var(--muted)]">
+              Назначение
+              <Select name="assignment" defaultValue={state.assignment}>
+                <option value="all">Все заявки</option>
+                <option value="assigned">С менеджером</option>
+                <option value="unassigned">Без менеджера</option>
+              </Select>
+            </label>
+            <label className="grid gap-1 text-xs text-[var(--muted)]">
+              Файлы
+              <Select name="files" defaultValue={state.files}>
+                <option value="all">Все заявки</option>
+                <option value="with-files">Только с файлами</option>
+                <option value="without-files">Без файлов</option>
+              </Select>
+            </label>
+            <label className="grid gap-1 text-xs text-[var(--muted)]">
+              Откуда
+              <Select name="origin" defaultValue={state.origin}>
+                <option value="all">Все заявки</option>
+                <option value="site">Только с сайта</option>
+              </Select>
+            </label>
+            <label className="grid gap-1 text-xs text-[var(--muted)]">
+              Сортировка
+              <Select name="sort" defaultValue={state.sort}>
+                {adminRequestSortOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
+            </label>
           </div>
-        </Form>
+        </details>
+      </AutoFilterForm>
 
-        {activeFilters.length > 0 ? (
-          <div className="mt-5 flex flex-wrap gap-2 border-t border-[color:var(--line)] pt-5">
-            {activeFilters.map((filter) => (
-              <Link
-                key={filter.key}
-                href={filter.href}
-                className="rounded-full border border-[color:var(--line)] bg-[var(--surface)] px-3 py-1.5 text-sm text-[var(--foreground)] transition hover:border-[color:var(--line-strong)]"
-              >
-                {filter.label} ×
-              </Link>
-            ))}
-          </div>
+      <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--muted)]">
+        <span>
+          Найдено {list.filteredTotal} из {metrics.total}
+          {list.pageCount > 1
+            ? ` · страница ${list.page} из ${list.pageCount}`
+            : ""}
+        </span>
+        {activeFilters.map((filter) => (
+          <Link
+            key={filter.key}
+            href={filter.href}
+            className="rounded-full border border-[color:var(--line)] bg-white px-2.5 py-1 text-xs text-[var(--foreground)] transition hover:border-[color:var(--line-strong)]"
+          >
+            {filter.label} ×
+          </Link>
+        ))}
+        {activeFilters.length > 1 ? (
+          <Link
+            href="/admin/requests"
+            className="font-semibold text-[var(--accent)] hover:underline"
+          >
+            Сбросить всё
+          </Link>
         ) : null}
-      </section>
+      </div>
 
-      <section className="space-y-4">
-        <section className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-white/82 p-6">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div className="max-w-2xl">
-              <p className="text-xs font-semibold text-[var(--accent)]">
-                Массовые действия
-              </p>
-              <h3 className="mt-3 text-xl font-semibold text-[var(--foreground)]">
-                Обработка текущей выборки
-              </h3>
-              <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-                Выделите обращения и быстро распределите их по менеджерам или
-                переведите на следующий этап обработки.
-              </p>
-            </div>
-
-            <BulkSelectionTools checkboxSelector="[data-request-bulk-checkbox='true']" />
-          </div>
-
+      <section className="space-y-3">
+        <div className="flex flex-col gap-2 rounded-[var(--radius-inner)] border border-[color:var(--line)] bg-white p-2.5 lg:flex-row lg:items-center">
+          <BulkSelectionTools checkboxSelector="[data-request-bulk-checkbox='true']" />
           <form
             id="bulk-requests-form"
             action={bulkUpdateRequestsAction}
-            className="mt-5 grid gap-3 lg:grid-cols-[minmax(0,1fr)_280px_auto]"
+            className="grid flex-1 gap-2 sm:grid-cols-[minmax(0,1fr)_220px_auto]"
           >
-            <Select name="bulkAction" defaultValue="">
+            <Select
+              name="bulkAction"
+              defaultValue=""
+              aria-label="Действие для отмеченных"
+              className="h-9 rounded-[var(--radius-control)] text-sm sm:h-9"
+            >
               <option value="" disabled>
-                Выберите действие для отмеченных заявок
+                С отмеченными…
               </option>
               {bulkActionOptions.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -623,8 +588,13 @@ export default async function AdminRequestsPage({
                 </option>
               ))}
             </Select>
-            <Select name="managerId" defaultValue="">
-              <option value="">Менеджер для назначения</option>
+            <Select
+              name="managerId"
+              defaultValue=""
+              aria-label="Менеджер для назначения"
+              className="h-9 rounded-[var(--radius-control)] text-sm sm:h-9"
+            >
+              <option value="">Менеджер</option>
               {managers.map((manager) => (
                 <option key={manager.id} value={manager.id}>
                   {getManagerDisplayName(manager)}
@@ -634,11 +604,12 @@ export default async function AdminRequestsPage({
             <AdminSubmitButton
               type="submit"
               variant="secondary"
+              size="sm"
               idleLabel="Применить"
               pendingLabel="Применяем..."
             />
           </form>
-        </section>
+        </div>
 
         <DataTable
           columns={[
@@ -647,9 +618,10 @@ export default async function AdminRequestsPage({
             { key: "client", label: "Клиент" },
             { key: "details", label: "Содержание" },
             { key: "status", label: "Статус" },
-            { key: "manage", label: "Быстрое управление" },
+            { key: "manage", label: "Действие" },
           ]}
           rows={rows}
+          compact
           rowTones={filteredRequests.map((request) =>
             needsSiteAttention(request) ? "alert" : undefined,
           )}

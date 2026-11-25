@@ -1,6 +1,6 @@
 import { formatPrice } from "@/lib/commerce";
-import Form from "next/form";
 import Link from "next/link";
+import { Search, SlidersHorizontal, SquarePen } from "lucide-react";
 
 import { OrderStatus } from "@/generated/prisma";
 import { bulkUpdateOrdersAction, updateOrderAction } from "@/app/admin/actions";
@@ -8,7 +8,9 @@ import { AdminSubmitButton } from "@/components/admin/admin-submit-button";
 import { BulkOrdersSubmitButton } from "@/components/admin/bulk-orders-submit-button";
 import { BulkSelectionTools } from "@/components/admin/bulk-selection-tools";
 import { DeleteOrderButton } from "@/components/admin/delete-order-button";
-import { MetricCard } from "@/components/admin/metric-card";
+import { AutoFilterForm } from "@/components/admin/list/auto-filter-form";
+import { ListHeader } from "@/components/admin/list/list-header";
+import { RowMenu, rowMenuItemClass } from "@/components/admin/list/row-menu";
 import { SetupState } from "@/components/admin/setup-state";
 import { DownloadCsvButton } from "@/components/admin/download-csv-button";
 import { Pagination } from "@/components/ui/pagination";
@@ -18,7 +20,8 @@ import { StatusBadge } from "@/components/admin/status-badge";
 import { Select } from "@/components/ui/select";
 import { DataTable } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import { SectionHeading } from "@/components/ui/section-heading";
+import { formatListDate } from "@/features/admin/list-format";
+import { cn } from "@/lib/utils";
 import { requireAdminSession } from "@/lib/auth/dal";
 import { canDeleteOrders } from "@/lib/auth/roles";
 import { hasDatabaseUrl, isDemoModeEnabled } from "@/lib/db";
@@ -103,6 +106,28 @@ function getStateHref(
   });
 }
 
+// Одна кнопка «что дальше» в строке заказа.
+const nextOrderStep: Partial<
+  Record<OrderStatus, { status: OrderStatus; label: string }>
+> = {
+  [OrderStatus.NEW]: { status: OrderStatus.CONFIRMED, label: "Подтвердить" },
+  [OrderStatus.RESERVED]: {
+    status: OrderStatus.CONFIRMED,
+    label: "Подтвердить",
+  },
+  [OrderStatus.CONFIRMED]: { status: OrderStatus.PAID, label: "Оплачен" },
+  [OrderStatus.PAID]: { status: OrderStatus.IN_PRODUCTION, label: "В работу" },
+  [OrderStatus.IN_PRODUCTION]: {
+    status: OrderStatus.READY_FOR_PICKUP,
+    label: "Готов",
+  },
+  [OrderStatus.READY_FOR_PICKUP]: {
+    status: OrderStatus.COMPLETED,
+    label: "Выдан",
+  },
+  [OrderStatus.SHIPPED]: { status: OrderStatus.COMPLETED, label: "Завершить" },
+};
+
 export default async function AdminOrdersPage({
   searchParams,
 }: AdminOrdersPageProps) {
@@ -177,12 +202,6 @@ export default async function AdminOrdersPage({
     activeOrderStatuses.has(order.status),
   );
   const unassignedOrders = activeOrders.filter((order) => !order.managerId);
-  const deliveryOrders = orders.filter((order) =>
-    Boolean(order.deliveryMethodId),
-  );
-  const shippedOrders = orders.filter(
-    (order) => order.status === OrderStatus.SHIPPED,
-  );
 
   const activeFilters = [
     state.q
@@ -257,120 +276,275 @@ export default async function AdminOrdersPage({
       : href;
   };
 
-  const rows = pageOrders.map((order) => ({
-    select: (
-      <input
-        type="checkbox"
-        name="orderIds"
-        value={order.id}
-        form="bulk-orders-form"
-        data-order-bulk-checkbox="true"
-        className="size-4 rounded border-[color:var(--line-strong)] accent-[var(--accent)]"
-        aria-label={`Выбрать заказ ${order.number ?? order.id.slice(0, 8)}`}
-      />
-    ),
-    order: (
-      <div className="space-y-1">
-        <Link
-          href={`/admin/orders/${order.id}`}
-          className="font-semibold text-[var(--foreground)] transition hover:text-[var(--accent)]"
-        >
-          {order.number ?? order.id.slice(0, 8)}
-        </Link>
-        <p className="text-xs text-[var(--muted)]">
-          {formatDate(order.createdAt)} · {order._count.items} позиций
-        </p>
-        <div className="flex items-center gap-2">
+  const now = new Date();
+  const emptyState = sanitizeAdminOrderFilterState(
+    parseAdminOrderSearchParams({}),
+    managers,
+  );
+  const isOnly = (overrides: Partial<AdminOrderFilterState>) =>
+    getStateHref(state, { sort: emptyState.sort }) ===
+    getStateHref(emptyState, overrides);
+  const moreFiltersOpen = Boolean(
+    state.managerId || state.assignment !== "all" || state.delivery !== "all",
+  );
+
+  const rows = pageOrders.map((order) => {
+    const number = order.number ?? order.id.slice(0, 8);
+    const overdue = isOrderOverdue(order);
+    const next = nextOrderStep[order.status];
+
+    return {
+      select: (
+        <input
+          type="checkbox"
+          name="orderIds"
+          value={order.id}
+          form="bulk-orders-form"
+          data-order-bulk-checkbox="true"
+          className="size-4 rounded border-[color:var(--line-strong)] accent-[var(--accent)]"
+          aria-label={`Выбрать заказ ${number}`}
+        />
+      ),
+      order: (
+        <div className="min-w-[140px]">
           <Link
             href={`/admin/orders/${order.id}`}
-            className="inline-flex h-8 items-center justify-center rounded-[var(--radius-control)] border border-[color:var(--line-strong)] px-3 text-sm font-semibold text-[var(--foreground)] transition hover:border-[color:var(--foreground)] hover:bg-[var(--foreground)] hover:text-white"
+            className="font-bold text-[var(--foreground)] transition hover:text-[var(--accent)]"
           >
-            Редактировать
+            {number}
           </Link>
-          {canDeleteOrder ? (
-            <DeleteOrderButton
-              orderId={order.id}
-              orderNumber={order.number ?? order.id.slice(0, 8)}
-            />
-          ) : null}
+          <p className="mt-0.5 text-[12.5px] whitespace-nowrap text-[var(--muted)]">
+            {formatListDate(order.createdAt, now)} · {order._count.items} поз.
+          </p>
         </div>
-      </div>
-    ),
-    client: (
-      <div className="space-y-1">
-        <p>{order.contactName}</p>
-        <p className="text-xs text-[var(--muted)]">{order.contactPhone}</p>
-        <WhatsappClientLink
-          className="text-xs"
-          label="WhatsApp"
-          phone={order.contactPhone}
-          text={buildOrderWhatsappText({
-            number: order.number,
-            contactName: order.contactName,
-            statusLabel: orderStatusLabels[order.status],
-            isReady: order.status === OrderStatus.READY_FOR_PICKUP,
-          })}
-        />
-        <p className="text-xs text-[var(--muted)]">
-          {order.companyName ?? order.user?.companyName ?? "Частный клиент"}
-        </p>
-      </div>
-    ),
-    logistics: (
-      <div className="space-y-2">
-        <p className="font-medium text-[var(--foreground)]">
-          {formatCurrency(order.total)}
-        </p>
-        <p className="text-xs text-[var(--muted)]">
-          {order.deliveryMethod?.name ?? "Самовывоз / без доставки"}
-        </p>
-        {order.appliedPromoCode || order.loyaltyRedemptionTotal > 0 ? (
-          <div className="flex flex-wrap gap-2">
-            {order.appliedPromoCode ? (
-              <StatusBadge tone="accent">{order.appliedPromoCode}</StatusBadge>
-            ) : null}
-            {order.loyaltyRedemptionTotal > 0 ? (
-              <StatusBadge tone="neutral">
-                Баллы {formatCurrency(order.loyaltyRedemptionTotal)}
-              </StatusBadge>
-            ) : null}
-          </div>
-        ) : null}
-      </div>
-    ),
-    status: (
-      <div className="space-y-2">
-        <div className="flex flex-wrap gap-2">
-          <StatusBadge tone={getStatusTone(order.status)}>
-            {orderStatusLabels[order.status]}
-          </StatusBadge>
-          <StatusBadge tone={order.managerId ? "neutral" : "warning"}>
-            {order.manager
-              ? getManagerDisplayName(order.manager)
-              : "Без менеджера"}
-          </StatusBadge>
-          {isOrderOverdue(order) ? (
-            <StatusBadge className="border-red-200 bg-red-50 text-red-700">
-              Просрочен
+      ),
+      client: (
+        <div className="max-w-[210px]">
+          <p className="truncate font-medium">{order.contactName}</p>
+          <p className="truncate text-[12.5px] text-[var(--muted)]">
+            {order.contactPhone}
+            {(order.companyName ?? order.user?.companyName)
+              ? ` · ${order.companyName ?? order.user?.companyName}`
+              : ""}
+          </p>
+        </div>
+      ),
+      logistics: (
+        <div>
+          <p className="font-semibold whitespace-nowrap tabular-nums">
+            {formatCurrency(order.total)}
+          </p>
+          <p className="max-w-[180px] truncate text-[12.5px] text-[var(--muted)]">
+            {[
+              order.deliveryMethod?.name ?? "Самовывоз",
+              order.appliedPromoCode,
+              order.loyaltyRedemptionTotal > 0
+                ? `баллы ${formatCurrency(order.loyaltyRedemptionTotal)}`
+                : null,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          </p>
+        </div>
+      ),
+      status: (
+        <div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <StatusBadge tone={getStatusTone(order.status)}>
+              {orderStatusLabels[order.status]}
             </StatusBadge>
-          ) : null}
+          </div>
+          <p className="mt-1 text-xs whitespace-nowrap">
+            {overdue ? (
+              <span className="font-semibold text-red-600">
+                просрочен
+                {order.productionDueAt
+                  ? ` · срок ${formatDate(new Date(order.productionDueAt))}`
+                  : ""}
+              </span>
+            ) : (
+              <span
+                className={
+                  order.manager || !activeOrderStatuses.has(order.status)
+                    ? "text-[var(--muted)]"
+                    : "font-medium text-amber-700"
+                }
+              >
+                {order.manager
+                  ? getManagerDisplayName(order.manager)
+                  : "без менеджера"}
+              </span>
+            )}
+          </p>
         </div>
-        <p className="text-xs text-[var(--muted)]">
-          Обновлен {formatDate(order.updatedAt)}
-          {order.productionDueAt
-            ? ` · срок ${formatDate(new Date(order.productionDueAt))}`
-            : ""}
-        </p>
-      </div>
-    ),
-    manage: (
-      <form action={updateOrderAction} className="grid gap-2">
-        <input type="hidden" name="id" value={order.id} />
+      ),
+      manage: (
+        <div className="flex items-center justify-end gap-1.5">
+          {next ? (
+            <form action={updateOrderAction}>
+              <input type="hidden" name="id" value={order.id} />
+              <input type="hidden" name="status" value={next.status} />
+              <AdminSubmitButton
+                type="submit"
+                size="sm"
+                className="h-8 rounded-[8px] px-3 text-[12.5px] whitespace-nowrap"
+                idleLabel={`${next.label} →`}
+                pendingLabel="..."
+              />
+            </form>
+          ) : null}
+          <RowMenu label={`Действия с заказом ${number}`}>
+            <Link
+              href={`/admin/orders/${order.id}`}
+              className={rowMenuItemClass}
+            >
+              <SquarePen className="size-4 text-[var(--muted)]" />
+              Открыть и редактировать
+            </Link>
+            <WhatsappClientLink
+              className={cn(
+                rowMenuItemClass,
+                "text-emerald-700 hover:no-underline",
+              )}
+              label="Написать в WhatsApp"
+              phone={order.contactPhone}
+              text={buildOrderWhatsappText({
+                number: order.number,
+                contactName: order.contactName,
+                statusLabel: orderStatusLabels[order.status],
+                isReady: order.status === OrderStatus.READY_FOR_PICKUP,
+              })}
+            />
+            <form
+              action={updateOrderAction}
+              className="grid gap-1.5 border-t border-[color:var(--line)] px-1 pt-2 pb-1"
+            >
+              <input type="hidden" name="id" value={order.id} />
+              <Select
+                name="status"
+                defaultValue={order.status}
+                aria-label="Статус"
+                className="h-8 text-xs sm:h-8"
+              >
+                {Object.values(OrderStatus).map((status) => (
+                  <option key={status} value={status}>
+                    {orderStatusLabels[status]}
+                  </option>
+                ))}
+              </Select>
+              <Select
+                name="managerId"
+                defaultValue={order.managerId ?? ""}
+                aria-label="Менеджер"
+                className="h-8 text-xs sm:h-8"
+              >
+                <option value="">Без менеджера</option>
+                {managers.map((manager) => (
+                  <option key={manager.id} value={manager.id}>
+                    {getManagerDisplayName(manager)}
+                  </option>
+                ))}
+              </Select>
+              <AdminSubmitButton
+                type="submit"
+                variant="secondary"
+                size="sm"
+                className="h-8 text-xs"
+                idleLabel="Сохранить"
+                pendingLabel="Сохраняем..."
+              />
+            </form>
+            {canDeleteOrder ? (
+              <div className="border-t border-[color:var(--line)] pt-1">
+                <DeleteOrderButton orderId={order.id} orderNumber={number} />
+              </div>
+            ) : null}
+          </RowMenu>
+        </div>
+      ),
+    };
+  });
+
+  return (
+    <div className="space-y-4">
+      <ListHeader
+        title="Заказы"
+        tabs={[
+          {
+            label: "Все",
+            href: "/admin/orders",
+            count: orders.length,
+            active: activeFilters.length === 0 && state.due === "all",
+          },
+          {
+            label: "Новые",
+            href: getStateHref(emptyState, { status: OrderStatus.NEW }),
+            count: orders.filter((order) => order.status === OrderStatus.NEW)
+              .length,
+            alert: true,
+            active: isOnly({ status: OrderStatus.NEW }),
+          },
+          {
+            label: "Без менеджера",
+            href: getStateHref(emptyState, { assignment: "unassigned" }),
+            count: unassignedOrders.length,
+            active: isOnly({ assignment: "unassigned" }),
+          },
+          {
+            label: "В производстве",
+            href: getStateHref(emptyState, {
+              status: OrderStatus.IN_PRODUCTION,
+            }),
+            count: orders.filter(
+              (order) => order.status === OrderStatus.IN_PRODUCTION,
+            ).length,
+            active: isOnly({ status: OrderStatus.IN_PRODUCTION }),
+          },
+          {
+            label: "Просрочено",
+            href: getStateHref(emptyState, { due: "overdue" }),
+            count: overdueCount,
+            alert: true,
+            active: isOnly({ due: "overdue" }),
+          },
+          {
+            label: "Без оплаты",
+            href: getStateHref(emptyState, { due: "unpaid" }),
+            count: unpaidCount,
+            active: isOnly({ due: "unpaid" }),
+          },
+        ]}
+        actions={
+          <DownloadCsvButton
+            csvContent={ordersCsv}
+            fileName={`artisan-orders-${new Date().toISOString().slice(0, 10)}.csv`}
+          />
+        }
+      />
+
+      <AutoFilterForm
+        action="/admin/orders"
+        className="grid grid-cols-2 gap-2 lg:grid-cols-[minmax(0,1fr)_auto_auto_auto]"
+      >
+        <label className="relative col-span-2 lg:col-span-1">
+          <span className="sr-only">Поиск</span>
+          <Search className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-[var(--muted)]" />
+          <Input
+            name="q"
+            type="search"
+            defaultValue={state.q}
+            placeholder="Номер, фамилия, телефон, компания или промокод"
+            className="h-10 rounded-[var(--radius-control)] pl-10 sm:h-10 sm:pl-10"
+          />
+        </label>
         <Select
           name="status"
-          defaultValue={order.status}
-          className="h-9 text-xs"
+          defaultValue={state.status}
+          aria-label="Статус"
+          wrapperClassName="lg:w-44"
+          className="h-10 rounded-[var(--radius-control)] sm:h-10 sm:pr-10"
         >
+          <option value="all">Любой статус</option>
           {Object.values(OrderStatus).map((status) => (
             <option key={status} value={status}>
               {orderStatusLabels[status]}
@@ -378,251 +552,106 @@ export default async function AdminOrdersPage({
           ))}
         </Select>
         <Select
-          name="managerId"
-          defaultValue={order.managerId ?? ""}
-          className="h-9 text-xs"
+          name="sort"
+          defaultValue={state.sort}
+          aria-label="Сортировка"
+          wrapperClassName="lg:w-52"
+          className="h-10 rounded-[var(--radius-control)] sm:h-10 sm:pr-10"
         >
-          <option value="">Без менеджера</option>
-          {managers.map((manager) => (
-            <option key={manager.id} value={manager.id}>
-              {getManagerDisplayName(manager)}
+          {adminOrderSortOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
             </option>
           ))}
         </Select>
-        <AdminSubmitButton
-          type="submit"
-          variant="secondary"
-          size="sm"
-          idleLabel="Сохранить"
-          pendingLabel="Сохраняем..."
-        />
-      </form>
-    ),
-  }));
-
-  return (
-    <div className="space-y-5">
-      <section className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-white/82 p-6 sm:p-7">
-        <SectionHeading
-          title="Заказы"
-          description="Операционная очередь по подтверждению, производству, выдаче и отгрузке. Команда может быстро находить проблемные заказы и управлять ими пакетно."
-          titleClassName="text-2xl sm:text-3xl"
-          descriptionClassName="max-w-3xl text-sm leading-7"
-        />
-      </section>
-
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard
-          label="Всего заказов"
-          value={orders.length}
-          detail={`${filteredOrders.length} видно по текущему срезу`}
-        />
-        <MetricCard
-          label="Активные"
-          value={activeOrders.length}
-          detail="Заказы, которые находятся в работе команды"
-        />
-        <MetricCard
-          label="Без менеджера"
-          value={unassignedOrders.length}
-          detail="Активные заказы, которые еще не разобраны"
-        />
-        <MetricCard
-          label="Логистика"
-          value={deliveryOrders.length}
-          detail={`${shippedOrders.length} уже находятся в стадии отгрузки`}
-        />
-      </section>
-
-      <section className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-white/82 p-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="max-w-2xl">
-            <p className="text-xs font-semibold text-[var(--accent)]">
-              Фильтры очереди
-            </p>
-            <h3 className="mt-3 text-xl font-semibold text-[var(--foreground)]">
-              Фокус по смене
-            </h3>
-            <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-              Можно быстро отфильтровать только новые, только без менеджера,
-              только логистику или конкретную рабочую зону по ответственному.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            <Link
-              href={getStateHref(state, { assignment: "unassigned" })}
-              className="rounded-full border border-[color:var(--line)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[var(--muted)] transition hover:border-[color:var(--line-strong)]"
-            >
-              Без менеджера
-            </Link>
-            <Link
-              href={getStateHref(state, { status: OrderStatus.NEW })}
-              className="rounded-full border border-[color:var(--line)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[var(--muted)] transition hover:border-[color:var(--line-strong)]"
-            >
-              Новые
-            </Link>
-            <Link
-              href={getStateHref(state, { status: OrderStatus.IN_PRODUCTION })}
-              className="rounded-full border border-[color:var(--line)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[var(--muted)] transition hover:border-[color:var(--line-strong)]"
-            >
-              Производство
-            </Link>
-            <Link
-              href={getStateHref(state, { delivery: "delivery" })}
-              className="rounded-full border border-[color:var(--line)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[var(--muted)] transition hover:border-[color:var(--line-strong)]"
-            >
-              С доставкой
-            </Link>
-          </div>
-        </div>
-
-        <Form
-          action="/admin/orders"
-          scroll={false}
-          className="mt-6 grid gap-4 xl:grid-cols-5"
+        <details
+          className="relative col-span-2 lg:col-span-1"
+          open={moreFiltersOpen ? true : undefined}
         >
-          <label className="grid gap-2 xl:col-span-2">
-            <span className="text-sm text-[var(--foreground)]">
-              Поиск по номеру, фамилии, клиенту, телефону или промокоду
-            </span>
-            <Input
-              name="q"
-              defaultValue={state.q}
-              placeholder="Например, Иванов, A-1042 или ОсОО Интерьер"
-            />
-          </label>
-
-          <label className="grid gap-2">
-            <span className="text-sm text-[var(--foreground)]">Статус</span>
-            <Select name="status" defaultValue={state.status}>
-              <option value="all">Все статусы</option>
-              {Object.values(OrderStatus).map((status) => (
-                <option key={status} value={status}>
-                  {orderStatusLabels[status]}
-                </option>
-              ))}
-            </Select>
-          </label>
-
-          <label className="grid gap-2">
-            <span className="text-sm text-[var(--foreground)]">Менеджер</span>
-            <Select name="managerId" defaultValue={state.managerId}>
-              <option value="">Все менеджеры</option>
-              {managers.map((manager) => (
-                <option key={manager.id} value={manager.id}>
-                  {getManagerDisplayName(manager)}
-                </option>
-              ))}
-            </Select>
-          </label>
-
-          <label className="grid gap-2">
-            <span className="text-sm text-[var(--foreground)]">Назначение</span>
-            <Select name="assignment" defaultValue={state.assignment}>
-              <option value="all">Все заказы</option>
-              <option value="assigned">С менеджером</option>
-              <option value="unassigned">Без менеджера</option>
-            </Select>
-          </label>
-
-          <label className="grid gap-2">
-            <span className="text-sm text-[var(--foreground)]">Логистика</span>
-            <Select name="delivery" defaultValue={state.delivery}>
-              <option value="all">Все варианты</option>
-              <option value="delivery">С доставкой</option>
-              <option value="pickup">Самовывоз</option>
-            </Select>
-          </label>
-
-          <label className="grid gap-2">
-            <span className="text-sm text-[var(--foreground)]">
+          <summary className="flex h-10 cursor-pointer list-none items-center gap-2 rounded-[var(--radius-control)] border border-[color:var(--line)] bg-white px-3.5 text-sm font-medium whitespace-nowrap">
+            <SlidersHorizontal className="size-4 text-[var(--muted)]" />
+            Ещё фильтры
+          </summary>
+          <div className="absolute right-0 z-20 mt-2 grid w-72 gap-2.5 rounded-[12px] border border-[color:var(--line)] bg-white p-3 shadow-[0_16px_40px_rgba(0,0,0,0.12)]">
+            <label className="grid gap-1 text-xs text-[var(--muted)]">
+              Менеджер
+              <Select name="managerId" defaultValue={state.managerId}>
+                <option value="">Все менеджеры</option>
+                {managers.map((manager) => (
+                  <option key={manager.id} value={manager.id}>
+                    {getManagerDisplayName(manager)}
+                  </option>
+                ))}
+              </Select>
+            </label>
+            <label className="grid gap-1 text-xs text-[var(--muted)]">
+              Назначение
+              <Select name="assignment" defaultValue={state.assignment}>
+                <option value="all">Все заказы</option>
+                <option value="assigned">С менеджером</option>
+                <option value="unassigned">Без менеджера</option>
+              </Select>
+            </label>
+            <label className="grid gap-1 text-xs text-[var(--muted)]">
+              Логистика
+              <Select name="delivery" defaultValue={state.delivery}>
+                <option value="all">Все варианты</option>
+                <option value="delivery">С доставкой</option>
+                <option value="pickup">Самовывоз</option>
+              </Select>
+            </label>
+            <label className="grid gap-1 text-xs text-[var(--muted)]">
               Срок и оплата
-            </span>
-            <Select name="due" defaultValue={state.due}>
-              <option value="all">Любой</option>
-              <option value="overdue">Просроченные ({overdueCount})</option>
-              <option value="unpaid">Без оплаты ({unpaidCount})</option>
-            </Select>
-          </label>
-
-          <label className="grid gap-2">
-            <span className="text-sm text-[var(--foreground)]">Сортировка</span>
-            <Select name="sort" defaultValue={state.sort}>
-              {adminOrderSortOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </Select>
-          </label>
-
-          <div className="flex flex-wrap items-end gap-3 xl:col-span-5">
-            <AdminSubmitButton
-              type="submit"
-              variant="accent"
-              idleLabel="Применить"
-              pendingLabel="Применяем..."
-            />
-            <Link
-              href="/admin/orders"
-              className="inline-flex h-11 items-center justify-center rounded-[var(--radius-control)] border border-[color:var(--line-strong)] px-5 text-sm font-semibold text-[var(--foreground)] transition hover:border-[color:var(--foreground)] hover:bg-[var(--foreground)] hover:text-white"
-            >
-              Сбросить всё
-            </Link>
-            <DownloadCsvButton
-              csvContent={ordersCsv}
-              fileName={`artisan-orders-${new Date().toISOString().slice(0, 10)}.csv`}
-            />
-            <span className="text-sm text-[var(--muted)]">
-              Найдено {filteredOrders.length} из {orders.length} заказов
-              {overdueCount > 0 ? ` · просрочено ${overdueCount}` : ""}
-            </span>
+              <Select name="due" defaultValue={state.due}>
+                <option value="all">Любой</option>
+                <option value="overdue">Просроченные ({overdueCount})</option>
+                <option value="unpaid">Без оплаты ({unpaidCount})</option>
+              </Select>
+            </label>
           </div>
-        </Form>
+        </details>
+      </AutoFilterForm>
 
-        {activeFilters.length > 0 ? (
-          <div className="mt-5 flex flex-wrap gap-2 border-t border-[color:var(--line)] pt-5">
-            {activeFilters.map((filter) => (
-              <Link
-                key={filter.key}
-                href={filter.href}
-                className="rounded-full border border-[color:var(--line)] bg-[var(--surface)] px-3 py-1.5 text-sm text-[var(--foreground)] transition hover:border-[color:var(--line-strong)]"
-              >
-                {filter.label} ×
-              </Link>
-            ))}
-          </div>
+      <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--muted)]">
+        <span>
+          Найдено {filteredOrders.length} из {orders.length}
+          {overdueCount > 0 ? ` · просрочено ${overdueCount}` : ""}
+        </span>
+        {activeFilters.map((filter) => (
+          <Link
+            key={filter.key}
+            href={filter.href}
+            className="rounded-full border border-[color:var(--line)] bg-white px-2.5 py-1 text-xs text-[var(--foreground)] transition hover:border-[color:var(--line-strong)]"
+          >
+            {filter.label} ×
+          </Link>
+        ))}
+        {activeFilters.length > 1 ? (
+          <Link
+            href="/admin/orders"
+            className="font-semibold text-[var(--accent)] hover:underline"
+          >
+            Сбросить всё
+          </Link>
         ) : null}
-      </section>
+      </div>
 
-      <section className="space-y-4">
-        <section className="surface-glow rounded-[var(--radius-card)] border border-[color:var(--line)] bg-white/82 p-6">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div className="max-w-2xl">
-              <p className="text-xs font-semibold text-[var(--accent)]">
-                Массовые действия
-              </p>
-              <h3 className="mt-3 text-xl font-semibold text-[var(--foreground)]">
-                Управление текущей выборкой
-              </h3>
-              <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-                Выделите нужные заказы и быстро назначьте менеджера, переведите
-                их на следующий этап или закройте массово.
-              </p>
-            </div>
-
-            <BulkSelectionTools checkboxSelector="[data-order-bulk-checkbox='true']" />
-          </div>
-
+      <section className="space-y-3">
+        <div className="flex flex-col gap-2 rounded-[var(--radius-inner)] border border-[color:var(--line)] bg-white p-2.5 lg:flex-row lg:items-center">
+          <BulkSelectionTools checkboxSelector="[data-order-bulk-checkbox='true']" />
           <form
             id="bulk-orders-form"
             action={bulkUpdateOrdersAction}
-            className="mt-5 grid gap-3 lg:grid-cols-[minmax(0,1fr)_280px_auto]"
+            className="grid flex-1 gap-2 sm:grid-cols-[minmax(0,1fr)_220px_auto]"
           >
-            <Select name="bulkAction" defaultValue="">
+            <Select
+              name="bulkAction"
+              defaultValue=""
+              aria-label="Действие для отмеченных"
+              className="h-9 rounded-[var(--radius-control)] text-sm sm:h-9"
+            >
               <option value="" disabled>
-                Выберите действие для отмеченных заказов
+                С отмеченными…
               </option>
               {bulkActionOptions.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -630,8 +659,13 @@ export default async function AdminOrdersPage({
                 </option>
               ))}
             </Select>
-            <Select name="managerId" defaultValue="">
-              <option value="">Менеджер для назначения</option>
+            <Select
+              name="managerId"
+              defaultValue=""
+              aria-label="Менеджер для назначения"
+              className="h-9 rounded-[var(--radius-control)] text-sm sm:h-9"
+            >
+              <option value="">Менеджер</option>
               {managers.map((manager) => (
                 <option key={manager.id} value={manager.id}>
                   {getManagerDisplayName(manager)}
@@ -640,18 +674,22 @@ export default async function AdminOrdersPage({
             </Select>
             <BulkOrdersSubmitButton checkboxSelector="[data-order-bulk-checkbox='true']" />
           </form>
-        </section>
+        </div>
 
         <DataTable
           columns={[
             { key: "select", label: "" },
             { key: "order", label: "Заказ" },
             { key: "client", label: "Клиент" },
-            { key: "logistics", label: "Логистика и сумма" },
+            { key: "logistics", label: "Сумма" },
             { key: "status", label: "Статус" },
-            { key: "manage", label: "Быстрое управление" },
+            { key: "manage", label: "Действие" },
           ]}
           rows={rows}
+          compact
+          rowTones={pageOrders.map((order) =>
+            order.status === OrderStatus.NEW ? "alert" : undefined,
+          )}
           caption="Таблица заказов"
           emptyMessage="По текущим фильтрам ничего не найдено. Измените срез или сбросьте параметры."
         />

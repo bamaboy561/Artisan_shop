@@ -5010,6 +5010,16 @@ function productionActionReturn(
   if (getString(formData, "origin") === "board") {
     return `${productionBoardPath}?${new URLSearchParams({ notice, id: requestId })}`;
   }
+  // Кнопка «Следующий этап» в списке «Распил» возвращает в тот же список.
+  if (getString(formData, "origin") === "cutting-list") {
+    const back = getString(formData, "returnTo");
+    const url = new URL(
+      /^\/admin\/cutting(?:\?|$)/.test(back) ? back : "/admin/cutting",
+      "https://artisan.invalid",
+    );
+    url.searchParams.set("notice", notice);
+    return `${url.pathname}?${url.searchParams}`;
+  }
   const params = new URLSearchParams({
     notice,
     returnTo,

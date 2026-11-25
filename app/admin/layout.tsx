@@ -7,6 +7,7 @@ import { ProductionFrame } from "@/features/production/frame";
 import { requireAdminSession } from "@/lib/auth/dal";
 import {
   canAccessAdminPath,
+  canAccessGeneralAdmin,
   isCuttingManager,
   isProductionManager,
   isProductionOperator,
@@ -92,6 +93,7 @@ export default async function AdminLayout({
         }
         items={adminItems}
         variant="admin"
+        canSearch={canAccessGeneralAdmin(session.roleCode)}
         actions={
           <div className="space-y-3">
             <div className="flex items-center gap-3 rounded-xl px-2 py-2">

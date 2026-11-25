@@ -1,0 +1,159 @@
+.hero {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-radius: 22px;
+  background: #111113;
+  color: #fafafa;
+  padding: 22px;
+  display: grid;
+  gap: 20px;
+}
+@media (min-width: 1024px) {
+  .hero {
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+    gap: 28px;
+    padding: 26px 30px;
+  }
+}
+.hero::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: -40% 40% 10% -10%;
+  background: radial-gradient(
+    closest-side,
+    rgba(245, 181, 68, 0.32),
+    transparent
+  );
+  filter: blur(10px);
+  animation: glow 7s ease-in-out infinite alternate;
+}
+@keyframes glow {
+  to {
+    transform: translate(48px, 24px) scale(1.12);
+  }
+}
+.live {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 99px;
+  background: #4ade80;
+  animation: pulse 1.6s infinite;
+}
+@keyframes pulse {
+  from {
+    box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.6);
+  }
+  to {
+    box-shadow: 0 0 0 10px rgba(74, 222, 128, 0);
+  }
+}
+.big {
+  font-size: clamp(40px, 6vw, 64px);
+  line-height: 1.05;
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  font-variant-numeric: tabular-nums;
+}
+.bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 86px;
+}
+.bar {
+  flex: 1;
+  min-height: 4px;
+  border-radius: 5px 5px 2px 2px;
+  background: linear-gradient(#f5b544, #b45309);
+  transform-origin: bottom;
+  animation: grow 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.barEmpty {
+  background: rgba(255, 255, 255, 0.08);
+}
+.barNow {
+  background: linear-gradient(#fde68a, #f5b544);
+  box-shadow: 0 0 18px rgba(245, 181, 68, 0.55);
+}
+@keyframes grow {
+  from {
+    transform: scaleY(0);
+  }
+}
+.tile {
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.05);
+  padding: 14px 16px;
+  min-width: 0;
+}
+.track {
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  top: 27px;
+  height: 4px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--line);
+}
+.track::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    90deg,
+    #f5b544 0 18px,
+    transparent 18px 46px
+  );
+  animation: move 1.4s linear infinite;
+}
+@keyframes move {
+  to {
+    background-position: 46px 0;
+  }
+}
+.node {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  border-radius: 18px;
+  border: 2px solid var(--line);
+  background: #fff;
+  font-size: 22px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  transition: transform 0.2s;
+}
+.nodeHot {
+  border-color: #f5b544;
+  background: #fffbeb;
+  box-shadow: 0 0 0 6px rgba(245, 181, 68, 0.15);
+}
+.stage:hover .node {
+  transform: translateY(-2px);
+}
+.rise {
+  animation: rise 0.5s both;
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero::before,
+  .live,
+  .bar,
+  .track::after,
+  .rise {
+    animation: none;
+  }
+}
