@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   defaultMachineFolders,
   mergeNewDefaultFolders,
+  upgradeFolderStages,
   buildWatcherScript,
   diffFolder,
   filterTopLevel,
@@ -191,4 +192,50 @@ test("a new default machine is added once to saved folders", () => {
     null,
   );
   assert.equal(manual.folders.length, 4);
+});
+
+test("Nesting moves like a saw and Excitech closes the order, once", () => {
+  const saved = [
+    {
+      id: "holzma",
+      name: "H",
+      path: "\\\\a\\b",
+      stage: "cutting" as const,
+      recurse: false,
+    },
+    {
+      id: "excitech",
+      name: "E",
+      path: "\\\\c\\d",
+      stage: "" as const,
+      recurse: true,
+    },
+    {
+      id: "nesting",
+      name: "N",
+      path: "\\\\e\\f",
+      stage: "" as const,
+      recurse: false,
+    },
+    {
+      id: "x1",
+      name: "X",
+      path: "\\\\g\\h",
+      stage: "" as const,
+      recurse: false,
+    },
+  ];
+  const { folders, changed } = upgradeFolderStages(saved);
+  assert.equal(changed, true);
+  assert.deepEqual(
+    folders.map((folder) => folder.stage),
+    ["cutting", "drilling", "cutting", ""],
+  );
+  assert.equal(folders[1].recurse, true);
+  assert.equal(upgradeFolderStages(folders).changed, false);
+  assert.equal(
+    normalizeMachineFolders([{ name: "E", path: "x", stage: "drilling" }])[0]
+      .stage,
+    "drilling",
+  );
 });

@@ -69,3 +69,28 @@ export function getProductionTransition(
 
   return null;
 }
+
+// Все действия станции для этапа. После кромки — два пути: на присадку или,
+// если присадки в заказе нет, сразу «Готово к выдаче».
+export function getProductionTransitions(
+  station: ProductionStation,
+  stage: CuttingStage | null | undefined,
+): ProductionTransition[] {
+  const main = getProductionTransition(station, stage);
+  if (!main) return [];
+  if (
+    station === ProductionStation.EDGING &&
+    main.from === CuttingStage.EDGING
+  ) {
+    return [
+      main,
+      {
+        from: CuttingStage.EDGING,
+        to: CuttingStage.READY_FOR_PICKUP,
+        label: "Готово к выдаче (без присадки)",
+        requiresPickupCell: true,
+      },
+    ];
+  }
+  return [main];
+}

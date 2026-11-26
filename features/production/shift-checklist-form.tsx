@@ -30,7 +30,6 @@ export function ShiftChecklistForm({
   roles,
   defaultRole,
   submitLabel,
-  encType,
   children,
 }: {
   action: (formData: FormData) => void | Promise<void>;
@@ -38,7 +37,6 @@ export function ShiftChecklistForm({
   roles: ShiftRole[];
   defaultRole: ShiftRole;
   submitLabel: string;
-  encType?: "multipart/form-data";
   children?: ReactNode;
 }) {
   const [role, setRole] = useState<ShiftRole>(defaultRole);
@@ -46,7 +44,7 @@ export function ShiftChecklistForm({
   const items = itemsByRole[role] ?? [];
   const left = items.filter((item) => !values[item.key]).length;
   return (
-    <form action={action} className={styles.form} encType={encType}>
+    <form action={action} className={styles.form}>
       {roles.length > 1 ? (
         <fieldset className={styles.roles}>
           <legend>Кем вы сегодня работаете</legend>
