@@ -16,6 +16,10 @@ export type ConstructorDecor = {
   thickness: number;
   imageUrl: string | null;
   slug: string | null;
+  // Для примерной цены в конструкторе: цена плиты за м² и размер листа.
+  pricePerSqM: number;
+  sheetWidth: number;
+  sheetHeight: number;
 };
 
 async function loadImages(slugs: string[]) {
@@ -57,6 +61,10 @@ export async function getConstructorDecors(): Promise<ConstructorDecor[]> {
   const thicknessById = new Map(
     bundle.materials.map((material) => [material.id, material.thicknessMm]),
   );
+  const priceById = new Map(
+    bundle.materials.map((material) => [material.id, material.pricePerSqM]),
+  );
+  const sheetById = new Map(bundle.sheets.map((sheet) => [sheet.id, sheet]));
   const catalog = bundle.presets.filter(
     (preset) => !preset.id.startsWith("manual:"),
   );
@@ -84,6 +92,9 @@ export async function getConstructorDecors(): Promise<ConstructorDecor[]> {
         thickness,
         imageUrl: extra?.url ?? null,
         slug: isCatalog ? preset.id : null,
+        pricePerSqM: priceById.get(preset.materialId) ?? 0,
+        sheetWidth: sheetById.get(preset.sheetPresetId)?.width ?? 2800,
+        sheetHeight: sheetById.get(preset.sheetPresetId)?.height ?? 2070,
       },
     ];
   });

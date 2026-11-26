@@ -13,6 +13,7 @@ import {
   type CabinetSpec,
 } from "./cabinet-builder";
 import { hardwareHoles } from "./drilling-hardware";
+import { useNumberInput } from "./use-number-input";
 
 export const inputClass =
   "h-10 w-full min-w-0 rounded-lg border border-[color:var(--line)] bg-[var(--surface-strong)] px-2.5 text-[14px] text-[var(--foreground)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/15";
@@ -30,30 +31,11 @@ export function Field({
   value: number;
   onChange: (value: number) => void;
 }) {
-  const [text, setText] = useState(String(value));
-  const [shown, setShown] = useState(value);
-
-  if (shown !== value) {
-    setShown(value);
-    if (Number(text) !== value) setText(String(value));
-  }
-
+  const input = useNumberInput(value, onChange);
   return (
     <label className="grid gap-1 text-[12px] text-[var(--muted)]">
       {label}
-      <input
-        className={inputClass}
-        value={text}
-        inputMode="numeric"
-        onChange={(event) => {
-          const next = event.target.value.replace(",", ".");
-          setText(next);
-          const parsed = Number(next);
-          if (next.trim() !== "" && Number.isFinite(parsed) && parsed >= 0) {
-            onChange(parsed);
-          }
-        }}
-      />
+      <input className={inputClass} {...input} />
     </label>
   );
 }
