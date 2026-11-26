@@ -323,7 +323,7 @@ export function CutListImportPanel({
   };
 
   return (
-    <div className="mt-3.5 border border-dashed border-[color:var(--line-strong)] bg-[var(--surface)] p-3 sm:mt-5 sm:p-4">
+    <div className="mt-3.5 rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] p-3 sm:mt-5 sm:p-4">
       <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <p className="text-[13px] font-semibold text-[var(--accent)]">

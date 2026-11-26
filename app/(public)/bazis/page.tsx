@@ -25,13 +25,10 @@ export default async function BazisPage() {
   return (
     <div className="bg-[var(--surface)]">
       <section className="mx-auto max-w-[1440px] px-4 py-8 sm:px-8 sm:py-12 lg:px-10">
-        <p className="text-xs font-semibold tracking-[0.14em] text-[var(--accent)] uppercase">
-          Проект Базис-Мебельщик
-        </p>
-        <h1 className="mt-2 max-w-3xl text-3xl leading-tight font-semibold text-[var(--foreground)] sm:text-4xl">
-          Откройте проект Базиса прямо на сайте
+        <h1 className="max-w-[16ch] text-[clamp(32px,4.2vw,56px)] leading-[1.04] font-medium tracking-[-0.03em] text-balance text-[var(--foreground)]">
+          Откройте проект Базис-Мебельщика прямо на сайте
         </h1>
-        <p className="mt-3 max-w-2xl text-base leading-7 text-[var(--muted)]">
+        <p className="mt-5 max-w-2xl text-[17px] leading-[1.6] text-[var(--muted)]">
           Загрузите файл .b3d: увидите макет, который можно покрутить, список
           деталей с размерами и кромкой, фурнитуру. Материал и детали можно
           поменять и сразу отправить в расчёт раскроя.

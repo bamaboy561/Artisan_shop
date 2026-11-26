@@ -1,35 +1,115 @@
+/* Светлый герой в стиле главной (PR #139): кремовый фон, крупный
+   заголовок Manrope, цены строкой фактов, без капса и Unbounded. */
 .hero {
   position: relative;
   overflow: hidden;
-  background:
-    radial-gradient(
-      120% 90% at 100% 0%,
-      rgba(169, 71, 48, 0.34) 0%,
-      rgba(169, 71, 48, 0) 55%
-    ),
-    #1f2422;
-  color: #fff;
+  background: radial-gradient(
+    ellipse 70% 80% at 72% 40%,
+    #fbf8f2 0%,
+    #f4eee4 50%,
+    #efe8dc 100%
+  );
+  color: #1b1c19;
 }
 .heroTitle {
-  font-family: var(--font-unbounded), Arial, sans-serif;
-  font-weight: 600;
-  line-height: 1.08;
+  font-size: clamp(34px, 4.2vw, 60px);
+  font-weight: 500;
+  line-height: 1.02;
+  letter-spacing: -0.03em;
+  text-wrap: pretty;
 }
 .heroTitle em {
+  display: block;
   font-style: normal;
-  color: #f0a48f;
+  color: #c4532b;
 }
-.price {
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(6px);
+.heroLead {
+  margin-top: 20px;
+  max-width: 34rem;
+  font-size: 17px;
+  line-height: 1.6;
+  color: #6e6b63;
 }
-.price strong {
-  font-family: var(--font-unbounded), Arial, sans-serif;
+.primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 52px;
+  padding: 0 26px;
+  border-radius: 999px;
+  background: #c4532b;
+  color: #fff;
+  font-size: 15px;
   font-weight: 600;
+  transition: background-color 160ms ease;
+}
+.primary:hover {
+  background: #a8431f;
+}
+.textLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding-bottom: 2px;
+  border-bottom: 1px solid #1b1c1959;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1b1c19;
+  transition: border-color 160ms ease;
+}
+.textLink:hover {
+  border-bottom-color: #1b1c19;
+}
+.facts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-top: 1px solid #e3ddd2;
+}
+.facts li {
+  padding: 22px 20px 4px 0;
+}
+.facts strong {
+  display: block;
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.facts small,
+.facts del {
+  font-family: var(--font-ibm-plex-mono), ui-monospace, monospace;
+  font-size: 13px;
+  font-weight: 400;
+}
+.facts del {
+  margin-left: 6px;
+  color: #6e6b63;
+}
+.facts span {
+  display: block;
+  margin-top: 6px;
+  font-size: 13px;
+  color: #6e6b63;
+}
+@media (max-width: 760px) {
+  .facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .facts li {
+    padding-top: 16px;
+  }
+  .facts strong {
+    font-size: 21px;
+  }
+  .primary {
+    width: 100%;
+  }
 }
 .board {
-  filter: drop-shadow(0 30px 50px rgba(0, 0, 0, 0.45));
+  filter: drop-shadow(0 30px 50px rgba(27, 28, 25, 0.16));
 }
 .part {
   opacity: 0;
@@ -90,23 +170,6 @@
     opacity: 0;
   }
 }
-.step {
-  border: 1px solid #e1e5e1;
-  background: #fff;
-  transition:
-    transform 200ms ease,
-    box-shadow 200ms ease,
-    border-color 200ms ease;
-}
-.step:hover {
-  transform: translateY(-3px);
-  border-color: #a94730;
-  box-shadow: 0 18px 40px rgba(37, 43, 41, 0.08);
-}
-.stepNumber {
-  font-family: var(--font-unbounded), Arial, sans-serif;
-  color: #a94730;
-}
 @media (prefers-reduced-motion: reduce) {
   .part,
   .cut,
@@ -114,8 +177,5 @@
     animation: none;
     opacity: 1;
     stroke-dashoffset: 0;
-  }
-  .step {
-    transition: none;
   }
 }

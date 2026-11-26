@@ -123,8 +123,7 @@ function EdgePicker({
           title={allActive ? "Убрать кромку" : "Кромка кругом"}
           onClick={() => onSetAll(allActive ? [] : [...ALL_SIDES])}
           className="absolute inset-4 flex items-center justify-center rounded-[3px] bg-[var(--surface)] text-[11px] text-[var(--muted)] hover:bg-[#e9e1d5] sm:inset-[7px]"
-        >
-        </button>
+        ></button>
         {ALL_SIDES.map((side) => {
           const active = row.edgedSides.includes(side);
           const horizontal = side === "top" || side === "bottom";
@@ -430,7 +429,7 @@ export function CutDetailTable({
                   Enter шли по ним подряд; на телефоне кнопки остаются в
                   первой строке за счёт order. */}
               <div className="order-1 col-span-3 grid grid-cols-3 gap-2 @min-[780px]:order-none @min-[780px]:contents">
-                <label className="grid gap-1 text-[10px] tracking-[0.08em] text-[var(--muted)] uppercase @min-[780px]:block">
+                <label className="grid gap-1 text-[11px] text-[var(--muted)] @min-[780px]:block">
                   <span className="@min-[780px]:hidden">Длина</span>
                   {numberInput(
                     row,
@@ -440,7 +439,7 @@ export function CutDetailTable({
                     "720",
                   )}
                 </label>
-                <label className="grid gap-1 text-[10px] tracking-[0.08em] text-[var(--muted)] uppercase @min-[780px]:block">
+                <label className="grid gap-1 text-[11px] text-[var(--muted)] @min-[780px]:block">
                   <span className="@min-[780px]:hidden">Ширина</span>
                   {numberInput(
                     row,
@@ -450,7 +449,7 @@ export function CutDetailTable({
                     "560",
                   )}
                 </label>
-                <label className="grid gap-1 text-[10px] tracking-[0.08em] text-[var(--muted)] uppercase @min-[780px]:block">
+                <label className="grid gap-1 text-[11px] text-[var(--muted)] @min-[780px]:block">
                   <span className="@min-[780px]:hidden">Шт.</span>
                   {numberInput(
                     row,
@@ -540,7 +539,7 @@ export function CutDetailTable({
                   onClick={() => onDuplicate(row.id)}
                   aria-label="Дублировать деталь"
                   title="Дублировать"
-                  className="flex size-9 items-center @min-[780px]:size-8 justify-center rounded-lg text-[var(--muted)] transition hover:bg-[var(--surface)] hover:text-[var(--foreground)]"
+                  className="flex size-9 items-center justify-center rounded-lg text-[var(--muted)] transition hover:bg-[var(--surface)] hover:text-[var(--foreground)] @min-[780px]:size-8"
                 >
                   <Copy className="size-4" />
                 </button>
@@ -550,7 +549,7 @@ export function CutDetailTable({
                   disabled={rows.length === 1}
                   aria-label="Удалить деталь"
                   title="Удалить"
-                  className="flex size-9 items-center @min-[780px]:size-8 justify-center rounded-lg text-[var(--muted)] transition hover:bg-[var(--surface)] hover:text-[var(--accent)] disabled:opacity-30"
+                  className="flex size-9 items-center justify-center rounded-lg text-[var(--muted)] transition hover:bg-[var(--surface)] hover:text-[var(--accent)] disabled:opacity-30 @min-[780px]:size-8"
                 >
                   <Trash2 className="size-4" />
                 </button>

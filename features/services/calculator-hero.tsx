@@ -24,102 +24,56 @@ const cuts = [
   "M333 269 H461",
 ];
 
-function PriceTag({
-  label,
-  price,
-  regular,
-  unit,
-}: {
-  label: string;
-  price: number;
-  regular: number;
-  unit: string;
-}) {
-  return (
-    <div className={`${s.price} rounded-xl px-4 py-3 sm:px-5 sm:py-4`}>
-      <p className="text-[11px] tracking-[0.14em] text-white/60 uppercase">
-        {label}
-      </p>
-      <p className="mt-1 flex flex-wrap items-baseline gap-x-2">
-        <strong className="text-2xl sm:text-[1.9rem]">{price}</strong>
-        <span className="text-xs whitespace-nowrap text-white/80 sm:text-sm">
-          {unit}
-        </span>
-        <del className="text-sm text-white/45">{regular}</del>
-      </p>
-    </div>
-  );
+function formatPrice(value: number) {
+  return new Intl.NumberFormat("ru-RU").format(value);
 }
 
 export function CalculatorHero({ prices }: { prices: SiteCuttingPrices }) {
+  const facts = [
+    {
+      value: formatPrice(prices.sheet),
+      unit: "сом/лист",
+      regular: prices.sheetRegular,
+      label: "Распил",
+    },
+    {
+      value: formatPrice(prices.edge),
+      unit: "сом/м",
+      regular: prices.edgeRegular,
+      label: "Кромление",
+    },
+    { value: "0 сом", label: "Предоплата на сайте" },
+    { value: "Сразу", label: "Карта раскроя и число листов" },
+  ];
+
   return (
     <>
       <section className={s.hero}>
-        <div className="mx-auto grid max-w-[1600px] gap-8 px-4 py-9 sm:px-8 sm:py-14 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)] lg:items-center lg:gap-14 lg:px-10 lg:py-16">
+        <div className="mx-auto grid max-w-[1600px] gap-8 px-4 pt-8 pb-6 sm:px-8 sm:pt-14 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.95fr)] lg:items-center lg:gap-14 lg:px-10 lg:pt-16 lg:pb-10">
           <div>
-            <p className="inline-flex items-center gap-2 rounded-full border border-white/20 px-3 py-1 text-[11px] tracking-[0.14em] text-white/80 uppercase">
-              <span className="size-1.5 rounded-full bg-[#f0a48f]" />
-              Раскрой онлайн
-            </p>
-            <h1
-              className={`${s.heroTitle} mt-4 text-[1.75rem] sm:text-[2.5rem] xl:text-[3.2rem]`}
-            >
-              Соберите раскрой сами.
-              <br />
-              <em>Это быстрее и дешевле.</em>
+            <h1 className={s.heroTitle}>
+              Соберите раскрой сами. <em>Быстрее и&nbsp;дешевле.</em>
             </h1>
-            <p className="mt-4 hidden max-w-[36rem] text-[15px] leading-7 text-white/75 sm:block sm:text-base">
+            <p className={s.heroLead}>
               Вставьте список деталей, и калькулятор сразу покажет карту
               раскроя, число листов и ориентир цены. Заявка уходит менеджеру.
             </p>
 
-            <div className="mt-6 grid max-w-[30rem] grid-cols-2 gap-3">
-              <PriceTag
-                label="Распил"
-                price={prices.sheet}
-                regular={prices.sheetRegular}
-                unit="сом / лист"
-              />
-              <PriceTag
-                label="Кромка"
-                price={prices.edge}
-                regular={prices.edgeRegular}
-                unit="сом / метр"
-              />
-            </div>
-            <p className="mt-2 text-xs text-white/50">
-              Цены для заявок, собранных на сайте. Точную сумму подтвердит
-              менеджер.
-            </p>
-
-            <div className="mt-6 sm:mt-7">
-              <a
-                href="#cut-calculator"
-                className="flex w-full items-center justify-center gap-2.5 rounded-full bg-[#c4532b] px-6 py-3.5 text-[15px] font-semibold text-white transition hover:bg-[#a8431f] sm:inline-flex sm:w-auto"
-              >
+            <div className="mt-7 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:gap-6">
+              <a href="#cut-calculator" className={s.primary}>
                 Ввести детали <ArrowDown className="size-4" />
               </a>
-              <p className="mt-4 text-[13px] text-white/60">Или начните иначе:</p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                <a
-                  href="#cut-request-form"
-                  className="inline-flex items-center gap-1.5 rounded-full border border-white/25 px-3.5 py-2 text-[13px] font-medium text-white transition hover:border-white/60"
-                >
-                  <Paperclip className="size-3.5" /> Файл Базиса, Excel или фото
-                </a>
-                <a
-                  href="#cabinet"
-                  className="inline-flex items-center gap-1.5 rounded-full border border-white/25 px-3.5 py-2 text-[13px] font-medium text-white transition hover:border-white/60"
-                >
-                  <LayoutGrid className="size-3.5" /> Собрать шкаф по размерам
-                </a>
-                <a
-                  href="/bazis"
-                  className="inline-flex items-center gap-1.5 rounded-full border border-white/25 px-3.5 py-2 text-[13px] font-medium text-white transition hover:border-white/60"
-                >
-                  Проект Базиса в 3D
-                </a>
-              </div>
+              <a href="#cut-request-form" className={s.textLink}>
+                <Paperclip className="size-3.5" /> Файл Базиса, Excel или фото
+              </a>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-x-6 gap-y-2">
+              <a href="#cabinet" className={s.textLink}>
+                <LayoutGrid className="size-3.5" /> Собрать шкаф по размерам
+              </a>
+              <a href="/bazis" className={s.textLink}>
+                Проект Базиса в 3D
+              </a>
             </div>
           </div>
 
@@ -197,17 +151,32 @@ export function CalculatorHero({ prices }: { prices: SiteCuttingPrices }) {
               ))}
             </svg>
             <div
-              className={`${s.result} absolute right-3 -bottom-4 rounded-xl bg-white px-4 py-3 text-[#252b29] shadow-[0_18px_40px_rgba(0,0,0,0.35)] sm:right-6`}
+              className={`${s.result} absolute right-3 -bottom-4 rounded-2xl bg-white px-4 py-3 text-[#1b1c19] shadow-[0_18px_40px_rgba(27,28,25,0.12)] sm:right-6`}
             >
-              <p className="text-[10px] tracking-[0.14em] text-[#69716d] uppercase">
-                Пример расчёта
-              </p>
+              <p className="text-xs text-[#6e6b63]">Пример расчёта</p>
               <p className="mt-0.5 text-sm font-semibold">
                 7 деталей · 1 лист · остаток 4%
               </p>
             </div>
           </div>
         </div>
+        <ul
+          className={`${s.facts} mx-auto max-w-[1600px] px-4 sm:px-8 lg:px-10`}
+        >
+          {facts.map((fact) => (
+            <li key={fact.label}>
+              <strong>
+                {fact.value}
+                {fact.unit ? <small> {fact.unit}</small> : null}
+                {fact.regular ? <del>{fact.regular}</del> : null}
+              </strong>
+              <span>{fact.label}</span>
+            </li>
+          ))}
+        </ul>
+        <p className="mx-auto max-w-[1600px] px-4 pt-2 pb-6 text-xs text-[#6e6b63] sm:px-8 lg:px-10">
+          Цены для заявок, собранных на сайте. Точную сумму подтвердит менеджер.
+        </p>
       </section>
     </>
   );

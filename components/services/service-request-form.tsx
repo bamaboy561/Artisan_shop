@@ -120,7 +120,7 @@ export function ServiceRequestForm() {
             title="Файлы проекта, если они есть"
             description="Необязательно. Можно загрузить PDF, Excel, чертеж или Giblab .project сейчас либо добавить позже."
           />
-          <div className="border border-[color:var(--line)] bg-[var(--surface)] p-4">
+          <div className="rounded-xl border border-[color:var(--line)] bg-[var(--surface)] p-4">
             <p className="text-sm font-semibold text-[var(--foreground)]">
               Приоритет
             </p>

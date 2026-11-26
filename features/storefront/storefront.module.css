@@ -49,6 +49,37 @@
 /* font: inherit для кнопок уже задаёт preflight Tailwind (слой base).
    Здесь правило было вне слоёв и перебивало text-[…]/font-… у всех кнопок
    сайта: подписи шагов и кнопки калькулятора не помещались на телефоне. */
+/* Единый язык витрины (как на главной после PR #139) для всех страниц
+   покупателя: поля ввода со скруглением вместо квадратных рамок. В слое
+   base, чтобы rounded-full и другие утилиты на конкретных полях
+   по-прежнему побеждали. Админка сюда не входит: у неё свой layout. */
+@layer base {
+  .root
+    main
+    :is(
+      input:not([type="checkbox"], [type="radio"], [type="range"]),
+      select,
+      textarea
+    ) {
+    border-radius: 12px;
+  }
+}
+/* Подписи капсом с разрядкой («УСЛУГИ», «КОНТАКТЫ», «ПРОЦЕСС») из старого
+   «журнального» стиля: на витрине теперь обычный регистр. Вне слоёв
+   намеренно — так правило перебивает утилиту uppercase на всех страницах. */
+.root main :global(.uppercase) {
+  text-transform: none;
+}
+.root main :global(.font-mono.uppercase) {
+  font-family: var(--font-manrope), Arial, sans-serif;
+  font-size: 12px;
+}
+/* Цены и цифры — Manrope 800 с моноширинными цифрами вместо Unbounded. */
+.root main [class*="font-unbounded"] {
+  font-family: var(--font-manrope), Arial, sans-serif;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
 .container {
   width: calc(100% - 96px);
   max-width: 1440px;

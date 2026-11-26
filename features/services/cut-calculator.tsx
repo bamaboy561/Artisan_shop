@@ -10,16 +10,12 @@ import {
 } from "react";
 
 import {
-  Calculator,
-  Check,
-  Copy,
   FileDown,
   Layers3,
   LayoutPanelTop,
   Paperclip,
   Plus,
   Search,
-  Scissors,
   ShoppingCart,
   X,
 } from "lucide-react";
@@ -3173,32 +3169,26 @@ export function CutCalculator({
     {
       label: "Площадь деталей",
       value: `${calculation.totalAreaSqM.toFixed(2)} м²`,
-      icon: Layers3,
     },
     {
       label: "Рез по карте",
       value: `${estimate.cutMeters.toFixed(1)} м`,
-      icon: Scissors,
     },
     {
       label: `Кромка ${edgeSizeLabel}`,
       value: `${calculation.totalEdgeMeters.toFixed(1)} м`,
-      icon: Check,
     },
     {
       label: "Листы по карте",
       value: `${estimate.sheetCount} шт.`,
-      icon: Calculator,
     },
     {
       label: "КИМ карты",
       value: `${(cutMap.utilization * 100).toFixed(0)}%`,
-      icon: Layers3,
     },
     {
       label: "Полезный остаток",
       value: `${(cutMap.offcutArea / 1_000_000).toFixed(2)} м²`,
-      icon: Copy,
     },
   ];
 
@@ -3262,7 +3252,7 @@ export function CutCalculator({
                       </label>
 
                       <div
-                        className="grid h-8 grid-cols-2 border border-[color:var(--line)] bg-[var(--surface-strong)]"
+                        className="grid h-8 grid-cols-2 overflow-hidden rounded-full border border-[color:var(--line)] bg-[var(--surface-strong)]"
                         role="group"
                         aria-label="Источник материалов"
                       >
@@ -3306,7 +3296,7 @@ export function CutCalculator({
                       <Input
                         id="calculator-material-search"
                         type="search"
-                        className="h-9 min-w-0 pl-10 text-[13px] sm:h-10 sm:text-sm"
+                        className="h-9 min-w-0 pl-10 text-[13px] sm:h-10 sm:pl-10 sm:text-sm"
                         placeholder="Название, артикул, бренд, толщина или формат"
                         value={materialSearch}
                         onChange={(event) =>
@@ -3446,7 +3436,7 @@ export function CutCalculator({
                     onChange={(event) => setEdgeWidthMm(event.target.value)}
                   />
                 </label>
-                <div className="min-w-0 border border-[color:var(--line)] bg-[var(--surface-strong)] px-3 py-2 text-[11px] leading-4 text-[var(--muted)]">
+                <div className="min-w-0 rounded-xl border border-[color:var(--line)] bg-[var(--surface-strong)] px-3 py-2 text-[11px] leading-4 text-[var(--muted)]">
                   {edgingAvailable
                     ? `В заявке и расчете будет указана кромка ${edgeSizeLabel}.`
                     : "Для выбранного материала кромка отмечается только как разметка."}
@@ -3471,12 +3461,12 @@ export function CutCalculator({
                 <p className="text-[13px] font-semibold text-white/60">
                   Ориентир по раскрою
                 </p>
-                <p className="mt-1 font-[family-name:var(--font-unbounded)] text-[1.7rem] leading-none font-medium">
+                <p className="mt-1 text-[1.7rem] leading-none font-extrabold tabular-nums">
                   {formatPrice(Math.round(estimate.totalEstimate))}
                 </p>
               </div>
               <div className="text-right">
-                <p className="font-[family-name:var(--font-unbounded)] text-[1.35rem] leading-none text-[var(--accent)]">
+                <p className="text-[1.35rem] leading-none font-extrabold text-[#f0a48f] tabular-nums">
                   {estimate.sheetCount}
                 </p>
                 <p className="mt-1 text-[11px] text-white/55">
@@ -3509,15 +3499,15 @@ export function CutCalculator({
             className={step === 2 ? "scroll-mt-24" : "hidden"}
           >
             {cuttingSiteIncentive ? (
-              <div className="mt-3.5 flex items-center gap-3 rounded-[20px] bg-[var(--accent)] px-4 py-3 text-[var(--accent-ink)] sm:mt-5 sm:px-4 sm:py-3">
-                <span className="shrink-0 font-[family-name:var(--font-unbounded)] text-lg font-medium sm:text-xl">
+              <div className="mt-3.5 flex items-center gap-3 rounded-2xl border border-[#c4532b]/25 bg-[#fbefe9] px-4 py-3 text-[var(--foreground)] sm:mt-5">
+                <span className="shrink-0 text-lg font-extrabold text-[var(--accent)] tabular-nums sm:text-xl">
                   {cuttingSiteIncentive.badge}
                 </span>
                 <div className="min-w-0">
                   <p className="text-[13px] leading-5 font-semibold sm:text-sm">
                     {cuttingSiteIncentive.title}
                   </p>
-                  <p className="hidden text-[12px] leading-4.5 text-white/85 sm:block">
+                  <p className="hidden text-[12px] leading-4.5 text-[var(--muted)] sm:block">
                     {cuttingSiteIncentive.text}
                   </p>
                 </div>
@@ -3550,7 +3540,7 @@ export function CutCalculator({
             />
 
             {restoredDraftAt ? (
-              <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 border border-[color:var(--line)] bg-[var(--surface-strong)] px-3 py-2 text-[12px] leading-5 text-[var(--muted)]">
+              <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[color:var(--line)] bg-[var(--surface-strong)] px-3 py-2 text-[12px] leading-5 text-[var(--muted)]">
                 <span>
                   Восстановили ваш прошлый раскрой на этом устройстве.
                 </span>
@@ -3948,7 +3938,7 @@ export function CutCalculator({
                     {attachments.map((file, index) => (
                       <li
                         key={`${file.name}-${index}`}
-                        className="flex items-center justify-between gap-2 border border-[color:var(--line)] bg-[var(--surface-strong)] px-2.5 py-1.5 text-[12px]"
+                        className="flex items-center justify-between gap-2 rounded-xl border border-[color:var(--line)] bg-[var(--surface-strong)] px-2.5 py-1.5 text-[12px]"
                       >
                         <span className="min-w-0 truncate text-[var(--foreground)]">
                           {file.name}
@@ -4261,7 +4251,7 @@ export function CutCalculator({
                                 {cutSheet.offcuts.slice(0, 4).map((offcut) => (
                                   <span
                                     key={offcut.id}
-                                    className="inline-flex items-center border border-[color:var(--line)] bg-[var(--surface-strong)] px-2.5 py-1.5 text-[11px] text-[var(--foreground)]"
+                                    className="inline-flex items-center rounded-full border border-[color:var(--line)] bg-[var(--surface-strong)] px-2.5 py-1.5 text-[11px] text-[var(--foreground)]"
                                   >
                                     {Math.floor(offcut.width)}×
                                     {Math.floor(offcut.height)} мм
@@ -4276,7 +4266,7 @@ export function CutCalculator({
                   </div>
 
                   {cutMap.unplacedPieces.length > 0 ? (
-                    <div className="border border-[color:var(--line)] bg-[var(--surface-strong)] p-3">
+                    <div className="rounded-xl border border-[color:var(--line)] bg-[var(--surface-strong)] p-3">
                       <p className="text-sm font-semibold text-[var(--foreground)]">
                         Не вошли в Basis-like карту
                       </p>
@@ -4289,7 +4279,7 @@ export function CutCalculator({
                         {cutMap.unplacedPieces.map((piece) => (
                           <span
                             key={piece.id}
-                            className="inline-flex items-center border border-[color:var(--line)] bg-[var(--surface-strong)] px-3 py-2 text-xs text-[var(--foreground)]"
+                            className="inline-flex items-center rounded-full border border-[color:var(--line)] bg-[var(--surface-strong)] px-3 py-2 text-xs text-[var(--foreground)]"
                           >
                             {lockedRowIds.has(getSourceRowId(piece.id))
                               ? "Деталь из конструктора"
@@ -4341,7 +4331,7 @@ export function CutCalculator({
                   {visibleWorkshopRows.map((row) => (
                     <article
                       key={row.id}
-                      className="border border-[color:var(--line)] bg-[var(--surface-strong)] p-3"
+                      className="rounded-xl border border-[color:var(--line)] bg-[var(--surface-strong)] p-3"
                     >
                       <div className="space-y-2">
                         <div>
@@ -4352,7 +4342,7 @@ export function CutCalculator({
                             {row.sizeLabel} · {row.quantity} шт.
                           </p>
                         </div>
-                        <span className="inline-flex w-fit items-center border border-[color:var(--line)] bg-[var(--surface-strong)] px-2 py-1 text-[10px] text-[var(--muted)]">
+                        <span className="inline-flex w-fit items-center rounded-full border border-[color:var(--line)] bg-[var(--surface-strong)] px-2 py-1 text-[10px] text-[var(--muted)]">
                           {row.statusLabel}
                         </span>
                       </div>
@@ -4380,7 +4370,7 @@ export function CutCalculator({
                   ))}
                 </div>
 
-                <div className="mt-4 hidden overflow-x-auto border border-[color:var(--line)] bg-[var(--surface-strong)] md:block">
+                <div className="mt-4 hidden overflow-x-auto rounded-xl border border-[color:var(--line)] bg-[var(--surface-strong)] md:block">
                   <table className="min-w-full border-collapse text-left">
                     <thead>
                       <tr className="border-b border-[color:var(--line)] bg-[var(--surface-strong)]">
@@ -4471,7 +4461,7 @@ export function CutCalculator({
             <p className="text-[13px] font-semibold text-white/60">
               Ориентир по раскрою
             </p>
-            <p className="mt-2 font-[family-name:var(--font-unbounded)] text-[2rem] leading-none font-medium">
+            <p className="mt-2 text-[2.1rem] leading-none font-extrabold tracking-[-0.02em] tabular-nums">
               {formatPrice(Math.round(estimate.totalEstimate))}
             </p>
             <p className="mt-3 text-[13px] text-white/70">
@@ -4496,33 +4486,21 @@ export function CutCalculator({
             </p>
           </div>
 
-          <div className="mt-4 grid gap-2 sm:mt-5 sm:grid-cols-2 sm:gap-2.5 xl:grid-cols-1">
-            {summaryCards.map((card) => {
-              const Icon = card.icon;
-              return (
-                <div
-                  key={card.label}
-                  className="rounded-[14px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-3"
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="flex size-9 items-center justify-center rounded-full bg-[var(--surface)]">
-                      <Icon className="size-4 text-[var(--accent)]" />
-                    </span>
-                    <div>
-                      <p className="text-xs text-[var(--muted)]">
-                        {card.label}
-                      </p>
-                      <p className="mt-0.5 text-base font-semibold text-[var(--foreground)]">
-                        {card.value}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          <dl className="mt-4 grid grid-cols-2 gap-x-4 rounded-2xl border border-[color:var(--line)] bg-[var(--surface-strong)] px-4 py-1 sm:mt-5">
+            {summaryCards.map((card) => (
+              <div
+                key={card.label}
+                className="border-b border-[color:var(--line)] py-3 [&:nth-last-child(-n+2)]:border-b-0"
+              >
+                <dt className="text-xs text-[var(--muted)]">{card.label}</dt>
+                <dd className="mt-0.5 text-base font-semibold text-[var(--foreground)] tabular-nums">
+                  {card.value}
+                </dd>
+              </div>
+            ))}
+          </dl>
 
-          <div className="mt-4 space-y-2.5 border border-[color:var(--line-strong)]/10 bg-[var(--surface)] p-4 sm:mt-5">
+          <div className="mt-4 space-y-2.5 rounded-2xl border border-[color:var(--line)] bg-[var(--surface-strong)] p-4 tabular-nums sm:mt-5">
             <div className="flex items-center justify-between gap-3 text-sm text-[var(--muted)]">
               <span>Материал</span>
               <span>{formatPrice(Math.round(estimate.materialCost))}</span>
