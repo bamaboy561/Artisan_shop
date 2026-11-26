@@ -22,14 +22,12 @@ export function FormBlock({
   return (
     <section
       className={cn(
-        "border border-[color:var(--line)] bg-[var(--surface-strong)] p-4 sm:p-6 lg:p-8",
+        "rounded-[20px] border border-[color:var(--line)] bg-[var(--surface-strong)] p-4 sm:p-6 lg:p-8",
         className,
       )}
     >
       <div className="max-w-2xl space-y-3">
-        <p className="text-xs text-[var(--accent)] font-medium">
-          {eyebrow}
-        </p>
+        <p className="text-xs font-medium text-[var(--accent)]">{eyebrow}</p>
         <h3 className="text-[1.35rem] leading-[1.08] font-semibold text-[var(--foreground)] sm:text-2xl">
           {title}
         </h3>

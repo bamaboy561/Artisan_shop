@@ -1,121 +1,131 @@
+/* Светлый герой в стиле главной (PR #139): кремовый фон, крупный
+   заголовок Manrope, цены строкой фактов, без капса и Unbounded. */
 .hero {
   position: relative;
   overflow: hidden;
-  background:
-    radial-gradient(
-      120% 90% at 100% 0%,
-      rgba(169, 71, 48, 0.34) 0%,
-      rgba(169, 71, 48, 0) 55%
-    ),
-    #1f2422;
-  color: #fff;
+  background: radial-gradient(
+    ellipse 70% 80% at 72% 40%,
+    #fbf8f2 0%,
+    #f4eee4 50%,
+    #efe8dc 100%
+  );
+  color: #1b1c19;
 }
 .heroTitle {
-  font-family: var(--font-unbounded), Arial, sans-serif;
-  font-weight: 600;
-  line-height: 1.08;
+  font-size: clamp(34px, 4.2vw, 60px);
+  font-weight: 500;
+  line-height: 1.02;
+  letter-spacing: -0.03em;
+  text-wrap: pretty;
 }
 .heroTitle em {
+  display: block;
   font-style: normal;
-  color: #f0a48f;
+  color: #c4532b;
 }
-.price {
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(6px);
+.heroLead {
+  margin-top: 20px;
+  max-width: 34rem;
+  font-size: 17px;
+  line-height: 1.6;
+  color: #6e6b63;
 }
-.price strong {
-  font-family: var(--font-unbounded), Arial, sans-serif;
+.primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 52px;
+  padding: 0 26px;
+  border-radius: 999px;
+  background: #c4532b;
+  color: #fff;
+  font-size: 15px;
   font-weight: 600;
+  transition: background-color 160ms ease;
 }
-.board {
-  filter: drop-shadow(0 30px 50px rgba(0, 0, 0, 0.45));
+.primary:hover {
+  background: #a8431f;
 }
-.part {
-  opacity: 0;
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: partIn 5.5s cubic-bezier(0.2, 0.8, 0.2, 1) infinite;
+.textLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding-bottom: 2px;
+  border-bottom: 1px solid #1b1c1959;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1b1c19;
+  transition: border-color 160ms ease;
 }
-.cut {
-  stroke-dasharray: 600;
-  stroke-dashoffset: 600;
-  animation: cutLine 5.5s ease-in-out infinite;
+.textLink:hover {
+  border-bottom-color: #1b1c19;
 }
-.result {
-  opacity: 0;
-  animation: resultIn 5.5s ease-out infinite;
+.facts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-top: 1px solid #e3ddd2;
 }
-@keyframes partIn {
-  0% {
-    opacity: 0;
-    transform: scale(0.86);
+.facts li {
+  padding: 22px 20px 4px 0;
+}
+.facts strong {
+  display: block;
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.facts small,
+.facts del {
+  font-family: var(--font-ibm-plex-mono), ui-monospace, monospace;
+  font-size: 13px;
+  font-weight: 400;
+}
+.facts del {
+  margin-left: 6px;
+  color: #6e6b63;
+}
+.facts span {
+  display: block;
+  margin-top: 6px;
+  font-size: 13px;
+  color: #6e6b63;
+}
+@media (max-width: 760px) {
+  .facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  9%,
-  88% {
-    opacity: 1;
-    transform: scale(1);
+  .facts li {
+    padding-top: 16px;
   }
-  100% {
-    opacity: 0;
-    transform: scale(1);
+  .facts strong {
+    font-size: 21px;
   }
-}
-@keyframes cutLine {
-  0% {
-    stroke-dashoffset: 600;
-  }
-  22%,
-  88% {
-    stroke-dashoffset: 0;
-    opacity: 1;
-  }
-  100% {
-    stroke-dashoffset: 0;
-    opacity: 0;
+  .primary {
+    width: 100%;
   }
 }
-@keyframes resultIn {
-  0%,
-  34% {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  44%,
-  88% {
-    opacity: 1;
-    transform: translateY(0);
-  }
-  100% {
-    opacity: 0;
-  }
+.visual {
+  width: 100%;
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 24px 0 0;
 }
-.step {
-  border: 1px solid #e1e5e1;
-  background: #fff;
-  transition:
-    transform 200ms ease,
-    box-shadow 200ms ease,
-    border-color 200ms ease;
+.caption {
+  margin-top: 64px;
+  font-family: var(--font-ibm-plex-mono), ui-monospace, monospace;
+  font-size: 12px;
+  color: #6e6b63;
+  text-align: center;
 }
-.step:hover {
-  transform: translateY(-3px);
-  border-color: #a94730;
-  box-shadow: 0 18px 40px rgba(37, 43, 41, 0.08);
-}
-.stepNumber {
-  font-family: var(--font-unbounded), Arial, sans-serif;
-  color: #a94730;
-}
-@media (prefers-reduced-motion: reduce) {
-  .part,
-  .cut,
-  .result {
-    animation: none;
-    opacity: 1;
-    stroke-dashoffset: 0;
+@media (max-width: 760px) {
+  .visual {
+    padding: 0 6%;
   }
-  .step {
-    transition: none;
+  .caption {
+    margin-top: 28px;
   }
 }

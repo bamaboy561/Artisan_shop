@@ -83,7 +83,7 @@ export default async function AboutPage() {
             </h2>
           </div>
 
-          <div className="grid gap-0 border border-[color:var(--line)] bg-[var(--surface-strong)]">
+          <div className="grid gap-0 overflow-hidden rounded-[20px] border border-[color:var(--line)] bg-[var(--surface-strong)]">
             {principles.map((item, index) => (
               <div
                 key={item.title}
@@ -129,7 +129,7 @@ export default async function AboutPage() {
       </section>
 
       <section className="px-5 py-10 sm:px-8 lg:px-10">
-        <div className="mx-auto flex max-w-[1500px] flex-col gap-5 border border-[color:var(--line)] bg-[var(--foreground)] p-6 text-[var(--background)] sm:p-8 lg:flex-row lg:items-end lg:justify-between">
+        <div className="mx-auto flex max-w-[1500px] flex-col gap-5 rounded-[20px] border border-[color:var(--line)] bg-[#1f2b25] p-6 text-white sm:p-8 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-[34rem]">
             <p className="font-mono text-[10px] tracking-[0.22em] text-white/50 uppercase">
               Далее
@@ -141,13 +141,13 @@ export default async function AboutPage() {
           <div className="flex flex-wrap gap-3">
             <Link
               href="/catalog"
-              className="inline-flex h-11 items-center border border-white/42 px-8 font-mono text-[11px] tracking-[0.14em] text-white uppercase transition hover:bg-[var(--surface-strong)] hover:text-black"
+              className="inline-flex h-11 items-center rounded-full border border-white/42 px-8 font-mono text-[11px] tracking-[0.14em] text-white uppercase transition hover:bg-[var(--surface-strong)] hover:text-black"
             >
               Каталог
             </Link>
             <Link
               href="/calculator"
-              className="inline-flex h-11 items-center border border-white/24 px-8 font-mono text-[11px] tracking-[0.14em] text-white uppercase transition hover:bg-[var(--surface-strong)] hover:text-black"
+              className="inline-flex h-11 items-center rounded-full border border-white/24 px-8 font-mono text-[11px] tracking-[0.14em] text-white uppercase transition hover:bg-[var(--surface-strong)] hover:text-black"
             >
               Распил
             </Link>

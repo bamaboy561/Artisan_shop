@@ -1,12 +1,11 @@
 import type { Metadata } from "next";
 
-import { ProductImage } from "@/components/catalog/product-image";
+import Image from "next/image";
+import { ArrowDown, Drill, Ruler, Scissors } from "lucide-react";
+
 import { ButtonLink } from "@/components/ui/button-link";
 import { ServiceRequestForm } from "@/components/services/service-request-form";
-import {
-  getPublicProductsByBrand,
-  getPublicProductsByCategory,
-} from "@/lib/server/catalog-public";
+import { getSiteCuttingPrices } from "@/lib/server/cutting-pricing";
 import { createSeoMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = createSeoMetadata({
@@ -16,160 +15,183 @@ export const metadata: Metadata = createSeoMetadata({
   path: "/services",
 });
 
-const serviceHighlights = [
+const services = [
   {
-    name: "Распил по файлу",
-    detail: "PDF, Excel и чертежи.",
+    icon: Scissors,
+    name: "Распил",
+    detail:
+      "Форматно-раскроечные HOMAG и ALTENDORF. Карту раскроя покажем до запуска.",
   },
   {
+    icon: Ruler,
     name: "Кромление",
-    detail: "Кромка 1 мм и подготовка заказа.",
+    detail: "Кромка 1 мм на PUR-клей: шов тоньше и не боится влаги.",
   },
   {
-    name: "Предрасчет",
-    detail: "Онлайн-калькулятор перед заявкой.",
+    icon: Drill,
+    name: "Присадка",
+    detail: "Отверстия под петли, конфирматы и полкодержатели по вашему файлу.",
   },
 ];
 
 const workflowSteps = [
   {
-    step: "01",
-    title: "Передайте файл",
-    description: "Материал, формат и комментарии к заказу.",
+    title: "Пришлите детали",
+    description:
+      "Список размеров, файл Базиса, Excel или фото листа с размерами.",
   },
   {
-    step: "02",
-    title: "Уточним расчет",
-    description: "Проверим параметры и подтвердим стоимость.",
+    title: "Менеджер подтвердит расчёт",
+    description: "Проверим материал и раскрой, назовём точную сумму и срок.",
   },
   {
-    step: "03",
-    title: "Запустим в работу",
-    description: "После подтверждения передаем заказ в производство.",
+    title: "Заберите готовые детали",
+    description: "На Кулатова 3/1. Оплата при получении, предоплата не нужна.",
   },
 ];
 
-const fallbackServiceImage =
-  "https://swisskrono.ru/ldsp_files/4080_347346_82c7bd10.jpg";
+function formatPrice(value: number) {
+  return new Intl.NumberFormat("ru-RU").format(value);
+}
 
 export default async function ServicesPage() {
-  const [extravertProducts, mdfProducts] = await Promise.all([
-    getPublicProductsByBrand("extravert"),
-    getPublicProductsByCategory("mdf-panels"),
-  ]);
-  const heroImage =
-    extravertProducts[3]?.image ||
-    mdfProducts[0]?.image ||
-    fallbackServiceImage;
+  const prices = await getSiteCuttingPrices();
+  const facts = [
+    {
+      value: formatPrice(prices.sheet),
+      unit: "сом/лист",
+      regular: prices.sheetRegular,
+      label: "Распил через сайт",
+    },
+    {
+      value: formatPrice(prices.edge),
+      unit: "сом/м",
+      regular: prices.edgeRegular,
+      label: "Кромление",
+    },
+    { value: "0 сом", label: "Предоплата" },
+    { value: "09:00–17:00", label: "Пн–Пт, Кулатова 3/1" },
+  ];
 
   return (
-    <div className="bg-[var(--surface)]">
-      <section className="relative overflow-hidden bg-[var(--foreground)] text-[var(--background)]">
-        <ProductImage
-          src={heroImage}
-          alt="Услуги распила Artisan"
-          fill
-          priority
-          fallbackLabel="Услуги Artisan"
-          className="object-cover opacity-30"
-          sizes="100vw"
-        />
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.18)_0%,rgba(0,0,0,0.46)_52%,rgba(0,0,0,0.82)_100%)]" />
-        <div className="relative mx-auto flex min-h-[34svh] max-w-[1500px] flex-col justify-end px-4 pt-16 pb-6 sm:min-h-[42svh] sm:px-8 sm:pt-20 sm:pb-8 lg:px-10">
-          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
-            <div className="max-w-[36rem]">
-              <p className="font-mono text-[10px] tracking-[0.22em] text-white/58 uppercase">
-                Услуги
-              </p>
-              <h1 className="mt-3 text-[1.9rem] leading-[0.98] font-semibold tracking-[-0.045em] text-balance sm:text-[3rem]">
-                Распил, кромление и подготовка заказа.
-              </h1>
-              <p className="mt-3 max-w-[32rem] text-sm leading-5 text-white/72 sm:mt-4 sm:leading-6">
-                Передайте файл и параметры. Остальное уточним с менеджером.
-              </p>
-            </div>
-
-            <div className="flex flex-col gap-2.5 sm:flex-row sm:flex-wrap lg:justify-end">
+    <div>
+      <section className="bg-[radial-gradient(ellipse_70%_80%_at_72%_40%,#fbf8f2_0%,#f4eee4_50%,#efe8dc_100%)]">
+        <div className="mx-auto grid max-w-[1500px] gap-8 px-4 pt-10 pb-8 sm:px-8 sm:pt-16 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)] lg:items-center lg:gap-14 lg:px-10 lg:pt-20 lg:pb-14">
+          <div>
+            <h1 className="max-w-[17ch] text-[clamp(34px,4.4vw,62px)] leading-[1.02] font-medium tracking-[-0.03em] text-balance text-[#1b1c19]">
+              Распил, кромление и присадка в своём цехе
+            </h1>
+            <p className="mt-5 max-w-[34rem] text-[17px] leading-[1.6] text-[#6e6b63]">
+              Пришлите размеры деталей или файл из Базиса. Посчитаем раскрой,
+              распилим, закромим и подготовим к сборке.
+            </p>
+            <div className="mt-7 flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
               <ButtonLink
                 href="/calculator"
-                variant="secondary"
-                className="w-full border-white/42 text-white hover:bg-[var(--surface-strong)] hover:text-black sm:w-auto"
-              >
-                Калькулятор
-              </ButtonLink>
-              <ButtonLink
-                href="#service-request"
                 variant="contrast"
-                className="w-full sm:w-auto"
+                className="min-h-[52px] w-full px-6 sm:w-auto"
               >
-                Оставить заявку
+                Рассчитать распил
               </ButtonLink>
+              <a
+                href="#service-request"
+                className="inline-flex items-center gap-1.5 self-start border-b border-[#1b1c1959] pb-0.5 text-sm font-semibold text-[#1b1c19] transition hover:border-[#1b1c19]"
+              >
+                Отправить файл менеджеру <ArrowDown className="size-3.5" />
+              </a>
             </div>
           </div>
-        </div>
-      </section>
-
-      <section className="px-4 py-6 sm:px-8 sm:py-10 lg:px-10">
-        <div className="mx-auto grid max-w-[1500px] gap-4 md:grid-cols-3 md:gap-5">
-          {serviceHighlights.map((service, index) => (
-            <article
-              key={service.name}
-              className="view-rise border border-[color:var(--line)] bg-[var(--surface-strong)] p-4 sm:p-5"
-              style={{ animationDelay: `${index * 80}ms` }}
-            >
-              <p className="font-mono text-[10px] tracking-[0.16em] text-[var(--accent)] uppercase">
-                0{index + 1}
-              </p>
-              <h2 className="mt-3 text-base font-semibold text-[var(--foreground)] sm:text-lg">
-                {service.name}
-              </h2>
-              <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-                {service.detail}
-              </p>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="border-y border-[color:var(--line)] bg-[var(--surface-strong)] px-4 py-6 sm:px-8 sm:py-10 lg:px-10">
-        <div className="mx-auto grid max-w-[1500px] gap-6 lg:grid-cols-[0.82fr_1.18fr] lg:items-start lg:gap-8">
-          <div>
-            <p className="font-mono text-[10px] tracking-[0.22em] text-[var(--accent)] uppercase">
-              Процесс
-            </p>
-            <h2 className="mt-3 text-[1.55rem] leading-tight font-semibold tracking-[-0.04em] text-[var(--foreground)] sm:text-[1.9rem]">
-              От файла до запуска.
-            </h2>
+          <div className="relative aspect-[4/3] overflow-hidden rounded-[20px] lg:aspect-[5/4]">
+            <Image
+              src="/storefront/interior-2.webp"
+              alt="Мебель из ЛДСП после распила и кромления"
+              fill
+              priority
+              unoptimized
+              sizes="(max-width: 1024px) 100vw, 45vw"
+              className="object-cover"
+            />
           </div>
+        </div>
+        <ul className="mx-auto grid max-w-[1500px] grid-cols-2 border-t border-[#e3ddd2] px-4 sm:px-8 md:grid-cols-4 lg:px-10">
+          {facts.map((fact) => (
+            <li key={fact.label} className="py-5 pr-5">
+              <strong className="block text-[21px] leading-[1.1] font-semibold tracking-[-0.01em] whitespace-nowrap tabular-nums sm:text-[26px]">
+                {fact.value}
+                {fact.unit ? (
+                  <small className="font-mono text-[13px] font-normal">
+                    {" "}
+                    {fact.unit}
+                  </small>
+                ) : null}
+                {fact.regular ? (
+                  <del className="ml-1.5 font-mono text-[13px] font-normal text-[#6e6b63]">
+                    {fact.regular}
+                  </del>
+                ) : null}
+              </strong>
+              <span className="mt-1.5 block text-[13px] text-[#6e6b63]">
+                {fact.label}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </section>
 
-          <div className="grid gap-0 border border-[color:var(--line)]">
-            {workflowSteps.map((step) => (
-              <div
-                key={step.step}
-                className="grid gap-3 border-b border-[color:var(--line)] bg-[var(--surface)] p-4 last:border-b-0 sm:grid-cols-[76px_minmax(0,1fr)] sm:gap-4 sm:p-5"
+      <section className="mx-auto max-w-[1500px] px-4 py-12 sm:px-8 sm:py-16 lg:px-10">
+        <h2 className="text-[26px] leading-tight font-medium tracking-[-0.02em] sm:text-[32px]">
+          Что делаем с вашими деталями
+        </h2>
+        <div className="mt-7 grid gap-x-10 gap-y-8 md:grid-cols-3">
+          {services.map((service) => {
+            const Icon = service.icon;
+            return (
+              <article
+                key={service.name}
+                className="border-t border-[#1b1c19] pt-5"
               >
-                <p className="font-mono text-[10px] tracking-[0.18em] text-[var(--accent)] uppercase">
-                  {step.step}
+                <Icon className="size-6 text-[#c4532b]" strokeWidth={1.6} />
+                <h3 className="mt-4 text-lg font-semibold">{service.name}</h3>
+                <p className="mt-2 max-w-[30ch] text-[15px] leading-6 text-[#6e6b63]">
+                  {service.detail}
                 </p>
+              </article>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="bg-[#1f2b25] text-white">
+        <div className="mx-auto grid max-w-[1500px] gap-8 px-4 py-12 sm:px-8 sm:py-16 lg:grid-cols-[0.8fr_1.2fr] lg:gap-16 lg:px-10">
+          <h2 className="text-[26px] leading-tight font-medium tracking-[-0.02em] text-balance sm:text-[38px]">
+            От размеров до готовых деталей за три шага
+          </h2>
+          <ol className="grid gap-0">
+            {workflowSteps.map((step, index) => (
+              <li
+                key={step.title}
+                className="grid grid-cols-[44px_minmax(0,1fr)] gap-4 border-b border-white/15 py-5 first:pt-0 last:border-b-0"
+              >
+                <span className="text-[26px] leading-none font-semibold text-[#f0a48f] tabular-nums">
+                  {index + 1}
+                </span>
                 <div>
-                  <h3 className="font-semibold text-[var(--foreground)]">
-                    {step.title}
-                  </h3>
-                  <p className="mt-2 text-sm leading-6 text-[var(--muted)] sm:leading-7">
+                  <h3 className="text-lg font-semibold">{step.title}</h3>
+                  <p className="mt-1.5 text-[15px] leading-6 text-white/70">
                     {step.description}
                   </p>
                 </div>
-              </div>
+              </li>
             ))}
-          </div>
+          </ol>
         </div>
       </section>
 
       <section
         id="service-request"
-        className="px-4 py-6 sm:px-8 sm:py-10 lg:px-10"
+        className="scroll-mt-24 px-4 py-12 sm:px-8 sm:py-16 lg:px-10"
       >
-        <div className="mx-auto max-w-[1500px]">
+        <div className="mx-auto max-w-[1100px]">
           <ServiceRequestForm />
         </div>
       </section>

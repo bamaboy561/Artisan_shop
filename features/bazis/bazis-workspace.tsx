@@ -393,7 +393,7 @@ export function BazisWorkspace({
 
   return (
     <div className="grid gap-5">
-      <label className="flex cursor-pointer flex-col items-center gap-2 border-2 border-dashed border-[color:var(--line)] bg-[var(--surface-strong)] px-4 py-8 text-center transition hover:border-[color:var(--accent)]">
+      <label className="flex cursor-pointer flex-col items-center gap-2 rounded-[20px] border-2 border-dashed border-[color:var(--line)] bg-[var(--surface-strong)] px-4 py-8 text-center transition hover:border-[color:var(--accent)]">
         <Upload className="size-6 text-[var(--accent)]" />
         <span className="text-base font-semibold text-[var(--foreground)]">
           {loading
