@@ -1,27 +1,110 @@
-import { ArrowDown, LayoutGrid, Paperclip } from "lucide-react";
+import { ArrowDown, Paperclip } from "lucide-react";
 
 import type { SiteCuttingPrices } from "@/features/cutting/site-prices";
 
 import s from "./calculator-hero.module.css";
+import {
+  SheetBoard,
+  walnutDecor,
+  type BoardCut,
+  type BoardPiece,
+} from "./sheet-board";
 
-// Детали на листе 2800 × 2070 в масштабе иллюстрации: x, y, ширина, высота.
-const parts = [
-  { x: 24, y: 24, w: 214, h: 150, label: "720 × 560", tone: "#c9a27c" },
-  { x: 244, y: 24, w: 214, h: 150, label: "720 × 560", tone: "#c9a27c" },
-  { x: 24, y: 180, w: 150, h: 176, label: "500 × 600", tone: "#b98b62" },
-  { x: 180, y: 180, w: 150, h: 176, label: "500 × 600", tone: "#b98b62" },
-  { x: 336, y: 180, w: 122, h: 86, label: "400 × 300", tone: "#d8b896" },
-  { x: 336, y: 272, w: 122, h: 84, label: "400 × 300", tone: "#d8b896" },
-  { x: 464, y: 24, w: 72, h: 242, label: "", tone: "#a97850" },
+// Пример с листа 2800 × 2070: шкаф 800 × 2000, детали в мм, пропил 4 мм.
+const demoPieces: BoardPiece[] = [
+  {
+    id: "b1",
+    x: 0,
+    y: 0,
+    width: 2000,
+    height: 560,
+    label: "2000 × 560",
+    edges: ["bottom"],
+  },
+  {
+    id: "b2",
+    x: 0,
+    y: 564,
+    width: 2000,
+    height: 560,
+    label: "2000 × 560",
+    edges: ["bottom"],
+  },
+  {
+    id: "t1",
+    x: 0,
+    y: 1128,
+    width: 800,
+    height: 560,
+    label: "800 × 560",
+    edges: ["bottom"],
+  },
+  {
+    id: "t2",
+    x: 804,
+    y: 1128,
+    width: 800,
+    height: 560,
+    label: "800 × 560",
+    edges: ["bottom"],
+  },
+  {
+    id: "f1",
+    x: 0,
+    y: 1692,
+    width: 716,
+    height: 370,
+    label: "716 × 370",
+    edges: ["top", "right", "bottom", "left"],
+  },
+  {
+    id: "f2",
+    x: 720,
+    y: 1692,
+    width: 716,
+    height: 370,
+    label: "716 × 370",
+    edges: ["top", "right", "bottom", "left"],
+  },
+  {
+    id: "s1",
+    x: 2004,
+    y: 0,
+    width: 764,
+    height: 540,
+    label: "764 × 540",
+    edges: ["bottom"],
+  },
+  {
+    id: "s2",
+    x: 2004,
+    y: 544,
+    width: 764,
+    height: 540,
+    label: "764 × 540",
+    edges: ["bottom"],
+  },
+  {
+    id: "s3",
+    x: 2004,
+    y: 1088,
+    width: 764,
+    height: 540,
+    label: "764 × 540",
+    edges: ["bottom"],
+  },
 ];
 
-const cuts = [
-  "M20 177 H461",
-  "M241 20 V177",
-  "M461 20 V360",
-  "M177 177 V360",
-  "M333 177 V360",
-  "M333 269 H461",
+const demoCuts: BoardCut[] = [
+  { id: "c1", x: 2002, y: 0, width: 4, height: 2070 },
+  { id: "c2", x: 0, y: 562, width: 2002, height: 4 },
+  { id: "c3", x: 0, y: 1126, width: 2002, height: 4 },
+  { id: "c4", x: 0, y: 1690, width: 2002, height: 4 },
+  { id: "c5", x: 2004, y: 542, width: 796, height: 4 },
+  { id: "c6", x: 2004, y: 1086, width: 796, height: 4 },
+  { id: "c7", x: 2004, y: 1630, width: 796, height: 4 },
+  { id: "c8", x: 802, y: 1128, width: 4, height: 562 },
+  { id: "c9", x: 718, y: 1692, width: 4, height: 378 },
 ];
 
 function formatPrice(value: number) {
@@ -67,98 +150,23 @@ export function CalculatorHero({ prices }: { prices: SiteCuttingPrices }) {
                 <Paperclip className="size-3.5" /> Файл Базиса, Excel или фото
               </a>
             </div>
-            <div className="mt-3 flex flex-wrap gap-x-6 gap-y-2">
-              <a href="#cabinet" className={s.textLink}>
-                <LayoutGrid className="size-3.5" /> Собрать шкаф по размерам
-              </a>
-              <a href="/bazis" className={s.textLink}>
-                Проект Базиса в 3D
-              </a>
-            </div>
           </div>
 
-          <div className="relative mx-auto hidden w-full max-w-[620px] sm:block">
-            <svg
-              viewBox="0 0 560 380"
-              role="img"
-              aria-label="Пример карты раскроя листа на детали"
-              className={`${s.board} h-auto w-full`}
-            >
-              <rect
-                x="20"
-                y="20"
-                width="520"
-                height="340"
-                rx="6"
-                fill="#efe6d8"
-              />
-              <rect
-                x="464"
-                y="272"
-                width="72"
-                height="84"
-                fill="none"
-                stroke="#b8ab97"
-                strokeDasharray="5 5"
-              />
-              <text
-                x="500"
-                y="318"
-                textAnchor="middle"
-                fontSize="10"
-                fill="#9a8d79"
-              >
-                остаток
-              </text>
-              {parts.map((part, index) => (
-                <g
-                  key={`${part.x}-${part.y}`}
-                  className={s.part}
-                  style={{ animationDelay: `${index * 0.18}s` }}
-                >
-                  <rect
-                    x={part.x}
-                    y={part.y}
-                    width={part.w}
-                    height={part.h}
-                    rx="3"
-                    fill={part.tone}
-                  />
-                  {part.label ? (
-                    <text
-                      x={part.x + part.w / 2}
-                      y={part.y + part.h / 2 + 4}
-                      textAnchor="middle"
-                      fontSize="12"
-                      fontWeight="600"
-                      fill="#3b2a1c"
-                    >
-                      {part.label}
-                    </text>
-                  ) : null}
-                </g>
-              ))}
-              {cuts.map((path, index) => (
-                <path
-                  key={path}
-                  d={path}
-                  className={s.cut}
-                  style={{ animationDelay: `${1.2 + index * 0.12}s` }}
-                  stroke="#a94730"
-                  strokeWidth="2.5"
-                  fill="none"
-                />
-              ))}
-            </svg>
-            <div
-              className={`${s.result} absolute right-3 -bottom-4 rounded-2xl bg-white px-4 py-3 text-[#1b1c19] shadow-[0_18px_40px_rgba(27,28,25,0.12)] sm:right-6`}
-            >
-              <p className="text-xs text-[#6e6b63]">Пример расчёта</p>
-              <p className="mt-0.5 text-sm font-semibold">
-                7 деталей · 1 лист · остаток 4%
-              </p>
-            </div>
-          </div>
+          <figure className={s.visual}>
+            <SheetBoard
+              tilt
+              sheetWidth={2800}
+              sheetHeight={2070}
+              pieces={demoPieces}
+              cuts={demoCuts}
+              decor={walnutDecor}
+              ariaLabel="Пример раскроя: лист 2800 на 2070, девять деталей шкафа"
+            />
+            <figcaption className={s.caption}>
+              Пример: шкаф 800 × 2000 — 9 деталей на одном листе 2800 × 2070,
+              остаток 15%
+            </figcaption>
+          </figure>
         </div>
         <ul
           className={`${s.facts} mx-auto max-w-[1600px] px-4 sm:px-8 lg:px-10`}

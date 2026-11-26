@@ -10,6 +10,7 @@ import {
 } from "react";
 
 import {
+  Check,
   FileDown,
   Layers3,
   LayoutPanelTop,
@@ -38,6 +39,7 @@ import {
   gridCellValue,
   type NumberColumn,
 } from "@/features/services/cut-table-input";
+import { LiveSheetCard } from "@/features/services/live-sheet-card";
 import {
   CutListImportPanel,
   type ImportMaterialMatching,
@@ -299,6 +301,14 @@ const cutMapPalette = [
 
 type MaterialOption = CalculatorMaterialDto;
 type SheetFormat = CalculatorSheetFormatDto;
+
+function pluralSheets(count: number) {
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+  if (mod10 === 1 && mod100 !== 11) return "лист";
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return "листа";
+  return "листов";
+}
 type CalculatorPreset = CalculatorPresetDto;
 type CalculatorPresetId = string;
 type MaterialPresetScope = "all" | "cart";
@@ -3202,29 +3212,44 @@ export function CutCalculator({
         <div className="p-3 sm:p-6 lg:p-7 xl:p-8">
           <nav
             aria-label="Шаги расчёта"
-            className="sticky top-0 z-20 -mx-3 bg-[var(--surface-strong)]/95 px-3 py-2 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-7 lg:px-7 xl:-mx-8 xl:px-8"
+            className="sticky top-0 z-20 -mx-3 bg-[var(--surface-strong)] px-3 pt-2 sm:-mx-6 sm:px-6 lg:-mx-7 lg:px-7 xl:-mx-8 xl:px-8"
           >
-            <ol className="grid grid-cols-4 gap-1.5 rounded-2xl bg-[var(--surface)] p-1.5">
-              {calculatorSteps.map((item) => (
-                <li key={item.step}>
-                  <button
-                    type="button"
-                    onClick={() => goToStep(item.step)}
-                    aria-current={step === item.step ? "step" : undefined}
-                    className={cn(
-                      "flex min-h-11 w-full flex-col items-center justify-center gap-0 rounded-xl px-1 text-[12px] leading-tight transition sm:flex-row sm:justify-start sm:gap-1.5 sm:px-3.5 sm:text-sm",
-                      step === item.step
-                        ? "bg-[var(--line)] font-semibold text-[var(--foreground)]"
-                        : "text-[var(--muted)] hover:text-[var(--foreground)]",
-                    )}
-                  >
-                    <span className="font-[family-name:var(--font-ibm-plex-mono)] text-[11px] sm:text-[12px]">
-                      {item.step}
-                    </span>
-                    <span>{item.label}</span>
-                  </button>
-                </li>
-              ))}
+            <ol className="grid grid-cols-4 border-b border-[color:var(--line)]">
+              {calculatorSteps.map((item) => {
+                const current = step === item.step;
+                const done = step > item.step;
+                return (
+                  <li key={item.step}>
+                    <button
+                      type="button"
+                      onClick={() => goToStep(item.step)}
+                      aria-current={current ? "step" : undefined}
+                      className={cn(
+                        "relative flex min-h-12 w-full flex-col items-center justify-center gap-1 pb-2 text-[12px] leading-tight transition-colors sm:flex-row sm:justify-start sm:gap-2.5 sm:pb-0 sm:text-[15px]",
+                        current
+                          ? "font-semibold text-[var(--foreground)] after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:bg-[var(--accent)]"
+                          : done
+                            ? "text-[var(--foreground)]"
+                            : "text-[var(--muted)] hover:text-[var(--foreground)]",
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "grid size-6 shrink-0 place-items-center rounded-full text-[12px] font-semibold tabular-nums",
+                          current
+                            ? "bg-[var(--accent)] text-[var(--accent-ink)]"
+                            : done
+                              ? "bg-[var(--foreground)] text-[var(--background)]"
+                              : "border border-[color:var(--line-strong)]",
+                        )}
+                      >
+                        {done ? <Check className="size-3.5" /> : item.step}
+                      </span>
+                      <span>{item.label}</span>
+                    </button>
+                  </li>
+                );
+              })}
             </ol>
           </nav>
 
@@ -3455,65 +3480,23 @@ export function CutCalculator({
             </div>
           </div>
 
-          <div className="mt-4 rounded-2xl bg-[#1f2b25] p-4 text-white xl:hidden">
-            <div className="flex items-end justify-between gap-3">
-              <div>
-                <p className="text-[13px] font-semibold text-white/60">
-                  Ориентир по раскрою
-                </p>
-                <p className="mt-1 text-[1.7rem] leading-none font-extrabold tabular-nums">
-                  {formatPrice(Math.round(estimate.totalEstimate))}
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="text-[1.35rem] leading-none font-extrabold text-[#f0a48f] tabular-nums">
-                  {estimate.sheetCount}
-                </p>
-                <p className="mt-1 text-[11px] text-white/55">
-                  {estimate.sheetCount === 1 ? "лист" : "листа"}
-                </p>
-              </div>
-            </div>
-            <div className="mt-3 grid grid-cols-3 gap-2 border-t border-white/10 pt-3 text-[12px]">
-              <div>
-                <p className="text-white/55">Деталей</p>
-                <p className="mt-0.5 font-semibold">{cutMap.placedPieces}</p>
-              </div>
-              <div>
-                <p className="text-white/55">КИМ</p>
-                <p className="mt-0.5 font-semibold">
-                  {(cutMap.utilization * 100).toFixed(0)}%
-                </p>
-              </div>
-              <div>
-                <p className="text-white/55">Кромка</p>
-                <p className="mt-0.5 font-semibold">
-                  {calculation.totalEdgeMeters.toFixed(1)} м
-                </p>
-              </div>
-            </div>
+          <div className="mt-4 xl:hidden">
+            <LiveSheetCard
+              compact
+              sheetWidth={sheet.width}
+              sheetHeight={sheet.height}
+              sheets={cutMap.sheets}
+              materialLabel={material.label}
+              total={formatPrice(Math.round(estimate.totalEstimate))}
+              meta={`${estimate.sheetCount} ${pluralSheets(estimate.sheetCount)} · ${cutMap.placedPieces} дет. · кромка ${calculation.totalEdgeMeters.toFixed(1)} м`}
+              onSend={() => goToStep(4)}
+            />
           </div>
 
           <div
             id="cut-import"
             className={step === 2 ? "scroll-mt-24" : "hidden"}
           >
-            {cuttingSiteIncentive ? (
-              <div className="mt-3.5 flex items-center gap-3 rounded-2xl border border-[#c4532b]/25 bg-[#fbefe9] px-4 py-3 text-[var(--foreground)] sm:mt-5">
-                <span className="shrink-0 text-lg font-extrabold text-[var(--accent)] tabular-nums sm:text-xl">
-                  {cuttingSiteIncentive.badge}
-                </span>
-                <div className="min-w-0">
-                  <p className="text-[13px] leading-5 font-semibold sm:text-sm">
-                    {cuttingSiteIncentive.title}
-                  </p>
-                  <p className="hidden text-[12px] leading-4.5 text-[var(--muted)] sm:block">
-                    {cuttingSiteIncentive.text}
-                  </p>
-                </div>
-              </div>
-            ) : null}
-
             <CutListImportPanel
               onImport={importDetails}
               materialMatching={
@@ -3720,23 +3703,48 @@ export function CutCalculator({
               />
             ) : null}
 
-            <div className="mt-4 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3">
+            <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:gap-6">
               <Button
                 variant="accent"
                 onClick={addRow}
-                className="col-span-2 w-full sm:w-auto"
+                className="w-full sm:w-auto"
               >
                 <Plus className="size-4" />
                 Добавить деталь
               </Button>
-              <Button
-                variant="secondary"
-                onClick={() => setCabinetOpen(true)}
-                className="col-span-2 w-full sm:w-auto"
-              >
-                <LayoutPanelTop className="size-4" />
-                Конструктор шкафа
-              </Button>
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-3 text-sm">
+                <button
+                  type="button"
+                  onClick={() => setCabinetOpen(true)}
+                  className="inline-flex items-center gap-1.5 border-b border-[color:var(--line-strong)] pb-0.5 font-medium text-[var(--foreground)] transition-colors hover:border-[color:var(--foreground)] disabled:border-transparent disabled:text-[var(--muted)]"
+                >
+                  <LayoutPanelTop className="size-4" />
+                  Собрать шкаф по размерам
+                </button>
+                <button
+                  type="button"
+                  onClick={exportToGibLab}
+                  disabled={
+                    exportableRows.length === 0 || lockedRowIds.size > 0
+                  }
+                  title={
+                    lockedRowIds.size > 0
+                      ? "Файл с мебелью из конструктора получит менеджер вместе с заявкой"
+                      : undefined
+                  }
+                  className="inline-flex items-center gap-1.5 border-b border-[color:var(--line-strong)] pb-0.5 font-medium text-[var(--foreground)] transition-colors hover:border-[color:var(--foreground)] disabled:border-transparent disabled:text-[var(--muted)]"
+                >
+                  <FileDown className="size-4" />
+                  Файл для GibLab
+                </button>
+                <button
+                  type="button"
+                  onClick={resetCalculator}
+                  className="text-[var(--muted)] transition-colors hover:text-[var(--foreground)]"
+                >
+                  Очистить
+                </button>
+              </div>
               {cabinetOpen ? (
                 <CabinetBuilderDialog
                   thickness={material.thicknessMm ?? 16}
@@ -3759,27 +3767,6 @@ export function CutCalculator({
                   }}
                 />
               ) : null}
-              <Button
-                variant="secondary"
-                onClick={exportToGibLab}
-                disabled={exportableRows.length === 0 || lockedRowIds.size > 0}
-                title={
-                  lockedRowIds.size > 0
-                    ? "Файл с мебелью из конструктора получит менеджер вместе с заявкой"
-                    : undefined
-                }
-                className="w-full px-3 text-[13px] whitespace-nowrap sm:w-auto sm:px-5 sm:text-sm"
-              >
-                <FileDown className="size-4" />
-                Экспорт GibLab
-              </Button>
-              <Button
-                variant="secondary"
-                onClick={resetCalculator}
-                className="w-full px-3 text-[13px] whitespace-nowrap sm:w-auto sm:px-5 sm:text-sm"
-              >
-                Сбросить расчет
-              </Button>
             </div>
             <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-[color:var(--line)] pt-4">
               <button
@@ -4457,48 +4444,37 @@ export function CutCalculator({
         </div>
 
         <aside className="hidden border-t border-[color:var(--line-strong)]/10 bg-[var(--surface)] p-4 text-[var(--foreground)] sm:p-5 lg:p-6 xl:sticky xl:top-20 xl:block xl:self-start xl:border-t-0 xl:border-l xl:border-[color:var(--line-strong)]/10">
-          <div className="rounded-2xl bg-[#1f2b25] p-5 text-white shadow-[0_18px_40px_rgba(21,20,17,0.25)]">
-            <p className="text-[13px] font-semibold text-white/60">
-              Ориентир по раскрою
-            </p>
-            <p className="mt-2 text-[2.1rem] leading-none font-extrabold tracking-[-0.02em] tabular-nums">
-              {formatPrice(Math.round(estimate.totalEstimate))}
-            </p>
-            <p className="mt-3 text-[13px] text-white/70">
-              <span className="font-semibold text-[var(--accent)]">
-                {estimate.sheetCount} лист.
-              </span>{" "}
-              · {cutMap.placedPieces} дет. · КИМ{" "}
-              {(cutMap.utilization * 100).toFixed(0)}%
-            </p>
-            <a
-              href="#cut-request-form"
-              onClick={(event) => {
-                event.preventDefault();
-                goToStep(4);
-              }}
-              className="mt-4 flex h-11 items-center justify-center rounded-full bg-[var(--accent)] text-sm font-semibold text-[var(--accent-ink)] transition hover:bg-[var(--accent-strong)]"
-            >
-              Отправить заявку
-            </a>
-            <p className="mt-2 text-center text-[11px] text-white/55">
-              Точную сумму подтвердит менеджер
-            </p>
-          </div>
+          <LiveSheetCard
+            sheetWidth={sheet.width}
+            sheetHeight={sheet.height}
+            sheets={cutMap.sheets}
+            materialLabel={material.label}
+            total={formatPrice(Math.round(estimate.totalEstimate))}
+            meta={`${estimate.sheetCount} ${pluralSheets(estimate.sheetCount)} · ${cutMap.placedPieces} дет. · кромка ${calculation.totalEdgeMeters.toFixed(1)} м`}
+            onSend={() => goToStep(4)}
+          />
 
-          <dl className="mt-4 grid grid-cols-2 gap-x-4 rounded-2xl border border-[color:var(--line)] bg-[var(--surface-strong)] px-4 py-1 sm:mt-5">
-            {summaryCards.map((card) => (
-              <div
-                key={card.label}
-                className="border-b border-[color:var(--line)] py-3 [&:nth-last-child(-n+2)]:border-b-0"
-              >
-                <dt className="text-xs text-[var(--muted)]">{card.label}</dt>
-                <dd className="mt-0.5 text-base font-semibold text-[var(--foreground)] tabular-nums">
-                  {card.value}
-                </dd>
-              </div>
-            ))}
-          </dl>
+          <details className="group mt-4 rounded-2xl border border-[color:var(--line)] bg-[var(--surface-strong)] px-4">
+            <summary className="flex cursor-pointer list-none items-center justify-between py-3 text-sm font-medium text-[var(--foreground)]">
+              Подробнее о раскрое
+              <span className="text-[var(--muted)] transition-transform group-open:rotate-45">
+                +
+              </span>
+            </summary>
+            <dl className="grid grid-cols-2 gap-x-4 border-t border-[color:var(--line)]">
+              {summaryCards.map((card) => (
+                <div
+                  key={card.label}
+                  className="border-b border-[color:var(--line)] py-3 [&:nth-last-child(-n+2)]:border-b-0"
+                >
+                  <dt className="text-xs text-[var(--muted)]">{card.label}</dt>
+                  <dd className="mt-0.5 text-base font-semibold text-[var(--foreground)] tabular-nums">
+                    {card.value}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </details>
 
           <div className="mt-4 space-y-2.5 rounded-2xl border border-[color:var(--line)] bg-[var(--surface-strong)] p-4 tabular-nums sm:mt-5">
             <div className="flex items-center justify-between gap-3 text-sm text-[var(--muted)]">

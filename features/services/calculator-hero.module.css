@@ -108,74 +108,24 @@
     width: 100%;
   }
 }
-.board {
-  filter: drop-shadow(0 30px 50px rgba(27, 28, 25, 0.16));
+.visual {
+  width: 100%;
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 24px 0 0;
 }
-.part {
-  opacity: 0;
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: partIn 5.5s cubic-bezier(0.2, 0.8, 0.2, 1) infinite;
+.caption {
+  margin-top: 64px;
+  font-family: var(--font-ibm-plex-mono), ui-monospace, monospace;
+  font-size: 12px;
+  color: #6e6b63;
+  text-align: center;
 }
-.cut {
-  stroke-dasharray: 600;
-  stroke-dashoffset: 600;
-  animation: cutLine 5.5s ease-in-out infinite;
-}
-.result {
-  opacity: 0;
-  animation: resultIn 5.5s ease-out infinite;
-}
-@keyframes partIn {
-  0% {
-    opacity: 0;
-    transform: scale(0.86);
+@media (max-width: 760px) {
+  .visual {
+    padding: 0 6%;
   }
-  9%,
-  88% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  100% {
-    opacity: 0;
-    transform: scale(1);
-  }
-}
-@keyframes cutLine {
-  0% {
-    stroke-dashoffset: 600;
-  }
-  22%,
-  88% {
-    stroke-dashoffset: 0;
-    opacity: 1;
-  }
-  100% {
-    stroke-dashoffset: 0;
-    opacity: 0;
-  }
-}
-@keyframes resultIn {
-  0%,
-  34% {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  44%,
-  88% {
-    opacity: 1;
-    transform: translateY(0);
-  }
-  100% {
-    opacity: 0;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .part,
-  .cut,
-  .result {
-    animation: none;
-    opacity: 1;
-    stroke-dashoffset: 0;
+  .caption {
+    margin-top: 28px;
   }
 }

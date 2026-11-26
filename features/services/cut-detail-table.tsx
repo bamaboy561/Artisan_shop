@@ -568,18 +568,22 @@ export function CutDetailTable({
         </p>
       ) : null}
       {onDrilling ? (
-        <p className="mt-2 text-[13px] leading-5 text-[var(--foreground)]">
-          <span className="font-semibold">Нужны отверстия под фурнитуру?</span>{" "}
-          Нажмите «+ Присадка» у детали и выберите, что это за деталь: мы
-          поставим обычные отверстия, цена посчитается сразу.
+        <p className="mt-3 text-[13px] leading-5 text-[var(--muted)]">
+          Отверстия под петли и полки — кнопка «+ Присадка» у детали, цена
+          посчитается сразу.
         </p>
       ) : null}
-      <p className="mt-2 hidden text-[12px] leading-5 text-[var(--muted)] sm:block">
-        Быстрый ввод: Enter — следующее поле, на последнем поле Enter добавляет
-        деталь. Стрелки ↑ ↓ — соседняя деталь. На кромке: К — кругом, Д —
-        длинные, Ш — короткие, 0 — без кромки. Строки из Excel можно вставить
-        сюда через Ctrl+V.
-      </p>
+      <details className="mt-1 hidden text-[12px] leading-5 text-[var(--muted)] sm:block">
+        <summary className="w-fit cursor-pointer hover:text-[var(--foreground)]">
+          Быстрый ввод с клавиатуры
+        </summary>
+        <p className="mt-1">
+          Enter — следующее поле, на последнем поле Enter добавляет деталь.
+          Стрелки ↑ ↓ — соседняя деталь. На кромке: К — кругом, Д — длинные, Ш —
+          короткие, 0 — без кромки. Строки из Excel можно вставить сюда через
+          Ctrl+V.
+        </p>
+      </details>
     </div>
   );
 }

@@ -326,17 +326,16 @@ export function CutListImportPanel({
     <div className="mt-3.5 rounded-2xl border border-[color:var(--line)] bg-[var(--surface)] p-3 sm:mt-5 sm:p-4">
       <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
-          <p className="text-[13px] font-semibold text-[var(--accent)]">
-            Список деталей готов?
+          <p className="text-[15px] font-semibold text-[var(--foreground)]">
+            Есть готовый список деталей?
           </p>
-          <p className="mt-1 text-sm font-medium text-[var(--foreground)]">
-            Загрузите проект Базиса (.b3d), таблицу Excel или список деталей из
-            SketchUp (выгрузка OpenCutList), детали появятся сами.
+          <p className="mt-1 text-sm text-[var(--muted)]">
+            Базис (.b3d), Excel или SketchUp — детали появятся сами
           </p>
         </div>
         <div className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0">
           <Button
-            variant={isOpen ? "secondary" : "accent"}
+            variant="secondary"
             onClick={() => setIsOpen((current) => !current)}
             className="w-full px-3 text-[13px] whitespace-nowrap sm:w-auto sm:px-5 sm:text-sm"
           >

@@ -1,0 +1,185 @@
+/* Лист ЛДСП: декор + текстура волокон (SVG-шум, вытянутый вдоль листа),
+   пропилы акцентным цветом, кромка — тёмная полоса по краю детали. */
+.stage {
+  position: relative;
+  width: 100%;
+}
+.board {
+  --grain-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='720' height='360'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.0035 0.16' numOctaves='3' seed='11'/%3E%3CfeColorMatrix values='0 0 0 0 0.22 0 0 0 0 0.13 0 0 0 0 0.06 0 0 0 0.9 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 3px;
+  background-color: var(--decor);
+  box-shadow:
+    0 1px 0 var(--decor-edge),
+    0 2px 0 var(--decor-edge),
+    0 24px 48px -16px rgba(43, 30, 18, 0.35);
+}
+.board::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: var(--grain-image);
+  background-size: 720px 360px;
+  opacity: calc(var(--grain) * 0.55);
+  mix-blend-mode: multiply;
+  pointer-events: none;
+}
+
+/* Свободная часть листа — уходит в остаток, чуть темнее и в штриховку. */
+.board::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    135deg,
+    rgba(0, 0, 0, 0.06) 0 1px,
+    transparent 1px 9px
+  );
+  pointer-events: none;
+}
+
+.piece {
+  position: absolute;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  border: 3px solid var(--decor-edge);
+  background-color: var(--decor);
+  background-image:
+    linear-gradient(
+      160deg,
+      rgba(255, 255, 255, 0.16),
+      rgba(255, 255, 255, 0) 40%
+    ),
+    var(--grain-image);
+  background-size:
+    100% 100%,
+    720px 360px;
+  background-blend-mode: normal, multiply;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.12),
+    0 1px 2px rgba(43, 30, 18, 0.25);
+  animation: pieceIn 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: calc(var(--i, 0) * 40ms);
+}
+.label {
+  padding: 0 4px;
+  font-family: var(--font-ibm-plex-mono), ui-monospace, monospace;
+  font-size: clamp(9px, 1.05vw, 12px);
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--decor-ink);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  white-space: nowrap;
+}
+.piece[data-small] .label {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+}
+
+.kerf {
+  position: absolute;
+  z-index: 2;
+  background: #c4532b;
+  animation: kerfIn 520ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: calc(var(--i, 0) * 50ms);
+}
+.kerf[data-dir="h"] {
+  height: 2px;
+  margin-top: -1px;
+  transform-origin: left center;
+}
+.kerf[data-dir="v"] {
+  width: 2px;
+  margin-left: -1px;
+  transform-origin: center top;
+}
+
+.empty {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  font-size: 13px;
+  color: var(--decor-ink);
+  text-align: center;
+}
+
+@keyframes pieceIn {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+}
+@keyframes kerfIn {
+  from {
+    opacity: 0;
+    scale: 0 1;
+  }
+}
+.kerf[data-dir="v"] {
+  animation-name: kerfInV;
+}
+@keyframes kerfInV {
+  from {
+    opacity: 0;
+    scale: 1 0;
+  }
+}
+
+/* Герой: лист лежит на столе, пила проходит, детали поднимаются. */
+.tilt {
+  perspective: 2200px;
+  perspective-origin: 50% 50%;
+}
+.tilt .board {
+  overflow: visible;
+  transform: rotateX(40deg) rotateZ(-10deg);
+  transform-style: preserve-3d;
+  box-shadow:
+    0 2px 0 var(--decor-edge),
+    0 4px 0 var(--decor-edge),
+    0 6px 0 var(--decor-edge),
+    0 60px 80px -30px rgba(43, 30, 18, 0.45);
+}
+.tilt .kerf {
+  animation-duration: 700ms;
+  animation-delay: calc(300ms + var(--i, 0) * 160ms);
+}
+.tilt .piece {
+  animation:
+    pieceIn 420ms cubic-bezier(0.16, 1, 0.3, 1) both,
+    pieceLift 900ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: 0ms, calc(1500ms + var(--i, 0) * 90ms);
+}
+@keyframes pieceLift {
+  to {
+    transform: translateZ(22px);
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 255, 255, 0.12),
+      0 3px 0 var(--decor-edge),
+      0 18px 24px -8px rgba(43, 30, 18, 0.45);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .piece,
+  .kerf,
+  .tilt .piece,
+  .tilt .kerf {
+    animation: none;
+  }
+  .tilt .piece {
+    transform: translateZ(22px);
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 255, 255, 0.12),
+      0 3px 0 var(--decor-edge),
+      0 18px 24px -8px rgba(43, 30, 18, 0.45);
+  }
+}
