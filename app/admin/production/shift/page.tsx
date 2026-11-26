@@ -27,6 +27,7 @@ import {
 import { ShiftChecklistForm } from "@/features/production/shift-checklist-form";
 import { FaultForms } from "@/features/production/fault-forms";
 import { ResultList } from "@/features/production/shift-result-list";
+import { ShiftPhotoInput } from "@/features/production/shift-photo-input";
 import {
   defaultRoleFor,
   getIncidents,
@@ -249,7 +250,6 @@ export default async function MyShiftPage({
                 roles={[role]}
                 defaultRole={role}
                 submitLabel="Сдать смену"
-                encType="multipart/form-data"
               >
                 <label className={styles.field}>
                   Незавершённые заказы и следующий шаг
@@ -272,16 +272,7 @@ export default async function MyShiftPage({
                     placeholder="Необязательно"
                   />
                 </label>
-                <label className={styles.field}>
-                  Фото станка после уборки
-                  <input
-                    className={styles.input}
-                    type="file"
-                    name="photo"
-                    accept="image/*"
-                    capture="environment"
-                  />
-                </label>
+                <ShiftPhotoInput />
               </ShiftChecklistForm>
             </section>
           ) : (

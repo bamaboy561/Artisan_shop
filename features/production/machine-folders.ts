@@ -6,7 +6,9 @@
 
 // «cutting» — папка пилы: файл появился → заявка «Распил», все файлы заявки
 // убраны из папок пилы → «Кромка». Пусто — только показываем.
-export type MachineFolderStage = "cutting" | "";
+// cutting — пила: файл появился → «Распил», все файлы сняты → «Кромка».
+// drilling — присадка: все файлы сняты → «Готово к выдаче».
+export type MachineFolderStage = "cutting" | "drilling" | "";
 
 export type MachineFolder = {
   id: string;
@@ -64,14 +66,14 @@ export const defaultMachineFolders: MachineFolder[] = [
     id: "excitech",
     name: "Excitech (присадка)",
     path: "\\\\DESKTOP-186\\drill_work",
-    stage: "",
+    stage: "drilling",
     recurse: false,
   },
   {
     id: "nesting",
     name: "Nesting (фрезеровка)",
     path: "\\\\DESKTOP-1866\\NESTING_WORK",
-    stage: "",
+    stage: "cutting",
     recurse: false,
   },
 ];
@@ -151,7 +153,10 @@ export function normalizeMachineFolders(items: unknown[]) {
       id,
       name: name || `Станок ${result.length + 1}`,
       path,
-      stage: record.stage === "cutting" ? "cutting" : "",
+      stage:
+        record.stage === "cutting" || record.stage === "drilling"
+          ? record.stage
+          : "",
       recurse: record.recurse === true || record.recurse === "on",
     });
     if (result.length >= maxMachineFolders) break;
@@ -524,4 +529,23 @@ while ($true) {
     "",
   ];
   return lines.join("\r\n");
+}
+
+// 2026-11-24 Султан: Nesting режет как пила (→ кромка), Excitech — последняя
+// операция (→ готово). Сохранённым раньше папкам с «Только показывать»
+// один раз ставим новый режим; потом выбор на странице не трогаем.
+const stageUpgrades: Record<string, MachineFolderStage> = {
+  nesting: "cutting",
+  excitech: "drilling",
+};
+
+export function upgradeFolderStages(saved: MachineFolder[]) {
+  let changed = false;
+  const folders = saved.map((folder) => {
+    const stage = stageUpgrades[folder.id];
+    if (!stage || folder.stage !== "") return folder;
+    changed = true;
+    return { ...folder, stage };
+  });
+  return { folders, changed };
 }
