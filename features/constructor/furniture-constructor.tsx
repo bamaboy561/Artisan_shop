@@ -45,7 +45,7 @@ import {
   type KupeZone,
   type ZoneKind,
 } from "@/features/services/cabinet-builder";
-import { Field, inputClass } from "@/features/services/cabinet-builder-dialog";
+import { Field, inputClass } from "@/features/services/number-field";
 import type {
   ConstructorDecor,
   ConstructorFittingProduct,

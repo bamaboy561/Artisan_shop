@@ -30,7 +30,7 @@ import {
   type KitchenWall,
 } from "@/features/services/kitchen-builder";
 import type { CabinetPart } from "@/features/services/cabinet-builder";
-import { Field, inputClass } from "@/features/services/cabinet-builder-dialog";
+import { Field, inputClass } from "@/features/services/number-field";
 import { cn } from "@/lib/utils";
 import type {
   ConstructorDecor,
