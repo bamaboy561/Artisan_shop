@@ -87,10 +87,11 @@
 }
 
 @media (max-width: 1023px) {
+  /* --dock — высота нижнего меню сайта, если оно сейчас видно. */
   .bar {
     position: fixed;
     right: 0;
-    bottom: 0;
+    bottom: var(--dock, 0px);
     left: 0;
     border-top: 1px solid var(--line);
     background: color-mix(in srgb, var(--surface-strong) 94%, transparent);
@@ -98,10 +99,15 @@
     padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
     backdrop-filter: blur(12px);
   }
+
+  /* Над меню сайта: отступ под «чёлку» снизу уже есть у меню. */
+  .bar[data-dock] {
+    padding-bottom: 10px;
+  }
 }
 
-/* Нижнее меню сайта на телефоне — 65 px. Макет шкафа прилипает к
-   верху: человек листает варианты и сразу видит шкаф. */
+/* Макет шкафа на телефоне прилипает к верху: человек листает варианты
+   и сразу видит шкаф. */
 @media (max-width: 600px) {
   .stage {
     height: 36svh;
@@ -118,10 +124,5 @@
 
   .body {
     padding-top: 16px;
-  }
-
-  .bar {
-    bottom: calc(65px + env(safe-area-inset-bottom));
-    padding-bottom: 10px;
   }
 }

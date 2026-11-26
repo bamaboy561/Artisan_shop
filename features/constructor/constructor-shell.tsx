@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { ArrowLeft, Check, ChevronDown, Minus, Plus } from "lucide-react";
 
 import { useNumberInput } from "@/features/services/use-number-input";
@@ -68,6 +68,49 @@ export function StepNav({
   );
 }
 
+// Нижнее меню сайта на телефоне и планшете бывает разным (у витрины до
+// 600 px, у старого дизайна до xl): меряем его и ставим цену над ним.
+function useBottomDockOffset() {
+  const ref = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const bar = ref.current;
+    if (!bar) return;
+    const docks = () =>
+      [
+        ...document.querySelectorAll<HTMLElement>(
+          'nav[aria-label="Мобильная навигация"]',
+        ),
+      ].map((nav) => {
+        let element: HTMLElement | null = nav;
+        while (element && getComputedStyle(element).position !== "fixed") {
+          element = element.parentElement;
+        }
+        return element;
+      });
+    const update = () => {
+      let height = 0;
+      for (const dock of docks()) {
+        if (!dock || dock.offsetHeight === 0) continue;
+        const rect = dock.getBoundingClientRect();
+        if (rect.bottom >= window.innerHeight - 1) {
+          height = Math.max(height, window.innerHeight - rect.top);
+        }
+      }
+      bar.style.setProperty("--dock", `${Math.round(height)}px`);
+      bar.toggleAttribute("data-dock", height > 0);
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    for (const dock of docks()) if (dock) observer.observe(dock);
+    window.addEventListener("resize", update);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", update);
+    };
+  }, []);
+  return ref;
+}
+
 // Низ панели: примерная цена и одна кнопка дальше. На телефоне
 // прилипает к низу экрана над нижним меню сайта.
 export function PriceBar({
@@ -81,8 +124,9 @@ export function PriceBar({
   onBack?: () => void;
   next: ReactNode;
 }) {
+  const barRef = useBottomDockOffset();
   return (
-    <div className={styles.bar}>
+    <div ref={barRef} className={styles.bar}>
       <div className={cn(styles.barInner, "flex items-center gap-3")}>
         {onBack ? (
           <button
