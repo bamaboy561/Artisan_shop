@@ -32,6 +32,9 @@ export function ShiftPhotoInput() {
     const input = event.currentTarget;
     const file = input.files?.[0];
     if (!file) return setStatus("");
+    // Пока фото уменьшается, большой оригинал в форме не держим: если
+    // успеют нажать «Сдать смену», смена уйдёт без фото, а не упадёт.
+    input.value = "";
     setStatus("working");
     try {
       const small = await shrink(file);
