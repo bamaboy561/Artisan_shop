@@ -227,6 +227,10 @@ export default async function ProductionRequestPage({
   const returnTo = safeProductionReturn(
     getSearchValue(resolvedSearchParams, "returnTo"),
   );
+  // «Готово →» из списка распила: этап уже выбран, осталось ввести ячейку.
+  const suggestedStage = Object.values(CuttingStage).find(
+    (stage) => stage === getSearchValue(resolvedSearchParams, "stage"),
+  );
   const [planning, workflow, machineFiles] = await Promise.all([
     productionPlanningAvailable(),
     getCuttingWorkflow(id),
@@ -540,7 +544,11 @@ export default async function ProductionRequestPage({
                 Этап
                 <Select
                   name="cuttingStage"
-                  defaultValue={request.cuttingStage ?? CuttingStage.ACCEPTED}
+                  defaultValue={
+                    suggestedStage ??
+                    request.cuttingStage ??
+                    CuttingStage.ACCEPTED
+                  }
                 >
                   {cuttingStageSteps.map((step) => (
                     <option key={step.stage} value={step.stage}>

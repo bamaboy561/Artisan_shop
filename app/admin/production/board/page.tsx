@@ -40,11 +40,15 @@ export const dynamic = "force-dynamic";
 
 type Card = Awaited<ReturnType<typeof getProductionBoard>>["cards"][number];
 
+type StageStep = { stage: CuttingStage; label: string; needsCell?: boolean };
+
 const columns: Array<{
   key: BoardColumnKey;
   title: string;
   hint: string;
-  next?: { stage: CuttingStage; label: string; needsCell?: boolean };
+  next?: StageStep;
+  // После кромки можно сразу «Готово», если присадки в заказе нет.
+  alt?: StageStep;
 }> = [
   {
     key: "NEW",
@@ -69,6 +73,11 @@ const columns: Array<{
     title: "Кромка",
     hint: "Сейчас на кромке",
     next: { stage: CuttingStage.DRILLING, label: "На присадку" },
+    alt: {
+      stage: CuttingStage.READY_FOR_PICKUP,
+      label: "Готово",
+      needsCell: true,
+    },
   },
   {
     key: "DRILLING",
@@ -268,6 +277,7 @@ export default async function ProductionBoardPage({
                       key={card.id}
                       card={card}
                       next={column.next}
+                      alt={column.alt}
                       today={board.today}
                       now={now}
                       planning={board.planning}
@@ -296,13 +306,15 @@ export default async function ProductionBoardPage({
 function BoardCard({
   card,
   next,
+  alt,
   today,
   now,
   planning,
   highlighted,
 }: {
   card: Card;
-  next?: { stage: CuttingStage; label: string; needsCell?: boolean };
+  next?: StageStep;
+  alt?: StageStep;
   today: string;
   now: number;
   planning: boolean;
@@ -360,29 +372,45 @@ function BoardCard({
         Менеджер: {card.manager ?? <em>не назначен</em>}
       </p>
       {next ? (
-        <form action={setProductionStageAction} className={styles.cardAction}>
-          <input type="hidden" name="requestId" value={card.id} />
-          <input type="hidden" name="expectedStage" value={card.stage ?? ""} />
-          <input type="hidden" name="cuttingStage" value={next.stage} />
-          <input type="hidden" name="returnTo" value={productionBoardPath} />
-          <input type="hidden" name="origin" value="board" />
-          {next.needsCell ? (
-            <Input
-              name="cuttingPickupCell"
-              placeholder="Ячейка"
-              aria-label={`Ячейка выдачи для ${number}`}
-              required
-              className={styles.cellInput}
-            />
-          ) : null}
-          <AdminSubmitButton
-            type="submit"
-            variant="secondary"
-            size="sm"
-            idleLabel={next.label}
-            pendingLabel="..."
-          />
-        </form>
+        [next, alt].map((step) =>
+          step ? (
+            <form
+              key={step.stage}
+              action={setProductionStageAction}
+              className={styles.cardAction}
+            >
+              <input type="hidden" name="requestId" value={card.id} />
+              <input
+                type="hidden"
+                name="expectedStage"
+                value={card.stage ?? ""}
+              />
+              <input type="hidden" name="cuttingStage" value={step.stage} />
+              <input
+                type="hidden"
+                name="returnTo"
+                value={productionBoardPath}
+              />
+              <input type="hidden" name="origin" value="board" />
+              {step.needsCell ? (
+                <Input
+                  name="cuttingPickupCell"
+                  placeholder="Ячейка"
+                  aria-label={`Ячейка выдачи для ${number}`}
+                  required
+                  className={styles.cellInput}
+                />
+              ) : null}
+              <AdminSubmitButton
+                type="submit"
+                variant="secondary"
+                size="sm"
+                idleLabel={step.label}
+                pendingLabel="..."
+              />
+            </form>
+          ) : null,
+        )
       ) : (
         <Link href={href} className={styles.issueLink}>
           Выдать клиенту

@@ -323,6 +323,18 @@ export default async function AdminCuttingPage({
       ),
       manage: (
         <div className="flex items-center justify-end gap-1.5">
+          {next &&
+          canMoveStage &&
+          request.cuttingStage === CuttingStage.EDGING ? (
+            // После кромки — «Готово» (ячейка вводится в карточке), если
+            // присадки в заказе нет.
+            <Link
+              href={`/admin/production/${request.id}?stage=${CuttingStage.READY_FOR_PICKUP}`}
+              className="inline-flex h-8 items-center rounded-[8px] border border-[var(--line-strong)] px-3 text-[12.5px] font-semibold whitespace-nowrap text-[var(--foreground)] transition hover:bg-[var(--surface)]"
+            >
+              Готово →
+            </Link>
+          ) : null}
           {next && canMoveStage ? (
             next.needsCell ? (
               <Link
