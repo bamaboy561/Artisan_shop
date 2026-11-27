@@ -295,6 +295,40 @@ function drawLogoMark(doc: Doc, x: number, y: number, size: number) {
   doc.restore();
 }
 
+// Логотип Artisan из public/brand (SVG → PNG через sharp). Если файлов нет,
+// рисуем прежний знак вектором, чтобы журнал собирался в любом случае.
+type BrandLogos = { horizontalWhite: Buffer | null; mark: Buffer | null };
+let brandLogos: Promise<BrandLogos> | null = null;
+async function svgToPng(file: string, height: number) {
+  try {
+    return await sharp(path.join(process.cwd(), "public/brand", file), {
+      density: 300,
+    })
+      .resize({ height })
+      .png()
+      .toBuffer();
+  } catch {
+    return null;
+  }
+}
+export function loadBrandLogos() {
+  brandLogos ??= Promise.all([
+    svgToPng("artisan-logo-horizontal-white.svg", 240),
+    svgToPng("artisan-mark.svg", 200),
+  ]).then(([horizontalWhite, mark]) => ({ horizontalWhite, mark }));
+  return brandLogos;
+}
+const docLogos = new WeakMap<Doc, BrandLogos>();
+const HORIZONTAL_RATIO = 1358 / 258;
+
+// Горизонтальный логотип высотой height; false — файла нет.
+function drawHorizontalLogo(doc: Doc, x: number, y: number, height: number) {
+  const logo = docLogos.get(doc)?.horizontalWhite;
+  if (!logo) return false;
+  doc.image(logo, x, y, { height, width: height * HORIZONTAL_RATIO });
+  return true;
+}
+
 // Звезда-ценник как в гипермаркете: зубчатый круг с процентом скидки.
 function drawBurst(
   doc: Doc,
@@ -423,7 +457,10 @@ function drawPhoto(
         valign: "center",
       });
   } else {
-    drawLogoMark(doc, x + width / 2 - 14, y + height / 2 - 26, 28);
+    const mark = docLogos.get(doc)?.mark;
+    if (mark)
+      doc.image(mark, x + width / 2 - 17, y + height / 2 - 30, { height: 28 });
+    else drawLogoMark(doc, x + width / 2 - 14, y + height / 2 - 26, 28);
     doc
       .font("regular")
       .fontSize(8)
@@ -679,23 +716,36 @@ function drawPageHeader(doc: Doc, data: PromoMagazineData) {
     ] as const)
       drawSnowflake(doc, fx, fy, fr, "#ffffff", 0.5);
   }
-  drawLogoMark(doc, PAGE.margin, 10, 24);
-  doc
-    .font("bold")
-    .fontSize(13)
-    .fillColor("#ffffff")
-    .text("ARTISAN", PAGE.margin + 32, 13, {
-      characterSpacing: 3,
-      lineBreak: false,
-    });
-  doc
-    .font("bold")
-    .fontSize(9)
-    .fillColor(T(doc).accent)
-    .text("АКЦИИ", PAGE.margin + 32, 28, {
-      characterSpacing: 2,
-      lineBreak: false,
-    });
+  if (drawHorizontalLogo(doc, PAGE.margin, 11, 22)) {
+    const labelX = PAGE.margin + 22 * HORIZONTAL_RATIO + 12;
+    doc.rect(labelX, 15, 1, 14).fill(T(doc).soft);
+    doc
+      .font("bold")
+      .fontSize(10)
+      .fillColor(T(doc).accent)
+      .text("АКЦИИ", labelX + 10, 16, {
+        characterSpacing: 2,
+        lineBreak: false,
+      });
+  } else {
+    drawLogoMark(doc, PAGE.margin, 10, 24);
+    doc
+      .font("bold")
+      .fontSize(13)
+      .fillColor("#ffffff")
+      .text("ARTISAN", PAGE.margin + 32, 13, {
+        characterSpacing: 3,
+        lineBreak: false,
+      });
+    doc
+      .font("bold")
+      .fontSize(9)
+      .fillColor(T(doc).accent)
+      .text("АКЦИИ", PAGE.margin + 32, 28, {
+        characterSpacing: 2,
+        lineBreak: false,
+      });
+  }
   doc
     .font("bold")
     .fontSize(9)
@@ -899,20 +949,25 @@ async function drawCover(
 
   const left = PAGE.margin + 8;
   const right = W - PAGE.margin - 8;
-  drawLogoMark(doc, left, 34, 38);
-  doc
-    .font("bold")
-    .fontSize(19)
-    .fillColor("#ffffff")
-    .text("ARTISAN", left + 50, 37, { characterSpacing: 5, lineBreak: false });
-  doc
-    .font("regular")
-    .fontSize(7.5)
-    .fillColor(T(doc).soft)
-    .text("МАТЕРИАЛЫ ДЛЯ МЕБЕЛИ · БИШКЕК", left + 51, 61, {
-      characterSpacing: 1.4,
-      lineBreak: false,
-    });
+  if (!drawHorizontalLogo(doc, left, 34, 38)) {
+    drawLogoMark(doc, left, 34, 38);
+    doc
+      .font("bold")
+      .fontSize(19)
+      .fillColor("#ffffff")
+      .text("ARTISAN", left + 50, 37, {
+        characterSpacing: 5,
+        lineBreak: false,
+      });
+    doc
+      .font("regular")
+      .fontSize(7.5)
+      .fillColor(T(doc).soft)
+      .text("МАТЕРИАЛЫ ДЛЯ МЕБЕЛИ · БИШКЕК", left + 51, 61, {
+        characterSpacing: 1.4,
+        lineBreak: false,
+      });
+  }
   const { month, year } = bishkekParts(data.createdAt);
   const newYear = T(doc).id === "new-year";
   doc
@@ -1044,7 +1099,7 @@ async function drawBackCover(doc: Doc, data: PromoMagazineData) {
     doc.restore();
     drawGarland(doc, -2, 12, W);
   }
-  drawLogoMark(doc, left, 60, 52);
+  if (!drawHorizontalLogo(doc, left, 62, 44)) drawLogoMark(doc, left, 60, 52);
   doc
     .font("bold")
     .fontSize(newYear ? 42 : 46)
@@ -1165,6 +1220,7 @@ export async function renderPromoMagazine(
   doc.registerFont("bold", path.join(fonts, "NotoSans-Bold.ttf"));
   doc.font("regular");
   docThemes.set(doc, THEMES[themeId]);
+  docLogos.set(doc, await loadBrandLogos());
   const chunks: Buffer[] = [];
   const result = new Promise<Buffer>((resolve, reject) => {
     doc.on("data", (chunk: Buffer) => chunks.push(chunk));
