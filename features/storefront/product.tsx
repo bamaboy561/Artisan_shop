@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PromoBadge } from "@/components/catalog/promo-badge";
 import { ArrowUpRight, MapPin, MessageCircle } from "lucide-react";
 import { FavoriteToggle } from "@/components/catalog/favorite-toggle";
 import { ProductImage } from "@/components/catalog/product-image";
@@ -102,8 +103,18 @@ export function StorefrontProduct({
               </div>
             </div>
           )}
+          {product.isPromotional && (
+            <PromoBadge
+              price={product.price}
+              oldPrice={product.oldPrice}
+              size="lg"
+              className={s.promoStickerDetail}
+            />
+          )}
           <div className={s.detailPrice}>
-            <strong>
+            <strong
+              className={product.isPromotional ? s.promoPrice : undefined}
+            >
               {typeof product.price === "number"
                 ? formatPrice(product.price)
                 : "Цена по запросу"}

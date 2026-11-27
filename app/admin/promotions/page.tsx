@@ -758,7 +758,7 @@ export default async function AdminPromotionsPage({
               </label>
             </div>
 
-            <div className="grid gap-4 lg:grid-cols-2">
+            <div className="grid min-w-0 gap-5">
               <PromotionItemsPicker
                 name="productIds"
                 label="Товары акции"

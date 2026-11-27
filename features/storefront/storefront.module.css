@@ -4503,3 +4503,23 @@
     transition: none;
   }
 }
+
+/* Яркая бирка «Акция!» на карточке и в карточке товара */
+.promoSticker {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  z-index: 3;
+  transform: rotate(-3deg);
+}
+.promoStickerDetail {
+  align-self: flex-start;
+  justify-self: start;
+  width: max-content;
+  margin-bottom: 10px;
+  transform: rotate(-2deg);
+}
+.productBottom .promoPrice,
+.detailPrice .promoPrice {
+  color: #e3001b;
+}

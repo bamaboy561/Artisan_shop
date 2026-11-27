@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PromoBadge } from "@/components/catalog/promo-badge";
 
 import { ProductImage } from "@/components/catalog/product-image";
 import type { FeaturedProduct } from "@/features/catalog/data";
@@ -288,9 +289,12 @@ function ProductRail({
                   )}
                 >
                   {isPromotional ? (
-                    <span className="absolute top-2 left-2 z-10 rounded-full bg-[#c96b43] px-2.5 py-1 font-mono text-[9px] tracking-[0.14em] text-white uppercase shadow-[0_10px_24px_rgba(0,0,0,0.16)]">
-                      Акция
-                    </span>
+                    <PromoBadge
+                      price={product.price}
+                      oldPrice={product.oldPrice}
+                      size="sm"
+                      className="absolute top-2 left-2 z-10 -rotate-3"
+                    />
                   ) : null}
                   <ProductImage
                     src={product.image}

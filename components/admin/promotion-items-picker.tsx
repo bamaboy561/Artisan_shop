@@ -84,7 +84,7 @@ export function PromotionItemsPicker({
       ))}
 
       {selectedIds.length > 0 ? (
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex min-w-0 flex-wrap gap-1.5">
           {selectedIds.map((id) => {
             const item = itemsById.get(id);
             return (
@@ -92,7 +92,7 @@ export function PromotionItemsPicker({
                 key={id}
                 className="inline-flex max-w-full items-center gap-1 border border-[color:var(--line)] bg-[var(--surface)] py-1 pr-1 pl-2.5 text-xs"
               >
-                <span className="truncate">
+                <span className="min-w-0 truncate">
                   {item ? item.name : "Удалённая позиция"}
                   {item?.sku ? (
                     <span className="text-[var(--muted)]"> · {item.sku}</span>
@@ -135,7 +135,7 @@ export function PromotionItemsPicker({
             if (event.key === "Enter") event.preventDefault();
           }}
           placeholder={placeholder}
-          className="pl-9"
+          className="pl-9 sm:pl-10"
           aria-label={`Поиск: ${label}`}
         />
       </div>
