@@ -1,11 +1,7 @@
 import "server-only";
 
 import { getDb, hasDatabaseUrl } from "@/lib/db";
-import {
-  normalizeSeasonMode,
-  resolveSeason,
-  type SeasonMode,
-} from "@/lib/season";
+import { normalizeSeasonMode, type SeasonMode } from "@/lib/season";
 
 const KEY = "storefront:season:v1";
 
@@ -26,10 +22,6 @@ export async function getSeasonMode(): Promise<SeasonMode> {
     // Оформление не должно ронять витрину.
     return "auto";
   }
-}
-
-export async function getActiveSeason() {
-  return resolveSeason(await getSeasonMode());
 }
 
 export async function saveSeasonMode(mode: SeasonMode) {

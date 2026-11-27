@@ -1,35 +1,33 @@
 /* Новогоднее оформление (features/storefront/season.tsx).
+   Тёплое и спокойное: золотистые огоньки, мягкий снег, кремовая полоса.
    Выключается в админке: «Контент сайта» → «Новогоднее оформление сайта». */
 
+/* Полоса с поздравлением над шапкой */
+.greetingStrip {
+  display: flex;
+  justify-content: center;
+  padding: 7px 16px;
+  background: linear-gradient(90deg, #fbeee0 0%, #f8e2cc 50%, #fbeee0 100%);
+  border-bottom: 1px solid #f0d9c0;
+  font-size: 13px;
+}
 .greeting {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-weight: 700;
-  color: #f3c76b;
+  gap: 10px;
+  font-weight: 600;
+  color: #8a4b2c;
   white-space: nowrap;
 }
-.greeting::before {
-  content: "❄";
-  font-size: 12px;
-  color: #bcd6ea;
+.greeting::before,
+.greeting::after {
+  content: "✦";
+  font-size: 10px;
+  color: #d9a35b;
 }
 
-/* На телефоне верхняя строка витрины скрыта: поздравление отдельной полосой. */
-.mobileGreeting {
-  display: none;
-}
-@media (max-width: 600px) {
-  .mobileGreeting {
-    display: flex;
-    justify-content: center;
-    padding: 6px 16px;
-    background: #1f2b25;
-    font-size: 12px;
-  }
-}
-
-/* Гирлянда висит под шапкой и не сдвигает страницу. */
+/* Гирлянда — тёплые огоньки на тонком проводе. Висит под шапкой и не
+   сдвигает страницу. */
 .garlandAnchor {
   position: relative;
   height: 0;
@@ -39,77 +37,75 @@
 .garland {
   position: absolute;
   inset: 0 0 auto;
-  height: 30px;
+  height: 26px;
   display: flex;
   justify-content: center;
   overflow: hidden;
 }
 .garland i {
   position: relative;
-  flex: 0 0 64px;
-  height: 30px;
+  flex: 0 0 52px;
+  height: 26px;
 }
-/* провод: провисающая дуга между лампочками */
 .garland i::before {
   content: "";
   position: absolute;
   left: -1px;
   right: -1px;
-  top: -12px;
-  height: 22px;
-  border-bottom: 1.5px solid #2f3b33;
+  top: -10px;
+  height: 18px;
+  border-bottom: 1px solid rgba(138, 96, 62, 0.55);
   border-radius: 0 0 50% 50% / 0 0 100% 100%;
 }
-/* лампочка с цоколем */
 .garland i::after {
   content: "";
   position: absolute;
   left: calc(50% - 5px);
-  top: 11px;
+  top: 3px;
   width: 10px;
-  height: 14px;
-  border-radius: 50% 50% 48% 48% / 40% 40% 60% 60%;
-  border-top: 3px solid #4a544d;
-  background: var(--bulb);
-  box-shadow: 0 0 10px 2px var(--glow);
-  animation: twinkle 2.6s ease-in-out infinite;
+  height: 10px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, #fffaf0 0%, var(--bulb) 70%);
+  box-shadow:
+    0 0 6px 2px var(--glow),
+    0 0 16px 4px var(--halo);
+  animation: glow 4s ease-in-out infinite;
 }
-.garland i:nth-child(4n + 1) {
-  --bulb: #e0473a;
-  --glow: rgba(224, 71, 58, 0.55);
+.garland i:nth-child(3n + 1) {
+  --bulb: #ffd9a0;
+  --glow: rgba(255, 205, 140, 0.75);
+  --halo: rgba(255, 190, 120, 0.25);
 }
-.garland i:nth-child(4n + 2) {
-  --bulb: #f2b636;
-  --glow: rgba(242, 182, 54, 0.6);
+.garland i:nth-child(3n + 2) {
+  --bulb: #ffe8c4;
+  --glow: rgba(255, 228, 185, 0.75);
+  --halo: rgba(255, 215, 160, 0.22);
 }
-.garland i:nth-child(4n + 3) {
-  --bulb: #3f9a6b;
-  --glow: rgba(63, 154, 107, 0.55);
+.garland i:nth-child(3n) {
+  --bulb: #ffc48a;
+  --glow: rgba(255, 180, 115, 0.7);
+  --halo: rgba(255, 160, 95, 0.22);
 }
-.garland i:nth-child(4n) {
-  --bulb: #5c9fd6;
-  --glow: rgba(92, 159, 214, 0.55);
+.garland i:nth-child(4n + 1)::after {
+  animation-delay: -1.3s;
 }
-.garland i:nth-child(3n + 1)::after {
-  animation-delay: -0.9s;
+.garland i:nth-child(4n + 2)::after {
+  animation-delay: -2.6s;
 }
-.garland i:nth-child(3n + 2)::after {
-  animation-delay: -1.7s;
+.garland i:nth-child(4n + 3)::after {
+  animation-delay: -0.6s;
 }
-@keyframes twinkle {
+@keyframes glow {
   0%,
   100% {
     opacity: 1;
-    filter: brightness(1.08);
   }
   50% {
-    opacity: 0.55;
-    filter: brightness(0.8);
-    box-shadow: 0 0 3px 0 var(--glow);
+    opacity: 0.6;
   }
 }
 
-/* Шапочка на букве «A» логотипа */
+/* Шапочка на букве «A» логотипа — приглушённые тёплые цвета */
 .hatHost {
   position: relative;
 }
@@ -123,7 +119,7 @@
   pointer-events: none;
 }
 
-/* Снег — только на главной, поверх страницы, клики проходят насквозь. */
+/* Снег — только на главной: мягкие пушинки, медленно, клики проходят. */
 .snow {
   position: fixed;
   inset: 0;
@@ -135,29 +131,13 @@
   position: absolute;
   top: -24px;
   border-radius: 50%;
-  background: #fff;
-  /* на светлом фоне витрины чисто белый снег не виден: лёгкая голубая тень */
-  box-shadow:
-    0 0 0 1px rgba(130, 165, 195, 0.35),
-    0 1px 5px rgba(80, 115, 150, 0.35);
+  background: radial-gradient(circle, #fff 45%, rgba(255, 255, 255, 0) 72%);
+  /* на кремовом фоне чисто белое не видно: тёплая мягкая тень */
+  filter: drop-shadow(0 1px 2px rgba(150, 110, 75, 0.35));
   animation-name: fall, sway;
   animation-timing-function: linear, ease-in-out;
   animation-iteration-count: infinite, infinite;
   animation-direction: normal, alternate;
-}
-/* каждая третья — снежинка-звёздочка */
-.snow i:nth-child(3n) {
-  width: auto !important;
-  height: auto !important;
-  background: none;
-  box-shadow: none;
-  color: #8fb0cb;
-  font-style: normal;
-  line-height: 1;
-  text-shadow: 0 0 2px #fff;
-}
-.snow i:nth-child(3n)::before {
-  content: "❄";
 }
 @keyframes fall {
   to {
@@ -166,16 +146,20 @@
 }
 @keyframes sway {
   from {
-    margin-left: -14px;
+    margin-left: -18px;
   }
   to {
-    margin-left: 14px;
+    margin-left: 18px;
   }
 }
 
 @media (max-width: 600px) {
+  .greetingStrip {
+    font-size: 12px;
+    padding-block: 6px;
+  }
   .garland i {
-    flex-basis: 48px;
+    flex-basis: 42px;
   }
   .hat {
     left: -8px;

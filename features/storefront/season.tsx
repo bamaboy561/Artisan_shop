@@ -4,7 +4,7 @@ import s from "./season.module.css";
 // при «уменьшить движение» снег и мигание выключены.
 
 const BULBS = 48;
-const FLAKES = 42;
+const FLAKES = 34;
 
 export function SeasonGarland() {
   return (
@@ -29,7 +29,7 @@ export function SeasonSnow() {
   return (
     <div className={s.snow} aria-hidden="true">
       {Array.from({ length: FLAKES }, (_, index) => {
-        const size = 4 + Math.round(spread(index, 1) * 5);
+        const size = 6 + Math.round(spread(index, 1) * 7);
         return (
           <i
             key={index}
@@ -37,10 +37,9 @@ export function SeasonSnow() {
               left: `${(spread(index, 2) * 100).toFixed(2)}%`,
               width: size,
               height: size,
-              fontSize: size * 2.4,
-              opacity: Number((0.45 + spread(index, 3) * 0.5).toFixed(2)),
-              animationDuration: `${(9 + spread(index, 4) * 10).toFixed(1)}s, ${(3 + spread(index, 5) * 3).toFixed(1)}s`,
-              animationDelay: `-${(spread(index, 6) * 18).toFixed(1)}s, -${(spread(index, 7) * 4).toFixed(1)}s`,
+              opacity: Number((0.55 + spread(index, 3) * 0.4).toFixed(2)),
+              animationDuration: `${(14 + spread(index, 4) * 12).toFixed(1)}s, ${(4 + spread(index, 5) * 3).toFixed(1)}s`,
+              animationDelay: `-${(spread(index, 6) * 26).toFixed(1)}s, -${(spread(index, 7) * 4).toFixed(1)}s`,
             }}
           />
         );
@@ -57,10 +56,10 @@ export function SeasonHat() {
       aria-hidden="true"
       focusable="false"
     >
-      <path d="M4 20 C7 9 15 2 25 4 C22 8 23 14 27 19 Z" fill="#c4352b" />
+      <path d="M4 20 C7 9 15 2 25 4 C22 8 23 14 27 19 Z" fill="#c4574a" />
       <path
         d="M25 4 C28 5 30 9 29 13"
-        stroke="#c4352b"
+        stroke="#c4574a"
         strokeWidth="3"
         fill="none"
         strokeLinecap="round"
@@ -69,8 +68,8 @@ export function SeasonHat() {
         cx="29"
         cy="15"
         r="3"
-        fill="#fff"
-        stroke="#e7e1d8"
+        fill="#fbf3e6"
+        stroke="#ead9c4"
         strokeWidth="0.8"
       />
       <rect
@@ -79,8 +78,8 @@ export function SeasonHat() {
         width="27"
         height="6"
         rx="3"
-        fill="#fff"
-        stroke="#e7e1d8"
+        fill="#fbf3e6"
+        stroke="#ead9c4"
         strokeWidth="0.8"
       />
     </svg>

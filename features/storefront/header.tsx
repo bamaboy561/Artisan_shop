@@ -14,8 +14,8 @@ import {
   ShoppingBag,
   UserRound,
 } from "lucide-react";
-import { useState } from "react";
-import type { ActiveSeason } from "@/lib/season";
+import { useState, useSyncExternalStore } from "react";
+import { resolveSeason, type SeasonMode } from "@/lib/season";
 import { useCart } from "@/components/providers/cart-provider";
 import { companyContacts, primaryNavigation } from "@/lib/site-config";
 import { StorefrontDialog } from "./controls";
@@ -26,11 +26,19 @@ import s from "./storefront.module.css";
 
 export function StorefrontHeader({
   categories,
-  season = null,
+  seasonMode = "off",
 }: {
   categories: { slug: string; name: string }[];
-  season?: ActiveSeason | null;
+  seasonMode?: SeasonMode;
 }) {
+  // Даты считаем в браузере: страницы вроде /contacts собираются заранее
+  // и кэшируются, иначе «само по датам» не включилось бы 1 декабря.
+  const greeting = useSyncExternalStore(
+    subscribeNever,
+    () => resolveSeason(seasonMode)?.greeting ?? "",
+    () => "",
+  );
+  const season = greeting ? { greeting } : null;
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const { itemCount } = useCart();
@@ -56,7 +64,7 @@ export function StorefrontHeader({
   return (
     <>
       {season && (
-        <div className={seasonStyles.mobileGreeting}>
+        <div className={seasonStyles.greetingStrip}>
           <span className={seasonStyles.greeting}>{season.greeting}</span>
         </div>
       )}
@@ -64,9 +72,6 @@ export function StorefrontHeader({
         <span>
           <MapPin size={13} /> Бишкек, Кыргызстан
         </span>
-        {season && (
-          <span className={seasonStyles.greeting}>{season.greeting}</span>
-        )}
         <Link href="/contacts">{companyContacts.hours}</Link>
       </div>
       <header className={s.header}>
@@ -202,4 +207,8 @@ export function StorefrontHeader({
       </StorefrontDialog>
     </>
   );
+}
+
+function subscribeNever() {
+  return () => {};
 }
