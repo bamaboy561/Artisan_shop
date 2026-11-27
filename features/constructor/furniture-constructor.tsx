@@ -230,12 +230,14 @@ export function FurnitureConstructor({
   decors,
   fittingProducts,
   kind,
+  onKindChange,
 }: {
   decors: ConstructorDecor[];
   fittingProducts: ConstructorFittingProduct[];
-  // Что собираем: выбирается над конструктором, при смене он
-  // собирается заново с размерами по умолчанию.
+  // С чего начинаем: шкаф с распашными дверями или купе. Дальше человек
+  // меняет это на первом шаге.
   kind: CabinetKind;
+  onKindChange?: (kind: CabinetKind) => void;
 }) {
   const [spec, setSpec] = useState<CabinetSpec>({
     kind,
@@ -604,6 +606,15 @@ export function FurnitureConstructor({
     ? [0, 70, 100]
     : [0, 70, 100, spec.plinth].sort((a, b) => a - b);
   const [scheme, setScheme] = useState<number | null>(null);
+  // Распашные двери или купе: это разные шкафы, размеры и наполнение
+  // берём по умолчанию для выбранного.
+  const switchKind = (next: CabinetKind) => {
+    if (next === spec.kind) return;
+    setSpec({ kind: next, ...CABINET_KINDS[next].defaults });
+    setScheme(null);
+    setDoorsOpen(false);
+    onKindChange?.(next);
+  };
   const blocked = result.problems.length > 0;
 
   const sizeStep = (
@@ -612,6 +623,17 @@ export function FurnitureConstructor({
         title="Размер"
         hint="В миллиметрах, снаружи. Остальное посчитаем сами."
       />
+      {spec.kind === "wardrobe" || spec.kind === "kupe" ? (
+        <Segmented
+          label="Двери"
+          value={spec.kind}
+          options={[
+            { value: "wardrobe", label: "Распашные" },
+            { value: "kupe", label: "Купе" },
+          ]}
+          onChange={switchKind}
+        />
+      ) : null}
       <div className="grid gap-5">
         {(
           [

@@ -28,30 +28,28 @@ const KitchenConstructor = dynamic(
   { ssr: false, loading },
 );
 
-type Product = "kitchen" | CabinetKind;
+type Product = "kitchen" | "wardrobe";
 
-// Что собираем — первое, что выбирает человек. Порядок: кухня, потом
-// отдельные корпуса. Ссылка /konstruktor#kupe сразу открывает купе.
+// Что собираем — первое, что выбирает человек: кухня или шкаф. Купе —
+// выбор дверей внутри шкафа; тумбы и навесные собираются блоками кухни.
 const PRODUCTS: Array<{ id: Product; label: string }> = [
   { id: "kitchen", label: "Кухня" },
   { id: "wardrobe", label: CABINET_KINDS.wardrobe.label },
-  { id: "kupe", label: CABINET_KINDS.kupe.label },
-  { id: "base", label: CABINET_KINDS.base.label },
-  { id: "wall", label: CABINET_KINDS.wall.label },
 ];
 
-const isProduct = (value: string): value is Product =>
-  PRODUCTS.some((item) => item.id === value);
+// Старые ссылки: /konstruktor#kupe — шкаф-купе, #base и #wall — кухня.
+function fromHash(hash: string): { product: Product; kind: CabinetKind } {
+  if (hash === "kitchen" || hash === "base" || hash === "wall") {
+    return { product: "kitchen", kind: "wardrobe" };
+  }
+  return { product: "wardrobe", kind: hash === "kupe" ? "kupe" : "wardrobe" };
+}
 
 function ProductIcon({ id }: { id: Product }) {
   const icon =
     id === "kitchen"
       ? { row: "base" as const, type: "sink" }
-      : id === "base"
-        ? { row: "base" as const, type: "drawers" }
-        : id === "wall"
-          ? { row: "top" as const, type: "doors" }
-          : { row: "base" as const, type: "tallPantry" };
+      : { row: "base" as const, type: "tallPantry" };
   return <BlockIcon row={icon.row} type={icon.type} className="size-6" />;
 }
 
@@ -65,18 +63,28 @@ export function ConstructorTabs({
   fittingProducts: ConstructorFittingProduct[];
 }) {
   const [product, setProduct] = useState<Product>("wardrobe");
+  // Распашной шкаф или купе: помним, пока человек ходит между вкладками.
+  const [kind, setKind] = useState<CabinetKind>("wardrobe");
+  // Переход по ссылке с другим #… собирает шкаф заново.
+  const [linkVisit, setLinkVisit] = useState(0);
   useEffect(() => {
-    const fromHash = () => {
-      const hash = window.location.hash.slice(1);
-      setProduct(isProduct(hash) ? hash : "wardrobe");
+    const read = () => {
+      const next = fromHash(window.location.hash.slice(1));
+      setProduct(next.product);
+      setKind(next.kind);
+      setLinkVisit((current) => current + 1);
     };
-    fromHash();
-    window.addEventListener("hashchange", fromHash);
-    return () => window.removeEventListener("hashchange", fromHash);
+    read();
+    window.addEventListener("hashchange", read);
+    return () => window.removeEventListener("hashchange", read);
   }, []);
   const choose = (next: Product) => {
     setProduct(next);
-    window.history.replaceState(null, "", `#${next}`);
+    window.history.replaceState(
+      null,
+      "",
+      `#${next === "wardrobe" && kind === "kupe" ? "kupe" : next}`,
+    );
   };
 
   return (
@@ -111,7 +119,15 @@ export function ConstructorTabs({
       {product === "kitchen" ? (
         <KitchenConstructor {...props} />
       ) : (
-        <FurnitureConstructor key={product} {...props} kind={product} />
+        <FurnitureConstructor
+          key={linkVisit}
+          {...props}
+          kind={kind}
+          onKindChange={(next) => {
+            setKind(next);
+            window.history.replaceState(null, "", `#${next}`);
+          }}
+        />
       )}
     </div>
   );
