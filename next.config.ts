@@ -8,6 +8,11 @@ const nextConfig: NextConfig = {
       "./public/fonts/NotoSans-Bold.ttf",
       "./public/**/*",
     ],
+    // Журнал акций: шрифты и логотип читаются с диска при сборке PDF.
+    "/api/admin/promotions/magazine": [
+      "./public/fonts/**/*",
+      "./public/brand/**/*",
+    ],
   },
   // Программа раскроя лежит в public/raskroy (см. scripts/sync-raskroy.mjs).
   async rewrites() {
