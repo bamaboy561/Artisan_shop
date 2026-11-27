@@ -1,6 +1,6 @@
 "use client";
 
-import { inputClass } from "@/features/services/cabinet-builder-dialog";
+import { inputClass } from "@/features/services/number-field";
 import {
   DRAWER_SYSTEMS,
   DRAWER_SYSTEM_ORDER,

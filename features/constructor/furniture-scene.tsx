@@ -358,6 +358,12 @@ export function FurnitureScene({
   const hasOverlay = Boolean(overlay);
   const [expanded, setExpanded] = useState(false);
   const [failed, setFailed] = useState(false);
+  // Подписи выключены — не ищем, какие детали видны, на каждом кадре.
+  const labelsOnRef = useRef(labels);
+  useEffect(() => {
+    labelsOnRef.current = labels;
+    stateRef.current?.render();
+  }, [labels]);
 
   // Сцена создаётся один раз.
   useEffect(() => {
@@ -371,7 +377,12 @@ export function FurnitureScene({
       setFailed(true);
       return;
     }
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    // На телефоне меньше пикселей и тень попроще: макет крутится плавно
+    // и не греет телефон.
+    const small = Math.min(window.innerWidth, window.innerHeight) < 700;
+    renderer.setPixelRatio(
+      Math.min(window.devicePixelRatio || 1, small ? 1.5 : 2),
+    );
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 0.95;
@@ -398,7 +409,7 @@ export function FurnitureScene({
     const sun = new THREE.DirectionalLight(0xfff6ea, 1.9);
     sun.position.set(2.5, 4, 3);
     sun.castShadow = true;
-    sun.shadow.mapSize.set(2048, 2048);
+    sun.shadow.mapSize.set(small ? 1024 : 2048, small ? 1024 : 2048);
     sun.shadow.camera.left = -3;
     sun.shadow.camera.right = 3;
     sun.shadow.camera.top = 3;
@@ -471,7 +482,7 @@ export function FurnitureScene({
     };
     const placeLabels = () => {
       const layer = labelsRef.current;
-      if (!layer) return;
+      if (!layer || !labelsOnRef.current) return;
       const points = labelPoints();
       Array.from(layer.children).forEach((child, index) => {
         const element = child as HTMLElement;
