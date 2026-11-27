@@ -2,6 +2,7 @@ import { formatPrice } from "@/lib/commerce";
 import { ConfirmDeleteButton } from "@/components/admin/confirm-delete-button";
 import Form from "next/form";
 import Link from "next/link";
+import { BookOpen } from "lucide-react";
 
 import {
   DiscountType,
@@ -418,6 +419,20 @@ export default async function AdminPromotionsPage({
           titleClassName="text-2xl sm:text-3xl"
           descriptionClassName="max-w-3xl text-sm leading-7"
         />
+        <div className="mt-5 flex flex-wrap items-center gap-3">
+          <a
+            href="/api/admin/promotions/magazine"
+            download
+            className={getButtonClassName("accent", "sm")}
+          >
+            <BookOpen className="size-4" aria-hidden="true" />
+            Скачать журнал акций (PDF)
+          </a>
+          <p className="text-xs leading-5 text-[var(--muted)]">
+            Все товары с действующей скидкой: обложка, ценники, QR на каждый
+            товар. Можно отправить клиентам в WhatsApp или распечатать.
+          </p>
+        </div>
       </section>
 
       {telegramPromo ? (
