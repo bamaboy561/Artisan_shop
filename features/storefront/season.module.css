@@ -105,17 +105,17 @@
   }
 }
 
-/* Шапочка на букве «A» логотипа — приглушённые тёплые цвета */
+/* Шапочка на вершине знака «A» нового логотипа — приглушённые тёплые цвета */
 .hatHost {
   position: relative;
 }
 .hat {
   position: absolute;
-  left: -9px;
-  top: -13px;
+  left: 13px;
+  top: -21px;
   width: 28px;
   height: 23px;
-  transform: rotate(-16deg);
+  transform: rotate(-12deg);
   pointer-events: none;
 }
 
@@ -162,8 +162,8 @@
     flex-basis: 42px;
   }
   .hat {
-    left: -8px;
-    top: -11px;
+    left: 4px;
+    top: -14px;
     width: 23px;
     height: 19px;
   }
