@@ -2,6 +2,7 @@ import "server-only";
 import path from "node:path";
 import PDFDocument from "pdfkit";
 import QRCode from "qrcode";
+import sharp from "sharp";
 import type { PromoMagazineData } from "@/lib/server/promo-magazine-data";
 import { catalogThumbnail } from "@/lib/server/catalog-thumbnail";
 
@@ -94,10 +95,21 @@ export async function loadMagazinePhotos(data: PromoMagazineData) {
         const current = index++;
         if (Date.now() > deadline) return;
         const hero = current % PER_PAGE === 0;
-        photos[current] = await catalogThumbnail(
-          data.products[current].imageUrl,
+        const product = data.products[current];
+        const photo = await catalogThumbnail(
+          product.imageUrl,
           hero ? [760, 640] : [560, 400],
         );
+        // Образец декора заполняет всё окно фото: убираем белые поля,
+        // которые миниатюра добавляет при вписывании.
+        photos[current] =
+          photo && product.isSheet
+            ? await sharp(photo)
+                .trim({ background: "#ffffff", threshold: 12 })
+                .jpeg({ quality: 86 })
+                .toBuffer()
+                .catch(() => photo)
+            : photo;
       }
     }),
   );
@@ -229,16 +241,25 @@ function drawPhoto(
   y: number,
   width: number,
   height: number,
+  fill = false,
 ) {
   doc.save();
   doc.rect(x, y, width, height).fill(photo ? "#ffffff" : C.warm);
   if (photo) {
     doc.rect(x, y, width, height).clip();
-    doc.image(photo, x, y, {
-      cover: [width, height],
-      align: "center",
-      valign: "center",
-    });
+    // Декор плиты — на всё окно, товар (фурнитура, интерьер) — целиком.
+    if (fill)
+      doc.image(photo, x, y, {
+        cover: [width, height],
+        align: "center",
+        valign: "center",
+      });
+    else
+      doc.image(photo, x + 8, y + 8, {
+        fit: [width - 16, height - 16],
+        align: "center",
+        valign: "center",
+      });
   } else {
     drawLogoMark(doc, x + width / 2 - 14, y + height / 2 - 26, 28);
     doc
@@ -287,7 +308,16 @@ async function drawCard(
   doc.roundedRect(x, y, width, height, 6).lineWidth(0.6).stroke(C.line);
   doc.roundedRect(x, y, width, height, 6).clip();
   const photoHeight = height * 0.5;
-  drawPhoto(doc, photo, product.name, x, y, width, photoHeight);
+  drawPhoto(
+    doc,
+    photo,
+    product.name,
+    x,
+    y,
+    width,
+    photoHeight,
+    product.isSheet,
+  );
   doc.restore();
 
   if (product.percent > 0)
@@ -376,7 +406,16 @@ async function drawHero(
   doc.roundedRect(x, y, width, height, 8).clip();
   const photoWidth = width * 0.52;
   const photoX = photoRight ? x + width - photoWidth : x;
-  drawPhoto(doc, photo, product.name, photoX, y, photoWidth, height);
+  drawPhoto(
+    doc,
+    photo,
+    product.name,
+    photoX,
+    y,
+    photoWidth,
+    height,
+    product.isSheet,
+  );
   // Жёлтая полоса-разделитель между фото и текстом.
   doc
     .rect(photoRight ? photoX - 5 : photoX + photoWidth, y, 5, height)

@@ -3,6 +3,10 @@ import { getDb } from "@/lib/db";
 import { getSiteUrl } from "@/lib/seo";
 import { companyContacts } from "@/lib/site-config";
 import {
+  displayProductName,
+  isSheetFormat,
+} from "@/features/storefront/plate-gallery";
+import {
   getProductPromotionPrice,
   getPromotionCompareAtPrice,
   PROMOTION_PRICE_SELECT,
@@ -70,8 +74,8 @@ export async function getPromoMagazineData(promotionId = "") {
       },
       images: {
         select: { url: true },
-        orderBy: { sortOrder: "asc" },
-        take: 1,
+        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+        take: 2,
       },
     },
     orderBy: [{ name: "asc" }],
@@ -108,7 +112,10 @@ export async function getPromoMagazineData(promotionId = "") {
         : 0;
       return {
         sku: product.sku,
-        name: product.name,
+        name: displayProductName({
+          name: product.name,
+          format: product.format ?? "",
+        }),
         brand: product.brand?.name ?? "",
         category: product.category.name,
         format: [
@@ -121,6 +128,7 @@ export async function getPromoMagazineData(promotionId = "") {
           .filter(Boolean)
           .join(", "),
         // Как на витрине: без количества смотрим на статус наличия.
+        isSheet: isSheetFormat(product.format ?? ""),
         inStock:
           product.stockQuantity === null
             ? product.inventoryStatus === "IN_STOCK" ||
@@ -131,7 +139,14 @@ export async function getPromoMagazineData(promotionId = "") {
         percent,
         promotionName: pricing.promotion.name,
         endsAt: pricing.promotion.endsAt,
-        imageUrl: product.images[0]?.url ?? null,
+        // У плит первое фото — интерьер, второе — образец декора. В журнале,
+        // как на витрине, для листовых материалов показываем сам декор.
+        imageUrl:
+          (isSheetFormat(product.format ?? "")
+            ? product.images[1]?.url
+            : undefined) ??
+          product.images[0]?.url ??
+          null,
         url: `${siteUrl}/product/${encodeURIComponent(product.slug)}`,
       };
     })
