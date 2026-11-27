@@ -421,12 +421,20 @@ export default async function AdminPromotionsPage({
         />
         <div className="mt-5 flex flex-wrap items-center gap-3">
           <a
-            href="/api/admin/promotions/magazine"
+            href="/api/admin/promotions/magazine?theme=new-year"
             download
             className={getButtonClassName("accent", "sm")}
           >
             <BookOpen className="size-4" aria-hidden="true" />
-            Скачать журнал акций (PDF)
+            Журнал акций: новогодний
+          </a>
+          <a
+            href="/api/admin/promotions/magazine?theme=classic"
+            download
+            className={getButtonClassName("secondary", "sm")}
+          >
+            <BookOpen className="size-4" aria-hidden="true" />
+            Журнал акций: обычный
           </a>
           <p className="text-xs leading-5 text-[var(--muted)]">
             Все товары с действующей скидкой: обложка, ценники, QR на каждый

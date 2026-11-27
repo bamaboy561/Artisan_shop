@@ -11,10 +11,6 @@ type MagazineProduct = PromoMagazineData["products"][number];
 
 const PAGE = { width: 595.28, height: 841.89, margin: 26 };
 const C = {
-  red: "#e3001b",
-  redDeep: "#a80014",
-  redDark: "#7d000f",
-  yellow: "#ffd400",
   ink: "#17130f",
   muted: "#77706a",
   line: "#ece6de",
@@ -22,6 +18,172 @@ const C = {
   warm: "#f6f1ea",
   green: "#1d7a4f",
 };
+
+// Темы журнала: обычная «гипермаркет» и новогодняя. Тема хранится на
+// документе, чтобы параллельные выгрузки с разными темами не мешали друг другу.
+export type MagazineThemeId = "classic" | "new-year";
+type MagazineTheme = {
+  id: MagazineThemeId;
+  sale: string; // цена, звёзды скидки, метки
+  saleDeep: string; // тень ценника
+  tag: string; // ценник
+  bg: string; // обложка, шапка страниц, баннер
+  bgDeep: string;
+  bgDark: string; // низ обложки
+  accent: string; // акцентный текст и полосы на фоне
+  wedge: string; // клин на обложке под товарами
+  wedgeText: string;
+  soft: string; // мелкий светлый текст на фоне
+};
+const THEMES: Record<MagazineThemeId, MagazineTheme> = {
+  classic: {
+    id: "classic",
+    sale: "#e3001b",
+    saleDeep: "#a80014",
+    tag: "#ffd400",
+    bg: "#e3001b",
+    bgDeep: "#a80014",
+    bgDark: "#7d000f",
+    accent: "#ffd400",
+    wedge: "#ffd400",
+    wedgeText: "#e3001b",
+    soft: "#ffd9dd",
+  },
+  "new-year": {
+    id: "new-year",
+    sale: "#d0102b",
+    saleDeep: "#7e0a1c",
+    tag: "#f6c945",
+    bg: "#0f4d37",
+    bgDeep: "#0a3a29",
+    bgDark: "#072a1d",
+    accent: "#f6c945",
+    wedge: "#c8102e",
+    wedgeText: "#ffffff",
+    soft: "#cfe6da",
+  },
+};
+const docThemes = new WeakMap<Doc, MagazineTheme>();
+function T(doc: Doc) {
+  return docThemes.get(doc) ?? THEMES.classic;
+}
+
+// Новогодняя тема включается сама с 1 декабря по 15 января (Бишкек).
+export function defaultMagazineTheme(date = new Date()): MagazineThemeId {
+  const { month, day } = bishkekParts(date);
+  return month === 11 || (month === 0 && day <= 15) ? "new-year" : "classic";
+}
+
+export function parseMagazineTheme(value: string | null | undefined) {
+  return value === "new-year" || value === "classic" ? value : null;
+}
+
+// Снежинка: шесть лучей с веточками.
+function drawSnowflake(
+  doc: Doc,
+  cx: number,
+  cy: number,
+  r: number,
+  color = "#ffffff",
+  opacity = 1,
+) {
+  doc.save();
+  doc
+    .opacity(opacity)
+    .strokeColor(color)
+    .lineWidth(Math.max(0.6, r / 9))
+    .lineCap("round");
+  for (let i = 0; i < 6; i++) {
+    const a = (Math.PI / 3) * i;
+    const ex = cx + Math.cos(a) * r;
+    const ey = cy + Math.sin(a) * r;
+    doc.moveTo(cx, cy).lineTo(ex, ey).stroke();
+    const bx = cx + Math.cos(a) * r * 0.55;
+    const by = cy + Math.sin(a) * r * 0.55;
+    for (const side of [-1, 1]) {
+      const ba = a + side * 0.7;
+      doc
+        .moveTo(bx, by)
+        .lineTo(bx + Math.cos(ba) * r * 0.35, by + Math.sin(ba) * r * 0.35)
+        .stroke();
+    }
+  }
+  doc.restore();
+}
+
+// Падающий снег: детерминированный, чтобы журнал выглядел одинаково.
+function drawSnow(
+  doc: Doc,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  count: number,
+  seed = 7,
+) {
+  let s = seed;
+  const rand = () => {
+    s = (s * 9301 + 49297) % 233280;
+    return s / 233280;
+  };
+  for (let i = 0; i < count; i++) {
+    const px = x + rand() * width;
+    const py = y + rand() * height;
+    const kind = rand();
+    if (kind > 0.82)
+      drawSnowflake(doc, px, py, 5 + rand() * 9, "#ffffff", 0.55);
+    else {
+      doc.save();
+      doc
+        .opacity(0.35 + rand() * 0.4)
+        .circle(px, py, 0.8 + rand() * 1.8)
+        .fill("#ffffff");
+      doc.restore();
+    }
+  }
+}
+
+// Гирлянда: провисающий провод и цветные лампочки.
+function drawGarland(doc: Doc, y: number, sag: number, width: number) {
+  const colors = [
+    "#f6c945",
+    "#d0102b",
+    "#ffffff",
+    "#3fbf7f",
+    "#f6c945",
+    "#ff7a59",
+  ];
+  const spans = 4;
+  const spanWidth = width / spans;
+  doc.save();
+  doc.strokeColor("#0a2a1d").lineWidth(1.2);
+  for (let i = 0; i < spans; i++) {
+    const x0 = i * spanWidth;
+    doc
+      .moveTo(x0, y)
+      .quadraticCurveTo(x0 + spanWidth / 2, y + sag * 2, x0 + spanWidth, y)
+      .stroke();
+  }
+  let bulb = 0;
+  for (let i = 0; i < spans; i++) {
+    const x0 = i * spanWidth;
+    for (let k = 1; k < 7; k++) {
+      const t = k / 7;
+      const bx = x0 + spanWidth * t;
+      const by = y + sag * 4 * t * (1 - t);
+      const color = colors[bulb++ % colors.length];
+      doc.save();
+      doc
+        .opacity(0.28)
+        .circle(bx, by + 6, 7)
+        .fill(color);
+      doc.restore();
+      doc.rect(bx - 1.6, by - 1, 3.2, 3).fill("#0a2a1d");
+      doc.ellipse(bx, by + 6, 3, 4.6).fill(color);
+    }
+  }
+  doc.restore();
+}
 
 const MONTHS = [
   "январь",
@@ -133,6 +295,40 @@ function drawLogoMark(doc: Doc, x: number, y: number, size: number) {
   doc.restore();
 }
 
+// Логотип Artisan из public/brand (SVG → PNG через sharp). Если файлов нет,
+// рисуем прежний знак вектором, чтобы журнал собирался в любом случае.
+type BrandLogos = { horizontalWhite: Buffer | null; mark: Buffer | null };
+let brandLogos: Promise<BrandLogos> | null = null;
+async function svgToPng(file: string, height: number) {
+  try {
+    return await sharp(path.join(process.cwd(), "public/brand", file), {
+      density: 300,
+    })
+      .resize({ height })
+      .png()
+      .toBuffer();
+  } catch {
+    return null;
+  }
+}
+export function loadBrandLogos() {
+  brandLogos ??= Promise.all([
+    svgToPng("artisan-logo-horizontal-white.svg", 240),
+    svgToPng("artisan-mark.svg", 200),
+  ]).then(([horizontalWhite, mark]) => ({ horizontalWhite, mark }));
+  return brandLogos;
+}
+const docLogos = new WeakMap<Doc, BrandLogos>();
+const HORIZONTAL_RATIO = 1358 / 258;
+
+// Горизонтальный логотип высотой height; false — файла нет.
+function drawHorizontalLogo(doc: Doc, x: number, y: number, height: number) {
+  const logo = docLogos.get(doc)?.horizontalWhite;
+  if (!logo) return false;
+  doc.image(logo, x, y, { height, width: height * HORIZONTAL_RATIO });
+  return true;
+}
+
 // Звезда-ценник как в гипермаркете: зубчатый круг с процентом скидки.
 function drawBurst(
   doc: Doc,
@@ -140,7 +336,7 @@ function drawBurst(
   cy: number,
   radius: number,
   label: string,
-  { fill = C.red, color = "#ffffff", angle = -12 } = {},
+  { fill = T(doc).sale, color = "#ffffff", angle = -12 } = {},
 ) {
   const spikes = 18;
   const points: [number, number][] = [];
@@ -198,7 +394,7 @@ function drawPriceTag(
     const oldWidth = doc.widthOfString(old);
     doc.text(old, x + 2, y, { lineBreak: false });
     doc
-      .strokeColor(C.red)
+      .strokeColor(T(doc).sale)
       .lineWidth(1.1 * scale)
       .moveTo(x + 1, y + 6 * scale)
       .lineTo(x + oldWidth + 3, y + 5 * scale)
@@ -208,12 +404,12 @@ function drawPriceTag(
   doc.save();
   doc
     .rect(x + 2.5 * scale, tagTop + 2.5 * scale, width, height)
-    .fill(C.redDeep);
-  doc.rect(x, tagTop, width, height).fill(C.yellow);
+    .fill(T(doc).saleDeep);
+  doc.rect(x, tagTop, width, height).fill(T(doc).tag);
   doc
     .font("bold")
     .fontSize(priceSize)
-    .fillColor(C.red)
+    .fillColor(T(doc).sale)
     .text(price, x + padX, tagTop + padY - priceSize * 0.08, {
       lineBreak: false,
     });
@@ -261,7 +457,10 @@ function drawPhoto(
         valign: "center",
       });
   } else {
-    drawLogoMark(doc, x + width / 2 - 14, y + height / 2 - 26, 28);
+    const mark = docLogos.get(doc)?.mark;
+    if (mark)
+      doc.image(mark, x + width / 2 - 17, y + height / 2 - 30, { height: 28 });
+    else drawLogoMark(doc, x + width / 2 - 14, y + height / 2 - 26, 28);
     doc
       .font("regular")
       .fontSize(8)
@@ -338,7 +537,7 @@ async function drawCard(
   doc
     .font("bold")
     .fontSize(7)
-    .fillColor(C.red)
+    .fillColor(T(doc).sale)
     .text(
       [product.brand, product.category]
         .filter(Boolean)
@@ -419,7 +618,7 @@ async function drawHero(
   // Жёлтая полоса-разделитель между фото и текстом.
   doc
     .rect(photoRight ? photoX - 5 : photoX + photoWidth, y, 5, height)
-    .fill(C.yellow);
+    .fill(T(doc).accent);
   doc.restore();
 
   if (product.percent > 0)
@@ -438,7 +637,7 @@ async function drawHero(
   doc.font("bold").fontSize(8);
   const label = "ХИТ АКЦИИ";
   const lw = doc.widthOfString(label) + 14;
-  doc.rect(textX, ty, lw, 16).fill(C.red);
+  doc.rect(textX, ty, lw, 16).fill(T(doc).sale);
   doc
     .fillColor("#ffffff")
     .text(label, textX + 7, ty + 4, { lineBreak: false, characterSpacing: 1 });
@@ -454,7 +653,7 @@ async function drawHero(
   doc
     .font("bold")
     .fontSize(8)
-    .fillColor(C.red)
+    .fillColor(T(doc).sale)
     .text(
       [product.brand, product.category]
         .filter(Boolean)
@@ -506,25 +705,47 @@ async function drawHero(
 }
 
 function drawPageHeader(doc: Doc, data: PromoMagazineData) {
-  doc.rect(0, 0, PAGE.width, 44).fill(C.red);
-  doc.rect(0, 44, PAGE.width, 4).fill(C.yellow);
-  drawLogoMark(doc, PAGE.margin, 10, 24);
-  doc
-    .font("bold")
-    .fontSize(13)
-    .fillColor("#ffffff")
-    .text("ARTISAN", PAGE.margin + 32, 13, {
-      characterSpacing: 3,
-      lineBreak: false,
-    });
-  doc
-    .font("bold")
-    .fontSize(9)
-    .fillColor(C.yellow)
-    .text("АКЦИИ", PAGE.margin + 32, 28, {
-      characterSpacing: 2,
-      lineBreak: false,
-    });
+  doc.rect(0, 0, PAGE.width, 44).fill(T(doc).bg);
+  doc.rect(0, 44, PAGE.width, 4).fill(T(doc).accent);
+  if (T(doc).id === "new-year") {
+    for (const [fx, fy, fr] of [
+      [190, 14, 6],
+      [250, 30, 4],
+      [310, 12, 5],
+      [360, 28, 3.5],
+    ] as const)
+      drawSnowflake(doc, fx, fy, fr, "#ffffff", 0.5);
+  }
+  if (drawHorizontalLogo(doc, PAGE.margin, 11, 22)) {
+    const labelX = PAGE.margin + 22 * HORIZONTAL_RATIO + 12;
+    doc.rect(labelX, 15, 1, 14).fill(T(doc).soft);
+    doc
+      .font("bold")
+      .fontSize(10)
+      .fillColor(T(doc).accent)
+      .text("АКЦИИ", labelX + 10, 16, {
+        characterSpacing: 2,
+        lineBreak: false,
+      });
+  } else {
+    drawLogoMark(doc, PAGE.margin, 10, 24);
+    doc
+      .font("bold")
+      .fontSize(13)
+      .fillColor("#ffffff")
+      .text("ARTISAN", PAGE.margin + 32, 13, {
+        characterSpacing: 3,
+        lineBreak: false,
+      });
+    doc
+      .font("bold")
+      .fontSize(9)
+      .fillColor(T(doc).accent)
+      .text("АКЦИИ", PAGE.margin + 32, 28, {
+        characterSpacing: 2,
+        lineBreak: false,
+      });
+  }
   doc
     .font("bold")
     .fontSize(9)
@@ -562,7 +783,7 @@ function drawPageFooter(doc: Doc, data: PromoMagazineData, page: number) {
   doc
     .font("bold")
     .fontSize(9)
-    .fillColor(C.red)
+    .fillColor(T(doc).sale)
     .text(String(page), PAGE.width - PAGE.margin - 30, y - 1, {
       width: 30,
       align: "right",
@@ -579,7 +800,7 @@ async function drawBanner(
   height: number,
 ) {
   doc.save();
-  doc.roundedRect(x, y, width, height, 8).fill(C.red);
+  doc.roundedRect(x, y, width, height, 8).fill(T(doc).bg);
   doc.roundedRect(x, y, width, height, 8).clip();
   doc
     .polygon(
@@ -588,7 +809,17 @@ async function drawBanner(
       [x + width, y + height],
       [x, y + height],
     )
-    .fill(C.yellow);
+    .fill(T(doc).wedge);
+  if (T(doc).id === "new-year")
+    drawSnow(
+      doc,
+      x,
+      y + height * 0.3,
+      width,
+      height * 0.3,
+      Math.round(width / 18),
+      11,
+    );
   doc.restore();
   const wide = width > 400;
   const pad = wide ? 28 : 16;
@@ -604,7 +835,7 @@ async function drawBanner(
   doc
     .font("bold")
     .fontSize(wide ? 14 : 10.5)
-    .fillColor(C.yellow)
+    .fillColor(T(doc).accent)
     .text(
       "Весь каталог ЛДСП, МДФ и фурнитуры — на сайте. Распил от 300 сом за лист, кромка и присадка в нашем цеху.",
       x + pad,
@@ -636,9 +867,9 @@ async function drawBanner(
     const tileY = y + height * 0.5 - tileHeight / 2 + 10;
     services.forEach(([title, text], i) => {
       const tx = x + pad + i * (tileWidth + tileGap);
-      doc.rect(tx + 3, tileY + 4, tileWidth, tileHeight).fill(C.redDeep);
+      doc.rect(tx + 3, tileY + 4, tileWidth, tileHeight).fill(T(doc).bgDeep);
       doc.rect(tx, tileY, tileWidth, tileHeight).fill("#ffffff");
-      doc.rect(tx, tileY, 5, tileHeight).fill(C.yellow);
+      doc.rect(tx, tileY, 5, tileHeight).fill(T(doc).accent);
       doc
         .font("bold")
         .fontSize(18)
@@ -658,7 +889,7 @@ async function drawBanner(
   doc
     .font("bold")
     .fontSize(wide ? 22 : 14)
-    .fillColor(C.red)
+    .fillColor(T(doc).wedgeText)
     .text(data.contacts.phone, x + pad, y + height - pad - (wide ? 24 : 16), {
       lineBreak: false,
     });
@@ -666,7 +897,7 @@ async function drawBanner(
     doc
       .font("bold")
       .fontSize(11)
-      .fillColor(C.ink)
+      .fillColor(T(doc).id === "new-year" ? T(doc).wedgeText : C.ink)
       .text(
         "Звоните или пишите в WhatsApp",
         x + width - pad - 260,
@@ -682,7 +913,7 @@ async function drawCover(
 ) {
   const W = PAGE.width;
   const H = PAGE.height;
-  doc.rect(0, 0, W, H).fill(C.red);
+  doc.rect(0, 0, W, H).fill(T(doc).bg);
   // Лучи от центра заголовка — как на листовках гипермаркетов.
   doc.save();
   doc.opacity(0.08);
@@ -700,32 +931,50 @@ async function drawCover(
       .fill("#ffffff");
   }
   doc.restore();
-  // Жёлтый косой клин снизу — на нём лежат товары.
-  doc.polygon([0, 470], [W, 410], [W, H], [0, H]).fill(C.yellow);
-  doc.polygon([0, 470], [W, 410], [W, 422], [0, 482]).fill(C.redDeep);
+  if (T(doc).id === "new-year") {
+    drawSnow(doc, 0, 0, W, 470, 90, 5);
+    drawSnowflake(doc, W - 70, 330, 34, "#ffffff", 0.18);
+    drawSnowflake(doc, 70, 420, 22, "#ffffff", 0.16);
+  }
+  // Косой клин снизу — на нём лежат товары.
+  doc.polygon([0, 470], [W, 410], [W, H], [0, H]).fill(T(doc).wedge);
+  doc.polygon([0, 470], [W, 410], [W, 422], [0, 482]).fill(T(doc).bgDeep);
+  if (T(doc).id === "new-year") {
+    doc.save();
+    doc.polygon([0, 470], [W, 410], [W, H], [0, H]).clip();
+    drawSnow(doc, 0, 410, W, H - 410, 40, 9);
+    doc.restore();
+    drawGarland(doc, -2, 12, W);
+  }
 
   const left = PAGE.margin + 8;
   const right = W - PAGE.margin - 8;
-  drawLogoMark(doc, left, 34, 38);
-  doc
-    .font("bold")
-    .fontSize(19)
-    .fillColor("#ffffff")
-    .text("ARTISAN", left + 50, 37, { characterSpacing: 5, lineBreak: false });
-  doc
-    .font("regular")
-    .fontSize(7.5)
-    .fillColor("#ffd9dd")
-    .text("МАТЕРИАЛЫ ДЛЯ МЕБЕЛИ · БИШКЕК", left + 51, 61, {
-      characterSpacing: 1.4,
-      lineBreak: false,
-    });
+  if (!drawHorizontalLogo(doc, left, 34, 38)) {
+    drawLogoMark(doc, left, 34, 38);
+    doc
+      .font("bold")
+      .fontSize(19)
+      .fillColor("#ffffff")
+      .text("ARTISAN", left + 50, 37, {
+        characterSpacing: 5,
+        lineBreak: false,
+      });
+    doc
+      .font("regular")
+      .fontSize(7.5)
+      .fillColor(T(doc).soft)
+      .text("МАТЕРИАЛЫ ДЛЯ МЕБЕЛИ · БИШКЕК", left + 51, 61, {
+        characterSpacing: 1.4,
+        lineBreak: false,
+      });
+  }
   const { month, year } = bishkekParts(data.createdAt);
+  const newYear = T(doc).id === "new-year";
   doc
     .font("bold")
     .fontSize(8)
-    .fillColor("#ffd9dd")
-    .text("ЖУРНАЛ АКЦИЙ", right - 150, 39, {
+    .fillColor(T(doc).soft)
+    .text(newYear ? "НОВОГОДНИЙ ЖУРНАЛ" : "ЖУРНАЛ АКЦИЙ", right - 150, 39, {
       width: 150,
       align: "right",
       characterSpacing: 2,
@@ -734,7 +983,7 @@ async function drawCover(
   doc
     .font("bold")
     .fontSize(14)
-    .fillColor(C.yellow)
+    .fillColor(T(doc).accent)
     .text(`${MONTHS[month].toUpperCase()} ${year}`, right - 150, 52, {
       width: 150,
       align: "right",
@@ -755,15 +1004,15 @@ async function drawCover(
       .fillColor("#ffffff")
       .text(lead, left, 256, { lineBreak: false, characterSpacing: 1 });
     drawBurst(doc, left + leadWidth + 74, 274, 62, `−${data.maxPercent}%`, {
-      fill: C.yellow,
-      color: C.red,
+      fill: T(doc).accent,
+      color: T(doc).sale,
       angle: -10,
     });
     titleTop = 312;
   }
   const titleWidth = right - left - 20;
   doc.font("bold").fontSize(24);
-  doc.fillColor(C.yellow).text(data.title, left, titleTop, {
+  doc.fillColor(T(doc).accent).text(data.title, left, titleTop, {
     width: titleWidth,
     height: 62,
     ellipsis: true,
@@ -793,13 +1042,15 @@ async function drawCover(
     const x = left + i * (cardWidth + gap);
     const y = 462 - i * 16;
     doc.save();
-    doc.roundedRect(x + 3, y + 4, cardWidth, cardHeight, 8).fill(C.redDeep);
+    doc
+      .roundedRect(x + 3, y + 4, cardWidth, cardHeight, 8)
+      .fill(T(doc).saleDeep);
     doc.restore();
     await drawCard(doc, product, photos[i], x, y, cardWidth, cardHeight);
   }
 
   // Низ обложки: контакты на тёмно-красной полосе.
-  doc.rect(0, H - 54, W, 54).fill(C.redDark);
+  doc.rect(0, H - 54, W, 54).fill(T(doc).bgDark);
   doc
     .font("bold")
     .fontSize(15)
@@ -808,14 +1059,14 @@ async function drawCover(
   doc
     .font("regular")
     .fontSize(8.5)
-    .fillColor("#ffd9dd")
+    .fillColor(T(doc).soft)
     .text(`${data.contacts.address} · ${data.contacts.hours}`, left, H - 21, {
       lineBreak: false,
     });
   doc
     .font("bold")
     .fontSize(11)
-    .fillColor(C.yellow)
+    .fillColor(T(doc).accent)
     .text(data.siteUrl.replace(/^https?:\/\//, ""), right - 220, H - 36, {
       width: 220,
       align: "right",
@@ -835,21 +1086,39 @@ async function drawBackCover(doc: Doc, data: PromoMagazineData) {
   const W = PAGE.width;
   const H = PAGE.height;
   doc.rect(0, 0, W, H).fill(C.ink);
-  doc.polygon([0, 0], [W, 0], [W, 300], [0, 360]).fill(C.red);
-  doc.polygon([0, 360], [W, 300], [W, 312], [0, 372]).fill(C.yellow);
+  doc.polygon([0, 0], [W, 0], [W, 300], [0, 360]).fill(T(doc).bg);
+  doc.polygon([0, 360], [W, 300], [W, 312], [0, 372]).fill(T(doc).accent);
   const left = PAGE.margin + 18;
   const right = W - PAGE.margin - 18;
-  drawLogoMark(doc, left, 60, 52);
+  const newYear = T(doc).id === "new-year";
+  if (newYear) {
+    doc.save();
+    doc.polygon([0, 0], [W, 0], [W, 300], [0, 360]).clip();
+    drawSnow(doc, 0, 0, W, 360, 70, 3);
+    drawSnowflake(doc, W - 110, 170, 60, "#ffffff", 0.16);
+    doc.restore();
+    drawGarland(doc, -2, 12, W);
+  }
+  if (!drawHorizontalLogo(doc, left, 62, 44)) drawLogoMark(doc, left, 60, 52);
   doc
     .font("bold")
-    .fontSize(46)
+    .fontSize(newYear ? 42 : 46)
     .fillColor("#ffffff")
-    .text("Ждём вас", left, 140, { lineBreak: false });
+    .text(newYear ? "С Новым годом!" : "Ждём вас", left, 140, {
+      lineBreak: false,
+    });
   doc
     .font("bold")
-    .fontSize(46)
-    .fillColor(C.yellow)
-    .text("в Artisan!", left, 192, { lineBreak: false });
+    .fontSize(newYear ? 34 : 46)
+    .fillColor(T(doc).accent)
+    .text(
+      newYear ? "Ждём вас в Artisan" : "в Artisan!",
+      left,
+      newYear ? 194 : 192,
+      {
+        lineBreak: false,
+      },
+    );
 
   const rows: [string, string][] = [
     ["Телефон и WhatsApp", data.contacts.phone],
@@ -907,7 +1176,7 @@ async function drawBackCover(doc: Doc, data: PromoMagazineData) {
   services.forEach(([title, text], i) => {
     const tx = left + i * (tileWidth + tileGap);
     doc.rect(tx, 650, tileWidth, 74).fill("#24201b");
-    doc.rect(tx, 650, 4, 74).fill(C.yellow);
+    doc.rect(tx, 650, 4, 74).fill(T(doc).accent);
     doc
       .font("bold")
       .fontSize(17)
@@ -938,6 +1207,7 @@ async function drawBackCover(doc: Doc, data: PromoMagazineData) {
 export async function renderPromoMagazine(
   data: PromoMagazineData,
   photos: (Buffer | null)[],
+  themeId: MagazineThemeId = defaultMagazineTheme(data.createdAt),
 ) {
   const doc = new PDFDocument({
     size: "A4",
@@ -949,6 +1219,8 @@ export async function renderPromoMagazine(
   doc.registerFont("regular", path.join(fonts, "NotoSans-Regular.ttf"));
   doc.registerFont("bold", path.join(fonts, "NotoSans-Bold.ttf"));
   doc.font("regular");
+  docThemes.set(doc, THEMES[themeId]);
+  docLogos.set(doc, await loadBrandLogos());
   const chunks: Buffer[] = [];
   const result = new Promise<Buffer>((resolve, reject) => {
     doc.on("data", (chunk: Buffer) => chunks.push(chunk));
@@ -956,6 +1228,9 @@ export async function renderPromoMagazine(
     doc.on("error", reject);
   });
 
+  // Общий журнал в новогодней теме называется «Новогодние акции».
+  if (themeId === "new-year" && data.title === "Акции месяца")
+    data = { ...data, title: "Новогодние акции" };
   await drawCover(doc, data, photos);
 
   const products = data.products;
