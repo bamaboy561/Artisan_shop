@@ -22,9 +22,22 @@ export async function getPromoMagazineData(promotionId = "") {
     : null;
   if (promotionId && !promotion) throw new Error("Акция не найдена.");
 
-  const relationFilter = promotionId
-    ? { some: { promotionId } }
-    : { some: { promotion: { status: "ACTIVE" as const } } };
+  // Только акции, которые действуют прямо сейчас (статус и сроки), чтобы
+  // лимит выборки не съели товары просроченных или будущих акций.
+  const now = new Date();
+  const activeNow = {
+    status: "ACTIVE" as const,
+    AND: [
+      { OR: [{ startsAt: null }, { startsAt: { lte: now } }] },
+      { OR: [{ endsAt: null }, { endsAt: { gte: now } }] },
+    ],
+  };
+  const relationFilter = {
+    some: {
+      ...(promotionId ? { promotionId } : {}),
+      promotion: activeNow,
+    },
+  };
   const products = await db.product.findMany({
     where: {
       status: "ACTIVE",
@@ -40,6 +53,7 @@ export async function getPromoMagazineData(promotionId = "") {
       price: true,
       compareAtPrice: true,
       stockQuantity: true,
+      inventoryStatus: true,
       format: true,
       thicknessMm: true,
       brand: { select: { name: true } },
@@ -61,7 +75,7 @@ export async function getPromoMagazineData(promotionId = "") {
       },
     },
     orderBy: [{ name: "asc" }],
-    take: 600,
+    take: 3000,
   });
 
   const siteUrl = getSiteUrl();
@@ -106,7 +120,12 @@ export async function getPromoMagazineData(promotionId = "") {
         ]
           .filter(Boolean)
           .join(", "),
-        inStock: (product.stockQuantity ?? 0) > 0,
+        // Как на витрине: без количества смотрим на статус наличия.
+        inStock:
+          product.stockQuantity === null
+            ? product.inventoryStatus === "IN_STOCK" ||
+              product.inventoryStatus === "LIMITED"
+            : product.stockQuantity > 0,
         price: pricing.finalPrice,
         oldPrice,
         percent,
