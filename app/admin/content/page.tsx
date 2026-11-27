@@ -24,6 +24,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { requireAdminSession } from "@/lib/auth/dal";
 import { hasDatabaseUrl } from "@/lib/db";
 import { getAdminContentOverview } from "@/lib/server/content-admin";
+import { getSeasonMode } from "@/lib/server/season-settings";
+import { SeasonForm } from "@/app/admin/content/season-form";
 
 export const dynamic = "force-dynamic";
 
@@ -335,7 +337,10 @@ export default async function AdminContentPage() {
 
   await requireAdminSession("/login?next=/admin/content", "/admin/content");
 
-  const { pages, banners } = await getAdminContentOverview();
+  const [{ pages, banners }, seasonMode] = await Promise.all([
+    getAdminContentOverview(),
+    getSeasonMode(),
+  ]);
   const activeBanners = banners.filter((banner) => banner.isActive);
   const publishedPages = pages.filter(
     (page) => page.status === PageStatus.PUBLISHED,
@@ -351,6 +356,8 @@ export default async function AdminContentPage() {
           descriptionClassName="max-w-3xl text-sm leading-7"
         />
       </section>
+
+      <SeasonForm mode={seasonMode} />
 
       <section className="grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-3 [&>*:last-child:nth-child(odd)]:col-span-2 md:[&>*:last-child:nth-child(odd)]:col-span-1">
         <MetricCard

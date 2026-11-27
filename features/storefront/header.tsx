@@ -14,19 +14,32 @@ import {
   ShoppingBag,
   UserRound,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
+import { resolveSeason, type SeasonMode } from "@/lib/season";
 import { useCart } from "@/components/providers/cart-provider";
 import { companyContacts, primaryNavigation } from "@/lib/site-config";
 import { ArtisanLogo } from "@/components/brand/artisan-logo";
 import { StorefrontDialog } from "./controls";
 import { LiveSearch } from "./live-search";
+import { SeasonGarland, SeasonHat, SeasonSnow } from "./season";
+import seasonStyles from "./season.module.css";
 import s from "./storefront.module.css";
 
 export function StorefrontHeader({
   categories,
+  seasonMode = "off",
 }: {
   categories: { slug: string; name: string }[];
+  seasonMode?: SeasonMode;
 }) {
+  // Даты считаем в браузере: страницы вроде /contacts собираются заранее
+  // и кэшируются, иначе «само по датам» не включилось бы 1 декабря.
+  const greeting = useSyncExternalStore(
+    subscribeNever,
+    () => resolveSeason(seasonMode)?.greeting ?? "",
+    () => "",
+  );
+  const season = greeting ? { greeting } : null;
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const { itemCount } = useCart();
@@ -51,6 +64,11 @@ export function StorefrontHeader({
   ];
   return (
     <>
+      {season && (
+        <div className={seasonStyles.greetingStrip}>
+          <span className={seasonStyles.greeting}>{season.greeting}</span>
+        </div>
+      )}
       <div className={s.previewBar}>
         <span>
           <MapPin size={13} /> Бишкек, Кыргызстан
@@ -59,7 +77,12 @@ export function StorefrontHeader({
       </div>
       <header className={s.header}>
         <div className={`${s.container} ${s.headerMain}`}>
-          <Link href="/" className={s.wordmark} aria-label="Artisan, главная">
+          <Link
+            href="/"
+            className={`${s.wordmark} ${season ? seasonStyles.hatHost : ""}`}
+            aria-label="Artisan, главная"
+          >
+            {season && <SeasonHat />}
             <ArtisanLogo className={s.logo} variant="horizontal" />
             <ArtisanLogo className={s.logoCompact} variant="compact" />
           </Link>
@@ -137,6 +160,8 @@ export function StorefrontHeader({
           </div>
         </nav>
       </header>
+      {season && <SeasonGarland />}
+      {season && pathname === "/" && <SeasonSnow />}
       {/* В оформлении заказа и в калькуляторе внизу своя панель с итогом:
           две панели одна над другой закрывали форму. */}
       {pathname !== "/checkout" && pathname !== "/calculator" && (
@@ -184,4 +209,8 @@ export function StorefrontHeader({
       </StorefrontDialog>
     </>
   );
+}
+
+function subscribeNever() {
+  return () => {};
 }

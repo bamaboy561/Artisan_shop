@@ -1,0 +1,182 @@
+/* Новогоднее оформление (features/storefront/season.tsx).
+   Тёплое и спокойное: золотистые огоньки, мягкий снег, кремовая полоса.
+   Выключается в админке: «Контент сайта» → «Новогоднее оформление сайта». */
+
+/* Полоса с поздравлением над шапкой */
+.greetingStrip {
+  display: flex;
+  justify-content: center;
+  padding: 7px 16px;
+  background: linear-gradient(90deg, #fbeee0 0%, #f8e2cc 50%, #fbeee0 100%);
+  border-bottom: 1px solid #f0d9c0;
+  font-size: 13px;
+}
+.greeting {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+  color: #8a4b2c;
+  white-space: nowrap;
+}
+.greeting::before,
+.greeting::after {
+  content: "✦";
+  font-size: 10px;
+  color: #d9a35b;
+}
+
+/* Гирлянда — тёплые огоньки на тонком проводе. Висит под шапкой и не
+   сдвигает страницу. */
+.garlandAnchor {
+  position: relative;
+  height: 0;
+  z-index: 30;
+  pointer-events: none;
+}
+.garland {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 26px;
+  display: flex;
+  justify-content: center;
+  overflow: hidden;
+}
+.garland i {
+  position: relative;
+  flex: 0 0 52px;
+  height: 26px;
+}
+.garland i::before {
+  content: "";
+  position: absolute;
+  left: -1px;
+  right: -1px;
+  top: -10px;
+  height: 18px;
+  border-bottom: 1px solid rgba(138, 96, 62, 0.55);
+  border-radius: 0 0 50% 50% / 0 0 100% 100%;
+}
+.garland i::after {
+  content: "";
+  position: absolute;
+  left: calc(50% - 5px);
+  top: 3px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, #fffaf0 0%, var(--bulb) 70%);
+  box-shadow:
+    0 0 6px 2px var(--glow),
+    0 0 16px 4px var(--halo);
+  animation: glow 4s ease-in-out infinite;
+}
+.garland i:nth-child(3n + 1) {
+  --bulb: #ffd9a0;
+  --glow: rgba(255, 205, 140, 0.75);
+  --halo: rgba(255, 190, 120, 0.25);
+}
+.garland i:nth-child(3n + 2) {
+  --bulb: #ffe8c4;
+  --glow: rgba(255, 228, 185, 0.75);
+  --halo: rgba(255, 215, 160, 0.22);
+}
+.garland i:nth-child(3n) {
+  --bulb: #ffc48a;
+  --glow: rgba(255, 180, 115, 0.7);
+  --halo: rgba(255, 160, 95, 0.22);
+}
+.garland i:nth-child(4n + 1)::after {
+  animation-delay: -1.3s;
+}
+.garland i:nth-child(4n + 2)::after {
+  animation-delay: -2.6s;
+}
+.garland i:nth-child(4n + 3)::after {
+  animation-delay: -0.6s;
+}
+@keyframes glow {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+/* Шапочка на вершине знака «A» нового логотипа — приглушённые тёплые цвета */
+.hatHost {
+  position: relative;
+}
+.hat {
+  position: absolute;
+  left: 13px;
+  top: -21px;
+  width: 28px;
+  height: 23px;
+  transform: rotate(-12deg);
+  pointer-events: none;
+}
+
+/* Снег — только на главной: мягкие пушинки, медленно, клики проходят. */
+.snow {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  overflow: hidden;
+  pointer-events: none;
+}
+.snow i {
+  position: absolute;
+  top: -24px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff 45%, rgba(255, 255, 255, 0) 72%);
+  /* на кремовом фоне чисто белое не видно: тёплая мягкая тень */
+  filter: drop-shadow(0 1px 2px rgba(150, 110, 75, 0.35));
+  animation-name: fall, sway;
+  animation-timing-function: linear, ease-in-out;
+  animation-iteration-count: infinite, infinite;
+  animation-direction: normal, alternate;
+}
+@keyframes fall {
+  to {
+    transform: translateY(calc(100vh + 24px));
+  }
+}
+@keyframes sway {
+  from {
+    margin-left: -18px;
+  }
+  to {
+    margin-left: 18px;
+  }
+}
+
+@media (max-width: 600px) {
+  .greetingStrip {
+    font-size: 12px;
+    padding-block: 6px;
+  }
+  .garland i {
+    flex-basis: 42px;
+  }
+  .hat {
+    left: 4px;
+    top: -14px;
+    width: 23px;
+    height: 19px;
+  }
+  .snow i:nth-child(2n) {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .snow {
+    display: none;
+  }
+  .garland i::after {
+    animation: none;
+  }
+}
