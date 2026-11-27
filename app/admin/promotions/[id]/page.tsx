@@ -76,12 +76,20 @@ export default async function EditPromotionPage({
         />
         <div className="flex flex-wrap gap-2">
           <a
-            href={`/api/admin/promotions/magazine?promotion=${encodeURIComponent(promotion.id)}`}
+            href={`/api/admin/promotions/magazine?promotion=${encodeURIComponent(promotion.id)}&theme=new-year`}
             download
             className={getButtonClassName("accent", "sm")}
           >
             <BookOpen className="size-4" aria-hidden="true" />
-            Журнал этой акции (PDF)
+            Журнал акции: новогодний
+          </a>
+          <a
+            href={`/api/admin/promotions/magazine?promotion=${encodeURIComponent(promotion.id)}&theme=classic`}
+            download
+            className={getButtonClassName("secondary", "sm")}
+          >
+            <BookOpen className="size-4" aria-hidden="true" />
+            Журнал акции: обычный
           </a>
           <Link
             href="/admin/promotions"

@@ -3,7 +3,9 @@ import { canAccessGeneralAdmin } from "@/lib/auth/roles";
 import { hasDatabaseUrl } from "@/lib/db";
 import { getPromoMagazineData } from "@/lib/server/promo-magazine-data";
 import {
+  defaultMagazineTheme,
   loadMagazinePhotos,
+  parseMagazineTheme,
   renderPromoMagazine,
 } from "@/lib/server/promo-magazine-render";
 
@@ -35,8 +37,11 @@ export async function GET(request: Request) {
       { error: "База данных не подключена." },
       { status: 503, headers },
     );
-  const promotionId =
-    new URL(request.url).searchParams.get("promotion")?.trim() ?? "";
+  const params = new URL(request.url).searchParams;
+  const promotionId = params.get("promotion")?.trim() ?? "";
+  // ?theme=classic|new-year; без параметра — по дате (новогодняя 1.12–15.01).
+  const theme =
+    parseMagazineTheme(params.get("theme")) ?? defaultMagazineTheme();
   try {
     const data = await getPromoMagazineData(promotionId);
     if (!data.products.length)
@@ -48,13 +53,13 @@ export async function GET(request: Request) {
         },
       );
     const photos = await loadMagazinePhotos(data);
-    const file = await renderPromoMagazine(data, photos);
+    const file = await renderPromoMagazine(data, photos, theme);
     const date = data.createdAt.toISOString().slice(0, 10);
     return new Response(new Uint8Array(file), {
       headers: {
         ...headers,
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="artisan-akcii-${date}.pdf"`,
+        "Content-Disposition": `attachment; filename="artisan-akcii-${theme === "new-year" ? "novyj-god-" : ""}${date}.pdf"`,
       },
     });
   } catch (error) {
