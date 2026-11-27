@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { Calculator, FileStack, Home, LogOut } from "lucide-react";
 
+import { ArtisanLogo } from "@/components/brand/artisan-logo";
 import { Container } from "@/components/ui/container";
 import {
   CommandPalette,
@@ -41,13 +42,12 @@ function AdminFrame({
         <div className="flex flex-col px-3 py-2.5 lg:h-full lg:min-h-0 lg:py-4">
           <div className="flex items-center justify-between gap-3 px-1">
             <Link href="/admin" className="flex min-w-0 items-center gap-3">
-              <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[var(--accent)] text-lg font-black text-[var(--accent-ink)] lg:size-10">
-                A
-              </span>
               <span className="min-w-0">
-                <span className="block text-lg leading-none font-bold">
-                  Artisan
-                </span>
+                <ArtisanLogo
+                  variant="compact"
+                  className="block h-6 w-auto lg:h-7"
+                  title="Artisan"
+                />
                 <span className="mt-1 block text-xs text-[var(--sidebar-muted)]">
                   Панель управления
                 </span>

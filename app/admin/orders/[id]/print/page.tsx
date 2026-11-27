@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ArtisanLogo } from "@/components/brand/artisan-logo";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 
@@ -80,7 +81,7 @@ export default async function OrderPrintPage({ params }: OrderPrintPageProps) {
       <article className="border border-[color:var(--line-strong)] bg-white p-[10mm] shadow-sm print:border-0 print:p-[8mm] print:shadow-none">
         <header className="flex items-start justify-between gap-[8mm] border-b-2 border-[color:var(--solid)] pb-[5mm]">
           <div>
-            <p className="text-xs font-bold">Artisan</p>
+            <ArtisanLogo variant="horizontal" className="h-[11mm] w-auto text-[#393e46]" />
             <h1 className="mt-2 text-[22px] leading-none font-bold">
               Заказ № {orderNumber}
             </h1>

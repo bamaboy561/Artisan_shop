@@ -1,5 +1,6 @@
 import "server-only";
 
+import { emailLogoHtml } from "@/lib/server/email-brand";
 import { companyContacts } from "@/lib/site-config";
 
 type CustomerEmailInput = {
@@ -45,6 +46,7 @@ export async function sendCustomerEmail(input: CustomerEmailInput) {
   ].join("\n");
   const html = `
     <div style="font-family:Arial,sans-serif;line-height:1.6;color:#151411">
+      ${emailLogoHtml}
       <p>${escapeHtml(input.greeting)}</p>
       ${input.lines.map((line) => `<p>${escapeHtml(line)}</p>`).join("")}
       ${

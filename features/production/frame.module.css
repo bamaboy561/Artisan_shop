@@ -170,3 +170,14 @@
     padding: 0;
   }
 }
+
+.brandLogo {
+  display: block;
+  height: 24px;
+  width: auto;
+}
+.mobileBrandLogo {
+  display: block;
+  height: 26px;
+  width: auto;
+}
