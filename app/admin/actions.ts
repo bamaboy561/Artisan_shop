@@ -5796,9 +5796,24 @@ function getPromotionTargets(formData: FormData, rawTargetType: string) {
     Object.values(PromotionTargetType).find((item) => item === rawTargetType) ??
     PromotionTargetType.ORDER;
 
+  // Цель по умолчанию — «Товары». Если выбраны только категории (или только
+  // товары при цели «Категории»), берём то, что реально выбрано, иначе выбор
+  // молча терялся и акция не попадала ни на витрину, ни в журнал.
   if (targetType === PromotionTargetType.ORDER) {
     if (productIds.length > 0) targetType = PromotionTargetType.PRODUCT;
     else if (categoryIds.length > 0) targetType = PromotionTargetType.CATEGORY;
+  } else if (
+    targetType === PromotionTargetType.PRODUCT &&
+    productIds.length === 0 &&
+    categoryIds.length > 0
+  ) {
+    targetType = PromotionTargetType.CATEGORY;
+  } else if (
+    targetType === PromotionTargetType.CATEGORY &&
+    categoryIds.length === 0 &&
+    productIds.length > 0
+  ) {
+    targetType = PromotionTargetType.PRODUCT;
   }
 
   return { targetType, productIds, categoryIds };

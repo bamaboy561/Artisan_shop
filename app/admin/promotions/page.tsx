@@ -346,6 +346,13 @@ export default async function AdminPromotionsPage({
           >
             Редактировать
           </Link>
+          <a
+            href={`/api/admin/promotions/magazine?promotion=${encodeURIComponent(promotion.id)}`}
+            className={getButtonClassName("secondary", "sm", "w-full")}
+          >
+            <BookOpen className="size-4" aria-hidden="true" />
+            Журнал
+          </a>
           <form action={updatePromotionAction} className="grid gap-2">
             <input type="hidden" name="id" value={promotion.id} />
             <Select
@@ -422,7 +429,6 @@ export default async function AdminPromotionsPage({
         <div className="mt-5 flex flex-wrap items-center gap-3">
           <a
             href="/api/admin/promotions/magazine?theme=new-year"
-            download
             className={getButtonClassName("accent", "sm")}
           >
             <BookOpen className="size-4" aria-hidden="true" />
@@ -430,7 +436,6 @@ export default async function AdminPromotionsPage({
           </a>
           <a
             href="/api/admin/promotions/magazine?theme=classic"
-            download
             className={getButtonClassName("secondary", "sm")}
           >
             <BookOpen className="size-4" aria-hidden="true" />
@@ -438,7 +443,9 @@ export default async function AdminPromotionsPage({
           </a>
           <p className="text-xs leading-5 text-[var(--muted)]">
             Все товары с действующей скидкой: обложка, ценники, QR на каждый
-            товар. Можно отправить клиентам в WhatsApp или распечатать.
+            товар. Можно отправить клиентам в WhatsApp или распечатать. Журнал
+            одной акции, в том числе той, что начнётся позже, скачивается
+            кнопкой «Журнал» в строке акции.
           </p>
         </div>
       </section>
