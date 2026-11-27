@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ArrowUpRight, MapPin } from "lucide-react";
+import { ArtisanLogo } from "@/components/brand/artisan-logo";
 import { companyContacts } from "@/lib/site-config";
 import s from "./storefront.module.css";
 
@@ -8,8 +9,8 @@ export function StorefrontFooter() {
     <footer className={s.footer}>
       <div className={s.container}>
         <div>
-          <Link href="/" className={s.wordmark}>
-            ARTISAN
+          <Link href="/" className={s.wordmark} aria-label="Artisan, главная">
+            <ArtisanLogo className={s.logo} variant="horizontal" />
           </Link>
           <p>Материалы. Фурнитура. Возможности.</p>
           <div className={s.footerLinks}>

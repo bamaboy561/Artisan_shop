@@ -5,6 +5,11 @@ import PDFDocument from "pdfkit";
 import QRCode from "qrcode";
 import type { PhotoCatalogData } from "@/lib/server/photo-catalog-data";
 import { catalogThumbnail } from "@/lib/server/catalog-thumbnail";
+import {
+  ARTISAN_LOGO_COLOR,
+  artisanLogoLayout,
+  type ArtisanLogoVariant,
+} from "@/lib/brand/artisan-logo-paths";
 
 export function catalogDimensions(
   product: PhotoCatalogData["products"][number],
@@ -166,28 +171,27 @@ const COVER = {
   watermark: "#1e1c19",
 };
 
-// Знак Artisan — как иконка сайта: тёмный квадрат, белая «A»,
-// медная полоса слева и снизу.
-function drawLogoMark(
+// Логотип Artisan (горизонт.pdf) — те же контуры, что на сайте.
+function drawArtisanLogo(
   doc: InstanceType<typeof PDFDocument>,
+  variant: ArtisanLogoVariant,
   x: number,
   y: number,
-  size: number,
+  height: number,
+  color: string,
 ) {
+  const layout = artisanLogoLayout(variant);
+  const k = height / layout.height;
   doc.save();
-  doc.rect(x, y, size, size).fill("#111210");
-  doc.rect(x, y, size * 0.074, size).fill("#c76a43");
-  doc.rect(x, y + size * 0.935, size, size * 0.065).fill("#ac5835");
-  doc
-    .font("bold")
-    .fontSize(size * 0.72)
-    .fillColor("#fffdf8")
-    .text("A", x + size * 0.037, y + size * 0.04, {
-      width: size,
-      align: "center",
-      lineBreak: false,
-    });
+  doc.translate(x, y).scale(k);
+  for (const part of layout.parts) {
+    doc.save();
+    doc.translate(part.x, part.y).scale(part.scale);
+    for (const d of part.paths) doc.path(d).fill(color);
+    doc.restore();
+  }
   doc.restore();
+  return layout.width * k;
 }
 
 const GRID = {
@@ -313,29 +317,12 @@ export async function renderPhotoPdf(
 
   // Страница 1 — титульная: логотип, название каталога, образцы, контакты.
   doc.rect(0, 0, PAGE.width, PAGE.height).fill(COVER.background);
-  // Большая «A» знака — фоном справа, заполняет пустое место.
-  doc
-    .font("bold")
-    .fontSize(430)
-    .fillColor(COVER.watermark)
-    .text("A", PAGE.width - 330, 150, { width: 360, lineBreak: false });
+  // Большой знак Artisan — фоном справа, заполняет пустое место.
+  drawArtisanLogo(doc, "mark", PAGE.width - 400, 250, 330, COVER.watermark);
 
   const left = PAGE.margin + 12;
   const right = PAGE.width - PAGE.margin - 12;
-  drawLogoMark(doc, left, 44, 42);
-  doc
-    .font("bold")
-    .fontSize(20)
-    .fillColor("#ffffff")
-    .text("ARTISAN", left + 56, 48, { characterSpacing: 5, lineBreak: false });
-  doc
-    .font("regular")
-    .fontSize(8)
-    .fillColor(COVER.muted)
-    .text("МЕБЕЛЬНЫЕ МАТЕРИАЛЫ · БИШКЕК", left + 57, 74, {
-      characterSpacing: 1.5,
-      lineBreak: false,
-    });
+  drawArtisanLogo(doc, "horizontal", left, 46, 46, "#ffffff");
   doc
     .font("regular")
     .fontSize(8)
@@ -507,15 +494,7 @@ export async function renderPhotoPdf(
 
   // Страница 2 — содержание и контакты.
   doc.addPage({ size: "A4", margin: 0 });
-  drawLogoMark(doc, PAGE.margin + 8, 40, 30);
-  doc
-    .font("bold")
-    .fontSize(13)
-    .fillColor(COLORS.ink)
-    .text("ARTISAN", PAGE.margin + 48, 47, {
-      characterSpacing: 3,
-      lineBreak: false,
-    });
+  drawArtisanLogo(doc, "compact", PAGE.margin + 8, 44, 22, ARTISAN_LOGO_COLOR);
   doc
     .font("bold")
     .fontSize(26)

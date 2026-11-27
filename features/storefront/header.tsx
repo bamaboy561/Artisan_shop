@@ -17,6 +17,7 @@ import {
 import { useState } from "react";
 import { useCart } from "@/components/providers/cart-provider";
 import { companyContacts, primaryNavigation } from "@/lib/site-config";
+import { ArtisanLogo } from "@/components/brand/artisan-logo";
 import { StorefrontDialog } from "./controls";
 import { LiveSearch } from "./live-search";
 import s from "./storefront.module.css";
@@ -59,7 +60,8 @@ export function StorefrontHeader({
       <header className={s.header}>
         <div className={`${s.container} ${s.headerMain}`}>
           <Link href="/" className={s.wordmark} aria-label="Artisan, главная">
-            ARTISAN<span>МАТЕРИАЛЫ ДЛЯ МЕБЕЛИ</span>
+            <ArtisanLogo className={s.logo} variant="horizontal" />
+            <ArtisanLogo className={s.logoCompact} variant="compact" />
           </Link>
           <LiveSearch key={pathname} onNavigate={closeSearch} />
           <div className={s.headerActions}>

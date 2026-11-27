@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { Home, LogOut } from "lucide-react";
+import { ArtisanLogo } from "@/components/brand/artisan-logo";
 import { ProductionMobileMenu } from "./mobile-menu";
 import { signOutAction } from "@/app/auth/actions";
 import { DashboardNav } from "@/components/layout/dashboard-nav";
@@ -35,7 +36,8 @@ export function ProductionFrame({
     <div className={styles.frame}>
       <aside className={styles.sidebar}>
         <Link className={styles.brand} href="/admin/production">
-          Artisan<span>Производство</span>
+          <ArtisanLogo variant="compact" className={styles.brandLogo} />
+          <span>Производство</span>
         </Link>
         <DashboardNav items={items} variant="admin" />
         <Link className={styles.home} href="/">
@@ -47,7 +49,7 @@ export function ProductionFrame({
       <div className={styles.main}>
         <header className={styles.header}>
           <Link href="/admin/production" className={styles.mobileBrand}>
-            Artisan
+            <ArtisanLogo variant="mark" className={styles.mobileBrandLogo} />
           </Link>
           <span className={styles.title}>{title}</span>
           <Link

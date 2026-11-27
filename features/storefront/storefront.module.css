@@ -4528,3 +4528,29 @@
   font-size: 12px;
   color: var(--pv-muted, #77706a);
 }
+
+/* Логотип Artisan (горизонт.pdf): на компьютере — со строкой
+   MATERIAL'S STORE, на телефоне — знак + ARTISAN, иначе строка нечитаема. */
+.logo {
+  display: block;
+  height: 54px;
+  width: auto;
+  color: #393e46;
+}
+.logoCompact {
+  display: none;
+}
+.footer .logo {
+  height: 46px;
+}
+@media (max-width: 600px) {
+  .header .logo {
+    display: none;
+  }
+  .header .logoCompact {
+    display: block;
+    height: 26px;
+    width: auto;
+    color: #393e46;
+  }
+}
