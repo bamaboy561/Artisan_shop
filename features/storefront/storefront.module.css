@@ -4523,3 +4523,8 @@
 .detailPrice .promoPrice {
   color: #e3001b;
 }
+.promoNote {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--pv-muted, #77706a);
+}

@@ -294,6 +294,11 @@ export default async function ProductPage({ params }: ProductPageProps) {
                         {formatPrice(product.oldPrice)}
                       </p>
                     ) : null}
+                    {product.isPromotional ? (
+                      <p className="mt-2 text-xs text-[var(--muted)]">
+                        Цена по акции. Бонусы на этот товар не начисляются.
+                      </p>
+                    ) : null}
                   </div>
                 ) : (
                   <div>

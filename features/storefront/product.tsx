@@ -111,6 +111,11 @@ export function StorefrontProduct({
               className={s.promoStickerDetail}
             />
           )}
+          {product.isPromotional && (
+            <p className={s.promoNote}>
+              Цена по акции. Бонусы на этот товар не начисляются.
+            </p>
+          )}
           <div className={s.detailPrice}>
             <strong
               className={product.isPromotional ? s.promoPrice : undefined}

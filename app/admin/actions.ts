@@ -1153,6 +1153,7 @@ async function reconcileOrderLoyaltyAccrual(params: {
           select: {
             quantity: true,
             unitPrice: true,
+            isPromotional: true,
             snapshotCategoryKind: true,
             product: {
               select: {
@@ -1217,7 +1218,9 @@ async function reconcileOrderLoyaltyAccrual(params: {
       ? 0
       : estimateLoyaltyPointsForLines(
           order.items.map((item) => ({
-            total: item.unitPrice * item.quantity * accrualRatio,
+            total: item.isPromotional
+              ? 0
+              : item.unitPrice * item.quantity * accrualRatio,
             categoryKind:
               item.snapshotCategoryKind ?? item.product?.category?.kind ?? null,
           })),
@@ -3427,6 +3430,7 @@ export async function updateOrderItemsAction(formData: FormData) {
         unitPrice: true,
         discountAmount: true,
         total: true,
+        isPromotional: true,
         product: {
           select: {
             promotions: {
@@ -3478,6 +3482,9 @@ export async function updateOrderItemsAction(formData: FormData) {
         lineSubtotal,
         discountAmount,
         total: Math.max(0, lineSubtotal - discountAmount),
+        isPromotional: previousItem
+          ? item.isPromotional
+          : (promotionPrice?.unitDiscountAmount ?? 0) > 0,
       };
     });
 
@@ -3489,7 +3496,10 @@ export async function updateOrderItemsAction(formData: FormData) {
               finalItems.find((current) => current.id === item.id)
                 ?.discountAmount ||
             item.total !==
-              finalItems.find((current) => current.id === item.id)?.total,
+              finalItems.find((current) => current.id === item.id)?.total ||
+            item.isPromotional !==
+              finalItems.find((current) => current.id === item.id)
+                ?.isPromotional,
         )
         .map((item) =>
           tx.orderItem.update({
@@ -3497,6 +3507,7 @@ export async function updateOrderItemsAction(formData: FormData) {
             data: {
               discountAmount: item.discountAmount,
               total: item.total,
+              isPromotional: item.isPromotional,
             },
           }),
         ),
@@ -5520,6 +5531,7 @@ export async function createSalesFloorOrderAction(formData: FormData) {
         snapshotSku: product.sku,
         snapshotBrand: product.brand?.name ?? null,
         categoryKind: product.category.kind,
+        isPromotional: promotionDiscountAmount > 0,
       },
     ];
   });
@@ -5552,8 +5564,9 @@ export async function createSalesFloorOrderAction(formData: FormData) {
       : 0;
   const awardedPoints = accrueLoyalty
     ? estimateLoyaltyPointsForLines(
+        // На акционные позиции бонусы не начисляются.
         orderItems.map((item) => ({
-          total: item.total * accrualRatio,
+          total: item.isPromotional ? 0 : item.total * accrualRatio,
           categoryKind: item.categoryKind,
         })),
         customer,
@@ -5639,6 +5652,7 @@ export async function createSalesFloorOrderAction(formData: FormData) {
               snapshotSku: item.snapshotSku,
               snapshotBrand: item.snapshotBrand,
               snapshotCategoryKind: item.categoryKind,
+              isPromotional: item.isPromotional,
             })),
           },
         },
