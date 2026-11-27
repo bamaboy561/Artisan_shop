@@ -186,7 +186,7 @@ test("guest cannot spend another customer's bonuses", async () => {
   assert.equal(f.ledger.length, 0);
 });
 
-test("product promotion, capped bonus spend and pending accrual are preserved", async () => {
+test("product promotion and capped bonus spend are preserved, promo lines earn no bonus", async () => {
   const f = checkoutFixture({ signedIn: true, promo: true });
   f.form.set("redeemPoints", "2000");
   const result = await f.submitCheckoutAction({}, f.form);
@@ -196,8 +196,8 @@ test("product promotion, capped bonus spend and pending accrual are preserved", 
   assert.equal(f.saved[0].total, 900);
   assert.equal(f.ledger[0].points, -900);
   assert.equal(f.ledger[0].requireSufficientBalance, true);
-  assert.equal(f.pending[0].status, "PENDING");
-  assert.equal(f.pending[0].points, 45);
+  // На акционные позиции бонусы не начисляются.
+  assert.equal(f.pending.length, 0);
   assert.equal(f.notices.length, 1);
 });
 

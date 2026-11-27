@@ -161,6 +161,7 @@ export default async function CategoryPage({
                       inStock={product.inStock}
                       purchaseMode={product.purchaseMode}
                       isBundle={product.isBundle}
+                      isPromotional={product.isPromotional}
                       categoryName={product.categoryName}
                       productSlug={product.slug}
                       isFavorite={favoriteSlugs.has(product.slug)}

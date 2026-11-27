@@ -4,6 +4,7 @@ import { ArrowRight } from "lucide-react";
 import { FavoriteToggle } from "@/components/catalog/favorite-toggle";
 import { AddToCartButton } from "@/components/ecommerce/add-to-cart-button";
 import { ProductImage } from "@/components/catalog/product-image";
+import { PromoBadge } from "@/components/catalog/promo-badge";
 import { formatPrice } from "@/lib/commerce";
 import { cn } from "@/lib/utils";
 
@@ -27,6 +28,7 @@ type ProductCardProps = {
   productSlug?: string;
   isFavorite?: boolean;
   isBundle?: boolean;
+  isPromotional?: boolean;
   favoriteNext?: string;
   showFavorite?: boolean;
   className?: string;
@@ -50,6 +52,7 @@ export function ProductCard({
   productSlug,
   isFavorite = false,
   isBundle = false,
+  isPromotional = false,
   favoriteNext = href,
   showFavorite = false,
   className,
@@ -89,6 +92,14 @@ export function ProductCard({
                 sizes="(max-width: 639px) 96px, (max-width: 1024px) 50vw, 25vw"
               />
             </Link>
+            {isPromotional ? (
+              <PromoBadge
+                price={price}
+                oldPrice={oldPrice}
+                size="sm"
+                className="absolute bottom-1 left-1 z-10 -rotate-3 sm:top-2 sm:bottom-auto sm:left-2"
+              />
+            ) : null}
             {productSlug && showFavorite ? (
               <div className="absolute top-1 left-1 z-10 sm:top-2 sm:right-2 sm:left-auto">
                 <FavoriteToggle
@@ -134,7 +145,13 @@ export function ProductCard({
         <div className="mt-3 flex min-w-0 flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="text-base font-semibold break-words text-[var(--foreground)]">
-              {typeof price === "number" ? formatPrice(price) : action}
+              {typeof price === "number" ? (
+                <span className={cn(isPromotional && "text-[#e3001b]")}>
+                  {formatPrice(price)}
+                </span>
+              ) : (
+                action
+              )}
             </p>
             {typeof oldPrice === "number" &&
             typeof price === "number" &&
@@ -214,6 +231,14 @@ export function ProductCard({
             }
           />
 
+          {isPromotional ? (
+            <PromoBadge
+              price={price}
+              oldPrice={oldPrice}
+              className="absolute bottom-2.5 left-2.5 z-10 -rotate-3 sm:bottom-3 sm:left-3"
+            />
+          ) : null}
+
           {isBundle ? (
             <span className="absolute top-2.5 left-2.5 inline-flex items-center bg-[var(--surface-strong)]/92 px-2 py-1 text-xs font-medium text-[var(--foreground)] backdrop-blur-sm sm:top-3 sm:left-3 sm:text-xs">
               Комплект
@@ -291,6 +316,7 @@ export function ProductCard({
                   <p
                     className={cn(
                       "font-semibold text-[var(--foreground)]",
+                      isPromotional && "text-[#e3001b]",
                       compact ? "text-[15px]" : "text-[15px] sm:text-[17px]",
                     )}
                   >

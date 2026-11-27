@@ -1153,6 +1153,7 @@ async function reconcileOrderLoyaltyAccrual(params: {
           select: {
             quantity: true,
             unitPrice: true,
+            isPromotional: true,
             snapshotCategoryKind: true,
             product: {
               select: {
@@ -1217,7 +1218,9 @@ async function reconcileOrderLoyaltyAccrual(params: {
       ? 0
       : estimateLoyaltyPointsForLines(
           order.items.map((item) => ({
-            total: item.unitPrice * item.quantity * accrualRatio,
+            total: item.isPromotional
+              ? 0
+              : item.unitPrice * item.quantity * accrualRatio,
             categoryKind:
               item.snapshotCategoryKind ?? item.product?.category?.kind ?? null,
           })),
@@ -3427,6 +3430,7 @@ export async function updateOrderItemsAction(formData: FormData) {
         unitPrice: true,
         discountAmount: true,
         total: true,
+        isPromotional: true,
         product: {
           select: {
             promotions: {
@@ -3478,6 +3482,9 @@ export async function updateOrderItemsAction(formData: FormData) {
         lineSubtotal,
         discountAmount,
         total: Math.max(0, lineSubtotal - discountAmount),
+        isPromotional: previousItem
+          ? item.isPromotional
+          : (promotionPrice?.unitDiscountAmount ?? 0) > 0,
       };
     });
 
@@ -3489,7 +3496,10 @@ export async function updateOrderItemsAction(formData: FormData) {
               finalItems.find((current) => current.id === item.id)
                 ?.discountAmount ||
             item.total !==
-              finalItems.find((current) => current.id === item.id)?.total,
+              finalItems.find((current) => current.id === item.id)?.total ||
+            item.isPromotional !==
+              finalItems.find((current) => current.id === item.id)
+                ?.isPromotional,
         )
         .map((item) =>
           tx.orderItem.update({
@@ -3497,6 +3507,7 @@ export async function updateOrderItemsAction(formData: FormData) {
             data: {
               discountAmount: item.discountAmount,
               total: item.total,
+              isPromotional: item.isPromotional,
             },
           }),
         ),
@@ -5520,6 +5531,7 @@ export async function createSalesFloorOrderAction(formData: FormData) {
         snapshotSku: product.sku,
         snapshotBrand: product.brand?.name ?? null,
         categoryKind: product.category.kind,
+        isPromotional: promotionDiscountAmount > 0,
       },
     ];
   });
@@ -5552,8 +5564,9 @@ export async function createSalesFloorOrderAction(formData: FormData) {
       : 0;
   const awardedPoints = accrueLoyalty
     ? estimateLoyaltyPointsForLines(
+        // На акционные позиции бонусы не начисляются.
         orderItems.map((item) => ({
-          total: item.total * accrualRatio,
+          total: item.isPromotional ? 0 : item.total * accrualRatio,
           categoryKind: item.categoryKind,
         })),
         customer,
@@ -5639,6 +5652,7 @@ export async function createSalesFloorOrderAction(formData: FormData) {
               snapshotSku: item.snapshotSku,
               snapshotBrand: item.snapshotBrand,
               snapshotCategoryKind: item.categoryKind,
+              isPromotional: item.isPromotional,
             })),
           },
         },
@@ -5760,6 +5774,36 @@ export async function createSalesFloorOrderAction(formData: FormData) {
   redirect(`/admin/orders/${createdOrder.id}`);
 }
 
+// One promotion can cover several products or several categories. The form
+// sends one productIds/categoryIds value per picked item; the old single
+// productId/categoryId fields are still read so stale tabs keep working.
+// A promotion left on «Весь заказ» but with products picked is clearly meant
+// for those products, so the target follows the pick.
+function getPromotionTargets(formData: FormData, rawTargetType: string) {
+  const productIds = Array.from(
+    new Set([
+      ...getStringList(formData, "productIds"),
+      ...getStringList(formData, "productId"),
+    ]),
+  );
+  const categoryIds = Array.from(
+    new Set([
+      ...getStringList(formData, "categoryIds"),
+      ...getStringList(formData, "categoryId"),
+    ]),
+  );
+  let targetType =
+    Object.values(PromotionTargetType).find((item) => item === rawTargetType) ??
+    PromotionTargetType.ORDER;
+
+  if (targetType === PromotionTargetType.ORDER) {
+    if (productIds.length > 0) targetType = PromotionTargetType.PRODUCT;
+    else if (categoryIds.length > 0) targetType = PromotionTargetType.CATEGORY;
+  }
+
+  return { targetType, productIds, categoryIds };
+}
+
 export async function createPromotionAction(formData: FormData) {
   if (!hasDatabaseUrl()) {
     return;
@@ -5783,12 +5827,11 @@ export async function createPromotionAction(formData: FormData) {
     return;
   }
 
-  const normalizedTargetType =
-    Object.values(PromotionTargetType).find((item) => item === targetType) ??
-    PromotionTargetType.ORDER;
-
-  const selectedProductId = getOptionalString(formData, "productId");
-  const selectedCategoryId = getOptionalString(formData, "categoryId");
+  const {
+    targetType: normalizedTargetType,
+    productIds,
+    categoryIds,
+  } = getPromotionTargets(formData, targetType);
 
   await getDb().promotion.create({
     data: {
@@ -5812,17 +5855,13 @@ export async function createPromotionAction(formData: FormData) {
       endsAt: getOptionalEndDate(formData, "endsAt"),
       products:
         normalizedTargetType === PromotionTargetType.PRODUCT &&
-        selectedProductId
-          ? {
-              create: [{ productId: selectedProductId }],
-            }
+        productIds.length > 0
+          ? { create: productIds.map((productId) => ({ productId })) }
           : undefined,
       categories:
         normalizedTargetType === PromotionTargetType.CATEGORY &&
-        selectedCategoryId
-          ? {
-              create: [{ categoryId: selectedCategoryId }],
-            }
+        categoryIds.length > 0
+          ? { create: categoryIds.map((categoryId) => ({ categoryId })) }
           : undefined,
     },
   });
@@ -5880,11 +5919,11 @@ export async function updatePromotionAction(formData: FormData) {
     return;
   }
 
-  const normalizedTargetType =
-    Object.values(PromotionTargetType).find((item) => item === targetType) ??
-    PromotionTargetType.ORDER;
-  const selectedProductId = getOptionalString(formData, "productId");
-  const selectedCategoryId = getOptionalString(formData, "categoryId");
+  const {
+    targetType: normalizedTargetType,
+    productIds,
+    categoryIds,
+  } = getPromotionTargets(formData, targetType);
   const db = getDb();
 
   await db.$transaction(async (tx) => {
@@ -5913,17 +5952,13 @@ export async function updatePromotionAction(formData: FormData) {
         endsAt: getOptionalEndDate(formData, "endsAt"),
         products:
           normalizedTargetType === PromotionTargetType.PRODUCT &&
-          selectedProductId
-            ? {
-                create: [{ productId: selectedProductId }],
-              }
+          productIds.length > 0
+            ? { create: productIds.map((productId) => ({ productId })) }
             : undefined,
         categories:
           normalizedTargetType === PromotionTargetType.CATEGORY &&
-          selectedCategoryId
-            ? {
-                create: [{ categoryId: selectedCategoryId }],
-              }
+          categoryIds.length > 0
+            ? { create: categoryIds.map((categoryId) => ({ categoryId })) }
             : undefined,
       },
     });

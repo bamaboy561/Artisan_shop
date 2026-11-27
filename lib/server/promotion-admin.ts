@@ -48,7 +48,6 @@ export async function getAdminPromotion(id: string) {
     where: { id },
     include: {
       products: {
-        take: 1,
         select: {
           productId: true,
           product: {
@@ -61,7 +60,6 @@ export async function getAdminPromotion(id: string) {
         },
       },
       categories: {
-        take: 1,
         select: {
           categoryId: true,
           category: {
@@ -86,6 +84,7 @@ export async function getPromotionFormOptions() {
         id: true,
         name: true,
         sku: true,
+        category: { select: { name: true } },
       },
     }),
     db.category.findMany({
@@ -97,5 +96,17 @@ export async function getPromotionFormOptions() {
     }),
   ]);
 
-  return { products, categories };
+  return {
+    products: products.map((product) => ({
+      id: product.id,
+      name: product.name,
+      sku: product.sku,
+      categoryName: product.category?.name ?? "",
+    })),
+    categories: categories.map((category) => ({
+      id: category.id,
+      name: category.name,
+      sku: "",
+    })),
+  };
 }

@@ -73,9 +73,9 @@ export const promotionStatusLabels: Record<PromotionStatus, string> = {
 };
 
 export const promotionTargetLabels: Record<PromotionTargetType, string> = {
-  [PromotionTargetType.PRODUCT]: "Товар",
-  [PromotionTargetType.CATEGORY]: "Категория",
-  [PromotionTargetType.ORDER]: "Заказ",
+  [PromotionTargetType.PRODUCT]: "Товары",
+  [PromotionTargetType.CATEGORY]: "Категории",
+  [PromotionTargetType.ORDER]: "Весь заказ",
 };
 
 export const discountTypeLabels: Record<DiscountType, string> = {
