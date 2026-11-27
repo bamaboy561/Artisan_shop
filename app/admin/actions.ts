@@ -5760,6 +5760,36 @@ export async function createSalesFloorOrderAction(formData: FormData) {
   redirect(`/admin/orders/${createdOrder.id}`);
 }
 
+// One promotion can cover several products or several categories. The form
+// sends one productIds/categoryIds value per picked item; the old single
+// productId/categoryId fields are still read so stale tabs keep working.
+// A promotion left on «Весь заказ» but with products picked is clearly meant
+// for those products, so the target follows the pick.
+function getPromotionTargets(formData: FormData, rawTargetType: string) {
+  const productIds = Array.from(
+    new Set([
+      ...getStringList(formData, "productIds"),
+      ...getStringList(formData, "productId"),
+    ]),
+  );
+  const categoryIds = Array.from(
+    new Set([
+      ...getStringList(formData, "categoryIds"),
+      ...getStringList(formData, "categoryId"),
+    ]),
+  );
+  let targetType =
+    Object.values(PromotionTargetType).find((item) => item === rawTargetType) ??
+    PromotionTargetType.ORDER;
+
+  if (targetType === PromotionTargetType.ORDER) {
+    if (productIds.length > 0) targetType = PromotionTargetType.PRODUCT;
+    else if (categoryIds.length > 0) targetType = PromotionTargetType.CATEGORY;
+  }
+
+  return { targetType, productIds, categoryIds };
+}
+
 export async function createPromotionAction(formData: FormData) {
   if (!hasDatabaseUrl()) {
     return;
@@ -5783,12 +5813,11 @@ export async function createPromotionAction(formData: FormData) {
     return;
   }
 
-  const normalizedTargetType =
-    Object.values(PromotionTargetType).find((item) => item === targetType) ??
-    PromotionTargetType.ORDER;
-
-  const selectedProductId = getOptionalString(formData, "productId");
-  const selectedCategoryId = getOptionalString(formData, "categoryId");
+  const {
+    targetType: normalizedTargetType,
+    productIds,
+    categoryIds,
+  } = getPromotionTargets(formData, targetType);
 
   await getDb().promotion.create({
     data: {
@@ -5812,17 +5841,13 @@ export async function createPromotionAction(formData: FormData) {
       endsAt: getOptionalEndDate(formData, "endsAt"),
       products:
         normalizedTargetType === PromotionTargetType.PRODUCT &&
-        selectedProductId
-          ? {
-              create: [{ productId: selectedProductId }],
-            }
+        productIds.length > 0
+          ? { create: productIds.map((productId) => ({ productId })) }
           : undefined,
       categories:
         normalizedTargetType === PromotionTargetType.CATEGORY &&
-        selectedCategoryId
-          ? {
-              create: [{ categoryId: selectedCategoryId }],
-            }
+        categoryIds.length > 0
+          ? { create: categoryIds.map((categoryId) => ({ categoryId })) }
           : undefined,
     },
   });
@@ -5880,11 +5905,11 @@ export async function updatePromotionAction(formData: FormData) {
     return;
   }
 
-  const normalizedTargetType =
-    Object.values(PromotionTargetType).find((item) => item === targetType) ??
-    PromotionTargetType.ORDER;
-  const selectedProductId = getOptionalString(formData, "productId");
-  const selectedCategoryId = getOptionalString(formData, "categoryId");
+  const {
+    targetType: normalizedTargetType,
+    productIds,
+    categoryIds,
+  } = getPromotionTargets(formData, targetType);
   const db = getDb();
 
   await db.$transaction(async (tx) => {
@@ -5913,17 +5938,13 @@ export async function updatePromotionAction(formData: FormData) {
         endsAt: getOptionalEndDate(formData, "endsAt"),
         products:
           normalizedTargetType === PromotionTargetType.PRODUCT &&
-          selectedProductId
-            ? {
-                create: [{ productId: selectedProductId }],
-              }
+          productIds.length > 0
+            ? { create: productIds.map((productId) => ({ productId })) }
             : undefined,
         categories:
           normalizedTargetType === PromotionTargetType.CATEGORY &&
-          selectedCategoryId
-            ? {
-                create: [{ categoryId: selectedCategoryId }],
-              }
+          categoryIds.length > 0
+            ? { create: categoryIds.map((categoryId) => ({ categoryId })) }
             : undefined,
       },
     });
