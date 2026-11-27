@@ -15,16 +15,21 @@ import {
   UserRound,
 } from "lucide-react";
 import { useState } from "react";
+import type { ActiveSeason } from "@/lib/season";
 import { useCart } from "@/components/providers/cart-provider";
 import { companyContacts, primaryNavigation } from "@/lib/site-config";
 import { StorefrontDialog } from "./controls";
 import { LiveSearch } from "./live-search";
+import { SeasonGarland, SeasonHat, SeasonSnow } from "./season";
+import seasonStyles from "./season.module.css";
 import s from "./storefront.module.css";
 
 export function StorefrontHeader({
   categories,
+  season = null,
 }: {
   categories: { slug: string; name: string }[];
+  season?: ActiveSeason | null;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -50,15 +55,28 @@ export function StorefrontHeader({
   ];
   return (
     <>
+      {season && (
+        <div className={seasonStyles.mobileGreeting}>
+          <span className={seasonStyles.greeting}>{season.greeting}</span>
+        </div>
+      )}
       <div className={s.previewBar}>
         <span>
           <MapPin size={13} /> Бишкек, Кыргызстан
         </span>
+        {season && (
+          <span className={seasonStyles.greeting}>{season.greeting}</span>
+        )}
         <Link href="/contacts">{companyContacts.hours}</Link>
       </div>
       <header className={s.header}>
         <div className={`${s.container} ${s.headerMain}`}>
-          <Link href="/" className={s.wordmark} aria-label="Artisan, главная">
+          <Link
+            href="/"
+            className={`${s.wordmark} ${season ? seasonStyles.hatHost : ""}`}
+            aria-label="Artisan, главная"
+          >
+            {season && <SeasonHat />}
             ARTISAN<span>МАТЕРИАЛЫ ДЛЯ МЕБЕЛИ</span>
           </Link>
           <LiveSearch key={pathname} onNavigate={closeSearch} />
@@ -135,6 +153,8 @@ export function StorefrontHeader({
           </div>
         </nav>
       </header>
+      {season && <SeasonGarland />}
+      {season && pathname === "/" && <SeasonSnow />}
       {/* В оформлении заказа и в калькуляторе внизу своя панель с итогом:
           две панели одна над другой закрывали форму. */}
       {pathname !== "/checkout" && pathname !== "/calculator" && (

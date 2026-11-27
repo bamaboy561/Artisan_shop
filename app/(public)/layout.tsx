@@ -11,6 +11,7 @@ import { getPublicCategories } from "@/lib/server/catalog-public";
 import { isPremiumStorefront } from "@/features/storefront/config";
 import { StorefrontHeader } from "@/features/storefront/header";
 import { StorefrontFooter } from "@/features/storefront/footer";
+import { getActiveSeason } from "@/lib/server/season-settings";
 import storefront from "@/features/storefront/storefront.module.css";
 
 export default async function PublicLayout({
@@ -24,13 +25,17 @@ export default async function PublicLayout({
   ]);
 
   if (isPremiumStorefront()) {
-    const categories = await getPublicCategories();
+    const [categories, season] = await Promise.all([
+      getPublicCategories(),
+      getActiveSeason(),
+    ]);
     return (
       <SiteCuttingPricesProvider prices={sitePrices}>
         <CartProvider>
           <div className={storefront.root} data-storefront="premium">
             <StorefrontHeader
               categories={categories.map(({ slug, name }) => ({ slug, name }))}
+              season={season}
             />
             <PromotionExperience promotions={promotions} />
             <main id="main-content" className={storefront.main}>
