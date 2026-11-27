@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, Plus, Search, X } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
@@ -41,6 +41,23 @@ export function PromotionItemsPicker({
   const [selectedIds, setSelectedIds] = useState<string[]>(() =>
     Array.from(new Set(defaultSelectedIds)),
   );
+  const rootRef = useRef<HTMLDivElement>(null);
+  const defaultKey = defaultSelectedIds.join(",");
+  // После успешной отправки React сбрасывает форму (form.reset()), но выбор
+  // хранится в состоянии: сбрасываем его вместе с формой, иначе следующая
+  // акция получит товары предыдущей.
+  useEffect(() => {
+    const form = rootRef.current?.closest("form");
+    if (!form) return;
+    const reset = () => {
+      setSelectedIds(
+        defaultKey ? Array.from(new Set(defaultKey.split(","))) : [],
+      );
+      setQuery("");
+    };
+    form.addEventListener("reset", reset);
+    return () => form.removeEventListener("reset", reset);
+  }, [defaultKey]);
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const itemsById = useMemo(
     () => new Map(items.map((item) => [item.id, item])),
@@ -71,7 +88,10 @@ export function PromotionItemsPicker({
   }
 
   return (
-    <div className="grid min-w-0 gap-2 text-sm text-[var(--foreground)]">
+    <div
+      ref={rootRef}
+      className="grid min-w-0 gap-2 text-sm text-[var(--foreground)]"
+    >
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <span>{label}</span>
         <span className="text-xs text-[var(--muted)]">
