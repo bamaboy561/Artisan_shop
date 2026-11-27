@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { ArtisanLogo } from "@/components/brand/artisan-logo";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
@@ -175,7 +176,7 @@ export default async function RouteSheetPage({ params }: RouteSheetPageProps) {
       <article className="min-h-[297mm] border border-[color:var(--line-strong)] bg-white p-[10mm] shadow-sm print:min-h-0 print:border-0 print:p-[8mm] print:shadow-none">
         <header className="grid grid-cols-[minmax(0,1fr)_34mm] gap-[8mm] border-b-2 border-[color:var(--solid)] pb-[6mm]">
           <div className="min-w-0">
-            <p className="text-xs font-bold">Artisan</p>
+            <ArtisanLogo variant="horizontal" className="h-[11mm] w-auto text-[#393e46]" />
             <h1 className="mt-3 text-[24px] leading-none font-bold">
               Маршрутный лист распила
             </h1>

@@ -1,0 +1,128 @@
+/* Раскладка конструктора: большой 3D-макет и панель с одним шагом.
+   На компьютере обе колонки в высоту экрана, шаг прокручивается внутри
+   панели, а цена всегда внизу. На телефоне макет сверху, шаг под
+   ним, цена прилипает к низу экрана над нижним меню. */
+
+.layout {
+  display: grid;
+  gap: 16px;
+}
+
+.stage {
+  position: relative;
+  height: 44svh;
+  min-height: 300px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--surface-strong);
+}
+
+/* Кухню собирают прямо в макете: на телефоне он выше. */
+@media (max-width: 1023px) {
+  .stage.stageTall {
+    height: 58svh;
+  }
+}
+
+.panel {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.body {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  padding: 20px 0 104px;
+}
+
+.bar {
+  z-index: 18;
+}
+
+.barInner {
+  margin: 0 auto;
+  max-width: 720px;
+}
+
+@media (min-width: 1024px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr) 420px;
+    align-items: start;
+    gap: 24px;
+  }
+
+  /* Весь конструктор с ценой помещается в экран под заголовком. */
+  .stage,
+  .panel {
+    height: clamp(520px, calc(100svh - 280px), 820px);
+  }
+
+  .panel {
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    background: var(--surface-strong);
+    padding: 0 20px;
+  }
+
+  .body {
+    flex: 1;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    margin: 0 -20px;
+    padding: 20px;
+  }
+
+  .bar {
+    border-top: 1px solid var(--line);
+    padding: 14px 0 16px;
+  }
+
+  .barInner {
+    max-width: none;
+  }
+}
+
+@media (max-width: 1023px) {
+  /* --dock — высота нижнего меню сайта, если оно сейчас видно. */
+  .bar {
+    position: fixed;
+    right: 0;
+    bottom: var(--dock, 0px);
+    left: 0;
+    border-top: 1px solid var(--line);
+    background: color-mix(in srgb, var(--surface-strong) 94%, transparent);
+    box-shadow: 0 -10px 24px rgb(27 28 25 / 0.07);
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    backdrop-filter: blur(12px);
+  }
+
+  /* Над меню сайта: отступ под «чёлку» снизу уже есть у меню. */
+  .bar[data-dock] {
+    padding-bottom: 10px;
+  }
+}
+
+/* Макет шкафа на телефоне прилипает к верху: человек листает варианты
+   и сразу видит шкаф. */
+@media (max-width: 600px) {
+  .stage {
+    height: 36svh;
+    border-radius: 16px;
+  }
+
+  .stage:not(.stageTall) {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    align-self: start;
+    box-shadow: 0 8px 20px rgb(27 28 25 / 0.08);
+  }
+
+  .body {
+    padding-top: 16px;
+  }
+}

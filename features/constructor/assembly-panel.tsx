@@ -81,25 +81,17 @@ export function matchFittingProduct(
   return { product: findIn(line, products), fallback: false };
 }
 
-export function FittingsPanel({
-  lines,
-  products,
-}: {
-  lines: FittingLine[];
-  products: ConstructorFittingProduct[];
-}) {
-  const { addItem } = useCart();
-  const [added, setAdded] = useState<Set<string>>(new Set());
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState("");
-  const brands = useMemo(() => fittingBrands(products), [products]);
-  const [brand, setBrand] = useState("");
+// Товары каталога под строки фурнитуры и сумма. Эксцентрик часто
+// продают вместе со штоком: тогда шток отдельно не считаем.
+export function matchFittings(
+  lines: FittingLine[],
+  products: ConstructorFittingProduct[],
+  brand = "",
+) {
   const found = lines.map((line) => ({
     line,
     ...matchFittingProduct(line, products, brand),
   }));
-  // Эксцентрик часто продают вместе со штоком: тогда шток отдельно не
-  // кладём.
   const minifixSlug = found.find(({ line }) => line.key === "minifix")?.product
     ?.slug;
   const matched = found.map((item) => ({
@@ -114,6 +106,23 @@ export function FittingsPanel({
       sum + (bundled ? 0 : (product?.price ?? 0) * line.count),
     0,
   );
+  return { matched, total };
+}
+
+export function FittingsPanel({
+  lines,
+  products,
+}: {
+  lines: FittingLine[];
+  products: ConstructorFittingProduct[];
+}) {
+  const { addItem } = useCart();
+  const [added, setAdded] = useState<Set<string>>(new Set());
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  const brands = useMemo(() => fittingBrands(products), [products]);
+  const [brand, setBrand] = useState("");
+  const { matched, total } = matchFittings(lines, products, brand);
   const inCatalog = matched.filter(
     ({ product, bundled }) => product && !bundled,
   );

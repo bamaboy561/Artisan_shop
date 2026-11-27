@@ -18,6 +18,7 @@ import { useState, useSyncExternalStore } from "react";
 import { resolveSeason, type SeasonMode } from "@/lib/season";
 import { useCart } from "@/components/providers/cart-provider";
 import { companyContacts, primaryNavigation } from "@/lib/site-config";
+import { ArtisanLogo } from "@/components/brand/artisan-logo";
 import { StorefrontDialog } from "./controls";
 import { LiveSearch } from "./live-search";
 import { SeasonGarland, SeasonHat, SeasonSnow } from "./season";
@@ -82,7 +83,8 @@ export function StorefrontHeader({
             aria-label="Artisan, главная"
           >
             {season && <SeasonHat />}
-            ARTISAN<span>МАТЕРИАЛЫ ДЛЯ МЕБЕЛИ</span>
+            <ArtisanLogo className={s.logo} variant="horizontal" />
+            <ArtisanLogo className={s.logoCompact} variant="compact" />
           </Link>
           <LiveSearch key={pathname} onNavigate={closeSearch} />
           <div className={s.headerActions}>

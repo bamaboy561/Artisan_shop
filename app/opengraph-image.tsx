@@ -1,5 +1,7 @@
 import { ImageResponse } from "next/og";
 
+import { artisanLogoLayout } from "@/lib/brand/artisan-logo-paths";
+
 export const alt = "Artisan";
 export const size = {
   width: 1200,
@@ -8,6 +10,7 @@ export const size = {
 export const contentType = "image/png";
 
 export default function Image() {
+  const layout = artisanLogoLayout("horizontal");
   return new ImageResponse(
     <div
       style={{
@@ -33,7 +36,23 @@ export default function Image() {
           color: "#9d573d",
         }}
       >
-        <span>Artisan</span>
+        <svg
+          width={410}
+          height={(410 * layout.height) / layout.width}
+          viewBox={`0 0 ${layout.width} ${layout.height}`}
+          fill="#393E46"
+        >
+          {layout.parts.map((part, index) => (
+            <g
+              key={index}
+              transform={`translate(${part.x} ${part.y}) scale(${part.scale})`}
+            >
+              {part.paths.map((d, pathIndex) => (
+                <path key={pathIndex} d={d} />
+              ))}
+            </g>
+          ))}
+        </svg>
         <span>Furniture materials</span>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>

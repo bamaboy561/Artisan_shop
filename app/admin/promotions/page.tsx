@@ -2,6 +2,7 @@ import { formatPrice } from "@/lib/commerce";
 import { ConfirmDeleteButton } from "@/components/admin/confirm-delete-button";
 import Form from "next/form";
 import Link from "next/link";
+import { BookOpen } from "lucide-react";
 
 import {
   DiscountType,
@@ -16,6 +17,7 @@ import {
   updatePromotionAction,
 } from "@/app/admin/actions";
 import { AdminSubmitButton } from "@/components/admin/admin-submit-button";
+import { PromotionItemsPicker } from "@/components/admin/promotion-items-picker";
 import { BulkSelectionTools } from "@/components/admin/bulk-selection-tools";
 import { MetricCard } from "@/components/admin/metric-card";
 import { SetupState } from "@/components/admin/setup-state";
@@ -417,6 +419,20 @@ export default async function AdminPromotionsPage({
           titleClassName="text-2xl sm:text-3xl"
           descriptionClassName="max-w-3xl text-sm leading-7"
         />
+        <div className="mt-5 flex flex-wrap items-center gap-3">
+          <a
+            href="/api/admin/promotions/magazine"
+            download
+            className={getButtonClassName("accent", "sm")}
+          >
+            <BookOpen className="size-4" aria-hidden="true" />
+            Скачать журнал акций (PDF)
+          </a>
+          <p className="text-xs leading-5 text-[var(--muted)]">
+            Все товары с действующей скидкой: обложка, ценники, QR на каждый
+            товар. Можно отправить клиентам в WhatsApp или распечатать.
+          </p>
+        </div>
       </section>
 
       {telegramPromo ? (
@@ -757,30 +773,28 @@ export default async function AdminPromotionsPage({
               </label>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="grid gap-2 text-sm text-[var(--foreground)]">
-                Товар
-                <Select name="productId" defaultValue="">
-                  <option value="">Без привязки к товару</option>
-                  {options.products.map((product) => (
-                    <option key={product.id} value={product.id}>
-                      {product.name} · {product.sku}
-                    </option>
-                  ))}
-                </Select>
-              </label>
-              <label className="grid gap-2 text-sm text-[var(--foreground)]">
-                Категория
-                <Select name="categoryId" defaultValue="">
-                  <option value="">Без привязки к категории</option>
-                  {options.categories.map((category) => (
-                    <option key={category.id} value={category.id}>
-                      {category.name}
-                    </option>
-                  ))}
-                </Select>
-              </label>
+            <div className="grid min-w-0 gap-5">
+              <PromotionItemsPicker
+                name="productIds"
+                label="Товары акции"
+                items={options.products}
+                emptyText="Товары не выбраны. Найдите и нажмите на товар, можно сколько угодно."
+              />
+
+              <PromotionItemsPicker
+                name="categoryIds"
+                label="Категории акции"
+                items={options.categories}
+                placeholder="Название категории"
+                emptyText="Категории не выбраны."
+              />
             </div>
+
+            <p className="-mt-2 text-xs leading-5 text-[var(--muted)]">
+              Скидка действует на выбранные товары, если цель акции «Товары»,
+              или на все товары выбранных категорий, если цель «Категории». На
+              витрине такие товары получают бирку «Акция!».
+            </p>
 
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="grid gap-2 text-sm text-[var(--foreground)]">

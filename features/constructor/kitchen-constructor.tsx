@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDown,
+  ArrowRight,
   ArrowUp,
   DoorClosed,
   DoorOpen,
@@ -29,7 +30,7 @@ import {
   type KitchenWall,
 } from "@/features/services/kitchen-builder";
 import type { CabinetPart } from "@/features/services/cabinet-builder";
-import { Field, inputClass } from "@/features/services/cabinet-builder-dialog";
+import { Field, inputClass } from "@/features/services/number-field";
 import { cn } from "@/lib/utils";
 import type {
   ConstructorDecor,
@@ -37,15 +38,31 @@ import type {
 } from "@/lib/server/constructor-decors";
 
 import { kitchenFittings } from "./assembly";
-import { ConstructorStep } from "./constructor-step";
-import { HardwarePicker, hardwareSummary } from "./hardware-picker";
+import {
+  EstimateRows,
+  More,
+  PriceBar,
+  QuickSizes,
+  Segmented,
+  SizeField,
+  StepHead,
+  StepNav,
+  plural,
+  primaryButton,
+  secondaryButton,
+} from "./constructor-shell";
+import styles from "./constructor.module.css";
+import { DecorStep } from "./decor-grid";
+import { formatSom } from "./estimate";
+import { HardwarePicker } from "./hardware-picker";
+import { useEstimate } from "./use-estimate";
 import {
   BlockCatalog,
   BlockIcon,
   BlockToolbar,
   BlockTray,
 } from "./kitchen-blocks";
-import { FittingsPanel } from "./assembly-panel";
+import { FittingsPanel, matchFittings } from "./assembly-panel";
 import {
   TONE_BACK,
   TONE_LED,
@@ -57,7 +74,6 @@ import {
 import {
   BACK_COLOR,
   DOOR_ANIMATION_MS,
-  DecorPicker,
   FurnitureScene,
   decorColor,
   grooveNote,
@@ -94,6 +110,22 @@ const KITCHEN_VIEWS: Record<KitchenLayout, [number, number, number]> = {
   u: [0, 0.75, 1],
 };
 const WALL_NAMES = ["Задняя стена", "Левая стена", "Правая стена"];
+
+const KITCHEN_STEPS = [
+  "layout",
+  "blocks",
+  "decor",
+  "hardware",
+  "summary",
+] as const;
+type KitchenStep = (typeof KITCHEN_STEPS)[number];
+const KITCHEN_LABELS: Record<KitchenStep, string> = {
+  layout: "Стены",
+  blocks: "Блоки",
+  decor: "Цвет",
+  hardware: "Фурнитура",
+  summary: "Итог",
+};
 
 // Плавно открывает и закрывает двери макета.
 function useDoorOpen(open: boolean) {
@@ -546,782 +578,770 @@ export function KitchenConstructor({
     }
   };
 
-  return (
-    <div className="grid gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(360px,1fr)]">
-      <div className="min-w-0 lg:sticky lg:top-24 lg:self-start">
-        <div className="overflow-hidden rounded-2xl border border-[color:var(--line)] bg-[var(--surface-strong)]">
-          <FurnitureScene
-            backWall={false}
-            boxes={boxes}
-            highlight={highlight}
-            onBoxClick={clickBox}
-            onScenePick={(pick) => {
-              if (armed) placeBlock(armed, pick);
-            }}
-            apiRef={sceneApi}
-            overlay={
-              <>
-                {selectedModule && !armed ? (
-                  <BlockToolbar
-                    row={selectedModule.row}
-                    type={selectedModule.type}
-                    code={selectedModule.code}
-                    label={selectedModule.label}
-                    width={selectedModule.width}
-                    first={selectedModule.index === 0}
-                    last={selectedModule.index === selectedRowLength - 1}
-                    onMove={(by) =>
-                      editSelected((list, index) => {
-                        const next = [...list];
-                        const [moved] = next.splice(index, 1);
-                        next.splice(index + by, 0, moved);
-                        return next;
-                      }, selectedModule.index + by)
-                    }
-                    onWidth={(width) =>
-                      editSelected((list, index) =>
-                        list.map((item, at) =>
-                          at === index ? { ...item, width } : item,
-                        ),
-                      )
-                    }
-                    onRemove={() =>
-                      editSelected(
-                        (list, index) => list.filter((_, at) => at !== index),
-                        null,
-                      )
-                    }
-                    onClose={() => setSelected(null)}
-                  />
-                ) : null}
-                <BlockTray
-                  row={trayRow}
-                  onRowChange={setTrayRow}
-                  armed={armed}
-                  onArm={setArmed}
-                  onDrop={(type, x, y) =>
-                    placeBlock(type, sceneApi.current?.pickAt?.(x, y) ?? null)
-                  }
-                />
-              </>
-            }
-            tones={tones}
-            handleTone={TONE_FACADE}
-            handlePlacement={kitchenHandlePlacement}
-            viewDirection={KITCHEN_VIEWS[spec.layout]}
-            className="h-[66vh] min-h-96 lg:h-[72vh]"
+  const estimate = useEstimate({
+    parts: result.parts,
+    isFacade,
+    thickness,
+    bodyDecor,
+    facadeDecor,
+    sameDecor,
+  });
+  const fittingsCost = useMemo(
+    () => matchFittings(fittings, fittingProducts).total,
+    [fittings, fittingProducts],
+  );
+  const total = estimate ? estimate.total + fittingsCost : null;
+  const blocked = result.problems.length > 0;
+
+  // Шаги для человека: один на экране, цена всегда внизу.
+  const wizard = KITCHEN_STEPS.filter((id) => id !== "decor" || decors.length);
+  const [view, setView] = useState(0);
+  const viewId = wizard[Math.min(view, wizard.length - 1)];
+  const layoutRef = useRef<HTMLDivElement | null>(null);
+  const bodyRef = useRef<HTMLDivElement | null>(null);
+  const go = (index: number) => {
+    const next = Math.max(0, Math.min(wizard.length - 1, index));
+    setView(next);
+    setSelected(null);
+    bodyRef.current?.scrollTo({ top: 0 });
+    if (window.innerWidth < 1024) {
+      layoutRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
+
+  const layoutStep = (
+    <>
+      <StepHead
+        title="Планировка"
+        hint="Форма кухни и длина стен. Блоки расставим сами — их можно поменять."
+      />
+      <Segmented
+        label="Форма"
+        value={spec.layout}
+        options={(Object.keys(KITCHEN_LAYOUTS) as KitchenLayout[]).map(
+          (layout) => ({ value: layout, label: KITCHEN_LAYOUTS[layout] }),
+        )}
+        onChange={chooseLayout}
+      />
+      <div className="grid gap-4">
+        {walls.map((wall, w) => (
+          <div key={w} className="grid gap-2">
+            <SizeField
+              label={walls.length > 1 ? WALL_NAMES[w] : "Длина стены"}
+              value={wall.length}
+              min={300}
+              onChange={(length) => setWall(w, { length })}
+            />
+            <QuickSizes
+              values={[1800, 2400, 3000, 3600]}
+              value={wall.length}
+              onChange={(length) => setWall(w, { length })}
+            />
+          </div>
+        ))}
+      </div>
+      <More title="Высоты и глубины">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          <Field
+            label="Ножки (цоколь), мм"
+            value={spec.legs}
+            onChange={(legs) => set({ legs })}
+          />
+          <Field
+            label="Высота тумб, мм"
+            value={spec.baseHeight}
+            onChange={(baseHeight) => set({ baseHeight })}
+          />
+          <Field
+            label="Глубина тумб, мм"
+            value={spec.baseDepth}
+            onChange={(baseDepth) => set({ baseDepth })}
+          />
+          <Field
+            label="Столешница, мм"
+            value={spec.countertop}
+            onChange={(countertop) => set({ countertop })}
+          />
+          <Field
+            label="Глубина столешницы"
+            value={spec.countertopDepth}
+            onChange={(countertopDepth) => set({ countertopDepth })}
+          />
+          <Field
+            label="Навесные: высота"
+            value={spec.topHeight}
+            onChange={(topHeight) => set({ topHeight })}
+          />
+          <Field
+            label="Навесные: глубина"
+            value={spec.topDepth}
+            onChange={(topDepth) => set({ topDepth })}
+          />
+          <Field
+            label="Низ навесных от пола"
+            value={spec.topBottom}
+            onChange={(topBottom) => set({ topBottom })}
+          />
+          <Field
+            label="Шкаф над вытяжкой"
+            value={spec.hoodHeight}
+            onChange={(hoodHeight) => set({ hoodHeight })}
           />
         </div>
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setDoorsOpen((current) => !current)}
-            className="inline-flex h-9 items-center gap-2 rounded-full border border-[color:var(--line)] px-4 text-[13px] font-medium"
-          >
-            {doorsOpen ? (
-              <DoorClosed className="size-4" />
-            ) : (
-              <DoorOpen className="size-4" />
-            )}
-            {doorsOpen ? "Закрыть двери" : "Открыть двери"}
-          </button>
-          {selected ? (
-            <button
-              type="button"
-              onClick={() => setSelected(null)}
-              className="inline-flex h-9 items-center gap-2 rounded-full border border-[var(--accent)] px-4 text-[13px] font-medium"
-            >
-              <X className="size-4" />
-              Модуль {selected}
-            </button>
-          ) : null}
-        </div>
+        <p className="mt-2 text-[12px] leading-5 text-[var(--muted)]">
+          Рабочая поверхность на высоте {sizeFormatter.format(result.worktop)}{" "}
+          мм от пола. Пеналы — от ножек до верха навесных.
+        </p>
+        <p className="text-[12px] leading-5 text-[var(--muted)]">
+          Рабочая поверхность на высоте {sizeFormatter.format(result.worktop)}{" "}
+          мм от пола. Пеналы — от ножек до верха навесных.
+        </p>
+      </More>
+    </>
+  );
+
+  const blocksStep = (
+    <>
+      <StepHead
+        title="Блоки"
+        hint="Перетащите блок с полки под макетом или добавьте в ряд ниже. Нажмите на блок, чтобы поменять его."
+      />
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => chooseLayout(spec.layout)}
+          className={secondaryButton}
+        >
+          Готовый набор
+        </button>
+        <button type="button" onClick={clearWalls} className={secondaryButton}>
+          С пустых стен
+        </button>
       </div>
-
-      <div className="grid min-w-0 content-start gap-4">
-        {selectedModule ? (
-          <section
-            ref={blockCard}
-            className="grid scroll-mt-24 gap-3 rounded-2xl border border-[var(--accent)] p-3"
+      {walls.map((wall, w) => {
+        const baseStart = result.starts[w]?.base ?? 0;
+        const topStart = result.starts[w]?.top ?? 0;
+        const baseUsed =
+          baseStart + wall.base.reduce((sum, item) => sum + item.width, 0);
+        const topUsed =
+          topStart + wall.top.reduce((sum, item) => sum + item.width, 0);
+        const rows = [
+          {
+            row: "base" as const,
+            title: "Нижние модули и пеналы",
+            used: baseUsed,
+            start: baseStart,
+          },
+          {
+            row: "top" as const,
+            title: "Навесные",
+            used: topUsed,
+            start: topStart,
+          },
+        ];
+        return (
+          <details
+            key={w}
+            className="rounded-2xl border border-[color:var(--line)] p-3"
+            open={w === 0}
           >
-            <div className="flex items-start gap-3">
-              <BlockIcon
-                row={selectedModule.row}
-                type={selectedModule.type}
-                className="size-12 shrink-0"
-              />
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold">
-                  Блок {selectedModule.code} · {selectedModule.label}
-                </p>
-                <p className="text-[12px] text-[var(--muted)] tabular-nums">
-                  {sizeFormatter.format(selectedModule.width)} ×{" "}
-                  {sizeFormatter.format(selectedModule.height)} ×{" "}
-                  {sizeFormatter.format(selectedModule.depth)} мм (ширина ×
-                  высота × глубина)
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSelected(null)}
-                className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-[color:var(--line)]"
-                aria-label="Закрыть блок"
-              >
-                <X className="size-4" />
-              </button>
-            </div>
-            {selectedProblems.length > 0 ? (
-              <ul className="grid gap-1 rounded-xl border border-amber-200 bg-amber-50 p-2 text-[12px] leading-5 text-amber-900">
-                {selectedProblems.map((problem) => (
-                  <li key={problem}>{problem}</li>
-                ))}
-              </ul>
-            ) : null}
-            {selectedParts.length > 0 ? (
-              <table className="w-full text-[12px]">
-                <tbody>
-                  {selectedParts.map((part, index) => (
-                    <tr
-                      key={`${part.title}-${index}`}
-                      className="border-t border-[color:var(--line)] first:border-t-0"
-                    >
-                      <td className="py-1 pr-2">
-                        {partLabel(part.title)}
-                        {isFacade(part) && !sameDecor ? (
-                          <span className="text-[var(--muted)]"> · фасад</span>
-                        ) : null}
-                      </td>
-                      <td className="py-1 whitespace-nowrap tabular-nums">
-                        {sizeFormatter.format(part.length)} ×{" "}
-                        {sizeFormatter.format(part.width)}
-                      </td>
-                      <td className="py-1 text-right tabular-nums">
-                        {part.quantity}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            ) : (
-              <p className="text-[12px] text-[var(--muted)]">
-                Без деталей ЛДСП: место под технику.
-              </p>
-            )}
-            {selectedCutout ? (
-              <p className="text-[12px] leading-5 text-[var(--muted)]">
-                Вырез в столешнице под{" "}
-                {selectedCutout.kind === "sink" ? "мойку" : "варочную панель"}:{" "}
-                {sizeFormatter.format(selectedCutout.width)} ×{" "}
-                {sizeFormatter.format(selectedCutout.depth)} мм по центру тумбы
-                ({selectedCutout.kind === "sink" ? "мойка" : "панель"}{" "}
-                {sizeFormatter.format(selectedCutout.outer.width)} ×{" "}
-                {sizeFormatter.format(selectedCutout.outer.depth)} мм, сверьте с
-                паспортом).
-              </p>
-            ) : null}
-            {selectedHdf.length > 0 ? (
-              <p className="text-[12px] leading-5 text-[var(--muted)]">
-                ХДФ (задняя стенка, дно ящиков):{" "}
-                {selectedHdf
-                  .map((sheet) => `${sheet.size} мм — ${sheet.count} шт`)
-                  .join(", ")}
-                .
-              </p>
-            ) : null}
-            {blockFittings.length > 0 ? (
-              <FittingsPanel
-                key={selectedModule.code}
-                lines={blockFittings}
-                products={fittingProducts}
-              />
-            ) : null}
-            {selectedParts.length > 0 ? (
-              <div className="grid gap-2 sm:grid-cols-2">
-                {sameDecor ? (
-                  <button
-                    type="button"
-                    disabled={selectedProblems.length > 0}
-                    onClick={() => send("all", selectedModule.code)}
-                    className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-[var(--accent)] px-4 text-[13px] font-semibold text-[var(--accent-ink)] disabled:opacity-40 sm:col-span-2"
-                  >
-                    <Scissors className="size-4" />
-                    Блок {selectedModule.code} в распил
-                  </button>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      disabled={selectedProblems.length > 0}
-                      onClick={() => send("body", selectedModule.code)}
-                      className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-[var(--accent)] px-4 text-[13px] font-semibold text-[var(--accent-ink)] disabled:opacity-40"
-                    >
-                      <Scissors className="size-4" />
-                      Корпус {selectedModule.code} в распил
-                    </button>
-                    <button
-                      type="button"
-                      disabled={selectedProblems.length > 0}
-                      onClick={() => send("facade", selectedModule.code)}
-                      className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-[color:var(--line-strong)] px-4 text-[13px] font-semibold disabled:opacity-40"
-                    >
-                      Фасады {selectedModule.code} в распил
-                    </button>
-                  </>
-                )}
-              </div>
-            ) : null}
-          </section>
-        ) : null}
-
-        <ConstructorStep
-          index={1}
-          title="Планировка и размеры"
-          summary={`${KITCHEN_LAYOUTS[spec.layout]}, ${walls
-            .map((wall) => sizeFormatter.format(wall.length))
-            .join(" + ")} мм`}
-          defaultOpen
-        >
-          <div className="flex flex-wrap gap-2">
-            {(Object.keys(KITCHEN_LAYOUTS) as KitchenLayout[]).map((layout) => (
-              <button
-                key={layout}
-                type="button"
-                onClick={() => chooseLayout(layout)}
-                className={cn(
-                  "rounded-full border px-4 py-2 text-[14px]",
-                  spec.layout === layout
-                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-ink)]"
-                    : "border-[color:var(--line)] hover:border-[var(--foreground)]",
-                )}
-              >
-                {KITCHEN_LAYOUTS[layout]}
-              </button>
-            ))}
-          </div>
-
-          <label className="grid gap-1 text-[12px] text-[var(--muted)]">
-            Название
-            <input
-              className={inputClass}
-              value={spec.name}
-              onChange={(event) => set({ name: event.target.value })}
-            />
-          </label>
-
-          <div>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-              <Field
-                label="Ножки (цоколь), мм"
-                value={spec.legs}
-                onChange={(legs) => set({ legs })}
-              />
-              <Field
-                label="Высота тумб, мм"
-                value={spec.baseHeight}
-                onChange={(baseHeight) => set({ baseHeight })}
-              />
-              <Field
-                label="Глубина тумб, мм"
-                value={spec.baseDepth}
-                onChange={(baseDepth) => set({ baseDepth })}
-              />
-              <Field
-                label="Столешница, мм"
-                value={spec.countertop}
-                onChange={(countertop) => set({ countertop })}
-              />
-              <Field
-                label="Глубина столешницы"
-                value={spec.countertopDepth}
-                onChange={(countertopDepth) => set({ countertopDepth })}
-              />
-              <Field
-                label="Навесные: высота"
-                value={spec.topHeight}
-                onChange={(topHeight) => set({ topHeight })}
-              />
-              <Field
-                label="Навесные: глубина"
-                value={spec.topDepth}
-                onChange={(topDepth) => set({ topDepth })}
-              />
-              <Field
-                label="Низ навесных от пола"
-                value={spec.topBottom}
-                onChange={(topBottom) => set({ topBottom })}
-              />
-              <Field
-                label="Шкаф над вытяжкой"
-                value={spec.hoodHeight}
-                onChange={(hoodHeight) => set({ hoodHeight })}
-              />
-            </div>
-            <p className="mt-2 text-[12px] leading-5 text-[var(--muted)]">
-              Рабочая поверхность на высоте{" "}
-              {sizeFormatter.format(result.worktop)} мм от пола. Пеналы — от
-              ножек до верха навесных.
-            </p>
-          </div>
-        </ConstructorStep>
-
-        <ConstructorStep
-          index={2}
-          title="Блоки"
-          summary={`${result.modules.length} блоков`}
-          defaultOpen
-        >
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <button
-              type="button"
-              onClick={clearWalls}
-              className="text-[13px] font-medium text-[var(--accent)] underline-offset-2 hover:underline"
-            >
-              Собрать с пустых стен
-            </button>
-            <button
-              type="button"
-              onClick={() => chooseLayout(spec.layout)}
-              className="text-[13px] font-medium text-[var(--accent)] underline-offset-2 hover:underline"
-            >
-              Готовый набор блоков
-            </button>
-          </div>
-          <p className="text-[12px] leading-5 text-[var(--muted)]">
-            Кухня собирается из блоков: добавляйте их в ряд из каталога, блоки
-            идут слева направо, если стоять лицом к стене. Нажмите на блок в
-            макете или в списке — увидите его детали и фурнитуру, его можно
-            отдать в распил отдельно. У угла первым ставьте угловой блок: его
-            глухая часть уходит за соседний ряд.
-          </p>
-          {walls.map((wall, w) => {
-            const baseStart = result.starts[w]?.base ?? 0;
-            const topStart = result.starts[w]?.top ?? 0;
-            const baseUsed =
-              baseStart + wall.base.reduce((sum, item) => sum + item.width, 0);
-            const topUsed =
-              topStart + wall.top.reduce((sum, item) => sum + item.width, 0);
-            const rows = [
-              {
-                row: "base" as const,
-                title: "Нижние модули и пеналы",
-                used: baseUsed,
-                start: baseStart,
-              },
-              {
-                row: "top" as const,
-                title: "Навесные",
-                used: topUsed,
-                start: topStart,
-              },
-            ];
-            return (
-              <details
-                key={w}
-                className="rounded-2xl border border-[color:var(--line)] p-3"
-                open
-              >
-                <summary className="cursor-pointer text-sm font-semibold">
-                  {walls.length > 1 ? WALL_NAMES[w] : "Стена"} ·{" "}
-                  {sizeFormatter.format(wall.length)} мм
-                </summary>
-                <div className="mt-3 grid gap-3">
-                  <div className="w-40">
-                    <Field
-                      label="Длина стены, мм"
-                      value={wall.length}
-                      onChange={(length) => setWall(w, { length })}
-                    />
-                  </div>
-                  {rows.map(({ row, title, used, start }) => {
-                    const free = wall.length - used;
-                    const list = row === "base" ? wall.base : wall.top;
-                    const update = (next: typeof list) =>
-                      setWall(
-                        w,
-                        row === "base"
-                          ? { base: next as KitchenWall["base"] }
-                          : { top: next as KitchenWall["top"] },
-                      );
-                    return (
-                      <div key={row} className="grid gap-2">
-                        <div className="flex items-baseline justify-between gap-2">
-                          <p className="text-[13px] font-semibold">{title}</p>
-                          <p
-                            className={cn(
-                              "text-[12px] tabular-nums",
-                              free < -0.5
-                                ? "text-red-700"
-                                : "text-[var(--muted)]",
-                            )}
-                          >
-                            {free < -0.5
-                              ? `Не влезает ${sizeFormatter.format(-free)} мм`
-                              : `Свободно ${sizeFormatter.format(free)} мм`}
-                          </p>
-                        </div>
-                        {start > 0 ? (
-                          <p className="text-[11px] leading-4 text-[var(--muted)]">
-                            Ряд начинается в {sizeFormatter.format(start)} мм от
-                            угла: там стоит ряд задней стены.
-                          </p>
-                        ) : null}
-                        {list.map((item, index) => {
-                          const code = blockCode(w, row, index);
-                          const common = {
-                            code,
-                            width: item.width,
-                            selected: selected === code,
-                            first: index === 0,
-                            last: index === list.length - 1,
-                            onSelect: () =>
-                              setSelected((current) =>
-                                current === code ? null : code,
-                              ),
-                            onMove: (by: -1 | 1) => {
-                              const next = [...list];
-                              const [moved] = next.splice(index, 1);
-                              next.splice(index + by, 0, moved);
-                              setSelected(null);
-                              update(next as typeof list);
-                            },
-                            onRemove: () => {
-                              setSelected(null);
-                              update(
-                                list.filter(
-                                  (_, at) => at !== index,
-                                ) as typeof list,
-                              );
-                            },
-                          };
-                          const change = (patch: {
-                            type?: string;
-                            width?: number;
-                          }) =>
-                            update(
-                              list.map((item, at) =>
-                                at === index ? { ...item, ...patch } : item,
-                              ) as typeof list,
-                            );
-                          return row === "base" ? (
-                            <ModuleRow<KitchenBaseType>
-                              key={`${code}-${item.type}`}
-                              row="base"
-                              {...common}
-                              types={KITCHEN_BASE_TYPES}
-                              type={item.type as KitchenBaseType}
-                              onChange={change}
-                            />
-                          ) : (
-                            <ModuleRow<KitchenTopType>
-                              key={`${code}-${item.type}`}
-                              row="top"
-                              {...common}
-                              types={KITCHEN_TOP_TYPES}
-                              type={item.type as KitchenTopType}
-                              onChange={change}
-                            />
+            <summary className="cursor-pointer text-sm font-semibold">
+              {walls.length > 1 ? WALL_NAMES[w] : "Стена"} ·{" "}
+              {sizeFormatter.format(wall.length)} мм
+            </summary>
+            <div className="mt-3 grid gap-3">
+              {rows.map(({ row, title, used, start }) => {
+                const free = wall.length - used;
+                const list = row === "base" ? wall.base : wall.top;
+                const update = (next: typeof list) =>
+                  setWall(
+                    w,
+                    row === "base"
+                      ? { base: next as KitchenWall["base"] }
+                      : { top: next as KitchenWall["top"] },
+                  );
+                return (
+                  <div key={row} className="grid gap-2">
+                    <div className="flex items-baseline justify-between gap-2">
+                      <p className="text-[13px] font-semibold">{title}</p>
+                      <p
+                        className={cn(
+                          "text-[12px] tabular-nums",
+                          free < -0.5 ? "text-red-700" : "text-[var(--muted)]",
+                        )}
+                      >
+                        {free < -0.5
+                          ? `Не влезает ${sizeFormatter.format(-free)} мм`
+                          : `Свободно ${sizeFormatter.format(free)} мм`}
+                      </p>
+                    </div>
+                    {start > 0 ? (
+                      <p className="text-[11px] leading-4 text-[var(--muted)]">
+                        Ряд начинается в {sizeFormatter.format(start)} мм от
+                        угла: там стоит ряд задней стены.
+                      </p>
+                    ) : null}
+                    {list.map((item, index) => {
+                      const code = blockCode(w, row, index);
+                      const common = {
+                        code,
+                        width: item.width,
+                        selected: selected === code,
+                        first: index === 0,
+                        last: index === list.length - 1,
+                        onSelect: () =>
+                          setSelected((current) =>
+                            current === code ? null : code,
+                          ),
+                        onMove: (by: -1 | 1) => {
+                          const next = [...list];
+                          const [moved] = next.splice(index, 1);
+                          next.splice(index + by, 0, moved);
+                          setSelected(null);
+                          update(next as typeof list);
+                        },
+                        onRemove: () => {
+                          setSelected(null);
+                          update(
+                            list.filter((_, at) => at !== index) as typeof list,
                           );
-                        })}
-                        {adding === `${w}-${row}` ? (
-                          <div className="grid gap-2 rounded-xl border border-dashed border-[color:var(--line-strong)] p-2">
-                            <div className="flex items-center justify-between gap-2">
-                              <p className="text-[12px] text-[var(--muted)]">
-                                Нажмите на блок — он встанет в конец ряда.
-                              </p>
-                              <button
-                                type="button"
-                                onClick={() => setAdding(null)}
-                                className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-[color:var(--line)]"
-                                aria-label="Закрыть каталог"
-                              >
-                                <X className="size-4" />
-                              </button>
-                            </div>
-                            {row === "base" ? (
-                              <BlockCatalog<KitchenBaseType>
-                                row="base"
-                                types={KITCHEN_BASE_TYPES}
-                                onPick={(type) => {
-                                  update([
-                                    ...wall.base,
-                                    {
-                                      type,
-                                      width: KITCHEN_BASE_TYPES[type].width,
-                                    },
-                                  ] as typeof list);
-                                  setSelected(
-                                    blockCode(w, row, wall.base.length),
-                                  );
-                                }}
-                              />
-                            ) : (
-                              <BlockCatalog<KitchenTopType>
-                                row="top"
-                                types={KITCHEN_TOP_TYPES}
-                                onPick={(type) => {
-                                  update([
-                                    ...wall.top,
-                                    {
-                                      type,
-                                      width: KITCHEN_TOP_TYPES[type].width,
-                                    },
-                                  ] as typeof list);
-                                  setSelected(
-                                    blockCode(w, row, wall.top.length),
-                                  );
-                                }}
-                              />
-                            )}
-                          </div>
-                        ) : (
+                        },
+                      };
+                      const change = (patch: {
+                        type?: string;
+                        width?: number;
+                      }) =>
+                        update(
+                          list.map((item, at) =>
+                            at === index ? { ...item, ...patch } : item,
+                          ) as typeof list,
+                        );
+                      return row === "base" ? (
+                        <ModuleRow<KitchenBaseType>
+                          key={`${code}-${item.type}`}
+                          row="base"
+                          {...common}
+                          types={KITCHEN_BASE_TYPES}
+                          type={item.type as KitchenBaseType}
+                          onChange={change}
+                        />
+                      ) : (
+                        <ModuleRow<KitchenTopType>
+                          key={`${code}-${item.type}`}
+                          row="top"
+                          {...common}
+                          types={KITCHEN_TOP_TYPES}
+                          type={item.type as KitchenTopType}
+                          onChange={change}
+                        />
+                      );
+                    })}
+                    {adding === `${w}-${row}` ? (
+                      <div className="grid gap-2 rounded-xl border border-dashed border-[color:var(--line-strong)] p-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-[12px] text-[var(--muted)]">
+                            Нажмите на блок — он встанет в конец ряда.
+                          </p>
                           <button
                             type="button"
-                            onClick={() => setAdding(`${w}-${row}`)}
-                            className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-dashed border-[color:var(--line-strong)] text-[13px] font-medium"
+                            onClick={() => setAdding(null)}
+                            className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-[color:var(--line)]"
+                            aria-label="Закрыть каталог"
                           >
-                            <Plus className="size-4" />
-                            Добавить блок
+                            <X className="size-4" />
                           </button>
+                        </div>
+                        {row === "base" ? (
+                          <BlockCatalog<KitchenBaseType>
+                            row="base"
+                            types={KITCHEN_BASE_TYPES}
+                            onPick={(type) => {
+                              update([
+                                ...wall.base,
+                                {
+                                  type,
+                                  width: KITCHEN_BASE_TYPES[type].width,
+                                },
+                              ] as typeof list);
+                              setSelected(blockCode(w, row, wall.base.length));
+                            }}
+                          />
+                        ) : (
+                          <BlockCatalog<KitchenTopType>
+                            row="top"
+                            types={KITCHEN_TOP_TYPES}
+                            onPick={(type) => {
+                              update([
+                                ...wall.top,
+                                {
+                                  type,
+                                  width: KITCHEN_TOP_TYPES[type].width,
+                                },
+                              ] as typeof list);
+                              setSelected(blockCode(w, row, wall.top.length));
+                            }}
+                          />
                         )}
                       </div>
-                    );
-                  })}
-                </div>
-              </details>
-            );
-          })}
-        </ConstructorStep>
-
-        <ConstructorStep
-          index={3}
-          title="Фурнитура"
-          summary={hardwareSummary(spec.hardware) || "на все блоки"}
-        >
-          <HardwarePicker
-            value={spec.hardware}
-            onChange={(hardware) => set({ hardware })}
-            drawers={result.modules.some((item) => item.result?.drawers)}
-            hinges={result.modules.some((item) => (item.spec?.doors ?? 0) > 0)}
-            lift={result.modules.some((item) => item.type === "lift")}
-          />
-        </ConstructorStep>
-
-        <ConstructorStep
-          index={4}
-          title="Декор"
-          summary={
-            sameDecor
-              ? bodyDecor?.name
-              : `${bodyDecor?.name ?? ""} + ${facadeDecor?.name ?? ""}`
-          }
-        >
-          <DecorPicker
-            title="Декор корпусов"
-            decors={decors}
-            value={bodyId}
-            onChange={(id) => {
-              // Фасады режем из плиты той же толщины, что и корпуса: присадка
-              // считается по ней. Другая толщина сбрасывается на декор корпуса.
-              const next = decors.find((decor) => decor.id === id);
-              if (sameDecor || facadeDecor?.thickness !== next?.thickness) {
-                setFacadeId(id);
-              }
-              setBodyId(id);
-            }}
-          />
-          <DecorPicker
-            title="Декор фасадов и цоколя"
-            decors={decors.filter((decor) => decor.thickness === thickness)}
-            value={facadeDecor?.id ?? ""}
-            onChange={setFacadeId}
-          />
-        </ConstructorStep>
-
-        {result.problems.length > 0 ? (
-          <ul className="grid gap-1 rounded-xl border border-amber-200 bg-amber-50 p-3 text-[13px] leading-5 text-amber-900">
-            {result.problems.map((problem) => (
-              <li key={problem}>{problem}</li>
-            ))}
-          </ul>
-        ) : null}
-
-        <ConstructorStep
-          index={5}
-          title="Итог и распил"
-          summary={`${partCount} деталей`}
-          defaultOpen
-        >
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {[
-              { label: "Модулей с корпусом", value: String(bodies) },
-              { label: "Деталей ЛДСП", value: String(partCount) },
-              {
-                label: "Столешница",
-                value: `${sizeFormatter.format(
-                  result.countertops.reduce(
-                    (sum, piece) => sum + piece.to - piece.from,
-                    0,
-                  ) / 1000,
-                )} м`,
-              },
-              {
-                label: "Цоколь",
-                value: `${sizeFormatter.format(
-                  result.plinths.reduce(
-                    (sum, piece) => sum + piece.to - piece.from,
-                    0,
-                  ) / 1000,
-                )} м`,
-              },
-            ].map((item) => (
-              <div
-                key={item.label}
-                className="rounded-xl border border-[color:var(--line)] p-3"
-              >
-                <p className="text-[11px] text-[var(--muted)]">{item.label}</p>
-                <p className="mt-1 text-sm font-semibold">{item.value}</p>
-              </div>
-            ))}
-          </div>
-
-          <details className="rounded-xl border border-[color:var(--line)] p-3">
-            <summary className="cursor-pointer text-sm font-semibold">
-              Детали
-            </summary>
-            <table className="mt-2 w-full text-[13px]">
-              <thead className="text-left text-[11px] text-[var(--muted)]">
-                <tr>
-                  <th className="py-1 font-normal">Деталь</th>
-                  <th className="py-1 font-normal">Размер, мм</th>
-                  <th className="py-1 font-normal">Кромка</th>
-                  <th className="py-1 text-right font-normal">Шт.</th>
-                </tr>
-              </thead>
-              <tbody>
-                {partGroups.map(([code, parts]) => [
-                  <tr key={`group-${code}`}>
-                    <th
-                      colSpan={4}
-                      className="pt-3 pb-1 text-left text-[12px] font-semibold"
-                    >
-                      {code ? (
-                        <button
-                          type="button"
-                          onClick={() => setSelected(code)}
-                          className="underline-offset-2 hover:underline"
-                        >
-                          Блок {code} ·{" "}
-                          {result.modules.find((item) => item.code === code)
-                            ?.label ?? ""}
-                        </button>
-                      ) : (
-                        "Общие: цоколь и фальшпанели"
-                      )}
-                    </th>
-                  </tr>,
-                  ...parts.map((part, index) => (
-                    <tr
-                      key={`${part.title}-${index}`}
-                      className="border-t border-[color:var(--line)]"
-                    >
-                      <td className="py-1.5 pr-2">
-                        {partLabel(part.title)}
-                        {isFacade(part) && !sameDecor ? (
-                          <span className="text-[var(--muted)]"> · фасад</span>
-                        ) : null}
-                        {part.milling ? (
-                          <span className="block text-[11px] text-[var(--muted)]">
-                            {grooveNote(part)}
-                          </span>
-                        ) : null}
-                      </td>
-                      <td className="py-1.5 whitespace-nowrap tabular-nums">
-                        {sizeFormatter.format(part.length)} ×{" "}
-                        {sizeFormatter.format(part.width)}
-                      </td>
-                      <td className="py-1.5 pr-2 text-[12px] leading-4">
-                        {edgeDescription(part.edgedSides)}
-                      </td>
-                      <td className="py-1.5 text-right tabular-nums">
-                        {part.quantity}
-                      </td>
-                    </tr>
-                  )),
-                ])}
-                {hdf.map((sheet) => (
-                  <tr
-                    key={`hdf-${sheet.size}`}
-                    className="border-t border-[color:var(--line)] text-[var(--muted)]"
-                  >
-                    <td className="py-1.5 pr-2">Задняя стенка или дно, ХДФ</td>
-                    <td className="py-1.5 whitespace-nowrap tabular-nums">
-                      {sheet.size}
-                    </td>
-                    <td className="py-1.5 pr-2 text-[12px]">без кромки</td>
-                    <td className="py-1.5 text-right">{sheet.count}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <p className="mt-2 text-[12px] leading-5 text-[var(--muted)]">
-              Размер: длина (вдоль текстуры) × ширина. Кромка и присадка уже
-              стоят: конфирматы корпусов, петли, полкодержатели, направляющие
-              ящиков. {countertopNote}
-            </p>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setAdding(`${w}-${row}`)}
+                        className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-dashed border-[color:var(--line-strong)] text-[13px] font-medium"
+                      >
+                        <Plus className="size-4" />
+                        Добавить блок
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </details>
+        );
+      })}
+    </>
+  );
 
-          {fittings.length > 0 ? (
+  const decorStep = (
+    <DecorStep
+      decors={decors}
+      bodyId={bodyId}
+      facadeId={facadeDecor?.id ?? ""}
+      onBody={setBodyId}
+      onFacade={setFacadeId}
+      hasFronts
+      facadeLabel="Фасадов и цоколя"
+    />
+  );
+
+  const hardwareStep = (
+    <>
+      <StepHead
+        title="Фурнитура"
+        hint="Уже подобрали надёжный вариант для всех блоков. Меняйте, только если хотите другой."
+      />
+      <div className="grid gap-3">
+        <HardwarePicker
+          value={spec.hardware}
+          onChange={(hardware) => set({ hardware })}
+          drawers={result.modules.some((item) => item.result?.drawers)}
+          hinges={result.modules.some((item) => (item.spec?.doors ?? 0) > 0)}
+          lift={result.modules.some((item) => item.type === "lift")}
+        />
+      </div>
+    </>
+  );
+
+  const summaryStep = (
+    <>
+      <StepHead
+        title="Итог"
+        hint={`${KITCHEN_LAYOUTS[spec.layout]} кухня, ${walls
+          .map((wall) => sizeFormatter.format(wall.length))
+          .join(" + ")} мм, ${plural(bodies, ["блок", "блока", "блоков"])}`}
+      />
+      {estimate ? (
+        <EstimateRows estimate={estimate} fittings={fittingsCost} />
+      ) : null}
+      <p className="text-[12px] leading-5 text-[var(--muted)]">
+        Точную сумму покажет калькулятор распила: там карта раскроя и заявка.
+        Столешница, ХДФ и техника считаются отдельно.
+      </p>
+      {!sameDecor ? (
+        <div className="grid gap-2 rounded-xl bg-[var(--surface)] p-3">
+          <p className="text-[13px] leading-5">
+            Корпуса и фасады разного цвета — это две заявки. Сначала отправьте
+            корпуса кнопкой внизу, потом вернитесь за фасадами.
+          </p>
+          <button
+            type="button"
+            disabled={blocked}
+            onClick={() => send("facade")}
+            className={secondaryButton}
+          >
+            Фасады и цоколь в распил
+          </button>
+        </div>
+      ) : null}
+      <div>
+        {fittings.length > 0 ? (
+          <More title="Фурнитура в корзину">
             <FittingsPanel lines={fittings} products={fittingProducts} />
-          ) : null}
+          </More>
+        ) : null}
+        <More
+          title={`Детали, ${plural(partCount, ["деталь", "детали", "деталей"])}`}
+        >
+          <table className="w-full text-[13px]">
+            <thead className="text-left text-[11px] text-[var(--muted)]">
+              <tr>
+                <th className="py-1 font-normal">Деталь</th>
+                <th className="py-1 font-normal">Размер, мм</th>
+                <th className="py-1 font-normal">Кромка</th>
+                <th className="py-1 text-right font-normal">Шт.</th>
+              </tr>
+            </thead>
+            <tbody>
+              {partGroups.map(([code, parts]) => [
+                <tr key={`group-${code}`}>
+                  <th
+                    colSpan={4}
+                    className="pt-3 pb-1 text-left text-[12px] font-semibold"
+                  >
+                    {code ? (
+                      <button
+                        type="button"
+                        onClick={() => setSelected(code)}
+                        className="underline-offset-2 hover:underline"
+                      >
+                        Блок {code} ·{" "}
+                        {result.modules.find((item) => item.code === code)
+                          ?.label ?? ""}
+                      </button>
+                    ) : (
+                      "Общие: цоколь и фальшпанели"
+                    )}
+                  </th>
+                </tr>,
+                ...parts.map((part, index) => (
+                  <tr
+                    key={`${part.title}-${index}`}
+                    className="border-t border-[color:var(--line)]"
+                  >
+                    <td className="py-1.5 pr-2">
+                      {partLabel(part.title)}
+                      {isFacade(part) && !sameDecor ? (
+                        <span className="text-[var(--muted)]"> · фасад</span>
+                      ) : null}
+                      {part.milling ? (
+                        <span className="block text-[11px] text-[var(--muted)]">
+                          {grooveNote(part)}
+                        </span>
+                      ) : null}
+                    </td>
+                    <td className="py-1.5 whitespace-nowrap tabular-nums">
+                      {sizeFormatter.format(part.length)} ×{" "}
+                      {sizeFormatter.format(part.width)}
+                    </td>
+                    <td className="py-1.5 pr-2 text-[12px] leading-4">
+                      {edgeDescription(part.edgedSides)}
+                    </td>
+                    <td className="py-1.5 text-right tabular-nums">
+                      {part.quantity}
+                    </td>
+                  </tr>
+                )),
+              ])}
+              {hdf.map((sheet) => (
+                <tr
+                  key={`hdf-${sheet.size}`}
+                  className="border-t border-[color:var(--line)] text-[var(--muted)]"
+                >
+                  <td className="py-1.5 pr-2">Задняя стенка или дно, ХДФ</td>
+                  <td className="py-1.5 whitespace-nowrap tabular-nums">
+                    {sheet.size}
+                  </td>
+                  <td className="py-1.5 pr-2 text-[12px]">без кромки</td>
+                  <td className="py-1.5 text-right">{sheet.count}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="text-[12px] leading-5 text-[var(--muted)]">
+            Размер: длина (вдоль текстуры) × ширина. Кромка и присадка уже
+            стоят: конфирматы корпусов, петли, полкодержатели, направляющие
+            ящиков. {countertopNote}
+          </p>
+        </More>
+      </div>
+    </>
+  );
 
+  const blockCardJsx = selectedModule ? (
+    <section ref={blockCard} className="grid scroll-mt-24 gap-3">
+      <div className="flex items-start gap-3">
+        <BlockIcon
+          row={selectedModule.row}
+          type={selectedModule.type}
+          className="size-12 shrink-0"
+        />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold">
+            Блок {selectedModule.code} · {selectedModule.label}
+          </p>
+          <p className="text-[12px] text-[var(--muted)] tabular-nums">
+            {sizeFormatter.format(selectedModule.width)} ×{" "}
+            {sizeFormatter.format(selectedModule.height)} ×{" "}
+            {sizeFormatter.format(selectedModule.depth)} мм (ширина × высота ×
+            глубина)
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setSelected(null)}
+          className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-[color:var(--line)]"
+          aria-label="Закрыть блок"
+        >
+          <X className="size-4" />
+        </button>
+      </div>
+      {selectedProblems.length > 0 ? (
+        <ul className="grid gap-1 rounded-xl border border-amber-200 bg-amber-50 p-2 text-[12px] leading-5 text-amber-900">
+          {selectedProblems.map((problem) => (
+            <li key={problem}>{problem}</li>
+          ))}
+        </ul>
+      ) : null}
+      {selectedParts.length > 0 ? (
+        <table className="w-full text-[12px]">
+          <tbody>
+            {selectedParts.map((part, index) => (
+              <tr
+                key={`${part.title}-${index}`}
+                className="border-t border-[color:var(--line)] first:border-t-0"
+              >
+                <td className="py-1 pr-2">
+                  {partLabel(part.title)}
+                  {isFacade(part) && !sameDecor ? (
+                    <span className="text-[var(--muted)]"> · фасад</span>
+                  ) : null}
+                </td>
+                <td className="py-1 whitespace-nowrap tabular-nums">
+                  {sizeFormatter.format(part.length)} ×{" "}
+                  {sizeFormatter.format(part.width)}
+                </td>
+                <td className="py-1 text-right tabular-nums">
+                  {part.quantity}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : (
+        <p className="text-[12px] text-[var(--muted)]">
+          Без деталей ЛДСП: место под технику.
+        </p>
+      )}
+      {selectedCutout ? (
+        <p className="text-[12px] leading-5 text-[var(--muted)]">
+          Вырез в столешнице под{" "}
+          {selectedCutout.kind === "sink" ? "мойку" : "варочную панель"}:{" "}
+          {sizeFormatter.format(selectedCutout.width)} ×{" "}
+          {sizeFormatter.format(selectedCutout.depth)} мм по центру тумбы (
+          {selectedCutout.kind === "sink" ? "мойка" : "панель"}{" "}
+          {sizeFormatter.format(selectedCutout.outer.width)} ×{" "}
+          {sizeFormatter.format(selectedCutout.outer.depth)} мм, сверьте с
+          паспортом).
+        </p>
+      ) : null}
+      {selectedHdf.length > 0 ? (
+        <p className="text-[12px] leading-5 text-[var(--muted)]">
+          ХДФ (задняя стенка, дно ящиков):{" "}
+          {selectedHdf
+            .map((sheet) => `${sheet.size} мм — ${sheet.count} шт`)
+            .join(", ")}
+          .
+        </p>
+      ) : null}
+      {blockFittings.length > 0 ? (
+        <FittingsPanel
+          key={selectedModule.code}
+          lines={blockFittings}
+          products={fittingProducts}
+        />
+      ) : null}
+      {selectedParts.length > 0 ? (
+        <div className="grid gap-2 sm:grid-cols-2">
+          {sameDecor ? (
+            <button
+              type="button"
+              disabled={selectedProblems.length > 0}
+              onClick={() => send("all", selectedModule.code)}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-[var(--accent)] px-4 text-[13px] font-semibold text-[var(--accent-ink)] disabled:opacity-40 sm:col-span-2"
+            >
+              <Scissors className="size-4" />
+              Блок {selectedModule.code} в распил
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                disabled={selectedProblems.length > 0}
+                onClick={() => send("body", selectedModule.code)}
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-[var(--accent)] px-4 text-[13px] font-semibold text-[var(--accent-ink)] disabled:opacity-40"
+              >
+                <Scissors className="size-4" />
+                Корпус {selectedModule.code} в распил
+              </button>
+              <button
+                type="button"
+                disabled={selectedProblems.length > 0}
+                onClick={() => send("facade", selectedModule.code)}
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-[color:var(--line-strong)] px-4 text-[13px] font-semibold disabled:opacity-40"
+              >
+                Фасады {selectedModule.code} в распил
+              </button>
+            </>
+          )}
+        </div>
+      ) : null}
+    </section>
+  ) : null;
+
+  const stepContent = blockCardJsx
+    ? blockCardJsx
+    : viewId === "layout"
+      ? layoutStep
+      : viewId === "blocks"
+        ? blocksStep
+        : viewId === "decor"
+          ? decorStep
+          : viewId === "hardware"
+            ? hardwareStep
+            : summaryStep;
+
+  const last = view >= wizard.length - 1;
+  const next = last ? (
+    <button
+      type="button"
+      disabled={blocked}
+      onClick={() => send(sameDecor ? "all" : "body")}
+      className={primaryButton}
+    >
+      <Scissors className="size-4" />
+      {sameDecor ? "В распил" : "Корпуса в распил"}
+    </button>
+  ) : (
+    <button
+      type="button"
+      onClick={() => go(view + 1)}
+      className={primaryButton}
+    >
+      Далее
+      <ArrowRight className="size-4" />
+    </button>
+  );
+
+  return (
+    <div
+      ref={layoutRef}
+      className={styles.layout}
+      style={{ scrollMarginTop: 12 }}
+    >
+      <div className={cn(styles.stage, styles.stageTall)}>
+        <FurnitureScene
+          backWall={false}
+          boxes={boxes}
+          highlight={highlight}
+          onBoxClick={clickBox}
+          onScenePick={(pick) => {
+            if (armed) placeBlock(armed, pick);
+          }}
+          apiRef={sceneApi}
+          overlay={
+            <>
+              {selectedModule && !armed ? (
+                <BlockToolbar
+                  row={selectedModule.row}
+                  type={selectedModule.type}
+                  code={selectedModule.code}
+                  label={selectedModule.label}
+                  width={selectedModule.width}
+                  first={selectedModule.index === 0}
+                  last={selectedModule.index === selectedRowLength - 1}
+                  onMove={(by) =>
+                    editSelected((list, index) => {
+                      const next = [...list];
+                      const [moved] = next.splice(index, 1);
+                      next.splice(index + by, 0, moved);
+                      return next;
+                    }, selectedModule.index + by)
+                  }
+                  onWidth={(width) =>
+                    editSelected((list, index) =>
+                      list.map((item, at) =>
+                        at === index ? { ...item, width } : item,
+                      ),
+                    )
+                  }
+                  onRemove={() =>
+                    editSelected(
+                      (list, index) => list.filter((_, at) => at !== index),
+                      null,
+                    )
+                  }
+                  onClose={() => setSelected(null)}
+                />
+              ) : null}
+              <BlockTray
+                row={trayRow}
+                onRowChange={setTrayRow}
+                armed={armed}
+                onArm={setArmed}
+                onDrop={(type, x, y) =>
+                  placeBlock(type, sceneApi.current?.pickAt?.(x, y) ?? null)
+                }
+              />
+            </>
+          }
+          tones={tones}
+          handleTone={TONE_FACADE}
+          handlePlacement={kitchenHandlePlacement}
+          viewDirection={KITCHEN_VIEWS[spec.layout]}
+          className="h-full"
+        />
+        <button
+          type="button"
+          onClick={() => setDoorsOpen((current) => !current)}
+          aria-label={doorsOpen ? "Закрыть двери" : "Открыть двери"}
+          className="absolute top-3 right-14 inline-flex h-9 items-center gap-1.5 rounded-full bg-white/90 px-3 text-[13px] font-medium shadow-sm"
+        >
+          {doorsOpen ? (
+            <DoorClosed className="size-4" />
+          ) : (
+            <DoorOpen className="size-4" />
+          )}
+          <span className="max-sm:sr-only">
+            {doorsOpen ? "Закрыть" : "Открыть"}
+          </span>
+        </button>
+      </div>
+
+      <div className={styles.panel}>
+        <StepNav
+          steps={wizard.map((id) => KITCHEN_LABELS[id])}
+          current={view}
+          onStep={go}
+        />
+        <div ref={bodyRef} className={styles.body}>
+          {blocked && !selectedModule ? (
+            <ul className="grid gap-1 rounded-xl border border-amber-200 bg-amber-50 p-3 text-[13px] leading-5 text-amber-900">
+              {result.problems.map((problem) => (
+                <li key={problem}>{problem}</li>
+              ))}
+            </ul>
+          ) : null}
           {error ? (
-            <p className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+            <p className="rounded-xl border border-red-200 bg-red-50 p-3 text-[13px] leading-5 text-red-800">
               {error}
             </p>
           ) : null}
-
-          <div className="grid gap-2 rounded-2xl bg-[var(--surface-strong)] p-4">
-            {sameDecor ? (
-              <button
-                type="button"
-                disabled={result.problems.length > 0}
-                onClick={() => send("all")}
-                className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-[var(--accent)] px-6 text-[15px] font-semibold text-[var(--accent-ink)] disabled:opacity-40"
-              >
-                <Scissors className="size-4" />
-                Отправить кухню в распил
-              </button>
-            ) : (
-              <>
-                <p className="text-[13px] leading-5 text-[var(--muted)]">
-                  Корпуса и фасады из разных декоров — это две заявки на распил.
-                  Отправьте сначала корпуса, потом вернитесь сюда за фасадами.
-                </p>
-                <button
-                  type="button"
-                  disabled={result.problems.length > 0}
-                  onClick={() => send("body")}
-                  className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-[var(--accent)] px-6 text-[15px] font-semibold text-[var(--accent-ink)] disabled:opacity-40"
-                >
-                  <Scissors className="size-4" />
-                  Корпуса в распил
-                </button>
-                <button
-                  type="button"
-                  disabled={result.problems.length > 0}
-                  onClick={() => send("facade")}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-[color:var(--line-strong)] px-6 text-[14px] font-semibold disabled:opacity-40"
-                >
-                  Фасады и цоколь в распил
-                </button>
-              </>
-            )}
-            <p className="text-[12px] leading-5 text-[var(--muted)]">
-              Детали откроются в калькуляторе распила: там будет карта раскроя,
-              цена и кнопка заявки. Столешница и ХДФ — в примечании к заявке.
-            </p>
-          </div>
-        </ConstructorStep>
+          {stepContent}
+        </div>
+        <PriceBar
+          price={total !== null ? `≈ ${formatSom(total)}` : "Цена в распиле"}
+          meta={[
+            estimate
+              ? plural(estimate.sheets, ["лист", "листа", "листов"])
+              : "",
+            plural(bodies, ["блок", "блока", "блоков"]),
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+          onBack={view > 0 ? () => go(view - 1) : undefined}
+          next={next}
+        />
       </div>
     </div>
   );

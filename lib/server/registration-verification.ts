@@ -1,3 +1,4 @@
+import { emailLogoHtml } from "@/lib/server/email-brand";
 import "server-only";
 
 type RegistrationVerificationDeliveryResult =
@@ -64,6 +65,7 @@ function buildVerificationEmail(input: SendRegistrationVerificationCodeInput) {
     ].join("\n"),
     html: `
       <div style="font-family:Arial,sans-serif;line-height:1.6;color:#151411">
+      ${emailLogoHtml}
         <p>${safeName}, ваш код подтверждения Artisan:</p>
         <p style="font-size:32px;font-weight:700;letter-spacing:8px;margin:18px 0">${safeCode}</p>
         <p>Код действует до ${escapeHtml(expiresAt)}.</p>

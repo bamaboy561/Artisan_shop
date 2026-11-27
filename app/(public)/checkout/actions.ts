@@ -297,6 +297,7 @@ export async function submitCheckoutAction(
       snapshotSku: product?.sku ?? null,
       snapshotBrand: product?.brand?.name ?? null,
       categoryKind: product?.category.kind ?? null,
+      isPromotional: discountAmount > 0,
       lineSubtotal,
     };
   });
@@ -390,8 +391,9 @@ export async function submitCheckoutAction(
   const accrualRatio = subtotal > 0 ? accrualBase / subtotal : 0;
   const awardedPoints = user
     ? estimateLoyaltyPointsForLines(
+        // На акционные позиции бонусы не начисляются.
         orderItems.map((item) => ({
-          total: item.lineSubtotal * accrualRatio,
+          total: item.isPromotional ? 0 : item.lineSubtotal * accrualRatio,
           categoryKind: item.categoryKind,
         })),
         user,
@@ -495,6 +497,7 @@ export async function submitCheckoutAction(
               snapshotSku: item.snapshotSku,
               snapshotBrand: item.snapshotBrand,
               snapshotCategoryKind: item.categoryKind,
+              isPromotional: item.isPromotional,
             })),
           },
         },

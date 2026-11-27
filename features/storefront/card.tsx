@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
 import { ProductImage } from "@/components/catalog/product-image";
 import { FavoriteToggle } from "@/components/catalog/favorite-toggle";
+import { PromoBadge } from "@/components/catalog/promo-badge";
 import { displayProductName, orderedGallery } from "./plate-gallery";
 import { QuickAdd } from "./quick-add";
 import type { FeaturedProduct } from "@/features/catalog/types";
@@ -76,7 +77,13 @@ export function StorefrontCard({
           next={next}
           className={s.liveFavorite}
         />
-        {product.isPromotional && <span className={s.formatTag}>Акция</span>}
+        {product.isPromotional && (
+          <PromoBadge
+            price={product.price}
+            oldPrice={product.oldPrice}
+            className={s.promoSticker}
+          />
+        )}
       </div>
       <div className={s.productInfo}>
         <div className={s.productBrand}>
@@ -97,7 +104,9 @@ export function StorefrontCard({
         <p className={s.productFormat}>Арт. {product.sku}</p>
         <div className={s.productBottom}>
           <div>
-            <strong>
+            <strong
+              className={product.isPromotional ? s.promoPrice : undefined}
+            >
               {typeof product.price === "number"
                 ? formatPrice(product.price)
                 : "По запросу"}

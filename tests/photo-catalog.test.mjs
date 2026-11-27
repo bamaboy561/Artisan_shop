@@ -49,6 +49,10 @@ const render = loadAction("../lib/server/photo-catalog-render.ts", {
   pdfkit: { default: PDFDocument },
   qrcode: { default: QRCode },
   "@/lib/server/catalog-thumbnail": { catalogThumbnail: async () => null },
+  "@/lib/brand/artisan-logo-paths": loadAction(
+    "../lib/brand/artisan-logo-paths.ts",
+    {},
+  ),
 });
 
 test("photo Excel embeds pictures and preserves Cyrillic, long SKUs and numeric values", async () => {

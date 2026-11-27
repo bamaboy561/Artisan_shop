@@ -8,6 +8,7 @@ import {
   useState,
   useTransition,
 } from "react";
+import Link from "next/link";
 
 import {
   Check,
@@ -50,7 +51,6 @@ import {
 } from "@/features/services/bazis-material-match";
 import { optimizeCutting } from "@/features/services/cut-optimizer";
 import type { DetailGroup } from "@/features/services/cut-list-import";
-import { CabinetBuilderDialog } from "@/features/services/cabinet-builder-dialog";
 import { DrillingEditor } from "@/features/services/drilling-editor";
 import {
   PART_ROLE_LABELS,
@@ -2654,7 +2654,6 @@ export function CutCalculator({
     row: DetailRow;
     index: number;
   } | null>(null);
-  const [cabinetOpen, setCabinetOpen] = useState(false);
   // Калькулятор по шагам: на экране один шаг, а не всё сразу.
   const [step, setStep] = useState<1 | 2 | 3 | 4>(2);
   const goToStep = (next: 1 | 2 | 3 | 4) => {
@@ -2838,20 +2837,12 @@ export function CutCalculator({
     (row) => !lockedRowIds.has(row.id),
   );
 
-  // Кнопка «Собрать шкаф по размерам» вверху страницы ведёт на #cabinet.
+  // Старые ссылки /calculator#cabinet ведут в конструктор мебели: шкаф
+  // собирается там, с 3D и ценой.
   useEffect(() => {
-    const openFromHash = () => {
-      if (window.location.hash !== "#cabinet") return;
-      setCabinetOpen(true);
-      window.history.replaceState(
-        null,
-        "",
-        window.location.pathname + window.location.search,
-      );
-    };
-    openFromHash();
-    window.addEventListener("hashchange", openFromHash);
-    return () => window.removeEventListener("hashchange", openFromHash);
+    if (window.location.hash === "#cabinet") {
+      window.location.replace("/konstruktor#wardrobe");
+    }
   }, []);
   const drillingRow =
     details.find(
@@ -3713,14 +3704,13 @@ export function CutCalculator({
                 Добавить деталь
               </Button>
               <div className="flex flex-wrap items-center gap-x-5 gap-y-3 text-sm">
-                <button
-                  type="button"
-                  onClick={() => setCabinetOpen(true)}
-                  className="inline-flex items-center gap-1.5 border-b border-[color:var(--line-strong)] pb-0.5 font-medium text-[var(--foreground)] transition-colors hover:border-[color:var(--foreground)] disabled:border-transparent disabled:text-[var(--muted)]"
+                <Link
+                  href="/konstruktor#wardrobe"
+                  className="inline-flex items-center gap-1.5 border-b border-[color:var(--line-strong)] pb-0.5 font-medium text-[var(--foreground)] transition-colors hover:border-[color:var(--foreground)]"
                 >
                   <LayoutPanelTop className="size-4" />
-                  Собрать шкаф по размерам
-                </button>
+                  Собрать шкаф в конструкторе
+                </Link>
                 <button
                   type="button"
                   onClick={exportToGibLab}
@@ -3745,28 +3735,6 @@ export function CutCalculator({
                   Очистить
                 </button>
               </div>
-              {cabinetOpen ? (
-                <CabinetBuilderDialog
-                  thickness={material.thicknessMm ?? 16}
-                  materialLabel={material.label}
-                  onClose={() => setCabinetOpen(false)}
-                  onAdd={(parts, label) => {
-                    importDetails(parts, "append");
-                    const note = `${label}: задняя стенка ХДФ — посчитать менеджеру.`;
-                    if (label) {
-                      setRequestDraft((current) => ({
-                        ...current,
-                        comment: current.comment.includes(note)
-                          ? current.comment
-                          : [current.comment.trim(), note]
-                              .filter(Boolean)
-                              .join("\n"),
-                      }));
-                    }
-                    setCabinetOpen(false);
-                  }}
-                />
-              ) : null}
             </div>
             <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-[color:var(--line)] pt-4">
               <button

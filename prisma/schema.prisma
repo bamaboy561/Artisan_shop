@@ -486,6 +486,8 @@ model OrderItem {
   snapshotSku          String?
   snapshotBrand        String?
   snapshotCategoryKind CategoryKind?
+  // Строка продана со скидкой по акции: бонусы за неё не начисляются.
+  isPromotional        Boolean       @default(false)
   createdAt            DateTime      @default(now())
 
   @@index([orderId])

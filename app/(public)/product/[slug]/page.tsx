@@ -1,4 +1,5 @@
 ﻿import { findMatchingEdges } from "@/features/storefront/matching-edges";
+import { cn } from "@/lib/utils";
 import { isSheetFormat } from "@/features/storefront/plate-gallery";
 import Link from "next/link";
 import type { Metadata } from "next";
@@ -8,6 +9,7 @@ import { AddBundleItemButton } from "@/components/ecommerce/add-bundle-item-butt
 import { AddToCartButton } from "@/components/ecommerce/add-to-cart-button";
 import { FavoriteToggle } from "@/components/catalog/favorite-toggle";
 import { ProductGalleryViewer } from "@/components/catalog/product-gallery-viewer";
+import { PromoBadge } from "@/components/catalog/promo-badge";
 import { StructuredData } from "@/components/seo/structured-data";
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { ButtonLink } from "@/components/ui/button-link";
@@ -266,15 +268,35 @@ export default async function ProductPage({ params }: ProductPageProps) {
               <div className="mt-5 border-y border-[color:var(--line)] py-4 sm:mt-7 sm:py-5">
                 {typeof product.price === "number" ? (
                   <div>
-                    <p className="font-mono text-[10px] tracking-[0.16em] text-[var(--muted)] uppercase">
-                      Цена
-                    </p>
-                    <p className="mt-2 text-[1.6rem] font-semibold text-[var(--foreground)] sm:text-2xl">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="font-mono text-[10px] tracking-[0.16em] text-[var(--muted)] uppercase">
+                        Цена
+                      </p>
+                      {product.isPromotional ? (
+                        <PromoBadge
+                          price={product.price}
+                          oldPrice={product.oldPrice}
+                          size="lg"
+                          className="-rotate-2"
+                        />
+                      ) : null}
+                    </div>
+                    <p
+                      className={cn(
+                        "mt-2 text-[1.6rem] font-semibold text-[var(--foreground)] sm:text-2xl",
+                        product.isPromotional && "text-[#e3001b]",
+                      )}
+                    >
                       {formatPrice(product.price)}
                     </p>
                     {product.oldPrice ? (
                       <p className="mt-1 text-sm text-[var(--muted)] line-through">
                         {formatPrice(product.oldPrice)}
+                      </p>
+                    ) : null}
+                    {product.isPromotional ? (
+                      <p className="mt-2 text-xs text-[var(--muted)]">
+                        Цена по акции. Бонусы на этот товар не начисляются.
                       </p>
                     ) : null}
                   </div>
@@ -511,6 +533,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                   inStock={item.inStock}
                   purchaseMode={item.purchaseMode}
                   isBundle={item.isBundle}
+                  isPromotional={item.isPromotional}
                   categoryName={item.categoryName}
                   productSlug={item.slug}
                   isFavorite={favoriteSlugs.has(item.slug)}

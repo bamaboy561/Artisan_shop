@@ -1,5 +1,6 @@
 import { ConfirmDeleteButton } from "@/components/admin/confirm-delete-button";
 import Link from "next/link";
+import { BookOpen } from "lucide-react";
 import { notFound } from "next/navigation";
 
 import {
@@ -8,6 +9,7 @@ import {
   updatePromotionAction,
 } from "@/app/admin/actions";
 import { AdminSubmitButton } from "@/components/admin/admin-submit-button";
+import { PromotionItemsPicker } from "@/components/admin/promotion-items-picker";
 import { Checkbox } from "@/components/ui/checkbox";
 import { getButtonClassName } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -63,9 +65,6 @@ export default async function EditPromotionPage({
 
   if (!promotion) notFound();
 
-  const selectedProductId = promotion.products[0]?.productId ?? "";
-  const selectedCategoryId = promotion.categories[0]?.categoryId ?? "";
-
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -75,12 +74,22 @@ export default async function EditPromotionPage({
           titleClassName="text-2xl sm:text-3xl"
           descriptionClassName="max-w-3xl text-sm leading-7"
         />
-        <Link
-          href="/admin/promotions"
-          className={getButtonClassName("secondary", "sm")}
-        >
-          К акциям
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <a
+            href={`/api/admin/promotions/magazine?promotion=${encodeURIComponent(promotion.id)}`}
+            download
+            className={getButtonClassName("accent", "sm")}
+          >
+            <BookOpen className="size-4" aria-hidden="true" />
+            Журнал этой акции (PDF)
+          </a>
+          <Link
+            href="/admin/promotions"
+            className={getButtonClassName("secondary", "sm")}
+          >
+            К акциям
+          </Link>
+        </div>
       </div>
 
       <form
@@ -156,30 +165,34 @@ export default async function EditPromotionPage({
           </label>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <label className="grid gap-2 text-sm text-[var(--foreground)]">
-            Товар
-            <Select name="productId" defaultValue={selectedProductId}>
-              <option value="">Без привязки к товару</option>
-              {options.products.map((product) => (
-                <option key={product.id} value={product.id}>
-                  {product.name} · {product.sku}
-                </option>
-              ))}
-            </Select>
-          </label>
-          <label className="grid gap-2 text-sm text-[var(--foreground)]">
-            Категория
-            <Select name="categoryId" defaultValue={selectedCategoryId}>
-              <option value="">Без привязки к категории</option>
-              {options.categories.map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.name}
-                </option>
-              ))}
-            </Select>
-          </label>
+        <div className="grid min-w-0 gap-5">
+          <PromotionItemsPicker
+            name="productIds"
+            label="Товары акции"
+            items={options.products}
+            defaultSelectedIds={promotion.products.map(
+              (item) => item.productId,
+            )}
+            emptyText="Товары не выбраны. Найдите и нажмите на товар, можно сколько угодно."
+          />
+
+          <PromotionItemsPicker
+            name="categoryIds"
+            label="Категории акции"
+            items={options.categories}
+            defaultSelectedIds={promotion.categories.map(
+              (item) => item.categoryId,
+            )}
+            placeholder="Название категории"
+            emptyText="Категории не выбраны."
+          />
         </div>
+
+        <p className="-mt-2 text-xs leading-5 text-[var(--muted)]">
+          Скидка действует на выбранные товары, если цель акции «Товары», или на
+          все товары выбранных категорий, если цель «Категории». На витрине
+          такие товары получают бирку «Акция!».
+        </p>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="grid gap-2 text-sm text-[var(--foreground)]">
