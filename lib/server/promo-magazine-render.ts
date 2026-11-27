@@ -226,7 +226,16 @@ function bishkekParts(date: Date) {
   return { year: get("year"), month: get("month") - 1, day: get("day") };
 }
 
-export function magazineUntil(date: Date | null) {
+// Срок акции для обложки. У акции, которая начнётся позже, сначала дата
+// начала: журнал печатают заранее, и клиент должен видеть, с какого дня цена.
+export function magazineUntil(date: Date | null, startsAt: Date | null = null) {
+  if (startsAt) {
+    const start = bishkekParts(startsAt);
+    const from = `с ${start.day} ${MONTHS_GENITIVE[start.month]}`;
+    if (!date) return `Акция ${from} ${start.year}`;
+    const { day, month, year } = bishkekParts(date);
+    return `Акция ${from}${start.year === year ? "" : ` ${start.year}`} до ${day} ${MONTHS_GENITIVE[month]} ${year}`;
+  }
   if (!date) return "Пока товар есть в наличии";
   const { day, month, year } = bishkekParts(date);
   return `Акция до ${day} ${MONTHS_GENITIVE[month]} ${year}`;
@@ -750,12 +759,17 @@ function drawPageHeader(doc: Doc, data: PromoMagazineData) {
     .font("bold")
     .fontSize(9)
     .fillColor("#ffffff")
-    .text(magazineUntil(data.endsAt).toUpperCase(), PAGE.margin, 18, {
-      width: PAGE.width - PAGE.margin * 2,
-      align: "right",
-      characterSpacing: 1,
-      lineBreak: false,
-    });
+    .text(
+      magazineUntil(data.endsAt, data.startsAt).toUpperCase(),
+      PAGE.margin,
+      18,
+      {
+        width: PAGE.width - PAGE.margin * 2,
+        align: "right",
+        characterSpacing: 1,
+        lineBreak: false,
+      },
+    );
 }
 
 function drawPageFooter(doc: Doc, data: PromoMagazineData, page: number) {
@@ -968,7 +982,7 @@ async function drawCover(
         lineBreak: false,
       });
   }
-  const { month, year } = bishkekParts(data.createdAt);
+  const { month, year } = bishkekParts(data.startsAt ?? data.createdAt);
   const newYear = T(doc).id === "new-year";
   doc
     .font("bold")
@@ -1027,7 +1041,7 @@ async function drawCover(
     .fontSize(11)
     .fillColor("#ffffff")
     .text(
-      `${magazineUntil(data.endsAt)} · ${data.products.length} ${plural(data.products.length, "товар", "товара", "товаров")} со скидкой`,
+      `${magazineUntil(data.endsAt, data.startsAt)} · ${data.products.length} ${plural(data.products.length, "товар", "товара", "товаров")} со скидкой`,
       left,
       titleTop + titleHeight + 6,
       { width: right - left, lineBreak: false, ellipsis: true },
@@ -1189,15 +1203,18 @@ async function drawBackCover(doc: Doc, data: PromoMagazineData) {
       .text(text, tx + 16, 690, { width: tileWidth - 24, lineBreak: false });
   });
 
-  const date = data.createdAt.toLocaleDateString("ru-RU", {
+  const date = (data.startsAt ?? data.createdAt).toLocaleDateString("ru-RU", {
     timeZone: "Asia/Bishkek",
   });
+  const pricesNote = data.startsAt
+    ? `Цены по акции действуют с ${date}, до этого дня товар продаётся по обычной цене.`
+    : `Цены указаны в сомах на ${date}.`;
   doc
     .font("regular")
     .fontSize(8)
     .fillColor("#8d867e")
     .text(
-      `Цены указаны в сомах на ${date}. Количество акционного товара ограничено. Скидки по разным акциям не суммируются. Распил, кромка и присадка в цеху Artisan.`,
+      `${pricesNote} Количество акционного товара ограничено. Скидки по разным акциям не суммируются. Распил, кромка и присадка в цеху Artisan.`,
       left,
       H - 70,
       { width: right - left, lineGap: 2 },

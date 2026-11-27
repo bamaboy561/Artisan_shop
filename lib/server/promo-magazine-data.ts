@@ -202,6 +202,12 @@ export async function getPromoMagazineData(promotionId = "") {
     endsAt: endDates.length
       ? new Date(Math.max(...endDates.map((date) => date.getTime())))
       : null,
+    // Акция начнётся позже: журнал напечатан заранее, на обложке и в
+    // примечании — дата начала, а не «цены на сегодня».
+    startsAt:
+      promotion?.startsAt && promotion.startsAt > now
+        ? promotion.startsAt
+        : null,
     maxPercent: items.reduce((max, item) => Math.max(max, item.percent), 0),
     createdAt: new Date(),
     products: items,
