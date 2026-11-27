@@ -46,7 +46,8 @@ export async function GET(request: Request) {
     const data = await getPromoMagazineData(promotionId);
     if (!data.products.length)
       return new Response(
-        "Сейчас нет товаров с действующей скидкой. Проверьте, что акция активна, сроки идут и к ней привязаны товары или категории.",
+        data.emptyReason ??
+          "Сейчас нет товаров с действующей скидкой. Проверьте, что акция активна, сроки идут и к ней привязаны товары или категории.",
         {
           status: 404,
           headers: { ...headers, "Content-Type": "text/plain; charset=utf-8" },
