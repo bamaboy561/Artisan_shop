@@ -1,5 +1,6 @@
 import { ConfirmDeleteButton } from "@/components/admin/confirm-delete-button";
 import Link from "next/link";
+import { BookOpen } from "lucide-react";
 import { notFound } from "next/navigation";
 
 import {
@@ -73,12 +74,22 @@ export default async function EditPromotionPage({
           titleClassName="text-2xl sm:text-3xl"
           descriptionClassName="max-w-3xl text-sm leading-7"
         />
-        <Link
-          href="/admin/promotions"
-          className={getButtonClassName("secondary", "sm")}
-        >
-          К акциям
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <a
+            href={`/api/admin/promotions/magazine?promotion=${encodeURIComponent(promotion.id)}`}
+            download
+            className={getButtonClassName("accent", "sm")}
+          >
+            <BookOpen className="size-4" aria-hidden="true" />
+            Журнал этой акции (PDF)
+          </a>
+          <Link
+            href="/admin/promotions"
+            className={getButtonClassName("secondary", "sm")}
+          >
+            К акциям
+          </Link>
+        </div>
       </div>
 
       <form
